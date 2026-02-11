@@ -37,8 +37,11 @@ use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::term::Term;
 
-use crate::encode_sort::encode_type;
-use crate::encode_term::{encode_binop, encode_operand, encode_unop, overflow_check};
+use crate::encode_sort::{collect_datatype_declarations, encode_type};
+use crate::encode_term::{
+    encode_aggregate_with_type, encode_binop, encode_field_access, encode_operand,
+    encode_place_with_type, encode_unop, overflow_check,
+};
 use crate::ir::*;
 
 /// A verification condition with metadata for error reporting.
@@ -117,6 +120,9 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
 
     let mut conditions = Vec::new();
 
+    // Collect datatype declarations (must come before variable declarations)
+    let datatype_declarations = collect_datatype_declarations(func);
+
     // Collect all variable declarations
     let declarations = collect_declarations(func);
 
@@ -127,17 +133,19 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
     // Generate overflow VCs from all paths
     for path in &paths {
         for ov in &path.overflow_vcs {
-            let mut vc = generate_overflow_vc(func, &declarations, ov);
+            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
             conditions.append(&mut vc);
         }
     }
 
     // Generate terminator assertion VCs (Terminator::Assert)
-    let mut assert_vcs = generate_assert_terminator_vcs(func, &declarations, &paths);
+    let mut assert_vcs =
+        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
     conditions.append(&mut assert_vcs);
 
     // Generate contract verification conditions (postconditions)
-    let mut contract_vcs = generate_contract_vcs(func, &declarations, &paths);
+    let mut contract_vcs =
+        generate_contract_vcs(func, &datatype_declarations, &declarations, &paths);
     conditions.append(&mut contract_vcs);
 
     tracing::info!(
@@ -415,15 +423,33 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
     decls
 }
 
-/// Build a base script with logic and declarations.
-fn base_script(declarations: &[Command]) -> Script {
+/// Build a base script with logic, datatype declarations, and variable declarations.
+///
+/// Datatype declarations (DeclareDatatype) must come AFTER SetLogic/SetOption
+/// but BEFORE DeclareConst, since SMT-LIB requires sorts to be declared before use.
+fn base_script(datatype_declarations: &[Command], variable_declarations: &[Command]) -> Script {
     let mut script = Script::new();
-    script.push(Command::SetLogic("QF_BV".to_string()));
+
+    // Use QF_UFBVDT when datatypes are present (QF_BV doesn't support datatypes,
+    // QF_UFDT doesn't support bitvectors -- we need both)
+    if datatype_declarations.is_empty() {
+        script.push(Command::SetLogic("QF_BV".to_string()));
+    } else {
+        script.push(Command::SetLogic("QF_UFBVDT".to_string()));
+    }
+
     script.push(Command::SetOption(
         "produce-models".to_string(),
         "true".to_string(),
     ));
-    for decl in declarations {
+
+    // Datatype declarations first (sort definitions)
+    for decl in datatype_declarations {
+        script.push(decl.clone());
+    }
+
+    // Then variable declarations (which may reference the datatype sorts)
+    for decl in variable_declarations {
         script.push(decl.clone());
     }
     script
@@ -436,10 +462,21 @@ fn encode_assignment(
     func: &Function,
     _ssa_counter: &mut HashMap<String, u32>,
 ) -> Option<Command> {
+    // Handle projected LHS (field access on left side)
+    if !place.projections.is_empty() {
+        // For projected places, encode the LHS using type-aware projection
+        let lhs = encode_place_with_type(place, func)?;
+        let rhs = match rvalue {
+            Rvalue::Use(op) => encode_operand_for_vcgen(op, func),
+            _ => return None, // Complex rvalues on projected places are rare
+        };
+        return Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))));
+    }
+
     let lhs = Term::Const(place.local.clone());
 
     let rhs = match rvalue {
-        Rvalue::Use(op) => encode_operand(op),
+        Rvalue::Use(op) => encode_operand_for_vcgen(op, func),
         Rvalue::BinaryOp(op, lhs_op, rhs_op) => {
             let l = encode_operand(lhs_op);
             let r = encode_operand(rhs_op);
@@ -478,9 +515,13 @@ fn encode_assignment(
             // Phase 1: casts are identity (TODO: proper cast encoding)
             encode_operand(op)
         }
-        Rvalue::Aggregate(_, _) => {
-            // Phase 1: skip aggregate construction
-            return None;
+        Rvalue::Aggregate(kind, operands) => {
+            let result_ty = find_local_type(func, &place.local);
+            if let Some(ty) = result_ty {
+                encode_aggregate_with_type(kind, operands, ty)?
+            } else {
+                return None;
+            }
         }
         Rvalue::Discriminant(_) => {
             // Phase 1: skip discriminant
@@ -529,6 +570,7 @@ fn encode_path_assignments(func: &Function, path: &CfgPath) -> Vec<Command> {
 /// Generate an overflow VC from overflow info collected during path traversal.
 fn generate_overflow_vc(
     func: &Function,
+    datatype_declarations: &[Command],
     declarations: &[Command],
     ov: &OverflowVcInfo,
 ) -> Vec<VerificationCondition> {
@@ -543,7 +585,7 @@ fn generate_overflow_vc(
     if let Some(ty) = ty
         && let Some(no_overflow) = overflow_check(ov.op, &lhs, &rhs, ty)
     {
-        let mut script = base_script(declarations);
+        let mut script = base_script(datatype_declarations, declarations);
 
         // Add prior assignments along this path
         let mut ssa_counter = HashMap::new();
@@ -590,6 +632,7 @@ fn generate_overflow_vc(
 /// Generate VCs for Terminator::Assert along all paths.
 fn generate_assert_terminator_vcs(
     func: &Function,
+    datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
 ) -> Vec<VerificationCondition> {
@@ -610,7 +653,7 @@ fn generate_assert_terminator_vcs(
                 })
                 .collect();
 
-            let mut script = base_script(declarations);
+            let mut script = base_script(datatype_declarations, declarations);
 
             // Encode all path assignments
             for path in &relevant_paths {
@@ -667,6 +710,7 @@ fn generate_assert_terminator_vcs(
 /// 4. Try to find a counterexample where the postcondition fails
 fn generate_contract_vcs(
     func: &Function,
+    datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
 ) -> Vec<VerificationCondition> {
@@ -677,7 +721,7 @@ fn generate_contract_vcs(
     }
 
     for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-        let mut script = base_script(declarations);
+        let mut script = base_script(datatype_declarations, declarations);
 
         // Encode assignments from ALL paths, each guarded by its path condition
         for path in paths {
@@ -727,6 +771,24 @@ fn generate_contract_vcs(
     }
 
     vcs
+}
+
+/// Encode an operand for VCGen with type-aware projection resolution.
+///
+/// If the operand references a place with projections (field access, indexing),
+/// uses the function's type information to resolve them as selector applications.
+fn encode_operand_for_vcgen(op: &Operand, func: &Function) -> Term {
+    match op {
+        Operand::Copy(place) | Operand::Move(place) => {
+            if place.projections.is_empty() {
+                encode_operand(op)
+            } else {
+                // Try type-aware encoding for projections
+                encode_place_with_type(place, func).unwrap_or_else(|| encode_operand(op))
+            }
+        }
+        Operand::Constant(_) => encode_operand(op),
+    }
 }
 
 /// Find the type of a local variable by name.
@@ -832,10 +894,104 @@ const COMPARISON_OPS: &[(&str, ComparisonFn)] = &[
     ("<", |l, r, f| make_comparison(BinOp::Lt, l, r, f)),
 ];
 
+/// Infer signedness for a comparison from the function context and operand terms.
+///
+/// When comparing field accesses like `result.x > 0` on a struct return type,
+/// we inspect the field type to determine whether signed or unsigned comparison
+/// should be used (e.g., i32 -> signed, u32 -> unsigned).
+fn infer_signedness_from_context(func: &Function, lhs: &Term, rhs: &Term) -> bool {
+    // Check if either operand is a selector application (field access)
+    // If so, determine signedness from the field type
+    if let Some(signed) = infer_signedness_from_term(func, lhs) {
+        return signed;
+    }
+    if let Some(signed) = infer_signedness_from_term(func, rhs) {
+        return signed;
+    }
+
+    // Fallback: check return type and first parameter
+    func.return_local.ty.is_signed() || func.params.first().is_some_and(|p| p.ty.is_signed())
+}
+
+/// Try to infer signedness from a term by looking at selector applications.
+fn infer_signedness_from_term(func: &Function, term: &Term) -> Option<bool> {
+    if let Term::App(selector_name, args) = term
+        && args.len() == 1
+    {
+        // This looks like a selector application. Try to resolve the field type.
+        // Selector names follow patterns:
+        //   "{TypeName}-{field_name}" for structs
+        //   "Tuple{N}-_{idx}" for tuples
+        if let Some(field_ty) = resolve_selector_type(func, selector_name) {
+            return Some(field_ty.is_signed());
+        }
+    }
+    // Check if term is a variable with a known type
+    if let Term::Const(name) = term
+        && let Some(ty) = find_local_type(func, name)
+        && (ty.is_signed() || ty.is_unsigned())
+    {
+        return Some(ty.is_signed());
+    }
+    None
+}
+
+/// Resolve the type of a field from a selector name.
+///
+/// Searches the function's types for matching struct/tuple fields.
+fn resolve_selector_type<'a>(func: &'a Function, selector_name: &str) -> Option<&'a Ty> {
+    // Check return type
+    if let Some(ty) = resolve_selector_from_ty(&func.return_local.ty, selector_name) {
+        return Some(ty);
+    }
+    // Check params
+    for p in &func.params {
+        if let Some(ty) = resolve_selector_from_ty(&p.ty, selector_name) {
+            return Some(ty);
+        }
+    }
+    // Check locals
+    for l in &func.locals {
+        if let Some(ty) = resolve_selector_from_ty(&l.ty, selector_name) {
+            return Some(ty);
+        }
+    }
+    None
+}
+
+fn resolve_selector_from_ty<'a>(ty: &'a Ty, selector_name: &str) -> Option<&'a Ty> {
+    match ty {
+        Ty::Struct(name, fields) => {
+            // Struct selectors: "{TypeName}-{field_name}"
+            let prefix = format!("{name}-");
+            if let Some(field_name) = selector_name.strip_prefix(&prefix) {
+                for (fname, fty) in fields {
+                    if fname == field_name {
+                        return Some(fty);
+                    }
+                }
+            }
+        }
+        Ty::Tuple(fields) => {
+            // Tuple selectors: "Tuple{N}-_{idx}"
+            let type_name = format!("Tuple{}", fields.len());
+            let prefix = format!("{type_name}-_");
+            if let Some(idx_str) = selector_name.strip_prefix(&prefix)
+                && let Ok(idx) = idx_str.parse::<usize>()
+            {
+                return fields.get(idx);
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
 fn make_comparison(op: BinOp, lhs: Term, rhs: Term, func: &Function) -> Term {
-    // Determine signedness from the return type or first parameter
-    let signed =
-        func.return_local.ty.is_signed() || func.params.first().is_some_and(|p| p.ty.is_signed());
+    // Determine signedness from the operand types:
+    // 1. Check return type and param types for direct integer types
+    // 2. For struct/tuple returns, check field types referenced in the comparison
+    let signed = infer_signedness_from_context(func, &lhs, &rhs);
 
     let l = Box::new(lhs);
     let r = Box::new(rhs);
@@ -860,6 +1016,37 @@ fn parse_spec_operand(s: &str, func: &Function) -> Option<Term> {
     // `result` -> `_0` (return place)
     if s == "result" {
         return Some(Term::Const(func.return_local.name.clone()));
+    }
+
+    // `result.field` -> selector application on return value
+    if let Some(field_name) = s.strip_prefix("result.") {
+        let base = Term::Const(func.return_local.name.clone());
+        let ret_ty = &func.return_local.ty;
+        match ret_ty {
+            Ty::Struct(type_name, fields) => {
+                // Try matching by field name
+                if fields.iter().any(|(f, _)| f == field_name) {
+                    let selector = format!("{type_name}-{field_name}");
+                    return Some(Term::App(selector, vec![base]));
+                }
+                // Try matching by index
+                if let Ok(idx) = field_name.parse::<usize>() {
+                    return encode_field_access(base, ret_ty, idx);
+                }
+            }
+            Ty::Tuple(fields) => {
+                // Tuple fields are accessed by index: result.0, result.1, etc.
+                // Also support _0, _1 style
+                let idx_str = field_name.strip_prefix('_').unwrap_or(field_name);
+                if let Ok(idx) = idx_str.parse::<usize>()
+                    && idx < fields.len()
+                {
+                    let selector = format!("Tuple{}-_{idx}", fields.len());
+                    return Some(Term::App(selector, vec![base]));
+                }
+            }
+            _ => {}
+        }
     }
 
     // Integer literal

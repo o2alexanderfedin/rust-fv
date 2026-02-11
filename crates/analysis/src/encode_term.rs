@@ -4,7 +4,7 @@
 /// its exact semantics, including overflow and division-by-zero checks.
 use rust_fv_smtlib::term::Term;
 
-use crate::ir::{BinOp, Constant, Operand, Place, Ty, UnOp};
+use crate::ir::{AggregateKind, BinOp, Constant, Function, Operand, Place, Projection, Ty, UnOp};
 
 /// Encode an operand as an SMT-LIB term.
 pub fn encode_operand(op: &Operand) -> Term {
@@ -45,6 +45,170 @@ pub fn encode_place(place: &Place) -> Term {
         }
         Term::Const(name)
     }
+}
+
+/// Encode a place with projections resolved using type information.
+///
+/// For struct field access: applies selector function `Term::App("{Type}-{field}", [base])`
+/// For tuple field access: applies selector function `Term::App("Tuple{N}-_{idx}", [base])`
+/// For array index access: applies `Term::Select(base, index)`
+/// For deref: transparent (same as inner)
+pub fn encode_place_with_type(place: &Place, func: &Function) -> Option<Term> {
+    if place.projections.is_empty() {
+        return Some(Term::Const(place.local.clone()));
+    }
+
+    let mut current = Term::Const(place.local.clone());
+    let mut current_ty = find_local_type(func, &place.local)?;
+
+    for proj in &place.projections {
+        match proj {
+            Projection::Field(idx) => {
+                current = encode_field_access(current, current_ty, *idx)?;
+                // Update current_ty to the field's type
+                current_ty = get_field_type(current_ty, *idx)?;
+            }
+            Projection::Index(idx_local) => {
+                let index_term = Term::Const(idx_local.clone());
+                current = Term::Select(Box::new(current), Box::new(index_term));
+                // Update current_ty to the element type
+                current_ty = get_element_type(current_ty)?;
+            }
+            Projection::Deref => {
+                // References are transparent
+                if let Ty::Ref(inner, _) = current_ty {
+                    current_ty = inner;
+                }
+            }
+            Projection::Downcast(_variant_idx) => {
+                // Enum downcast is handled during pattern matching
+                // The type doesn't change here
+            }
+        }
+    }
+
+    Some(current)
+}
+
+/// Encode struct/tuple field access as a selector application.
+pub fn encode_field_access(base: Term, ty: &Ty, field_idx: usize) -> Option<Term> {
+    match ty {
+        Ty::Struct(name, fields) => {
+            let field_name = &fields.get(field_idx)?.0;
+            let selector = format!("{name}-{field_name}");
+            Some(Term::App(selector, vec![base]))
+        }
+        Ty::Tuple(fields) => {
+            if field_idx < fields.len() {
+                let selector = format!("Tuple{}-_{field_idx}", fields.len());
+                Some(Term::App(selector, vec![base]))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Encode aggregate construction as a constructor application.
+pub fn encode_aggregate(kind: &AggregateKind, operands: &[Operand]) -> Option<Term> {
+    let encoded_ops: Vec<Term> = operands.iter().map(encode_operand).collect();
+
+    match kind {
+        AggregateKind::Struct(name) => {
+            let constructor = format!("mk-{name}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+        AggregateKind::Tuple => {
+            let n = operands.len();
+            if n == 0 {
+                // Unit tuple -> Bool true
+                return Some(Term::BoolLit(true));
+            }
+            let constructor = format!("mk-Tuple{n}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+        AggregateKind::Enum(_name, variant_idx) => {
+            // For enums, we need the variant name from the type.
+            // For now, use a generic constructor with variant index.
+            // In practice, the caller should provide the variant name from
+            // the type definition. We use a placeholder pattern.
+            let constructor = format!("mk-variant-{variant_idx}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+    }
+}
+
+/// Encode aggregate construction with full type information.
+///
+/// For enum variants, uses the type to resolve the variant name.
+pub fn encode_aggregate_with_type(
+    kind: &AggregateKind,
+    operands: &[Operand],
+    result_ty: &Ty,
+) -> Option<Term> {
+    let encoded_ops: Vec<Term> = operands.iter().map(encode_operand).collect();
+
+    match kind {
+        AggregateKind::Struct(name) => {
+            let constructor = format!("mk-{name}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+        AggregateKind::Tuple => {
+            let n = operands.len();
+            if n == 0 {
+                return Some(Term::BoolLit(true));
+            }
+            let constructor = format!("mk-Tuple{n}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+        AggregateKind::Enum(_name, variant_idx) => {
+            if let Ty::Enum(_enum_name, variants) = result_ty
+                && let Some((variant_name, _)) = variants.get(*variant_idx)
+            {
+                let constructor = format!("mk-{variant_name}");
+                return Some(Term::App(constructor, encoded_ops));
+            }
+            // Fallback: use variant index
+            let constructor = format!("mk-variant-{variant_idx}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+    }
+}
+
+/// Get the type of a field at the given index.
+fn get_field_type(ty: &Ty, idx: usize) -> Option<&Ty> {
+    match ty {
+        Ty::Struct(_, fields) => fields.get(idx).map(|(_, ty)| ty),
+        Ty::Tuple(fields) => fields.get(idx),
+        _ => None,
+    }
+}
+
+/// Get the element type of an array or slice.
+fn get_element_type(ty: &Ty) -> Option<&Ty> {
+    match ty {
+        Ty::Array(elem, _) | Ty::Slice(elem) => Some(elem),
+        _ => None,
+    }
+}
+
+/// Find the type of a local variable by name.
+fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
+    if func.return_local.name == name {
+        return Some(&func.return_local.ty);
+    }
+    for p in &func.params {
+        if p.name == name {
+            return Some(&p.ty);
+        }
+    }
+    for l in &func.locals {
+        if l.name == name {
+            return Some(&l.ty);
+        }
+    }
+    None
 }
 
 /// Encode a constant value as an SMT-LIB term.
