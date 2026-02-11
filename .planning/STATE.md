@@ -10,20 +10,21 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 ## Current Position
 
 Phase: 4 of 5 (Differentiation) -- IN PROGRESS
-Plan: 2 of 4 in current phase -- quantifiers and triggers complete
-Status: Phase 4 execution -- 04-01 and 04-02 complete
-Last activity: 2026-02-11 -- 04-02 quantifier support with trigger inference
+Plan: 3 of 4 in current phase -- monomorphization and generics complete
+Status: Phase 4 execution -- 04-01, 04-02, and 04-04 complete
+Last activity: 2026-02-11 -- 04-04 generic function verification via monomorphization
 
-Progress: [██████████░░░░░░░░░░] 50% (Phase 4: 2/4 plans complete)
+Progress: [███████████████░░░░░] 75% (Phase 4: 3/4 plans complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 480+ tests passing (118 analysis unit + 37 spec_parser + 12 e2e + 10 loop E2E + 11 assertion E2E + 10 interprocedural E2E + 12 ownership E2E + 22 soundness + 22 completeness + 112 smtlib + 63 solver + 12 macros + rest), zero warnings
+- 498+ tests passing (137 analysis unit + 42 spec_parser + 17 e2e + 10 loop E2E + 11 assertion E2E + 10 interprocedural E2E + 12 ownership E2E + 22 soundness + 22 completeness + 112 smtlib + 63 solver + 12 macros + rest), zero warnings
 - **Inter-procedural verification (03-01)**: ContractDatabase, call-site encoding (assert-pre/havoc/assume-post), modular verification of call chains
 - **Ownership-aware verification (03-02)**: OwnershipKind classification, pre-call snapshot constraints for SharedBorrow/Copied, havoc for MutableBorrow
 - **Unbounded integers (04-01)**: SpecInt/SpecNat types, `as int` cast syntax, Bv2Int/Int2Bv terms, `#[ghost]` macro (Z3 bv2int integration deferred)
 - **Quantifiers and triggers (04-02)**: forall/exists specs with automatic trigger inference, Term::Annotated for :pattern, implies() function, verified by Z3
+- **Generic function verification (04-04)**: Monomorphization with MonomorphizationRegistry, per-instantiation VC generation, concrete type substitution, verified max<T: Ord> for i32/u64
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -46,9 +47,9 @@ Progress: [██████████░░░░░░░░░░] 50% (Ph
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: ~13 min
-- Total execution time: ~156 min
+- Total plans completed: 13
+- Average duration: ~14 min
+- Total execution time: ~187 min
 
 **By Phase:**
 
@@ -57,7 +58,7 @@ Progress: [██████████░░░░░░░░░░] 50% (Ph
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 | 03-modular-verification | 2/2 | ~21 min | ~11 min |
-| 04-differentiation | 2/4 | ~36 min | ~18 min |
+| 04-differentiation | 3/4 | ~67 min | ~22 min |
 
 *Updated after each plan completion*
 
@@ -121,6 +122,11 @@ Recent decisions affecting current work:
 - [04-02]: Automatic annotation in parse_spec (all quantified specs benefit automatically)
 - [04-02]: Warn on missing trigger but don't fail (incomplete instantiation better than rejection)
 - [04-02]: ALL logic for quantified specs (Z3 auto-detects theories)
+- [04-04]: Monomorphization strategy mirrors Rust's (separate VCs per concrete type instantiation)
+- [04-04]: MonomorphizationRegistry tracks instantiations per function name
+- [04-04]: substitute_generics replaces Ty::Generic recursively throughout Function IR
+- [04-04]: encode_type panics on Ty::Generic to enforce monomorphization-first
+- [04-04]: generate_vcs_monomorphized wraps generate_vcs for backward compatibility
 
 ### Pending Todos
 
@@ -133,6 +139,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 4 Plan 02 complete -- quantifier support with trigger inference
+Stopped at: Phase 4 Plan 04 complete -- generic function verification via monomorphization
 Resume file: None
-Next step: Execute Phase 4 Plan 03 (arrays) or Plan 04 (higher-order functions) - quantifiers ready for array/function specs
+Next step: Execute Phase 4 Plan 03 (arrays) - final plan in differentiation phase
