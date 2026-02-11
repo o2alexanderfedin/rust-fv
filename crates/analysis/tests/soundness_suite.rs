@@ -268,6 +268,25 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             }
             out.push(')');
         }
+        T::Annotated(body, annotations) => {
+            if annotations.is_empty() {
+                format_term(out, body);
+            } else {
+                out.push_str("(! ");
+                format_term(out, body);
+                for (key, values) in annotations {
+                    out.push_str(&format!(" :{key} ("));
+                    for (i, val) in values.iter().enumerate() {
+                        if i > 0 {
+                            out.push(' ');
+                        }
+                        format_term(out, val);
+                    }
+                    out.push(')');
+                }
+                out.push(')');
+            }
+        }
     }
 }
 
