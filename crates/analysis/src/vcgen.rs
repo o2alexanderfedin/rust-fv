@@ -113,6 +113,8 @@ struct OverflowVcInfo {
 /// each checking one verification condition. If any script is SAT,
 /// the corresponding condition is violated.
 pub fn generate_vcs(func: &Function) -> FunctionVCs {
+    tracing::info!(function = %func.name, "Generating verification conditions");
+
     let mut conditions = Vec::new();
 
     // Collect all variable declarations
@@ -120,6 +122,7 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
 
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
+    tracing::debug!(function = %func.name, path_count = paths.len(), "Enumerated CFG paths");
 
     // Generate overflow VCs from all paths
     for path in &paths {
@@ -136,6 +139,12 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
     // Generate contract verification conditions (postconditions)
     let mut contract_vcs = generate_contract_vcs(func, &declarations, &paths);
     conditions.append(&mut contract_vcs);
+
+    tracing::info!(
+        function = %func.name,
+        vc_count = conditions.len(),
+        "Verification condition generation complete"
+    );
 
     FunctionVCs {
         function_name: func.name.clone(),

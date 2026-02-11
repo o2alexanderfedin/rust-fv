@@ -205,10 +205,7 @@ fn test_extension_operations() {
         Box::new(Term::BitVecLit(0xFF, 8)),
     )));
     script.push(SmtCmd::Assert(Term::Eq(
-        Box::new(Term::ZeroExtend(
-            8,
-            Box::new(Term::Const("x".to_string())),
-        )),
+        Box::new(Term::ZeroExtend(8, Box::new(Term::Const("x".to_string())))),
         Box::new(Term::BitVecLit(0x00FF, 16)),
     )));
 
@@ -227,10 +224,7 @@ fn test_sign_extension() {
         Box::new(Term::BitVecLit(0xFF, 8)),
     )));
     script.push(SmtCmd::Assert(Term::Eq(
-        Box::new(Term::SignExtend(
-            8,
-            Box::new(Term::Const("x".to_string())),
-        )),
+        Box::new(Term::SignExtend(8, Box::new(Term::Const("x".to_string())))),
         Box::new(Term::BitVecLit(0xFFFF, 16)),
     )));
 

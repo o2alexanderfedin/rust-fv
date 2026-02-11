@@ -50,11 +50,23 @@ pub fn encode_type(ty: &Ty) -> Sort {
         Ty::RawPtr(_, _) => Sort::BitVec(64),
 
         Ty::Tuple(fields) if fields.is_empty() => Sort::Bool,
-        Ty::Tuple(_) => Sort::Uninterpreted("Tuple".to_string()),
+        Ty::Tuple(_) => {
+            tracing::trace!("Encoding tuple as uninterpreted sort (Phase 2 TODO)");
+            Sort::Uninterpreted("Tuple".to_string())
+        }
 
-        Ty::Struct(name, _) => Sort::Uninterpreted(name.clone()),
-        Ty::Enum(name, _) => Sort::Uninterpreted(name.clone()),
-        Ty::Named(name) => Sort::Uninterpreted(name.clone()),
+        Ty::Struct(name, _) => {
+            tracing::trace!(struct_name = %name, "Encoding struct as uninterpreted sort");
+            Sort::Uninterpreted(name.clone())
+        }
+        Ty::Enum(name, _) => {
+            tracing::trace!(enum_name = %name, "Encoding enum as uninterpreted sort");
+            Sort::Uninterpreted(name.clone())
+        }
+        Ty::Named(name) => {
+            tracing::trace!(type_name = %name, "Encoding named type as uninterpreted sort");
+            Sort::Uninterpreted(name.clone())
+        }
     }
 }
 

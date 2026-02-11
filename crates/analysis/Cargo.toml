@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 rust-fv-smtlib = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rust-fv-solver = { workspace = true }

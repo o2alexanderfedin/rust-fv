@@ -38,7 +38,7 @@ pub mod solver;
 pub mod z3_native;
 
 // Re-export primary types for ergonomic use
-pub use backend::{create_default_backend, SolverBackend};
+pub use backend::{SolverBackend, create_default_backend};
 pub use config::SolverConfig;
 pub use error::SolverError;
 pub use model::Model;

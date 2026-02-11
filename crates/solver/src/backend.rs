@@ -84,9 +84,6 @@ mod tests {
     #[test]
     fn create_default_backend_succeeds() {
         let backend = create_default_backend();
-        assert!(
-            backend.is_ok(),
-            "Default backend creation should succeed"
-        );
+        assert!(backend.is_ok(), "Default backend creation should succeed");
     }
 }

@@ -28,6 +28,15 @@ mod mir_converter;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // Initialize tracing subscriber before any verification work
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("rust_fv=info".parse().unwrap()),
+        )
+        .with_target(true)
+        .init();
+
     let early_dcx =
         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());
     rustc_driver::init_rustc_env_logger(&early_dcx);

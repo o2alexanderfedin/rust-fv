@@ -24,7 +24,7 @@ use rust_fv_smtlib::command::Command as SmtCmd;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
-use z3::ast::{Bool, BV};
+use z3::ast::{BV, Bool};
 use z3::{Config, SatResult, Solver};
 
 use crate::error::SolverError;
@@ -73,7 +73,7 @@ impl Z3NativeSolver {
                         _ => {
                             return Err(SolverError::ParseError(
                                 "Assert requires Bool term".to_string(),
-                            ))
+                            ));
                         }
                     }
                 }
@@ -205,9 +205,7 @@ fn translate_term(symbols: &HashMap<String, Z3Value>, term: &Term) -> Result<Z3V
             let b_ast = translate_term(symbols, b)?;
             match (a_ast, b_ast) {
                 (Z3Value::Bool(a_b), Z3Value::Bool(b_b)) => Ok(Z3Value::Bool(a_b.implies(&b_b))),
-                _ => Err(SolverError::ParseError(
-                    "Implies requires Bool".to_string(),
-                )),
+                _ => Err(SolverError::ParseError("Implies requires Bool".to_string())),
             }
         }
 
@@ -301,7 +299,11 @@ where
 }
 
 /// Helper for bitvector unary operations.
-fn translate_bv_unary<F>(symbols: &HashMap<String, Z3Value>, a: &Term, op: F) -> Result<Z3Value, SolverError>
+fn translate_bv_unary<F>(
+    symbols: &HashMap<String, Z3Value>,
+    a: &Term,
+    op: F,
+) -> Result<Z3Value, SolverError>
 where
     F: FnOnce(BV) -> BV,
 {
