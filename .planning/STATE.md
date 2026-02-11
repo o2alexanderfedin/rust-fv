@@ -9,17 +9,17 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 ## Current Position
 
-Phase: 2 of 5 (Table Stakes Completion)
-Plan: 5 of 5 in current phase
-Status: In progress - assertions/panic detection complete
-Last activity: 2026-02-11 -- Completed 02-03: Assertions and panic detection (AssertKind)
+Phase: 2 of 5 (Table Stakes Completion) -- COMPLETE
+Plan: 5 of 5 in current phase -- ALL DONE
+Status: Phase 2 complete -- all 5 plans executed successfully
+Last activity: 2026-02-11 -- Completed 02-05: Spec parser + cargo verify (final Phase 2 plan)
 
-Progress: [██████████████████  ] 90% (Phase 2: plans 02-01, 02-02, 02-03, 02-04 complete; 02-05 remains)
+Progress: [████████████████████] 100% (Phase 2: all plans 02-01 through 02-05 complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 374+ tests passing (76 analysis unit + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- 399+ tests passing (98 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -30,6 +30,8 @@ Progress: [██████████████████  ] 90% (Phase 
 - **Aggregate type encoding (02-04)**: SMT datatypes for structs/tuples/enums, field selector and constructor encoding, result.field specs verified by Z3
 - **Loop invariant verification (02-02)**: Classical 3-VC approach (init/preserve/exit), DFS back-edge detection, next-state variable encoding
 - **Assertion and panic detection (02-03)**: AssertKind enum for 9 panic variants, specific error messages per kind
+- **Full spec parser (02-05)**: syn-based expression parser with old() operator, field access, backward-compatible fallback
+- **cargo verify subcommand (02-05)**: Colored per-function output (OK/FAIL/TIMEOUT), --help, --timeout, exit codes
 
 ## What Must Be Fixed First
 
@@ -40,16 +42,16 @@ Progress: [██████████████████  ] 90% (Phase 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: ~13 min
-- Total execution time: ~88 min
+- Total plans completed: 8
+- Average duration: ~12 min
+- Total execution time: ~99 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
-| 02-table-stakes-completion | 4/5 | ~67 min | ~17 min |
+| 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 
 *Updated after each plan completion*
 
@@ -88,6 +90,12 @@ Recent decisions affecting current work:
 - [02-03]: AssertKind enum with 9 variants covering common Rust panic sources
 - [02-03]: classify_assert_kind maps rustc MIR AssertKind to IR AssertKind
 - [02-03]: AssertKind-based VCs complement (not replace) existing overflow VCs
+- [02-05]: syn 2.0 with full+parsing features for complete Rust expression parsing in specs
+- [02-05]: parse_spec fallback: try syn parser first, fall back to parse_simple_spec
+- [02-05]: old(expr) via in_old flag propagation through recursive expression tree
+- [02-05]: Skip cargo_metadata: read Cargo.toml directly to minimize dependencies
+- [02-05]: colored 3.1 for output (lightweight, simple API)
+- [02-05]: Dual binary targets (rust-fv-driver + cargo-verify) sharing main.rs
 
 ### Pending Todos
 
@@ -100,6 +108,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 02-03-PLAN.md (Assertions and panic detection)
+Stopped at: Completed 02-05-PLAN.md (Spec parser + cargo verify) -- Phase 2 COMPLETE
 Resume file: None
-Next step: Continue with 02-05 (spec parser + cargo verify) - final Phase 2 plan
+Next step: Phase 3 (DX and Robustness) -- needs planning via /gsd:plan-phase 3
