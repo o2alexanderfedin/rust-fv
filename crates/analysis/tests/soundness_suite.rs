@@ -184,6 +184,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         T::Concat(a, b) => fmt_bin(out, "concat", a, b),
+        T::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        T::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         T::IntAdd(a, b) => fmt_bin(out, "+", a, b),
         T::IntSub(a, b) => fmt_bin(out, "-", a, b),
         T::IntMul(a, b) => fmt_bin(out, "*", a, b),
@@ -343,15 +353,18 @@ fn snd_signed_add_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -382,15 +395,18 @@ fn snd_unsigned_add_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -421,15 +437,18 @@ fn snd_signed_sub_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -460,15 +479,18 @@ fn snd_unsigned_sub_underflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -499,15 +521,18 @@ fn snd_signed_mul_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -538,15 +563,18 @@ fn snd_unsigned_mul_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -577,15 +605,18 @@ fn snd_division_by_zero() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -616,15 +647,18 @@ fn snd_shift_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -659,15 +693,18 @@ fn snd_wrong_postcondition_add() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -712,20 +749,24 @@ fn snd_wrong_postcondition_max() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -781,10 +822,12 @@ fn snd_wrong_postcondition_identity() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -819,6 +862,7 @@ fn snd_wrong_postcondition_constant() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -854,14 +898,17 @@ fn snd_wrong_postcondition_branch() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_2".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -921,10 +968,12 @@ fn snd_postcondition_off_by_one() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -965,19 +1014,23 @@ fn snd_branch_unsound_if_linear() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1050,15 +1103,18 @@ fn snd_signed_div_int_min_neg_one() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1123,15 +1179,18 @@ fn snd_signed_rem_int_min_neg_one() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1194,20 +1253,24 @@ fn snd_unrestricted_input_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![BasicBlock {
             statements: vec![
@@ -1250,29 +1313,35 @@ fn snd_nested_branch_wrong_result() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1387,15 +1456,18 @@ fn snd_unsigned_rem_div_by_zero() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1430,15 +1502,18 @@ fn snd_shr_overflow() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1469,15 +1544,18 @@ fn snd_add_wrong_upper_bound() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],

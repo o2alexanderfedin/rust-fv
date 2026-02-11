@@ -203,6 +203,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -339,20 +349,24 @@ fn test_copy_semantics_preserved() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _3 = compute(_1), target bb1
@@ -456,14 +470,17 @@ fn test_shared_borrow_preserved() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _3 = reader(_1), target bb1 -- shared borrow semantics
@@ -571,14 +588,17 @@ fn test_mutable_borrow_havoced() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _3 = mutator(_1), target bb1 -- mutable borrow
@@ -695,10 +715,12 @@ fn test_move_semantics_value_consumed() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![
@@ -855,24 +877,29 @@ fn test_mixed_ownership_call() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                is_ghost: false,
             },
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_4".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _4 = mixed_callee(_1, _2, _3), target bb1
@@ -980,14 +1007,17 @@ fn test_ownership_with_postcondition_assumption() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1082,20 +1112,24 @@ fn test_no_ownership_without_contract_db() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1178,14 +1212,17 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             return_local: Local {
                 name: "_0".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             params: vec![Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             }],
             locals: vec![Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             }],
             basic_blocks: vec![
                 BasicBlock {
@@ -1334,23 +1371,28 @@ fn test_ownership_multiple_shared_borrow_calls() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1513,14 +1555,17 @@ fn test_preservation_constraint_smt_encoding() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {

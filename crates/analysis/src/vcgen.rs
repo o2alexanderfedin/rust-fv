@@ -543,9 +543,10 @@ fn base_script(
 
     // Logic selection based on features used
     if uses_int {
-        // Int theory needed: omit set-logic to let Z3 auto-detect
-        // (more robust than trying to guess the exact combination)
-        tracing::debug!("Omitting set-logic due to Int theory usage (Z3 will auto-detect)");
+        // Int theory needed: use ALL logic to get all Z3 theories including bv2int/int2bv
+        // These conversion functions are Z3 extensions, not standard SMT-LIB2
+        script.push(Command::SetLogic("ALL".to_string()));
+        tracing::debug!("Using ALL logic for Int theory + bitvectors with bv2int/int2bv");
     } else if datatype_declarations.is_empty() {
         script.push(Command::SetLogic("QF_BV".to_string()));
     } else {

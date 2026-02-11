@@ -202,6 +202,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -321,6 +331,7 @@ fn make_caller_function(
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: caller_params,
         locals: caller_locals,
@@ -368,6 +379,7 @@ fn test_call_site_precondition_satisfied() {
         vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         vec![],
         vec![
@@ -460,6 +472,7 @@ fn test_call_site_precondition_violated() {
         vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         vec![],
         vec![
@@ -536,15 +549,18 @@ fn test_call_site_postcondition_assumed() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -640,15 +656,18 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -752,10 +771,12 @@ fn test_call_chain_no_blowup() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![
@@ -823,10 +844,12 @@ fn test_call_without_contracts_treated_as_opaque() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![
@@ -895,6 +918,7 @@ fn test_precondition_violation_reports_callee_name() {
         vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         vec![],
         vec![
@@ -982,10 +1006,12 @@ fn test_multiple_preconditions_each_checked() {
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         vec![],

@@ -208,6 +208,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -331,19 +341,23 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -421,19 +435,23 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -594,23 +612,28 @@ fn test_two_variable_loop() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -943,19 +966,23 @@ fn test_loop_without_invariant_skipped() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1099,19 +1126,23 @@ fn test_loop_detection_from_cfg() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![

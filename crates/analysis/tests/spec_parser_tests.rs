@@ -15,15 +15,18 @@ fn make_i32_function() -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -39,10 +42,12 @@ fn make_u32_function() -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![],
@@ -63,10 +68,12 @@ fn make_struct_return_function() -> Function {
                     ("y".to_string(), Ty::Int(IntTy::I32)),
                 ],
             ),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![],
@@ -81,6 +88,7 @@ fn make_tuple_return_function() -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Uint(UintTy::U32)]),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -96,10 +104,12 @@ fn make_bool_return_function() -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![],

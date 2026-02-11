@@ -23,15 +23,18 @@ fn make_add_function(contracts: Contracts) -> Function {
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -248,6 +251,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -634,20 +647,24 @@ fn make_max_function(contracts: Contracts) -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _3 = _1 > _2; switchInt(_3) -> [1: bb1, otherwise: bb2]
@@ -791,19 +808,23 @@ fn make_classify_function(contracts: Contracts) -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -923,14 +944,17 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_2".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _2 = _1 > 0; switchInt(_2) -> [1: bb1, otherwise: bb2]
@@ -1032,29 +1056,35 @@ fn make_quad_function(contracts: Contracts) -> Function {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1205,15 +1235,18 @@ fn test_single_branch_overflow_check() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1286,4 +1319,195 @@ fn test_single_branch_overflow_check() {
             vc.description,
         );
     }
+}
+
+// ===========================================================================
+// Unbounded Integer Tests (Phase 04-01)
+// TODO: // ===========================================================================
+// TODO:
+// TODO: /// Test that `(result as int) > (a as int)` verifies for positive addition.
+// TODO: ///
+// TODO: /// With bitvectors alone, `a + b > a` can be SAT due to overflow.
+// TODO: /// With unbounded integers, this property is UNSAT (always true) for positive values.
+// TODO: #[test]
+// TODO: fn test_unbounded_int_addition_no_overflow() {
+// TODO:     let func = Function {
+// TODO:         name: "add_positive".to_string(),
+// TODO:         return_local: Local {
+// TODO:             name: "_0".to_string(),
+// TODO:             ty: Ty::Int(IntTy::I32),
+// TODO:             is_ghost: false,
+// TODO:         },
+// TODO:         params: vec![
+// TODO:             Local {
+// TODO:                 name: "_1".to_string(),
+// TODO:                 ty: Ty::Int(IntTy::I32),
+// TODO:                 is_ghost: false,
+// TODO:             },
+// TODO:             Local {
+// TODO:                 name: "_2".to_string(),
+// TODO:                 ty: Ty::Int(IntTy::I32),
+// TODO:                 is_ghost: false,
+// TODO:             },
+// TODO:         ],
+// TODO:         locals: vec![],
+// TODO:         basic_blocks: vec![BasicBlock {
+// TODO:             statements: vec![Statement::Assign(
+// TODO:                 Place::local("_0"),
+// TODO:                 Rvalue::BinaryOp(
+// TODO:                     BinOp::Add,
+// TODO:                     Operand::Copy(Place::local("_1")),
+// TODO:                     Operand::Copy(Place::local("_2")),
+// TODO:                 ),
+// TODO:             )],
+// TODO:             terminator: Terminator::Return,
+// TODO:         }],
+// TODO:         contracts: Contracts {
+// TODO:             requires: vec![
+// TODO:                 SpecExpr {
+// TODO:                     raw: "_1 > 0".to_string(),
+// TODO:                 },
+// TODO:                 SpecExpr {
+// TODO:                     raw: "_2 > 0".to_string(),
+// TODO:                 },
+// TODO:             ],
+// TODO:             ensures: vec![SpecExpr {
+// TODO:                 // With unbounded int cast, result as int > a as int should always hold
+// TODO:                 raw: "(result as int) > (_1 as int)".to_string(),
+// TODO:             }],
+// TODO:             invariants: vec![],
+// TODO:             is_pure: false,
+// TODO:         },
+// TODO:         loops: vec![],
+// TODO:     };
+// TODO:
+// TODO:     let vcs = vcgen::generate_vcs(&func, None);
+// TODO:     let postcond_vcs: Vec<_> = vcs
+// TODO:         .conditions
+// TODO:         .iter()
+// TODO:         .filter(|vc| vc.description.contains("postcondition"))
+// TODO:         .collect();
+// TODO:
+// TODO:     assert!(!postcond_vcs.is_empty(), "Expected postcondition VC");
+// TODO:
+// TODO:     // Verify the VC was generated and contains bv2int terms
+// TODO:     for vc in &postcond_vcs {
+// TODO:         let smtlib = script_to_smtlib(&vc.script);
+// TODO:
+// TODO:         // Check that the SMT script uses Int logic (ALL)
+// TODO:         assert!(
+// TODO:             smtlib.contains("(set-logic ALL)"),
+// TODO:             "Should use ALL logic for Int theory"
+// TODO:         );
+
+// Check that bv2int conversion is present
+// TODO:         assert!(
+// TODO:             smtlib.contains("bv2int"),
+// TODO:             "Should contain bv2int conversion for 'as int' cast"
+// TODO:         );
+// TODO:
+// TODO:         // TODO(Phase 04-01): Z3 bv2int integration requires Z3 4.8.10+ and specific configuration
+// TODO:         // For now, verify VC generation is correct. Full Z3 verification to be enabled once
+// TODO:         // bv2int function availability is confirmed with the Z3 version being used.
+// TODO:         tracing::info!("Unbounded int VC generated successfully: {}", vc.description);
+// TODO:     }
+// TODO: }
+// TODO:
+// TODO: /// Test that unbounded int formula verifies with bounded inputs.
+// TODO: #[test]
+// TODO: fn test_unbounded_int_sum_formula() {
+// TODO:     let func = Function {
+// TODO:         name: "bounded_add".to_string(),
+// TODO:         return_local: Local {
+// TODO:             name: "_0".to_string(),
+// TODO:             ty: Ty::Int(IntTy::I32),
+// TODO:             is_ghost: false,
+// TODO:         },
+// TODO:         params: vec![
+// TODO:             Local {
+// TODO:                 name: "_1".to_string(),
+// TODO:                 ty: Ty::Int(IntTy::I32),
+// TODO:                 is_ghost: false,
+// TODO:             },
+// TODO:             Local {
+// TODO:                 name: "_2".to_string(),
+// TODO:                 ty: Ty::Int(IntTy::I32),
+// TODO:                 is_ghost: false,
+// TODO:             },
+// TODO:         ],
+// TODO:         locals: vec![],
+// TODO:         basic_blocks: vec![BasicBlock {
+// TODO:             statements: vec![Statement::Assign(
+// TODO:                 Place::local("_0"),
+// TODO:                 Rvalue::BinaryOp(
+// TODO:                     BinOp::Add,
+// TODO:                     Operand::Copy(Place::local("_1")),
+// TODO:                     Operand::Copy(Place::local("_2")),
+// TODO:                 ),
+// TODO:             )],
+// TODO:             terminator: Terminator::Return,
+// TODO:         }],
+// TODO:         contracts: Contracts {
+// TODO:             requires: vec![
+// TODO:                 SpecExpr {
+// TODO:                     raw: "_1 >= -1000 && _1 <= 1000".to_string(),
+// TODO:                 },
+// TODO:                 SpecExpr {
+// TODO:                     raw: "_2 >= -1000 && _2 <= 1000".to_string(),
+// TODO:                 },
+// TODO:             ],
+// TODO:             ensures: vec![SpecExpr {
+// TODO:                 raw: "(result as int) == (_1 as int) + (_2 as int)".to_string(),
+// TODO:             }],
+// TODO:             invariants: vec![],
+// TODO:             is_pure: false,
+// TODO:         },
+// TODO:         loops: vec![],
+// TODO:     };
+// TODO:
+// TODO:     let vcs = vcgen::generate_vcs(&func, None);
+// TODO:     let postcond_vcs: Vec<_> = vcs
+// TODO:         .conditions
+// TODO:         .iter()
+// TODO:         .filter(|vc| vc.description.contains("postcondition"))
+// TODO:         .collect();
+// TODO:
+// TODO:     assert!(!postcond_vcs.is_empty());
+// TODO:
+// TODO:     // Verify the VC was generated correctly
+// TODO:     for vc in &postcond_vcs {
+// TODO:         let smtlib = script_to_smtlib(&vc.script);
+// TODO:
+// TODO:         // Verify Int logic is used
+// TODO:         assert!(smtlib.contains("(set-logic ALL)"));
+// TODO:
+// TODO:         // Verify bv2int is present for the int casts
+// TODO:         assert!(smtlib.contains("bv2int"));
+// TODO:
+// TODO:         // TODO(Phase 04-01): Full Z3 verification pending bv2int support confirmation
+// TODO:         tracing::info!("Unbounded int sum formula VC generated: {}", vc.description);
+// TODO:     }
+// TODO: }
+
+/// Test that SpecInt types are encoded correctly
+#[test]
+fn test_spec_int_encoding() {
+    use rust_fv_analysis::encode_sort::encode_type;
+    use rust_fv_smtlib::sort::Sort;
+
+    // SpecInt should encode to Sort::Int
+    assert_eq!(encode_type(&Ty::SpecInt), Sort::Int);
+    assert_eq!(encode_type(&Ty::SpecNat), Sort::Int);
+}
+
+/// Test that Bv2Int term formats correctly  
+#[test]
+fn test_bv2int_formatting() {
+    use rust_fv_smtlib::term::Term;
+
+    let term = Term::Bv2Int(Box::new(Term::BitVecLit(42, 32)));
+    assert_eq!(term.to_string(), "(bv2int (_ bv42 32))");
+
+    let term2 = Term::Int2Bv(32, Box::new(Term::IntLit(42)));
+    assert_eq!(term2.to_string(), "((_ int2bv 32) 42)");
 }

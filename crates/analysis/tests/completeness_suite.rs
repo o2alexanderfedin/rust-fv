@@ -183,6 +183,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         T::Concat(a, b) => fmt_bin(out, "concat", a, b),
+        T::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        T::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         T::IntAdd(a, b) => fmt_bin(out, "+", a, b),
         T::IntSub(a, b) => fmt_bin(out, "-", a, b),
         T::IntMul(a, b) => fmt_bin(out, "*", a, b),
@@ -313,15 +323,18 @@ fn cmp_bounded_add() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -364,15 +377,18 @@ fn cmp_bounded_sub() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -415,15 +431,18 @@ fn cmp_bounded_mul() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -466,15 +485,18 @@ fn cmp_safe_div() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -517,15 +539,18 @@ fn cmp_safe_shift() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -563,10 +588,12 @@ fn cmp_identity_postcondition() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -599,6 +626,7 @@ fn cmp_constant_postcondition() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -632,15 +660,18 @@ fn cmp_bounded_add_postcondition() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -689,20 +720,24 @@ fn cmp_max_function() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -777,19 +812,23 @@ fn cmp_abs_function() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -879,29 +918,35 @@ fn cmp_clamp_function() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             }, // x
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             }, // lo
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             }, // hi
         ],
         locals: vec![
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1007,14 +1052,17 @@ fn cmp_if_else_same_result() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_2".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1087,19 +1135,23 @@ fn cmp_multi_branch_classify() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1197,14 +1249,17 @@ fn cmp_early_return() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_2".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1279,29 +1334,35 @@ fn cmp_nested_branches_correct() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
             Local {
                 name: "_5".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -1423,15 +1484,18 @@ fn cmp_u8_bounded_add() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U8),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U8),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U8),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1474,15 +1538,18 @@ fn cmp_i64_bounded_add() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I64),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I64),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I64),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1525,15 +1592,18 @@ fn cmp_u64_bounded_mul() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U64),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U64),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U64),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1576,15 +1646,18 @@ fn cmp_i8_safe_operations() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I8),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I8),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I8),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1627,10 +1700,12 @@ fn cmp_mixed_width_identity() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U16),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Uint(UintTy::U16),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -1667,15 +1742,18 @@ fn cmp_safe_unsigned_sub() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Uint(UintTy::U32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Uint(UintTy::U32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -1714,15 +1792,18 @@ fn cmp_safe_signed_rem() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],

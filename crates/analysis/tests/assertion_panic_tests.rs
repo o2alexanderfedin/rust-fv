@@ -210,6 +210,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -328,14 +338,17 @@ fn test_assert_true_verified() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _3 = _1 > 0; assert(_3 == true) -> bb1
@@ -413,14 +426,17 @@ fn test_assert_false_counterexample() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -487,19 +503,23 @@ fn test_assert_after_computation() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![
             Local {
                 name: "_3".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_4".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             },
         ],
         basic_blocks: vec![
@@ -590,20 +610,24 @@ fn test_array_bounds_safe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -683,20 +707,24 @@ fn test_array_bounds_unsafe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -763,20 +791,24 @@ fn test_div_by_zero_safe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_4".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             // bb0: _4 = _2 != 0; assert(_4 == true) -> bb1
@@ -853,20 +885,24 @@ fn test_div_by_zero_unsafe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_4".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -941,14 +977,17 @@ fn test_unwrap_safe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
-            ty: Ty::Int(IntTy::I32), // discriminant as i32
+            ty: Ty::Int(IntTy::I32), // discriminant as i32,
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1016,14 +1055,17 @@ fn test_unwrap_unsafe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1086,14 +1128,17 @@ fn test_error_message_specificity() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Unit,
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![Local {
             name: "_3".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {
@@ -1228,20 +1273,24 @@ fn test_remainder_by_zero_unsafe() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![Local {
             name: "_4".to_string(),
             ty: Ty::Bool,
+            is_ghost: false,
         }],
         basic_blocks: vec![
             BasicBlock {

@@ -205,6 +205,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             out.push(')');
         }
         Term::Concat(a, b) => format_binary(out, "concat", a, b),
+        Term::Bv2Int(a) => {
+            out.push_str("(bv2int ");
+            format_term(out, a);
+            out.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            out.push_str(&format!("((_ int2bv {n}) "));
+            format_term(out, a);
+            out.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(out, "+", a, b),
         Term::IntSub(a, b) => format_binary(out, "-", a, b),
         Term::IntMul(a, b) => format_binary(out, "*", a, b),
@@ -331,6 +341,7 @@ fn test_struct_construction() {
         return_local: Local {
             name: "_0".to_string(),
             ty: point_ty(),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -428,10 +439,12 @@ fn test_struct_field_postcondition_positive() {
         return_local: Local {
             name: "_0".to_string(),
             ty: point_ty(),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -496,6 +509,7 @@ fn test_struct_field_postcondition_negative() {
         return_local: Local {
             name: "_0".to_string(),
             ty: point_ty(),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -561,6 +575,7 @@ fn test_tuple_construction() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)]),
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
@@ -643,15 +658,18 @@ fn test_tuple_field_access() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)]),
+            is_ghost: false,
         },
         params: vec![
             Local {
                 name: "_1".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             Local {
                 name: "_2".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
         ],
         locals: vec![],
@@ -736,10 +754,12 @@ fn test_array_select() {
         return_local: Local {
             name: "_0".to_string(),
             ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
         },
         params: vec![Local {
             name: "_1".to_string(),
             ty: arr_ty,
+            is_ghost: false,
         }],
         locals: vec![],
         basic_blocks: vec![BasicBlock {
@@ -885,6 +905,7 @@ fn test_enum_variant_construction() {
         return_local: Local {
             name: "_0".to_string(),
             ty: option_ty,
+            is_ghost: false,
         },
         params: vec![],
         locals: vec![],
