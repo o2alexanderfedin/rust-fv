@@ -12,18 +12,18 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 Phase: 1 of 5 (Soundness Foundation)
 Plan: 3 of 3 in current phase
 Status: Phase 1 complete
-Last activity: 2026-02-11 -- Completed 01-03: Toolchain pin and performance baseline
+Last activity: 2026-02-11 -- Completed 01-02: Overflow encoding audit and test suites
 
 Progress: [████████████████████] 100% (Phase 1)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 248+ tests passing (62 in analysis crate: 52 unit + 10 E2E), zero warnings
+- 300+ tests passing (116 in analysis crate: 62 unit + 10 E2E + 22 soundness + 22 completeness), zero warnings
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
-- Arithmetic overflow detection (add/sub/mul)
+- Arithmetic overflow detection (add/sub/mul/div/rem/shl/shr) -- audited against Rust semantics
 - Z3 subprocess integration with auto-detection
 - Counterexample extraction from SAT results
 
@@ -31,7 +31,7 @@ Progress: [████████████████████] 100% (P
 
 - ~~SSA violation in VCGen: linear block-walking is unsound for branches/loops~~ (FIXED in 01-01)
 - ~~Variable shadowing produces incorrect verification for multi-path control flow~~ (FIXED in 01-01)
-- Arithmetic overflow encoding needs systematic audit against Rust semantics
+- ~~Arithmetic overflow encoding needs systematic audit against Rust semantics~~ (FIXED in 01-02)
 
 ## Performance Metrics
 
@@ -65,6 +65,9 @@ Recent decisions affecting current work:
 - [01-03]: Criterion 0.5 for benchmarks (stable, html_reports, widely adopted in Rust)
 - [01-03]: Benchmarks are developer-only, not CI gate (avoid flaky perf failures)
 - [01-03]: Complex benchmark uses clamp function with 5 basic blocks for realistic coverage
+- [01-02]: Signed Rem gets same overflow check as Div (INT_MIN % -1 panics in Rust)
+- [01-02]: Test suites use self-contained helpers for test independence
+- [01-02]: VCGen lacks intra-block SSA renaming (known Phase 2 concern)
 
 ### Pending Todos
 
@@ -77,6 +80,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 01-01-PLAN.md (executed, SUMMARY created)
+Stopped at: Completed 01-02-PLAN.md (executed, SUMMARY created)
 Resume file: None
-Next step: Continue with 01-02-PLAN.md or Phase 2 planning
+Next step: Phase 2 planning (all Phase 1 plans complete)
