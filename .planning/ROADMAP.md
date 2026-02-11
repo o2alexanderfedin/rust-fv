@@ -43,20 +43,20 @@ Plans:
 **Depends on**: Phase 1
 **Requirements**: VER-01, VER-02, VER-03, VER-04, VER-05, TYP-01, TYP-02, TYP-03, TYP-04, SPEC-01, SPEC-05, TOOL-01, TOOL-02, TOOL-03, TOOL-04
 **Research flag**: YES -- Loop invariant usability is the hardest UX problem in verification. Research 3+ inference approaches before committing. Study Creusot 0.9.0 auto-detection of immutable loop variables.
+**Plans:** 5 plans
 **Success Criteria** (what must be TRUE):
   1. A while loop with a user-supplied `#[invariant(expr)]` annotation verifies successfully, and the verifier reports which of the three VCs (initialization, preservation, use-after-loop) fails when the invariant is wrong
   2. Running `cargo verify` in a Rust project produces colored per-function output (OK/FAIL/TIMEOUT) showing verification status for all annotated functions
   3. An `assert!(x > 0)` statement in Rust source is statically verified from MIR, and a failing assert produces a counterexample
   4. Code calling `unwrap()` on a potentially-None value, or indexing an array with an out-of-bounds index, is flagged as a potential panic with the specific failure location
   5. A struct with named fields can be used in specifications (`#[ensures(result.x > 0)]`), and struct field access is correctly encoded in SMT
-**Plans**: TBD
 
 Plans:
-- [ ] 02-01: z3 crate integration and structured tracing
-- [ ] 02-02: Loop invariant verification
-- [ ] 02-03: Assertion and panic detection
-- [ ] 02-04: Aggregate type encoding (structs, tuples, enums, arrays)
-- [ ] 02-05: Specification parser and cargo verify command
+- [ ] 02-01-PLAN.md -- Z3 native API backend (z3 crate with bundled feature) and structured tracing via tracing crate
+- [ ] 02-02-PLAN.md -- Loop invariant verification with 3-VC generation (initialization, preservation, exit)
+- [ ] 02-03-PLAN.md -- Assertion verification and panic detection (unwrap, bounds, div-by-zero) with specific error messages
+- [ ] 02-04-PLAN.md -- Aggregate type encoding: structs, tuples, enums as SMT datatypes, arrays as SMT arrays
+- [ ] 02-05-PLAN.md -- Full specification parser via syn, old() operator, and cargo verify subcommand with colored output
 
 ### Phase 3: Modular Verification
 **Goal**: Functions that call other verified functions are verified using contracts as summaries, without inlining callee bodies
@@ -119,11 +119,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
-| 2. Table Stakes Completion | 0/5 | Not started | - |
+| 2. Table Stakes Completion | 0/5 | Planned | - |
 | 3. Modular Verification | 0/2 | Not started | - |
 | 4. Differentiation | 0/4 | Not started | - |
 | 5. Performance and Polish | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 1 complete)*
+*Last updated: 2026-02-11 (Phase 2 planned)*
