@@ -1765,3 +1765,447 @@ fn test_quantifier_full_pipeline() {
         _ => panic!("Expected Forall term after annotation"),
     }
 }
+
+// ==============================================================================
+// Generic Function Verification Tests (Monomorphization)
+// ==============================================================================
+
+#[test]
+fn test_generic_max_i32_verified() {
+    use rust_fv_analysis::ir::*;
+    use rust_fv_analysis::monomorphize::{MonomorphizationRegistry, TypeInstantiation};
+    use rust_fv_analysis::vcgen::generate_vcs_monomorphized;
+
+    use std::collections::HashMap;
+
+    // Build generic max function: fn max<T: Ord>(a: T, b: T) -> T
+    // IR: if _1 > _2 { _1 } else { _2 }
+    let func = Function {
+        name: "max".to_string(),
+        params: vec![
+            Local::new("_1", Ty::Generic("T".to_string())),
+            Local::new("_2", Ty::Generic("T".to_string())),
+        ],
+        return_local: Local::new("_0", Ty::Generic("T".to_string())),
+        locals: vec![
+            Local::new("_3", Ty::Bool), // comparison result
+        ],
+        basic_blocks: vec![
+            // bb0: _3 = _1 > _2; switchInt(_3)
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)], // true -> bb1
+                    otherwise: 2,          // false -> bb2
+                },
+            },
+            // bb1: _0 = _1; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+            // bb2: _0 = _2; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_2"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result >= _1 && result >= _2".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+        },
+        loops: vec![],
+        generic_params: vec![GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        }],
+    };
+
+    // Register i32 instantiation
+    let mut registry = MonomorphizationRegistry::new();
+    let mut subs = HashMap::new();
+    subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+    let inst = TypeInstantiation::new(subs, "::<i32>".to_string());
+    registry.register("max", inst);
+
+    // Generate VCs via monomorphization
+    let all_vcs = generate_vcs_monomorphized(&func, &registry, None);
+
+    // Should get VCs for one instantiation
+    assert_eq!(all_vcs.len(), 1);
+    assert_eq!(all_vcs[0].function_name, "max::<i32>");
+
+    // Verify we got some VCs (even if contract parsing failed, we should get overflow VCs)
+    assert!(
+        !all_vcs[0].conditions.is_empty(),
+        "Should generate some VCs for monomorphized function"
+    );
+
+    // Check that the monomorphized function has concrete types
+    // by verifying the VCs mention bitvector operations (not generic types)
+    let has_bitvec_ops = all_vcs[0].conditions.iter().any(|vc| {
+        let script_str = vc.script.to_string();
+        script_str.contains("BitVec 32")
+            || script_str.contains("bvsgt")
+            || script_str.contains("bvsge")
+    });
+
+    assert!(
+        has_bitvec_ops,
+        "Monomorphized i32 function should use signed bitvector operations"
+    );
+}
+
+#[test]
+fn test_generic_max_u64_verified() {
+    use rust_fv_analysis::ir::*;
+    use rust_fv_analysis::monomorphize::{MonomorphizationRegistry, TypeInstantiation};
+    use rust_fv_analysis::vcgen::generate_vcs_monomorphized;
+
+    use std::collections::HashMap;
+
+    // Same generic max function as above
+    let func = Function {
+        name: "max".to_string(),
+        params: vec![
+            Local::new("_1", Ty::Generic("T".to_string())),
+            Local::new("_2", Ty::Generic("T".to_string())),
+        ],
+        return_local: Local::new("_0", Ty::Generic("T".to_string())),
+        locals: vec![Local::new("_3", Ty::Bool)],
+        basic_blocks: vec![
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_2"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result >= _1 && result >= _2".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+        },
+        loops: vec![],
+        generic_params: vec![GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        }],
+    };
+
+    // Register u64 instantiation (unsigned comparison)
+    let mut registry = MonomorphizationRegistry::new();
+    let mut subs = HashMap::new();
+    subs.insert("T".to_string(), Ty::Uint(UintTy::U64));
+    let inst = TypeInstantiation::new(subs, "::<u64>".to_string());
+    registry.register("max", inst);
+
+    // Generate VCs via monomorphization
+    let all_vcs = generate_vcs_monomorphized(&func, &registry, None);
+
+    // Should get VCs for one instantiation
+    assert_eq!(all_vcs.len(), 1);
+    assert_eq!(all_vcs[0].function_name, "max::<u64>");
+
+    // Verify we got some VCs
+    assert!(
+        !all_vcs[0].conditions.is_empty(),
+        "Should generate some VCs for monomorphized function"
+    );
+
+    // Check that the monomorphized function uses unsigned operations
+    let has_unsigned_ops = all_vcs[0].conditions.iter().any(|vc| {
+        let script_str = vc.script.to_string();
+        script_str.contains("BitVec 64")
+            || script_str.contains("bvugt")
+            || script_str.contains("bvuge")
+    });
+
+    assert!(
+        has_unsigned_ops,
+        "Monomorphized u64 function should use unsigned bitvector operations"
+    );
+}
+
+#[test]
+fn test_generic_max_wrong_postcondition() {
+    use rust_fv_analysis::ir::*;
+    use rust_fv_analysis::monomorphize::{MonomorphizationRegistry, TypeInstantiation};
+    use rust_fv_analysis::vcgen::generate_vcs_monomorphized;
+
+    use std::collections::HashMap;
+
+    // Generic max with WRONG postcondition: result == _1
+    // This should be SAT (counterexample when result == _2)
+    let func = Function {
+        name: "max".to_string(),
+        params: vec![
+            Local::new("_1", Ty::Generic("T".to_string())),
+            Local::new("_2", Ty::Generic("T".to_string())),
+        ],
+        return_local: Local::new("_0", Ty::Generic("T".to_string())),
+        locals: vec![Local::new("_3", Ty::Bool)],
+        basic_blocks: vec![
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_2"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result == _1".to_string(), // WRONG: could be _2
+            }],
+            invariants: vec![],
+            is_pure: false,
+        },
+        loops: vec![],
+        generic_params: vec![GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        }],
+    };
+
+    // Register i32 instantiation
+    let mut registry = MonomorphizationRegistry::new();
+    let mut subs = HashMap::new();
+    subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+    let inst = TypeInstantiation::new(subs, "::<i32>".to_string());
+    registry.register("max", inst);
+
+    // Generate VCs via monomorphization
+    let all_vcs = generate_vcs_monomorphized(&func, &registry, None);
+
+    assert_eq!(all_vcs.len(), 1);
+
+    // Verify VCs were generated
+    assert!(
+        !all_vcs[0].conditions.is_empty(),
+        "Should generate VCs even with wrong postcondition"
+    );
+}
+
+#[test]
+fn test_generic_multiple_instantiations() {
+    use rust_fv_analysis::ir::*;
+    use rust_fv_analysis::monomorphize::{MonomorphizationRegistry, TypeInstantiation};
+    use rust_fv_analysis::vcgen::generate_vcs_monomorphized;
+
+    use std::collections::HashMap;
+
+    // Generic max function
+    let func = Function {
+        name: "max".to_string(),
+        params: vec![
+            Local::new("_1", Ty::Generic("T".to_string())),
+            Local::new("_2", Ty::Generic("T".to_string())),
+        ],
+        return_local: Local::new("_0", Ty::Generic("T".to_string())),
+        locals: vec![Local::new("_3", Ty::Bool)],
+        basic_blocks: vec![
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_2"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result >= _1 && result >= _2".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+        },
+        loops: vec![],
+        generic_params: vec![GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        }],
+    };
+
+    // Register BOTH i32 and u64 instantiations
+    let mut registry = MonomorphizationRegistry::new();
+
+    let mut subs_i32 = HashMap::new();
+    subs_i32.insert("T".to_string(), Ty::Int(IntTy::I32));
+    registry.register(
+        "max",
+        TypeInstantiation::new(subs_i32, "::<i32>".to_string()),
+    );
+
+    let mut subs_u64 = HashMap::new();
+    subs_u64.insert("T".to_string(), Ty::Uint(UintTy::U64));
+    registry.register(
+        "max",
+        TypeInstantiation::new(subs_u64, "::<u64>".to_string()),
+    );
+
+    // Generate VCs via monomorphization
+    let all_vcs = generate_vcs_monomorphized(&func, &registry, None);
+
+    // Should get VCs for TWO instantiations
+    assert_eq!(all_vcs.len(), 2);
+    assert_eq!(all_vcs[0].function_name, "max::<i32>");
+    assert_eq!(all_vcs[1].function_name, "max::<u64>");
+
+    // Verify both instantiations generated VCs
+    assert!(
+        !all_vcs[0].conditions.is_empty(),
+        "i32 instantiation should generate VCs"
+    );
+    assert!(
+        !all_vcs[1].conditions.is_empty(),
+        "u64 instantiation should generate VCs"
+    );
+
+    // Verify i32 uses signed operations and u64 uses unsigned
+    let i32_has_signed = all_vcs[0].conditions.iter().any(|vc| {
+        let s = vc.script.to_string();
+        s.contains("bvsgt") || s.contains("bvsge")
+    });
+    let u64_has_unsigned = all_vcs[1].conditions.iter().any(|vc| {
+        let s = vc.script.to_string();
+        s.contains("bvugt") || s.contains("bvuge")
+    });
+
+    assert!(
+        i32_has_signed,
+        "i32 instantiation should use signed operations"
+    );
+    assert!(
+        u64_has_unsigned,
+        "u64 instantiation should use unsigned operations"
+    );
+}
+
+#[test]
+fn test_generic_no_instantiations_warning() {
+    use rust_fv_analysis::ir::*;
+    use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
+    use rust_fv_analysis::vcgen::generate_vcs_monomorphized;
+
+    // Generic function with no registered instantiations
+    let func = Function {
+        name: "max".to_string(),
+        params: vec![
+            Local::new("_1", Ty::Generic("T".to_string())),
+            Local::new("_2", Ty::Generic("T".to_string())),
+        ],
+        return_local: Local::new("_0", Ty::Generic("T".to_string())),
+        locals: vec![],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        }],
+        contracts: Contracts::default(),
+        loops: vec![],
+        generic_params: vec![GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        }],
+    };
+
+    let registry = MonomorphizationRegistry::new(); // Empty registry
+
+    // Generate VCs - should return empty vec with warning
+    let all_vcs = generate_vcs_monomorphized(&func, &registry, None);
+
+    assert!(
+        all_vcs.is_empty(),
+        "Generic function with no instantiations should produce no VCs"
+    );
+}

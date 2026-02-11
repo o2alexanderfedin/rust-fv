@@ -223,6 +223,81 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
     }
 }
 
+/// Generate verification conditions for a potentially generic function via monomorphization.
+///
+/// For generic functions, this generates separate VCs for each concrete type instantiation
+/// registered in the MonomorphizationRegistry. For non-generic functions, this delegates
+/// to `generate_vcs()` directly.
+///
+/// # Monomorphization Strategy
+///
+/// Generic functions like `fn max<T: Ord>(a: T, b: T) -> T` are verified by:
+/// 1. Looking up all concrete instantiations in the registry (e.g., T=i32, T=u64)
+/// 2. Substituting generic type parameters with concrete types for each instantiation
+/// 3. Generating VCs for each monomorphized version independently
+///
+/// This mirrors Rust's own monomorphization strategy and avoids the complexity of
+/// parametric reasoning. Each instantiation is verified separately with the concrete
+/// type's semantics (e.g., signed comparison for i32, unsigned for u64).
+///
+/// # Returns
+///
+/// A vector of `FunctionVCs`, one per instantiation. For non-generic functions,
+/// the vector contains a single element.
+pub fn generate_vcs_monomorphized(
+    func: &Function,
+    registry: &crate::monomorphize::MonomorphizationRegistry,
+    contract_db: Option<&ContractDatabase>,
+) -> Vec<FunctionVCs> {
+    if !func.is_generic() {
+        // Non-generic function: delegate directly to generate_vcs
+        tracing::debug!(function = %func.name, "Non-generic function - generating VCs directly");
+        return vec![generate_vcs(func, contract_db)];
+    }
+
+    // Generic function: get all registered instantiations
+    let instantiations = registry.get_instantiations(&func.name);
+
+    if instantiations.is_empty() {
+        tracing::warn!(
+            function = %func.name,
+            "Generic function has no registered instantiations - skipping verification"
+        );
+        return vec![];
+    }
+
+    tracing::info!(
+        function = %func.name,
+        instantiation_count = instantiations.len(),
+        "Generating VCs for generic function via monomorphization"
+    );
+
+    let mut all_vcs = Vec::new();
+
+    for inst in instantiations {
+        tracing::debug!(
+            function = %func.name,
+            label = %inst.label,
+            "Monomorphizing and generating VCs"
+        );
+
+        // Substitute generic types with concrete types
+        let concrete_func = crate::monomorphize::substitute_generics(func, inst);
+
+        // Generate VCs for the concrete version
+        let vcs = generate_vcs(&concrete_func, contract_db);
+        all_vcs.push(vcs);
+    }
+
+    tracing::info!(
+        function = %func.name,
+        total_vcs = all_vcs.iter().map(|v| v.conditions.len()).sum::<usize>(),
+        "Monomorphization-based VC generation complete"
+    );
+
+    all_vcs
+}
+
 /// Enumerate all paths through the CFG from the entry block to Return terminators.
 ///
 /// Each path records:
