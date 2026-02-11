@@ -44,6 +44,7 @@ use crate::encode_term::{
     encode_place_with_type, encode_unop, overflow_check,
 };
 use crate::ir::*;
+use crate::ownership::{OwnershipConstraint, classify_argument, generate_ownership_constraints};
 use crate::spec_parser;
 
 /// A verification condition with metadata for error reporting.
@@ -1197,12 +1198,17 @@ fn generate_call_site_vcs(
     vcs
 }
 
-/// Encode callee postcondition assumptions into a script.
+/// Encode callee postcondition assumptions and ownership constraints into a script.
 ///
 /// For each call site, if the callee has postconditions in the contract database,
 /// we assert them (positively) with `result` mapped to the call's destination
 /// and callee params mapped to actual arguments. This lets Z3 use the callee's
 /// postconditions as known facts when checking the caller's postcondition.
+///
+/// Additionally, ownership constraints are encoded:
+/// - `SharedBorrow` / `Copied` arguments: value is preserved after the call
+/// - `MutableBorrow` arguments: value may change (no preservation constraint)
+/// - `Moved` arguments: value consumed (logged, no constraint needed)
 fn encode_callee_postcondition_assumptions(
     func: &Function,
     contract_db: &ContractDatabase,
@@ -1211,8 +1217,21 @@ fn encode_callee_postcondition_assumptions(
 ) {
     let callee_summary = match contract_db.get(&call_site.callee_name) {
         Some(s) => s,
-        None => return,
+        None => {
+            // Even without a callee contract, encode ownership constraints
+            // if we can infer types from the caller's context
+            encode_ownership_constraints_at_call_site(
+                func,
+                call_site,
+                &[], // no param types from callee
+                script,
+            );
+            return;
+        }
     };
+
+    // Encode ownership constraints using callee's param type information
+    encode_ownership_constraints_at_call_site(func, call_site, &callee_summary.param_types, script);
 
     if callee_summary.contracts.ensures.is_empty() {
         return;
@@ -1238,6 +1257,87 @@ fn encode_callee_postcondition_assumptions(
                 "Assuming callee postcondition at call site"
             );
             script.push(Command::Assert(substituted_post));
+        }
+    }
+}
+
+/// Encode ownership constraints at a call site.
+///
+/// For each argument, classifies its ownership kind based on the operand and
+/// the callee's parameter type, then generates appropriate constraints:
+/// - `ValuePreserved`: asserts the variable equals a pre-call snapshot
+/// - `ValueMayChange`: no constraint (value is havoced)
+/// - `ValueConsumed`: logged for tracing (borrow checker handles this)
+fn encode_ownership_constraints_at_call_site(
+    func: &Function,
+    call_site: &CallSiteInfo,
+    callee_param_types: &[Ty],
+    script: &mut Script,
+) {
+    for (i, arg) in call_site.args.iter().enumerate() {
+        // Use callee param type if available, otherwise infer from caller context
+        let param_ty = if let Some(ty) = callee_param_types.get(i) {
+            ty.clone()
+        } else {
+            // Fall back to caller's operand type
+            match arg {
+                Operand::Copy(place) | Operand::Move(place) => find_local_type(func, &place.local)
+                    .cloned()
+                    .unwrap_or(Ty::Unit),
+                Operand::Constant(_) => continue, // Constants don't need constraints
+            }
+        };
+
+        let kind = classify_argument(arg, &param_ty);
+        let constraints = generate_ownership_constraints(kind, arg);
+
+        for constraint in &constraints {
+            match constraint {
+                OwnershipConstraint::ValuePreserved { variable } => {
+                    // Declare a pre-call snapshot and assert preservation
+                    let pre_call_name = format!("{}_pre_call_{}", variable, call_site.block_idx);
+                    // Declare the snapshot variable with the same sort
+                    if let Some(ty) = find_local_type(func, variable) {
+                        let sort = encode_type(ty);
+                        script.push(Command::DeclareConst(pre_call_name.clone(), sort));
+                    }
+                    // Before the call: snapshot = variable
+                    script.push(Command::Assert(Term::Eq(
+                        Box::new(Term::Const(pre_call_name.clone())),
+                        Box::new(Term::Const(variable.clone())),
+                    )));
+                    // After the call: variable = snapshot (preserved)
+                    script.push(Command::Assert(Term::Eq(
+                        Box::new(Term::Const(variable.clone())),
+                        Box::new(Term::Const(pre_call_name)),
+                    )));
+                    tracing::debug!(
+                        caller = %func.name,
+                        callee = %call_site.callee_name,
+                        variable = %variable,
+                        kind = ?kind,
+                        "Ownership: value preserved after call"
+                    );
+                }
+                OwnershipConstraint::ValueMayChange { variable } => {
+                    tracing::debug!(
+                        caller = %func.name,
+                        callee = %call_site.callee_name,
+                        variable = %variable,
+                        "Ownership: mutable borrow -- value may change (havoced)"
+                    );
+                    // No constraint -- value is unconstrained after the call
+                }
+                OwnershipConstraint::ValueConsumed { variable } => {
+                    tracing::debug!(
+                        caller = %func.name,
+                        callee = %call_site.callee_name,
+                        variable = %variable,
+                        "Ownership: value moved (consumed) -- borrow checker handles this"
+                    );
+                    // No SMT constraint -- Rust's borrow checker prevents use-after-move
+                }
+            }
         }
     }
 }
