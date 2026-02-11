@@ -306,6 +306,7 @@ mod tests {
                 name: "T".to_string(),
                 trait_bounds: vec![],
             }],
+            prophecies: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -350,6 +351,7 @@ mod tests {
                 name: "T".to_string(),
                 trait_bounds: vec![],
             }],
+            prophecies: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -397,6 +399,7 @@ mod tests {
                 name: "T".to_string(),
                 trait_bounds: vec![],
             }],
+            prophecies: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -457,6 +460,7 @@ mod tests {
                 name: "T".to_string(),
                 trait_bounds: vec![],
             }],
+            prophecies: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -487,6 +491,7 @@ mod tests {
                 name: "T".to_string(),
                 trait_bounds: vec!["Ord".to_string()],
             }],
+            prophecies: vec![],
         };
 
         let mut subs = HashMap::new();

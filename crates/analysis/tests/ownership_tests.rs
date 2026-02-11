@@ -427,6 +427,7 @@ fn test_copy_semantics_preserved() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -537,6 +538,7 @@ fn test_shared_borrow_preserved() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -652,6 +654,7 @@ fn test_mutable_borrow_havoced() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -773,6 +776,7 @@ fn test_move_semantics_value_consumed() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -963,6 +967,7 @@ fn test_mixed_ownership_call() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -1076,6 +1081,7 @@ fn test_ownership_with_postcondition_assumption() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -1194,6 +1200,7 @@ fn test_no_ownership_without_contract_db() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -1279,6 +1286,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
                 is_pure: false,
             },
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     };
@@ -1477,6 +1485,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -1622,6 +1631,7 @@ fn test_preservation_constraint_smt_encoding() {
             is_pure: false,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 

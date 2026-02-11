@@ -1497,6 +1497,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         contracts: Contracts::default(),
         loops: vec![],
         generic_params: vec![],
+            prophecies: vec![],
     }
 }
 
@@ -2618,6 +2619,7 @@ mod tests {
             }],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -2691,6 +2693,7 @@ mod tests {
                 is_pure: true,
             },
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -2840,6 +2843,7 @@ mod tests {
             }],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
 
@@ -2882,6 +2886,7 @@ mod tests {
             }],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
 

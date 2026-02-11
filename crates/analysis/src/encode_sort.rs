@@ -340,6 +340,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Default::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -381,6 +382,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Default::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -401,6 +403,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Default::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -435,6 +438,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Default::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);

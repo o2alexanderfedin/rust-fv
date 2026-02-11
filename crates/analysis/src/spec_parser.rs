@@ -67,6 +67,10 @@ fn convert_expr_with_bounds(
         }
 
         Expr::Unary(unary_expr) => {
+            // Handle dereference operator specially for prophecy variables
+            if matches!(unary_expr.op, SynUnOp::Deref(_)) {
+                return convert_deref(&unary_expr.expr, func, in_old, bound_vars);
+            }
             let inner =
                 convert_expr_with_bounds(&unary_expr.expr, func, in_old, in_int_mode, bound_vars)?;
             convert_unop(&unary_expr.op, inner, func)
@@ -453,6 +457,14 @@ fn convert_call(
                 );
             }
 
+            "final_value" => {
+                // final_value(x) -> prophecy variable for parameter x
+                if call_expr.args.len() != 1 {
+                    return None; // final_value takes exactly one argument
+                }
+                return convert_final_value(&call_expr.args[0], func, bound_vars);
+            }
+
             _ => {
                 // Unknown function call
                 return None;
@@ -735,6 +747,89 @@ fn resolve_selector_from_ty<'a>(ty: &'a Ty, selector_name: &str) -> Option<&'a T
     None
 }
 
+/// Convert a dereference expression `*expr` in a specification.
+///
+/// When the dereferenced expression is a mutable reference parameter:
+/// - In `old()` context: produces `param_initial` (the initial dereferenced value)
+/// - In normal context: produces `param` (the current dereferenced value)
+///
+/// This enables specs like `*x == old(*x) + 1` for mutable borrow parameters.
+fn convert_deref(
+    expr: &Expr,
+    func: &Function,
+    in_old: bool,
+    _bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Option<Term> {
+    // Extract the parameter name from the expression
+    if let Expr::Path(path_expr) = expr
+        && path_expr.path.segments.len() == 1
+    {
+        let ident = path_expr.path.segments[0].ident.to_string();
+        let param_name = resolve_variable_name(&ident, func)?;
+
+        // Check if this is a mutable reference parameter
+        for param in &func.params {
+            if param.name == param_name
+                && matches!(param.ty, Ty::Ref(_, crate::ir::Mutability::Mutable)) {
+                    // This is a mutable ref param - apply prophecy naming
+                    if in_old {
+                        // In old() context: use initial value
+                        return Some(Term::Const(format!("{param_name}_initial")));
+                    } else {
+                        // In normal context: use current value
+                        // (the param itself represents the dereferenced value in our encoding)
+                        return Some(Term::Const(param_name));
+                    }
+                }
+        }
+
+        // Not a mutable reference param - just treat as regular variable dereference
+        if in_old {
+            Some(Term::Const(format!("{param_name}_pre")))
+        } else {
+            Some(Term::Const(param_name))
+        }
+    } else {
+        None
+    }
+}
+
+/// Convert a `final_value(expr)` call in a specification.
+///
+/// For mutable reference parameters, `final_value(x)` produces the prophecy variable
+/// `x_prophecy`, which represents the predicted final value at function return.
+///
+/// This enables postcondition specs like `*x == final_value(x)` or more usefully
+/// combined with old: `final_value(x) == old(*x) + 1`.
+fn convert_final_value(
+    expr: &Expr,
+    func: &Function,
+    _bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Option<Term> {
+    // Extract the parameter name from the expression
+    if let Expr::Path(path_expr) = expr
+        && path_expr.path.segments.len() == 1
+    {
+        let ident = path_expr.path.segments[0].ident.to_string();
+        let param_name = resolve_variable_name(&ident, func)?;
+
+        // Check if this is a mutable reference parameter
+        for param in &func.params {
+            if param.name == param_name
+                && matches!(param.ty, Ty::Ref(_, crate::ir::Mutability::Mutable))
+            {
+                // Return the prophecy variable
+                return Some(Term::Const(format!("{param_name}_prophecy")));
+            }
+        }
+
+        // Not a mutable reference param - invalid use of final_value
+        None
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,6 +859,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -785,6 +881,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -812,6 +909,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -829,6 +927,7 @@ mod tests {
             basic_blocks: vec![],
             contracts: Contracts::default(),
             generic_params: vec![],
+            prophecies: vec![],
             loops: vec![],
         }
     }
@@ -1273,6 +1372,103 @@ mod tests {
             assert!(matches!(&**rhs, Term::BvSGe(_, _)));
         } else {
             panic!("Expected Implies, got {term:?}");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Prophecy variable parsing tests (dereference and final_value)
+    // -----------------------------------------------------------------------
+
+    fn make_mut_ref_func() -> Function {
+        use crate::ir::Mutability;
+        Function {
+            name: "test_mut_ref".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        }
+    }
+
+    #[test]
+    fn parse_deref_in_spec() {
+        let func = make_mut_ref_func();
+        let term = parse_spec_expr("*_1 > 0", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        // Should produce comparison with Const("_1")
+        // Note: signedness inference might use unsigned for refs, but the key is that *_1 resolves to _1
+        match &term {
+            Term::BvSGt(lhs, _) | Term::BvUGt(lhs, _) => {
+                assert_eq!(**lhs, Term::Const("_1".to_string()));
+            }
+            _ => panic!("Expected comparison with Const(_1), got {term:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_old_deref() {
+        let func = make_mut_ref_func();
+        let term = parse_spec_expr("old(*_1)", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        // Should produce Const("_1_initial")
+        assert_eq!(term, Term::Const("_1_initial".to_string()));
+    }
+
+    #[test]
+    fn parse_final_value() {
+        let func = make_mut_ref_func();
+        let term = parse_spec_expr("final_value(_1)", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        // Should produce Const("_1_prophecy")
+        assert_eq!(term, Term::Const("_1_prophecy".to_string()));
+    }
+
+    #[test]
+    fn parse_ensures_with_old_and_deref() {
+        let func = make_mut_ref_func();
+        let term = parse_spec_expr("*_1 == old(*_1) + 1", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        // Should produce Eq(Const("_1"), BvAdd(Const("_1_initial"), BitVecLit(1, 32)))
+        if let Term::Eq(lhs, rhs) = &term {
+            assert_eq!(**lhs, Term::Const("_1".to_string()));
+            if let Term::BvAdd(add_lhs, add_rhs) = &**rhs {
+                assert_eq!(**add_lhs, Term::Const("_1_initial".to_string()));
+                assert_eq!(**add_rhs, Term::BitVecLit(1, 32));
+            } else {
+                panic!("Expected BvAdd on RHS, got {rhs:?}");
+            }
+        } else {
+            panic!("Expected Eq, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_ensures_with_final_value_and_old() {
+        let func = make_mut_ref_func();
+        let term = parse_spec_expr("final_value(_1) == old(*_1) + 1", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        // Should produce Eq(Const("_1_prophecy"), BvAdd(Const("_1_initial"), BitVecLit(1, 32)))
+        if let Term::Eq(lhs, rhs) = &term {
+            assert_eq!(**lhs, Term::Const("_1_prophecy".to_string()));
+            if let Term::BvAdd(add_lhs, _) = &**rhs {
+                assert_eq!(**add_lhs, Term::Const("_1_initial".to_string()));
+            } else {
+                panic!("Expected BvAdd on RHS, got {rhs:?}");
+            }
+        } else {
+            panic!("Expected Eq, got {term:?}");
         }
     }
 }

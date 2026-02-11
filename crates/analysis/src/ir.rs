@@ -26,12 +26,20 @@ pub struct Function {
     /// Generic type parameters with trait bounds.
     /// Empty for non-generic functions.
     pub generic_params: Vec<GenericParam>,
+    /// Prophecy variables for mutable borrow parameters.
+    /// Empty for functions without `&mut T` parameters.
+    pub prophecies: Vec<ProphecyInfo>,
 }
 
 impl Function {
     /// Returns true if this function has generic type parameters.
     pub fn is_generic(&self) -> bool {
         !self.generic_params.is_empty()
+    }
+
+    /// Returns true if this function has mutable reference parameters.
+    pub fn has_mut_ref_params(&self) -> bool {
+        self.params.iter().any(|p| matches!(p.ty, Ty::Ref(_, Mutability::Mutable)))
     }
 }
 
@@ -88,6 +96,28 @@ pub struct LoopInfo {
     pub back_edge_blocks: Vec<BlockId>,
     /// User-supplied loop invariant expressions
     pub invariants: Vec<SpecExpr>,
+}
+
+/// Prophecy variable information for mutable borrow reasoning.
+///
+/// In order to specify and verify properties about mutable borrows (e.g., `&mut T`),
+/// we need to reason about both the initial value at function entry and the final
+/// value at function return. Prophecy variables implement this Creusot/RustHornBelt-style
+/// encoding:
+///
+/// - At function entry: declare initial and prophecy (final) variables
+/// - In specifications: `old(*x)` refers to initial, `final_value(x)` refers to prophecy
+/// - At function return: assert that the actual final value equals the prophecy
+#[derive(Debug, Clone)]
+pub struct ProphecyInfo {
+    /// The mutable borrow parameter name (e.g., "_1")
+    pub param_name: String,
+    /// The initial value variable name (e.g., "_1_initial")
+    pub initial_var: String,
+    /// The prophecy (final value) variable name (e.g., "_1_prophecy")
+    pub prophecy_var: String,
+    /// The type being pointed to (e.g., Ty::Int(IntTy::I32) for &mut i32)
+    pub inner_ty: Ty,
 }
 
 /// A specification expression (parsed from attribute strings).

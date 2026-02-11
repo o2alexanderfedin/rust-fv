@@ -69,6 +69,7 @@ pub fn convert_mir(
         contracts,
         loops: vec![],
         generic_params: vec![],
+        prophecies: vec![],
     }
 }
 

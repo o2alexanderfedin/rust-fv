@@ -50,6 +50,7 @@ fn make_add_function(contracts: Contracts) -> Function {
         }],
         contracts,
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     }
 }
@@ -722,6 +723,7 @@ fn make_max_function(contracts: Contracts) -> Function {
         ],
         contracts,
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     }
 }
@@ -913,6 +915,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
         ],
         contracts,
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     }
 }
@@ -1019,6 +1022,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         ],
         contracts,
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     }
 }
@@ -1199,6 +1203,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
         ],
         contracts,
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     }
 }
@@ -1314,6 +1319,7 @@ fn test_single_branch_overflow_check() {
             is_pure: true,
         },
         generic_params: vec![],
+            prophecies: vec![],
         loops: vec![],
     };
 
@@ -1734,6 +1740,7 @@ fn test_quantifier_full_pipeline() {
         },
         loops: vec![],
         generic_params: vec![],
+            prophecies: vec![],
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -1837,6 +1844,7 @@ fn test_generic_max_i32_verified() {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
         }],
+        prophecies: vec![],
     };
 
     // Register i32 instantiation
@@ -1935,6 +1943,7 @@ fn test_generic_max_u64_verified() {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
         }],
+        prophecies: vec![],
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2033,6 +2042,7 @@ fn test_generic_max_wrong_postcondition() {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
         }],
+        prophecies: vec![],
     };
 
     // Register i32 instantiation
@@ -2115,6 +2125,7 @@ fn test_generic_multiple_instantiations() {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
         }],
+        prophecies: vec![],
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2197,6 +2208,7 @@ fn test_generic_no_instantiations_warning() {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
         }],
+        prophecies: vec![],
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
