@@ -492,7 +492,7 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
         decls.push(Command::DeclareConst(param.name.clone(), sort));
     }
 
-    // Locals
+    // Locals (including ghost locals - they're declared but may not be used in executable VCs)
     for local in &func.locals {
         let sort = encode_type(&local.ty);
         decls.push(Command::DeclareConst(local.name.clone(), sort));
@@ -501,16 +501,52 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
     decls
 }
 
+/// Check if a function uses specification integer types (SpecInt/SpecNat).
+/// This determines whether we need Int theory in SMT logic.
+fn uses_spec_int_types(func: &Function) -> bool {
+    // Check return type
+    if func.return_local.ty.is_spec_int() {
+        return true;
+    }
+    // Check parameters
+    for param in &func.params {
+        if param.ty.is_spec_int() {
+            return true;
+        }
+    }
+    // Check locals
+    for local in &func.locals {
+        if local.ty.is_spec_int() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Build a base script with logic, datatype declarations, and variable declarations.
 ///
 /// Datatype declarations (DeclareDatatype) must come AFTER SetLogic/SetOption
 /// but BEFORE DeclareConst, since SMT-LIB requires sorts to be declared before use.
-fn base_script(datatype_declarations: &[Command], variable_declarations: &[Command]) -> Script {
+///
+/// Logic selection:
+/// - QF_BV: bitvectors only
+/// - QF_UFBVDT: bitvectors + datatypes
+/// - AUFLIRA: arrays, uninterpreted functions, linear integer/real arithmetic
+/// - When Int theory is needed (for SpecInt/SpecNat or Bv2Int terms), use AUFLIRA
+///   or omit set-logic to let Z3 auto-detect (more robust)
+fn base_script(
+    datatype_declarations: &[Command],
+    variable_declarations: &[Command],
+    uses_int: bool,
+) -> Script {
     let mut script = Script::new();
 
-    // Use QF_UFBVDT when datatypes are present (QF_BV doesn't support datatypes,
-    // QF_UFDT doesn't support bitvectors -- we need both)
-    if datatype_declarations.is_empty() {
+    // Logic selection based on features used
+    if uses_int {
+        // Int theory needed: omit set-logic to let Z3 auto-detect
+        // (more robust than trying to guess the exact combination)
+        tracing::debug!("Omitting set-logic due to Int theory usage (Z3 will auto-detect)");
+    } else if datatype_declarations.is_empty() {
         script.push(Command::SetLogic("QF_BV".to_string()));
     } else {
         script.push(Command::SetLogic("QF_UFBVDT".to_string()));
@@ -663,7 +699,11 @@ fn generate_overflow_vc(
     if let Some(ty) = ty
         && let Some(no_overflow) = overflow_check(ov.op, &lhs, &rhs, ty)
     {
-        let mut script = base_script(datatype_declarations, declarations);
+        let mut script = base_script(
+            datatype_declarations,
+            declarations,
+            uses_spec_int_types(func),
+        );
 
         // Add prior assignments along this path
         let mut ssa_counter = HashMap::new();
@@ -741,7 +781,11 @@ fn generate_assert_terminator_vcs(
                 })
                 .collect();
 
-            let mut script = base_script(datatype_declarations, declarations);
+            let mut script = base_script(
+                datatype_declarations,
+                declarations,
+                uses_spec_int_types(func),
+            );
 
             // Encode all path assignments
             for path in &relevant_paths {
@@ -848,7 +892,11 @@ fn generate_contract_vcs(
     }
 
     for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-        let mut script = base_script(datatype_declarations, declarations);
+        let mut script = base_script(
+            datatype_declarations,
+            declarations,
+            uses_spec_int_types(func),
+        );
 
         // Encode assignments from ALL paths, each guarded by its path condition
         for path in paths {
@@ -1146,7 +1194,11 @@ fn generate_call_site_vcs(
                 // Substitute callee param names with actual caller arguments
                 let substituted_pre = substitute_term(&pre_term, &arg_subs);
 
-                let mut script = base_script(datatype_declarations, declarations);
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
 
                 // Encode prior assignments along this path
                 let mut ssa_counter = HashMap::new();
@@ -1352,6 +1404,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         return_local: Local {
             name: "_0".to_string(),
             ty: summary.return_ty.clone(),
+            is_ghost: false,
         },
         params: summary
             .param_names
@@ -1360,6 +1413,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
             .map(|(name, ty)| Local {
                 name: name.clone(),
                 ty: ty.clone(),
+                is_ghost: false,
             })
             .collect(),
         locals: vec![],
@@ -1513,7 +1567,11 @@ fn generate_loop_invariant_vcs(
     // === VC1: Initialization ===
     // Preconditions + pre-loop assignments => invariant
     {
-        let mut script = base_script(datatype_declarations, declarations);
+        let mut script = base_script(
+            datatype_declarations,
+            declarations,
+            uses_spec_int_types(func),
+        );
 
         // Encode pre-loop assignments
         let mut ssa_counter = HashMap::new();
@@ -1574,7 +1632,11 @@ fn generate_loop_invariant_vcs(
             }
         }
 
-        let mut script = base_script(datatype_declarations, declarations);
+        let mut script = base_script(
+            datatype_declarations,
+            declarations,
+            uses_spec_int_types(func),
+        );
 
         // Add next-state declarations
         for decl in &next_decls {
@@ -1666,7 +1728,11 @@ fn generate_loop_invariant_vcs(
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
             if let Some(post_term) = parse_spec(&post.raw, func) {
-                let mut script = base_script(datatype_declarations, declarations);
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
 
                 // Assume invariant holds
                 script.push(Command::Assert(invariant.clone()));
@@ -2440,15 +2506,18 @@ mod tests {
             return_local: Local {
                 name: "_0".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             params: vec![
                 Local {
                     name: "_1".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
                 Local {
                     name: "_2".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
             ],
             locals: vec![],
@@ -2475,20 +2544,24 @@ mod tests {
             return_local: Local {
                 name: "_0".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             params: vec![
                 Local {
                     name: "_1".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
                 Local {
                     name: "_2".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
             ],
             locals: vec![Local {
                 name: "_3".to_string(),
                 ty: Ty::Bool,
+                is_ghost: false,
             }],
             basic_blocks: vec![
                 // bb0: _3 = _1 > _2; switchInt(_3)
@@ -2671,6 +2744,7 @@ mod tests {
             return_local: Local {
                 name: "_0".to_string(),
                 ty: Ty::Unit,
+                is_ghost: false,
             },
             params: vec![],
             locals: vec![],
@@ -2693,15 +2767,18 @@ mod tests {
             return_local: Local {
                 name: "_0".to_string(),
                 ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
             },
             params: vec![
                 Local {
                     name: "_1".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
                 Local {
                     name: "_2".to_string(),
                     ty: Ty::Int(IntTy::I32),
+                    is_ghost: false,
                 },
             ],
             locals: vec![],
