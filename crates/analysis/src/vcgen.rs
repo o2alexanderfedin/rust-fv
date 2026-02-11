@@ -2191,8 +2191,15 @@ fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
 ///
 /// This ensures backward compatibility: all specs that worked before still work,
 /// and the new parser handles additional syntax (field access, old(), etc.).
+///
+/// After parsing, quantified specs (forall/exists) are automatically annotated
+/// with trigger patterns for SMT instantiation control.
 fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
-    spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))
+    let term =
+        spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))?;
+
+    // Annotate quantifiers with trigger patterns
+    Some(crate::encode_quantifier::annotate_quantifier(term))
 }
 
 /// Parse a simple specification expression into an SMT-LIB term.
