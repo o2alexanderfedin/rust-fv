@@ -11,6 +11,28 @@
 /// - **Every condition**: path conditions encoded via ITE
 /// - **Every assertion**: verified via SMT
 /// - **Every contract**: preconditions assumed, postconditions checked
+///
+/// ## SSA and Path-Condition Encoding
+///
+/// The VCGen traverses the CFG (control-flow graph) properly via
+/// `Terminator::Goto`, `SwitchInt`, `Assert`, and `Call` edges rather
+/// than walking basic blocks linearly by index. This ensures that
+/// assignments in different branches do not clobber each other.
+///
+/// For postcondition verification, all paths through the function are
+/// enumerated. Each path's assignments are guarded by the conjunction
+/// of branch conditions along that path (the path condition). At merge
+/// points, the return value `_0` is encoded as:
+///
+/// ```text
+/// (assert (=> path_1_cond (= _0 path_1_value)))
+/// (assert (=> path_2_cond (= _0 path_2_value)))
+/// ```
+///
+/// This naturally handles if/else, match arms, and early returns without
+/// explicit phi nodes.
+use std::collections::{HashMap, HashSet};
+
 use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::term::Term;
@@ -45,6 +67,42 @@ pub struct FunctionVCs {
     pub conditions: Vec<VerificationCondition>,
 }
 
+/// A single path through the CFG: a sequence of (block_index, statements)
+/// with an accumulated path condition.
+#[derive(Debug, Clone)]
+struct CfgPath {
+    /// The path condition: conjunction of all branch decisions along this path.
+    /// `None` means unconditional (single path, no branches).
+    condition: Option<Term>,
+    /// Assignments collected along this path, in order.
+    assignments: Vec<PathAssignment>,
+    /// Overflow VCs found along this path.
+    overflow_vcs: Vec<OverflowVcInfo>,
+}
+
+/// An assignment found along a path, with its location info.
+#[derive(Debug, Clone)]
+struct PathAssignment {
+    place: Place,
+    rvalue: Rvalue,
+    block_idx: usize,
+}
+
+/// Info about an overflow check found along a path.
+#[derive(Debug, Clone)]
+struct OverflowVcInfo {
+    op: BinOp,
+    lhs_operand: Operand,
+    rhs_operand: Operand,
+    place: Place,
+    block_idx: usize,
+    stmt_idx: usize,
+    /// Assignments that precede this overflow point along this path.
+    prior_assignments: Vec<PathAssignment>,
+    /// Path condition at this point.
+    path_condition: Option<Term>,
+}
+
 /// Generate all verification conditions for a function.
 ///
 /// This is the main entry point. It produces a set of SMT-LIB scripts,
@@ -53,33 +111,270 @@ pub struct FunctionVCs {
 pub fn generate_vcs(func: &Function) -> FunctionVCs {
     let mut conditions = Vec::new();
 
-    // Phase 1: SSA-like encoding — walk basic blocks sequentially
-    // For each block, accumulate path conditions and generate VCs.
-
     // Collect all variable declarations
     let declarations = collect_declarations(func);
 
-    // Walk each basic block and generate VCs
-    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
-        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
-            let mut stmt_vcs =
-                generate_statement_vcs(func, &declarations, block_idx, stmt_idx, stmt);
-            conditions.append(&mut stmt_vcs);
-        }
+    // Enumerate all paths through the CFG
+    let paths = enumerate_paths(func);
 
-        // Generate VCs for the terminator
-        let mut term_vcs =
-            generate_terminator_vcs(func, &declarations, block_idx, &block.terminator);
-        conditions.append(&mut term_vcs);
+    // Generate overflow VCs from all paths
+    for path in &paths {
+        for ov in &path.overflow_vcs {
+            let mut vc = generate_overflow_vc(func, &declarations, ov);
+            conditions.append(&mut vc);
+        }
     }
 
-    // Generate contract verification conditions
-    let mut contract_vcs = generate_contract_vcs(func, &declarations);
+    // Generate terminator assertion VCs (Terminator::Assert)
+    let mut assert_vcs = generate_assert_terminator_vcs(func, &declarations, &paths);
+    conditions.append(&mut assert_vcs);
+
+    // Generate contract verification conditions (postconditions)
+    let mut contract_vcs = generate_contract_vcs(func, &declarations, &paths);
     conditions.append(&mut contract_vcs);
 
     FunctionVCs {
         function_name: func.name.clone(),
         conditions,
+    }
+}
+
+/// Enumerate all paths through the CFG from the entry block to Return terminators.
+///
+/// Each path records:
+/// - The path condition (conjunction of branch decisions)
+/// - All assignments along the path
+/// - Overflow check points along the path
+///
+/// For functions without branches, there is a single path with no condition.
+/// For if/else, there are two paths with complementary conditions.
+/// For nested branches, paths multiply.
+///
+/// To prevent infinite loops on back-edges, a block is skipped if already
+/// visited on the current path (cycle detection).
+fn enumerate_paths(func: &Function) -> Vec<CfgPath> {
+    if func.basic_blocks.is_empty() {
+        return vec![CfgPath {
+            condition: None,
+            assignments: vec![],
+            overflow_vcs: vec![],
+        }];
+    }
+
+    let mut completed_paths = Vec::new();
+    let initial_state = PathState {
+        conditions: Vec::new(),
+        assignments: Vec::new(),
+        overflow_vcs: Vec::new(),
+        visited: HashSet::new(),
+    };
+
+    traverse_block(func, 0, initial_state, &mut completed_paths);
+
+    // If no paths completed (e.g., all paths are Unreachable), return empty path
+    if completed_paths.is_empty() {
+        completed_paths.push(CfgPath {
+            condition: None,
+            assignments: vec![],
+            overflow_vcs: vec![],
+        });
+    }
+
+    completed_paths
+}
+
+/// Mutable state accumulated during path traversal.
+#[derive(Clone)]
+struct PathState {
+    /// Branch conditions collected along this path.
+    conditions: Vec<Term>,
+    /// Assignments collected along this path.
+    assignments: Vec<PathAssignment>,
+    /// Overflow VCs found along this path.
+    overflow_vcs: Vec<OverflowVcInfo>,
+    /// Blocks visited on this path (cycle detection).
+    visited: HashSet<usize>,
+}
+
+impl PathState {
+    /// Build the path condition from accumulated branch conditions.
+    fn path_condition(&self) -> Option<Term> {
+        match self.conditions.len() {
+            0 => None,
+            1 => Some(self.conditions[0].clone()),
+            _ => Some(Term::And(self.conditions.clone())),
+        }
+    }
+
+    /// Finalize this path state into a CfgPath.
+    fn into_cfg_path(self) -> CfgPath {
+        let condition = self.path_condition();
+        CfgPath {
+            condition,
+            assignments: self.assignments,
+            overflow_vcs: self.overflow_vcs,
+        }
+    }
+}
+
+/// Recursively traverse a block, collecting assignments and following CFG edges.
+fn traverse_block(
+    func: &Function,
+    block_idx: usize,
+    mut state: PathState,
+    completed: &mut Vec<CfgPath>,
+) {
+    // Cycle detection: skip if already visited on this path
+    if state.visited.contains(&block_idx) {
+        // Complete this path as-is (loop back-edge, Phase 2 will handle properly)
+        completed.push(state.into_cfg_path());
+        return;
+    }
+
+    // Bounds check
+    if block_idx >= func.basic_blocks.len() {
+        completed.push(state.into_cfg_path());
+        return;
+    }
+
+    state.visited.insert(block_idx);
+    let block = &func.basic_blocks[block_idx];
+
+    // Process all statements in this block
+    for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+        if let Statement::Assign(place, rvalue) = stmt {
+            // Record overflow check info before adding the assignment
+            match rvalue {
+                Rvalue::BinaryOp(op, lhs_op, rhs_op)
+                | Rvalue::CheckedBinaryOp(op, lhs_op, rhs_op) => {
+                    state.overflow_vcs.push(OverflowVcInfo {
+                        op: *op,
+                        lhs_operand: lhs_op.clone(),
+                        rhs_operand: rhs_op.clone(),
+                        place: place.clone(),
+                        block_idx,
+                        stmt_idx,
+                        prior_assignments: state.assignments.clone(),
+                        path_condition: state.path_condition(),
+                    });
+                }
+                _ => {}
+            }
+
+            // Record the assignment
+            state.assignments.push(PathAssignment {
+                place: place.clone(),
+                rvalue: rvalue.clone(),
+                block_idx,
+            });
+        }
+    }
+
+    // Follow the terminator
+    match &block.terminator {
+        Terminator::Return => {
+            // Path complete
+            completed.push(state.into_cfg_path());
+        }
+
+        Terminator::Goto(target) => {
+            traverse_block(func, *target, state, completed);
+        }
+
+        Terminator::SwitchInt {
+            discr,
+            targets,
+            otherwise,
+        } => {
+            let discr_term = encode_operand(discr);
+
+            // Process each explicit target
+            let mut taken_conditions = Vec::new();
+            for (value, target_block) in targets {
+                // Branch condition: discr == value
+                let branch_cond = match discr {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        let discr_ty = find_local_type(func, &place.local);
+                        match discr_ty {
+                            Some(Ty::Bool) => {
+                                if *value == 1 {
+                                    discr_term.clone()
+                                } else {
+                                    Term::Not(Box::new(discr_term.clone()))
+                                }
+                            }
+                            Some(ty) => {
+                                let width = ty.bit_width().unwrap_or(32);
+                                Term::Eq(
+                                    Box::new(discr_term.clone()),
+                                    Box::new(Term::BitVecLit(*value, width)),
+                                )
+                            }
+                            None => {
+                                // Default: treat as boolean
+                                if *value == 1 {
+                                    discr_term.clone()
+                                } else {
+                                    Term::Not(Box::new(discr_term.clone()))
+                                }
+                            }
+                        }
+                    }
+                    Operand::Constant(_) => {
+                        // Constant discriminant -- unusual but handle it
+                        Term::Eq(
+                            Box::new(discr_term.clone()),
+                            Box::new(Term::BitVecLit(*value, 32)),
+                        )
+                    }
+                };
+
+                taken_conditions.push(branch_cond.clone());
+
+                let mut branch_state = state.clone();
+                branch_state.conditions.push(branch_cond);
+                traverse_block(func, *target_block, branch_state, completed);
+            }
+
+            // Otherwise branch: NOT(any of the explicit conditions)
+            let otherwise_cond = if taken_conditions.len() == 1 {
+                Term::Not(Box::new(taken_conditions[0].clone()))
+            } else {
+                Term::Not(Box::new(Term::Or(taken_conditions)))
+            };
+
+            let mut otherwise_state = state;
+            otherwise_state.conditions.push(otherwise_cond);
+            traverse_block(func, *otherwise, otherwise_state, completed);
+        }
+
+        Terminator::Assert {
+            cond: _,
+            expected: _,
+            target,
+        } => {
+            // Process the assertion, then continue to target
+            // (Assertion VCs are generated separately)
+            traverse_block(func, *target, state, completed);
+        }
+
+        Terminator::Call {
+            func: _,
+            args: _,
+            destination,
+            target,
+        } => {
+            // For now, treat the call as opaque but record the destination
+            // The destination gets an unconstrained value (no assignment encoded)
+            // Continue to the target block
+            let _ = destination; // acknowledged but not encoded
+            traverse_block(func, *target, state, completed);
+        }
+
+        Terminator::Unreachable => {
+            // Path ends here -- don't add to completed paths
+            // (unreachable paths don't contribute to verification)
+        }
     }
 }
 
@@ -120,39 +415,12 @@ fn base_script(declarations: &[Command]) -> Script {
     script
 }
 
-/// Collect all assignment assertions up to (but not including) a given point.
-/// This encodes the program semantics as SMT assertions.
-fn collect_assignments_up_to(
-    func: &Function,
-    up_to_block: usize,
-    up_to_stmt: usize,
-) -> Vec<Command> {
-    let mut assertions = Vec::new();
-    let mut ssa_counter: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-
-    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
-        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
-            if block_idx > up_to_block || (block_idx == up_to_block && stmt_idx >= up_to_stmt) {
-                return assertions;
-            }
-
-            if let Statement::Assign(place, rvalue) = stmt
-                && let Some(assertion) = encode_assignment(place, rvalue, func, &mut ssa_counter)
-            {
-                assertions.push(assertion);
-            }
-        }
-    }
-
-    assertions
-}
-
 /// Encode an assignment as an SMT assertion.
 fn encode_assignment(
     place: &Place,
     rvalue: &Rvalue,
     func: &Function,
-    _ssa_counter: &mut std::collections::HashMap<String, u32>,
+    _ssa_counter: &mut HashMap<String, u32>,
 ) -> Option<Command> {
     let lhs = Term::Const(place.local.clone());
 
@@ -177,11 +445,11 @@ fn encode_assignment(
             encode_unop(*op, &t, ty)
         }
         Rvalue::Ref(_, ref_place) => {
-            // Reference is transparent — same as the value
+            // Reference is transparent -- same as the value
             Term::Const(ref_place.local.clone())
         }
         Rvalue::Len(_) => {
-            // Array length — represented as an uninterpreted constant for now
+            // Array length -- represented as an uninterpreted constant for now
             return None;
         }
         Rvalue::Cast(_, op, _) => {
@@ -201,93 +469,62 @@ fn encode_assignment(
     Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))))
 }
 
-/// Generate VCs for a single statement.
-fn generate_statement_vcs(
-    func: &Function,
-    declarations: &[Command],
-    block_idx: usize,
-    stmt_idx: usize,
-    stmt: &Statement,
-) -> Vec<VerificationCondition> {
-    let mut vcs = Vec::new();
+/// Encode a path's assignments as guarded SMT assertions.
+///
+/// If the path has a condition, each assignment is guarded:
+/// `(assert (=> path_cond (= var value)))`
+///
+/// If there is no condition (single path), assertions are unguarded:
+/// `(assert (= var value))`
+fn encode_path_assignments(func: &Function, path: &CfgPath) -> Vec<Command> {
+    let mut ssa_counter = HashMap::new();
+    let mut assertions = Vec::new();
 
-    match stmt {
-        Statement::Assign(place, rvalue) => {
-            // Check for overflow on arithmetic operations
-            match rvalue {
-                Rvalue::BinaryOp(op, lhs_op, rhs_op)
-                | Rvalue::CheckedBinaryOp(op, lhs_op, rhs_op) => {
-                    let lhs = encode_operand(lhs_op);
-                    let rhs = encode_operand(rhs_op);
-
-                    let ty = infer_operand_type(func, lhs_op)
-                        .or_else(|| find_local_type(func, &place.local));
-
-                    if let Some(ty) = ty
-                        && let Some(no_overflow) = overflow_check(*op, &lhs, &rhs, ty)
-                    {
-                        let mut script = base_script(declarations);
-
-                        // Add program semantics up to this point
-                        let prior = collect_assignments_up_to(func, block_idx, stmt_idx);
-                        for cmd in prior {
-                            script.push(cmd);
-                        }
-
-                        // Assume preconditions
-                        for pre in &func.contracts.requires {
-                            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
-                                script.push(Command::Assert(pre_term));
-                            }
-                        }
-
-                        // Assert that overflow IS possible (negate no-overflow)
-                        script.push(Command::Assert(Term::Not(Box::new(no_overflow))));
-                        script.push(Command::CheckSat);
-                        script.push(Command::GetModel);
-
-                        vcs.push(VerificationCondition {
-                            description: format!(
-                                "{}: no overflow in {:?} at block {block_idx}, stmt {stmt_idx}",
-                                func.name, op
-                            ),
-                            script,
-                            location: VcLocation {
-                                function: func.name.clone(),
-                                block: block_idx,
-                                statement: stmt_idx,
-                            },
-                        });
-                    }
+    for pa in &path.assignments {
+        if let Some(cmd) = encode_assignment(&pa.place, &pa.rvalue, func, &mut ssa_counter) {
+            match (&path.condition, &cmd) {
+                (Some(cond), Command::Assert(inner_term)) => {
+                    // Guard the assertion with the path condition
+                    assertions.push(Command::Assert(Term::Implies(
+                        Box::new(cond.clone()),
+                        Box::new(inner_term.clone()),
+                    )));
                 }
-                _ => {}
+                _ => {
+                    assertions.push(cmd);
+                }
             }
         }
-        Statement::Nop => {}
     }
 
-    vcs
+    assertions
 }
 
-/// Generate VCs for a terminator.
-fn generate_terminator_vcs(
+/// Generate an overflow VC from overflow info collected during path traversal.
+fn generate_overflow_vc(
     func: &Function,
     declarations: &[Command],
-    block_idx: usize,
-    terminator: &Terminator,
+    ov: &OverflowVcInfo,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
-    if let Terminator::Assert { cond, expected, .. } = terminator {
-        let cond_term = encode_operand(cond);
-        let expected_term = Term::BoolLit(*expected);
+    let lhs = encode_operand(&ov.lhs_operand);
+    let rhs = encode_operand(&ov.rhs_operand);
 
+    let ty = infer_operand_type(func, &ov.lhs_operand)
+        .or_else(|| find_local_type(func, &ov.place.local));
+
+    if let Some(ty) = ty
+        && let Some(no_overflow) = overflow_check(ov.op, &lhs, &rhs, ty)
+    {
         let mut script = base_script(declarations);
 
-        // Add all program semantics
-        let prior = collect_assignments_up_to(func, block_idx + 1, 0);
-        for cmd in prior {
-            script.push(cmd);
+        // Add prior assignments along this path
+        let mut ssa_counter = HashMap::new();
+        for pa in &ov.prior_assignments {
+            if let Some(cmd) = encode_assignment(&pa.place, &pa.rvalue, func, &mut ssa_counter) {
+                script.push(cmd);
+            }
         }
 
         // Assume preconditions
@@ -297,19 +534,26 @@ fn generate_terminator_vcs(
             }
         }
 
-        // Try to find a case where the assertion fails
-        let assertion_holds = Term::Eq(Box::new(cond_term), Box::new(expected_term));
-        script.push(Command::Assert(Term::Not(Box::new(assertion_holds))));
+        // If there's a path condition, assume it
+        if let Some(ref cond) = ov.path_condition {
+            script.push(Command::Assert(cond.clone()));
+        }
+
+        // Assert that overflow IS possible (negate no-overflow)
+        script.push(Command::Assert(Term::Not(Box::new(no_overflow))));
         script.push(Command::CheckSat);
         script.push(Command::GetModel);
 
         vcs.push(VerificationCondition {
-            description: format!("{}: assertion holds at block {block_idx}", func.name,),
+            description: format!(
+                "{}: no overflow in {:?} at block {}, stmt {}",
+                func.name, ov.op, ov.block_idx, ov.stmt_idx,
+            ),
             script,
             location: VcLocation {
                 function: func.name.clone(),
-                block: block_idx,
-                statement: usize::MAX,
+                block: ov.block_idx,
+                statement: ov.stmt_idx,
             },
         });
     }
@@ -317,14 +561,89 @@ fn generate_terminator_vcs(
     vcs
 }
 
-/// Generate contract verification conditions.
+/// Generate VCs for Terminator::Assert along all paths.
+fn generate_assert_terminator_vcs(
+    func: &Function,
+    declarations: &[Command],
+    paths: &[CfgPath],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    // Find blocks with Assert terminators
+    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+        if let Terminator::Assert { cond, expected, .. } = &block.terminator {
+            let cond_term = encode_operand(cond);
+            let expected_term = Term::BoolLit(*expected);
+
+            // Find paths that pass through this block
+            let relevant_paths: Vec<_> = paths
+                .iter()
+                .filter(|p| {
+                    p.assignments.iter().any(|a| a.block_idx == block_idx)
+                        || p.assignments.is_empty()
+                })
+                .collect();
+
+            let mut script = base_script(declarations);
+
+            // Encode all path assignments
+            for path in &relevant_paths {
+                let cmds = encode_path_assignments(func, path);
+                for cmd in cmds {
+                    script.push(cmd);
+                }
+            }
+
+            // If no relevant paths found, fall back to encoding all paths
+            if relevant_paths.is_empty() {
+                for path in paths {
+                    let cmds = encode_path_assignments(func, path);
+                    for cmd in cmds {
+                        script.push(cmd);
+                    }
+                }
+            }
+
+            // Assume preconditions
+            for pre in &func.contracts.requires {
+                if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                    script.push(Command::Assert(pre_term));
+                }
+            }
+
+            // Try to find a case where the assertion fails
+            let assertion_holds = Term::Eq(Box::new(cond_term), Box::new(expected_term));
+            script.push(Command::Assert(Term::Not(Box::new(assertion_holds))));
+            script.push(Command::CheckSat);
+            script.push(Command::GetModel);
+
+            vcs.push(VerificationCondition {
+                description: format!("{}: assertion holds at block {block_idx}", func.name),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: block_idx,
+                    statement: usize::MAX,
+                },
+            });
+        }
+    }
+
+    vcs
+}
+
+/// Generate contract verification conditions using path-sensitive encoding.
 ///
 /// For each postcondition, we:
 /// 1. Declare all variables
-/// 2. Assert all preconditions
-/// 3. Encode the full function semantics
+/// 2. Encode all path assignments with path-condition guards
+/// 3. Assert all preconditions
 /// 4. Try to find a counterexample where the postcondition fails
-fn generate_contract_vcs(func: &Function, declarations: &[Command]) -> Vec<VerificationCondition> {
+fn generate_contract_vcs(
+    func: &Function,
+    declarations: &[Command],
+    paths: &[CfgPath],
+) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
     if func.contracts.ensures.is_empty() {
@@ -334,10 +653,12 @@ fn generate_contract_vcs(func: &Function, declarations: &[Command]) -> Vec<Verif
     for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
         let mut script = base_script(declarations);
 
-        // Encode all assignments in the function
-        let all_assignments = collect_all_assignments(func);
-        for cmd in all_assignments {
-            script.push(cmd);
+        // Encode assignments from ALL paths, each guarded by its path condition
+        for path in paths {
+            let cmds = encode_path_assignments(func, path);
+            for cmd in cmds {
+                script.push(cmd);
+            }
         }
 
         // Assume preconditions
@@ -345,6 +666,13 @@ fn generate_contract_vcs(func: &Function, declarations: &[Command]) -> Vec<Verif
             if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
             }
+        }
+
+        // Assert that at least one path is taken
+        // (The disjunction of all path conditions must be true)
+        let path_conds: Vec<Term> = paths.iter().filter_map(|p| p.condition.clone()).collect();
+        if !path_conds.is_empty() {
+            script.push(Command::Assert(Term::Or(path_conds)));
         }
 
         // Negate postcondition and check if SAT (= postcondition violated)
@@ -373,24 +701,6 @@ fn generate_contract_vcs(func: &Function, declarations: &[Command]) -> Vec<Verif
     }
 
     vcs
-}
-
-/// Collect all assignments in a function as SMT assertions.
-fn collect_all_assignments(func: &Function) -> Vec<Command> {
-    let mut assertions = Vec::new();
-    let mut ssa_counter = std::collections::HashMap::new();
-
-    for block in &func.basic_blocks {
-        for stmt in &block.statements {
-            if let Statement::Assign(place, rvalue) = stmt
-                && let Some(assertion) = encode_assignment(place, rvalue, func, &mut ssa_counter)
-            {
-                assertions.push(assertion);
-            }
-        }
-    }
-
-    assertions
 }
 
 /// Find the type of a local variable by name.
@@ -521,7 +831,7 @@ fn make_comparison(op: BinOp, lhs: Term, rhs: Term, func: &Function) -> Term {
 fn parse_spec_operand(s: &str, func: &Function) -> Option<Term> {
     let s = s.trim();
 
-    // `result` → `_0` (return place)
+    // `result` -> `_0` (return place)
     if s == "result" {
         return Some(Term::Const(func.return_local.name.clone()));
     }
@@ -554,7 +864,7 @@ fn parse_spec_operand(s: &str, func: &Function) -> Option<Term> {
         }
     }
 
-    // Variable name — find in params or locals
+    // Variable name -- find in params or locals
     if find_local_type(func, s).is_some() {
         return Some(Term::Const(s.to_string()));
     }
@@ -674,8 +984,8 @@ mod tests {
                     )],
                     terminator: Terminator::SwitchInt {
                         discr: Operand::Copy(Place::local("_3")),
-                        targets: vec![(1, 1)], // true → bb1
-                        otherwise: 2,          // false → bb2
+                        targets: vec![(1, 1)], // true -> bb1
+                        otherwise: 2,          // false -> bb2
                     },
                 },
                 // bb1: _0 = _1; return
@@ -894,6 +1204,63 @@ mod tests {
                 .iter()
                 .any(|vc| vc.description.contains("overflow") || vc.description.contains("Div")),
             "Expected a division VC"
+        );
+    }
+
+    #[test]
+    fn path_enumeration_linear_function() {
+        let func = make_add_function();
+        let paths = enumerate_paths(&func);
+        assert_eq!(
+            paths.len(),
+            1,
+            "Linear function should have exactly one path"
+        );
+        assert!(
+            paths[0].condition.is_none(),
+            "Single-path function should have no path condition"
+        );
+    }
+
+    #[test]
+    fn path_enumeration_branching_function() {
+        let func = make_max_function();
+        let paths = enumerate_paths(&func);
+        assert_eq!(
+            paths.len(),
+            2,
+            "If/else function should have exactly two paths"
+        );
+        // Both paths should have conditions
+        assert!(
+            paths[0].condition.is_some(),
+            "First branch should have a condition"
+        );
+        assert!(
+            paths[1].condition.is_some(),
+            "Second branch should have a condition"
+        );
+    }
+
+    #[test]
+    fn max_postcondition_uses_path_conditions() {
+        let func = make_max_function();
+        let result = generate_vcs(&func);
+
+        // The postcondition VC should exist
+        let post_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.description.contains("postcondition"))
+            .collect();
+        assert!(!post_vcs.is_empty(), "Should have postcondition VCs");
+
+        // The script should contain implication (=>) for path-guarded assertions
+        let script_str = post_vcs[0].script.to_string();
+        assert!(
+            script_str.contains("=>") || script_str.contains("implies"),
+            "Postcondition VC for branching function should use path-guarded assertions. Script:\n{}",
+            script_str,
         );
     }
 }
