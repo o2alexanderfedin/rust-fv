@@ -63,16 +63,16 @@ Plans:
 **Depends on**: Phase 2
 **Requirements**: MOD-01, MOD-02, MOD-03, MOD-04
 **Research flag**: No -- Function summaries are an established technique (Dafny, Boogie, Why3, Prusti). Standard assume/assert encoding.
+**Plans:** 2 plans
 **Success Criteria** (what must be TRUE):
   1. A function `foo` calling a verified function `bar` with `#[requires]`/`#[ensures]` contracts is verified by asserting `bar`'s precondition at the call site and assuming `bar`'s postcondition for the return value, without analyzing `bar`'s body
   2. If a call site violates the callee's precondition, the verifier reports the specific precondition that was violated and the values that caused the violation
   3. Verification of a 10-function call chain completes without exponential blowup because each function is verified against its contract independently
   4. The verifier leverages Rust's ownership guarantees (moved values cannot be used, immutable borrows cannot be mutated) to strengthen verification without additional annotations
-**Plans**: TBD
 
 Plans:
-- [ ] 03-01: Function contract database and call encoding
-- [ ] 03-02: Ownership reasoning integration
+- [ ] 03-01-PLAN.md -- Contract database and inter-procedural call-site encoding (assert precondition, havoc return, assume postcondition)
+- [ ] 03-02-PLAN.md -- Ownership reasoning integration (move/copy/borrow classification, value preservation for shared borrows)
 
 ### Phase 4: Differentiation
 **Goal**: Specifications can express properties using unbounded math, ghost state, quantifiers over collections, and mutable borrow reasoning
@@ -120,10 +120,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
 | 2. Table Stakes Completion | 5/5 | Complete | 2026-02-11 |
-| 3. Modular Verification | 0/2 | Not started | - |
+| 3. Modular Verification | 0/2 | Planned | - |
 | 4. Differentiation | 0/4 | Not started | - |
 | 5. Performance and Polish | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 2 complete)*
+*Last updated: 2026-02-11 (Phase 3 planned)*
