@@ -11,6 +11,7 @@ use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
 
 use crate::mir_converter;
+use crate::output;
 
 /// Result of verifying a single function.
 #[derive(Debug)]
@@ -46,33 +47,63 @@ impl VerificationCallbacks {
         }
     }
 
-    /// Print verification results to stderr.
+    /// Print verification results to stderr using colored output.
+    ///
+    /// Groups per-VC results by function name and produces a single
+    /// per-function line with OK/FAIL/TIMEOUT status.
     pub fn print_results(&self) {
-        if self.results.is_empty() {
-            eprintln!("[rust-fv] No verification conditions generated.");
-            return;
-        }
-
-        let total = self.results.len();
-        let verified = self.results.iter().filter(|r| r.verified).count();
-        let failed = total - verified;
-
-        eprintln!("\n[rust-fv] Verification Results:");
-        eprintln!("  Total conditions: {total}");
-        eprintln!("  Verified: {verified}");
-        eprintln!("  Failed: {failed}");
-        eprintln!();
-
+        // Group results by function name
+        let mut func_map: std::collections::HashMap<String, Vec<&VerificationResult>> =
+            std::collections::HashMap::new();
         for result in &self.results {
-            let status = if result.verified { "OK" } else { "FAIL" };
-            eprintln!(
-                "  [{status}] {}: {}",
-                result.function_name, result.condition
-            );
-            if let Some(cx) = &result.counterexample {
-                eprintln!("        Counterexample: {cx}");
-            }
+            func_map
+                .entry(result.function_name.clone())
+                .or_default()
+                .push(result);
         }
+
+        // Convert to FunctionResult entries
+        let mut func_results: Vec<output::FunctionResult> = func_map
+            .into_iter()
+            .map(|(name, vcs)| {
+                let vc_count = vcs.len();
+                let verified_count = vcs.iter().filter(|r| r.verified).count();
+                let all_ok = verified_count == vc_count;
+
+                // Collect first failure message
+                let fail_msg = vcs.iter().find(|r| !r.verified).map(|r| {
+                    let mut msg = r.condition.clone();
+                    if let Some(cx) = &r.counterexample {
+                        msg.push_str(&format!(" (counterexample: {cx})"));
+                    }
+                    msg
+                });
+
+                let status = if all_ok {
+                    output::VerificationStatus::Ok
+                } else if vcs
+                    .iter()
+                    .any(|r| r.condition.contains("unknown") || r.condition.contains("timeout"))
+                {
+                    output::VerificationStatus::Timeout
+                } else {
+                    output::VerificationStatus::Fail
+                };
+
+                output::FunctionResult {
+                    name,
+                    status,
+                    message: fail_msg,
+                    vc_count,
+                    verified_count,
+                }
+            })
+            .collect();
+
+        // Sort by name for deterministic output
+        func_results.sort_by(|a, b| a.name.cmp(&b.name));
+
+        output::print_verification_results(&func_results);
     }
 }
 

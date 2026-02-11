@@ -23,11 +23,24 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 mod callbacks;
+mod cargo_verify;
 mod mir_converter;
+mod output;
 
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // Check if invoked as `cargo verify` subcommand.
+    // When cargo runs a subcommand, args are: [binary, "verify", ...]
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && args[1] == "verify" {
+        let exit_code = cargo_verify::run_cargo_verify(&args[2..]);
+        return match exit_code {
+            0 => ExitCode::SUCCESS,
+            _ => ExitCode::FAILURE,
+        };
+    }
+
     // Initialize tracing subscriber before any verification work
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -40,8 +53,6 @@ fn main() -> ExitCode {
     let early_dcx =
         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());
     rustc_driver::init_rustc_env_logger(&early_dcx);
-
-    let args: Vec<String> = std::env::args().collect();
 
     let verify =
         std::env::var("RUST_FV_VERIFY").is_ok() || args.iter().any(|a| a == "--rust-fv-verify");

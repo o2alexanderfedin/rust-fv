@@ -10,9 +10,14 @@ repository.workspace = true
 name = "rust-fv-driver"
 path = "src/main.rs"
 
+[[bin]]
+name = "cargo-verify"
+path = "src/main.rs"
+
 [dependencies]
 rust-fv-analysis = { workspace = true }
 rust-fv-solver = { workspace = true }
 rust-fv-smtlib = { workspace = true }
+colored = "3.1"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
