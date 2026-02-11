@@ -322,7 +322,9 @@ pub fn overflow_check(op: BinOp, lhs: &Term, rhs: &Term, ty: &Ty) -> Option<Term
         }
         BinOp::Div | BinOp::Rem => {
             let mut checks = vec![division_not_by_zero(rhs, width)];
-            if ty.is_signed() && op == BinOp::Div {
+            if ty.is_signed() {
+                // Both signed division AND signed remainder overflow for INT_MIN / -1.
+                // In Rust, `i32::MIN % -1` panics because the underlying division overflows.
                 checks.push(signed_div_no_overflow(lhs, rhs, width));
             }
             Some(Term::And(checks))
@@ -510,5 +512,155 @@ mod tests {
         let term = signed_div_no_overflow(&var("a"), &var("b"), 32);
         // Should be Not(And(a == MIN, b == -1))
         assert!(matches!(term, Term::Not(_)));
+    }
+
+    // === Audit item tests (Plan 01-02) ===
+
+    #[test]
+    fn overflow_check_signed_rem_includes_overflow_check() {
+        // Audit item 10: signed Rem must include INT_MIN % -1 overflow check
+        let ty = Ty::Int(IntTy::I32);
+        let check = overflow_check(BinOp::Rem, &var("a"), &var("b"), &ty);
+        assert!(check.is_some(), "Signed Rem should produce overflow check");
+        // Should be And([div-by-zero-check, signed-div-overflow-check])
+        if let Some(Term::And(parts)) = &check {
+            assert_eq!(
+                parts.len(),
+                2,
+                "Signed Rem should have 2 checks: div-by-zero + INT_MIN%-1 overflow"
+            );
+        } else {
+            panic!("Expected And term for signed Rem overflow check, got: {check:?}");
+        }
+    }
+
+    #[test]
+    fn overflow_check_unsigned_rem_no_overflow_check() {
+        // Unsigned Rem only has div-by-zero, no INT_MIN overflow
+        let ty = Ty::Uint(UintTy::U32);
+        let check = overflow_check(BinOp::Rem, &var("a"), &var("b"), &ty);
+        assert!(
+            check.is_some(),
+            "Unsigned Rem should produce overflow check"
+        );
+        // Should be And([div-by-zero-check]) -- just one element
+        if let Some(Term::And(parts)) = &check {
+            assert_eq!(
+                parts.len(),
+                1,
+                "Unsigned Rem should have only div-by-zero check"
+            );
+        } else {
+            panic!("Expected And term for unsigned Rem overflow check, got: {check:?}");
+        }
+    }
+
+    #[test]
+    fn overflow_check_signed_div_includes_both_checks() {
+        // Audit item 8: signed Div must include both div-by-zero and INT_MIN/-1
+        let ty = Ty::Int(IntTy::I32);
+        let check = overflow_check(BinOp::Div, &var("a"), &var("b"), &ty);
+        assert!(check.is_some());
+        if let Some(Term::And(parts)) = &check {
+            assert_eq!(
+                parts.len(),
+                2,
+                "Signed Div should have 2 checks: div-by-zero + INT_MIN/-1 overflow"
+            );
+        } else {
+            panic!("Expected And term for signed Div overflow check, got: {check:?}");
+        }
+    }
+
+    #[test]
+    fn overflow_check_unsigned_div_only_zero_check() {
+        // Unsigned Div only has div-by-zero
+        let ty = Ty::Uint(UintTy::U32);
+        let check = overflow_check(BinOp::Div, &var("a"), &var("b"), &ty);
+        assert!(check.is_some());
+        if let Some(Term::And(parts)) = &check {
+            assert_eq!(
+                parts.len(),
+                1,
+                "Unsigned Div should have only div-by-zero check"
+            );
+        } else {
+            panic!("Expected And term for unsigned Div overflow check, got: {check:?}");
+        }
+    }
+
+    #[test]
+    fn min_signed_value_all_widths() {
+        // Audit item: verify min_signed_value is correct for all widths
+        assert_eq!(min_signed_value(8), -128);
+        assert_eq!(min_signed_value(16), -32768);
+        assert_eq!(min_signed_value(32), -2_147_483_648);
+        assert_eq!(min_signed_value(64), -9_223_372_036_854_775_808);
+        assert_eq!(min_signed_value(128), i128::MIN);
+    }
+
+    #[test]
+    fn overflow_check_sub_signed() {
+        // Audit item 3: signed subtraction overflow check exists
+        let ty = Ty::Int(IntTy::I32);
+        let check = overflow_check(BinOp::Sub, &var("a"), &var("b"), &ty);
+        assert!(check.is_some(), "Signed Sub should produce overflow check");
+    }
+
+    #[test]
+    fn overflow_check_sub_unsigned() {
+        // Audit item 4: unsigned subtraction underflow check (lhs >= rhs)
+        let ty = Ty::Uint(UintTy::U32);
+        let check = overflow_check(BinOp::Sub, &var("a"), &var("b"), &ty);
+        assert!(
+            check.is_some(),
+            "Unsigned Sub should produce overflow check"
+        );
+        // Should be BvUGe(lhs, rhs)
+        assert!(
+            matches!(check, Some(Term::BvUGe(_, _))),
+            "Unsigned sub overflow check should be BvUGe(lhs, rhs)"
+        );
+    }
+
+    #[test]
+    fn overflow_check_mul_signed() {
+        // Audit item 5: signed multiplication overflow uses sign-extension
+        let ty = Ty::Int(IntTy::I32);
+        let check = overflow_check(BinOp::Mul, &var("a"), &var("b"), &ty);
+        assert!(check.is_some(), "Signed Mul should produce overflow check");
+        // Should be Eq(wide_result, re_extended)
+        assert!(
+            matches!(check, Some(Term::Eq(_, _))),
+            "Signed mul overflow check should be Eq(wide, re_extended)"
+        );
+    }
+
+    #[test]
+    fn overflow_check_mul_unsigned() {
+        // Audit item 6: unsigned multiplication overflow uses zero-extension
+        let ty = Ty::Uint(UintTy::U32);
+        let check = overflow_check(BinOp::Mul, &var("a"), &var("b"), &ty);
+        assert!(
+            check.is_some(),
+            "Unsigned Mul should produce overflow check"
+        );
+        assert!(
+            matches!(check, Some(Term::Eq(_, _))),
+            "Unsigned mul overflow check should be Eq(wide, re_extended)"
+        );
+    }
+
+    #[test]
+    fn overflow_check_shr_bounds_shift_amount() {
+        // Audit item 9: shift bounds check for Shr as well
+        let ty = Ty::Uint(UintTy::U32);
+        let check = overflow_check(BinOp::Shr, &var("a"), &var("b"), &ty);
+        assert!(check.is_some(), "Shr should produce overflow check");
+        if let Some(Term::BvULt(_, rhs)) = &check {
+            assert_eq!(**rhs, Term::BitVecLit(32, 32));
+        } else {
+            panic!("Expected BvULt for shift overflow check");
+        }
     }
 }
