@@ -5,22 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden
-**Current focus:** Phase 3 - Modular Verification
+**Current focus:** Phase 3 - Modular Verification -- COMPLETE
 
 ## Current Position
 
-Phase: 3 of 5 (Modular Verification) -- IN PROGRESS
-Plan: 1 of 2 in current phase -- 03-01 complete
-Status: Phase 3 plan 1 complete -- inter-procedural verification with ContractDatabase
-Last activity: 2026-02-11 -- Completed 03-01-PLAN.md (ContractDatabase + call-site encoding)
+Phase: 3 of 5 (Modular Verification) -- COMPLETE
+Plan: 2 of 2 in current phase -- 03-02 complete
+Status: Phase 3 complete -- ownership-aware inter-procedural verification
+Last activity: 2026-02-11 -- Completed 03-02-PLAN.md (ownership classification + E2E tests)
 
-Progress: [##########░░░░░░░░░░] 50% (Phase 3: plan 1 of 2 complete)
+Progress: [############░░░░░░░░] 60% (Phase 3: 2 of 2 complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 409+ tests passing (102 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 10 interprocedural E2E + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- 243+ tests passing (113 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 10 interprocedural E2E + 12 ownership E2E + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
 - **Inter-procedural verification (03-01)**: ContractDatabase, call-site encoding (assert-pre/havoc/assume-post), modular verification of call chains
+- **Ownership-aware verification (03-02)**: OwnershipKind classification, pre-call snapshot constraints for SharedBorrow/Copied, havoc for MutableBorrow
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -43,9 +44,9 @@ Progress: [##########░░░░░░░░░░] 50% (Phase 3: plan 1 of 2 c
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: ~12 min
-- Total execution time: ~109 min
+- Total execution time: ~120 min
 
 **By Phase:**
 
@@ -53,7 +54,7 @@ Progress: [##########░░░░░░░░░░] 50% (Phase 3: plan 1 of 2 c
 |-------|-------|-------|----------|
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
-| 03-modular-verification | 1/2 | ~10 min | ~10 min |
+| 03-modular-verification | 2/2 | ~21 min | ~11 min |
 
 *Updated after each plan completion*
 
@@ -103,6 +104,10 @@ Recent decisions affecting current work:
 - [03-01]: Callee postconditions asserted positively as assumptions in caller postcondition VCs
 - [03-01]: build_callee_func_context from FunctionSummary for spec parsing in caller context
 - [03-01]: normalize_callee_name: trim -> strip "const " -> take last :: segment
+- [03-02]: Param type takes precedence over operand kind for ownership classification
+- [03-02]: Pre-call snapshot via DeclareConst + assertion pairs for value preservation
+- [03-02]: No driver changes needed: ownership analysis driven by VCGen from ContractDatabase param types
+- [03-02]: Bounded callee return contracts in tests to prevent bitvector overflow
 
 ### Pending Todos
 
@@ -115,6 +120,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 03-01-PLAN.md (ContractDatabase + call-site encoding)
+Stopped at: Completed 03-02-PLAN.md (ownership-aware verification)
 Resume file: None
-Next step: Execute 03-02-PLAN.md (remaining Phase 3 modular verification)
+Next step: Phase 3 complete -- proceed to Phase 4
