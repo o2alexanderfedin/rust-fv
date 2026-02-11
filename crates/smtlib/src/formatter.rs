@@ -291,6 +291,24 @@ impl fmt::Display for Command {
             Command::Echo(msg) => write!(f, "(echo \"{msg}\")"),
             Command::Comment(text) => write!(f, ";; {text}"),
             Command::Exit => write!(f, "(exit)"),
+            Command::DeclareDatatype { name, variants } => {
+                write!(f, "(declare-datatype {name} (")?;
+                for (i, variant) in variants.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    if variant.fields.is_empty() {
+                        write!(f, "({})", variant.constructor)?;
+                    } else {
+                        write!(f, "({}", variant.constructor)?;
+                        for (field_name, field_sort) in &variant.fields {
+                            write!(f, " ({field_name} {field_sort})")?;
+                        }
+                        write!(f, ")")?;
+                    }
+                }
+                write!(f, "))")
+            }
         }
     }
 }
@@ -1296,5 +1314,69 @@ mod tests {
     fn cmd_get_value_single() {
         let cmd = Command::GetValue(vec![Term::Const("x".into())]);
         assert_eq!(cmd.to_string(), "(get-value (x))");
+    }
+
+    // -----------------------------------------------------------------------
+    // DeclareDatatype formatting
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn cmd_declare_datatype_struct() {
+        use crate::command::DatatypeVariant;
+        let cmd = Command::DeclareDatatype {
+            name: "Point".into(),
+            variants: vec![DatatypeVariant {
+                constructor: "mk-Point".into(),
+                fields: vec![
+                    ("Point-x".into(), Sort::BitVec(32)),
+                    ("Point-y".into(), Sort::BitVec(32)),
+                ],
+            }],
+        };
+        assert_eq!(
+            cmd.to_string(),
+            "(declare-datatype Point ((mk-Point (Point-x (_ BitVec 32)) (Point-y (_ BitVec 32)))))"
+        );
+    }
+
+    #[test]
+    fn cmd_declare_datatype_enum() {
+        use crate::command::DatatypeVariant;
+        let cmd = Command::DeclareDatatype {
+            name: "Option_i32".into(),
+            variants: vec![
+                DatatypeVariant {
+                    constructor: "mk-None".into(),
+                    fields: vec![],
+                },
+                DatatypeVariant {
+                    constructor: "mk-Some".into(),
+                    fields: vec![("Some-0".into(), Sort::BitVec(32))],
+                },
+            ],
+        };
+        assert_eq!(
+            cmd.to_string(),
+            "(declare-datatype Option_i32 ((mk-None) (mk-Some (Some-0 (_ BitVec 32)))))"
+        );
+    }
+
+    #[test]
+    fn cmd_declare_datatype_tuple() {
+        use crate::command::DatatypeVariant;
+        let cmd = Command::DeclareDatatype {
+            name: "Tuple2".into(),
+            variants: vec![DatatypeVariant {
+                constructor: "mk-Tuple2".into(),
+                fields: vec![
+                    ("Tuple2-_0".into(), Sort::BitVec(32)),
+                    ("Tuple2-_1".into(), Sort::Bool),
+                ],
+            }],
+        };
+        assert_eq!(
+            cmd.to_string(),
+            "(declare-datatype Tuple2 ((mk-Tuple2 (Tuple2-_0 (_ BitVec 32)) (Tuple2-_1 Bool))))"
+        );
     }
 }

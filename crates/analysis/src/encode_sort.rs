@@ -1,7 +1,10 @@
 /// Encode Rust types as SMT-LIB sorts.
+use std::collections::HashSet;
+
+use rust_fv_smtlib::command::{Command, DatatypeVariant};
 use rust_fv_smtlib::sort::Sort;
 
-use crate::ir::{FloatTy, Ty};
+use crate::ir::{FloatTy, Function, Ty};
 
 /// Convert a Rust type to an SMT-LIB sort.
 ///
@@ -50,18 +53,18 @@ pub fn encode_type(ty: &Ty) -> Sort {
         Ty::RawPtr(_, _) => Sort::BitVec(64),
 
         Ty::Tuple(fields) if fields.is_empty() => Sort::Bool,
-        Ty::Tuple(_) => {
-            tracing::trace!("Encoding tuple as uninterpreted sort (Phase 2 TODO)");
-            Sort::Uninterpreted("Tuple".to_string())
+        Ty::Tuple(fields) => {
+            tracing::trace!(len = fields.len(), "Encoding tuple as datatype sort");
+            Sort::Datatype(format!("Tuple{}", fields.len()))
         }
 
         Ty::Struct(name, _) => {
-            tracing::trace!(struct_name = %name, "Encoding struct as uninterpreted sort");
-            Sort::Uninterpreted(name.clone())
+            tracing::trace!(struct_name = %name, "Encoding struct as datatype sort");
+            Sort::Datatype(name.clone())
         }
         Ty::Enum(name, _) => {
-            tracing::trace!(enum_name = %name, "Encoding enum as uninterpreted sort");
-            Sort::Uninterpreted(name.clone())
+            tracing::trace!(enum_name = %name, "Encoding enum as datatype sort");
+            Sort::Datatype(name.clone())
         }
         Ty::Named(name) => {
             tracing::trace!(type_name = %name, "Encoding named type as uninterpreted sort");
@@ -74,6 +77,115 @@ fn encode_float(fty: &FloatTy) -> Sort {
     match fty {
         FloatTy::F32 => Sort::Float(8, 24),
         FloatTy::F64 => Sort::Float(11, 53),
+    }
+}
+
+/// Collect all datatype declarations needed for a function's types.
+///
+/// Scans the return type, all parameter types, and all local types for
+/// struct, tuple, and enum types. Each unique type name produces one
+/// `DeclareDatatype` command.
+///
+/// These commands must appear in the SMT-LIB script BEFORE any variable
+/// declarations that use the datatype sorts.
+pub fn collect_datatype_declarations(func: &Function) -> Vec<Command> {
+    let mut seen = HashSet::new();
+    let mut declarations = Vec::new();
+
+    // Collect types from all function locals
+    let all_types = std::iter::once(&func.return_local.ty)
+        .chain(func.params.iter().map(|p| &p.ty))
+        .chain(func.locals.iter().map(|l| &l.ty));
+
+    for ty in all_types {
+        collect_from_type(ty, &mut seen, &mut declarations);
+    }
+
+    declarations
+}
+
+/// Recursively collect datatype declarations from a type.
+fn collect_from_type(ty: &Ty, seen: &mut HashSet<String>, declarations: &mut Vec<Command>) {
+    match ty {
+        Ty::Struct(name, fields) => {
+            if seen.insert(name.clone()) {
+                // Recurse into field types first (they may be datatypes too)
+                for (_field_name, field_ty) in fields {
+                    collect_from_type(field_ty, seen, declarations);
+                }
+                let variant = DatatypeVariant {
+                    constructor: format!("mk-{name}"),
+                    fields: fields
+                        .iter()
+                        .map(|(field_name, field_ty)| {
+                            (format!("{name}-{field_name}"), encode_type(field_ty))
+                        })
+                        .collect(),
+                };
+                declarations.push(Command::DeclareDatatype {
+                    name: name.clone(),
+                    variants: vec![variant],
+                });
+            }
+        }
+        Ty::Tuple(fields) if !fields.is_empty() => {
+            let type_name = format!("Tuple{}", fields.len());
+            if seen.insert(type_name.clone()) {
+                // Recurse into element types
+                for field_ty in fields {
+                    collect_from_type(field_ty, seen, declarations);
+                }
+                let variant = DatatypeVariant {
+                    constructor: format!("mk-{type_name}"),
+                    fields: fields
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, field_ty)| {
+                            (format!("{type_name}-_{idx}"), encode_type(field_ty))
+                        })
+                        .collect(),
+                };
+                declarations.push(Command::DeclareDatatype {
+                    name: type_name,
+                    variants: vec![variant],
+                });
+            }
+        }
+        Ty::Enum(name, variants) => {
+            if seen.insert(name.clone()) {
+                // Recurse into variant field types
+                for (_variant_name, variant_fields) in variants {
+                    for field_ty in variant_fields {
+                        collect_from_type(field_ty, seen, declarations);
+                    }
+                }
+                let dt_variants: Vec<DatatypeVariant> = variants
+                    .iter()
+                    .map(|(variant_name, variant_fields)| DatatypeVariant {
+                        constructor: format!("mk-{variant_name}"),
+                        fields: variant_fields
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, field_ty)| {
+                                (format!("{variant_name}-{idx}"), encode_type(field_ty))
+                            })
+                            .collect(),
+                    })
+                    .collect();
+                declarations.push(Command::DeclareDatatype {
+                    name: name.clone(),
+                    variants: dt_variants,
+                });
+            }
+        }
+        // Recurse into composite types that may contain datatypes
+        Ty::Array(elem_ty, _) | Ty::Slice(elem_ty) => {
+            collect_from_type(elem_ty, seen, declarations);
+        }
+        Ty::Ref(inner, _) | Ty::RawPtr(inner, _) => {
+            collect_from_type(inner, seen, declarations);
+        }
+        _ => {}
     }
 }
 
@@ -181,9 +293,140 @@ mod tests {
     }
 
     #[test]
-    fn struct_encodes_to_uninterpreted() {
+    fn struct_encodes_to_datatype() {
         let ty = Ty::Struct("Vec".to_string(), vec![]);
-        assert_eq!(encode_type(&ty), Sort::Uninterpreted("Vec".to_string()));
+        assert_eq!(encode_type(&ty), Sort::Datatype("Vec".to_string()));
+    }
+
+    #[test]
+    fn tuple_encodes_to_datatype() {
+        let ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        assert_eq!(encode_type(&ty), Sort::Datatype("Tuple2".to_string()));
+    }
+
+    #[test]
+    fn enum_encodes_to_datatype() {
+        let ty = Ty::Enum("Color".to_string(), vec![]);
+        assert_eq!(encode_type(&ty), Sort::Datatype("Color".to_string()));
+    }
+
+    #[test]
+    fn collect_struct_datatype_declaration() {
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: Ty::Struct(
+                    "Point".to_string(),
+                    vec![
+                        ("x".to_string(), Ty::Int(IntTy::I32)),
+                        ("y".to_string(), Ty::Int(IntTy::I32)),
+                    ],
+                ),
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+        };
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1);
+        if let Command::DeclareDatatype { name, variants } = &decls[0] {
+            assert_eq!(name, "Point");
+            assert_eq!(variants.len(), 1);
+            assert_eq!(variants[0].constructor, "mk-Point");
+            assert_eq!(variants[0].fields.len(), 2);
+            assert_eq!(variants[0].fields[0].0, "Point-x");
+            assert_eq!(variants[0].fields[1].0, "Point-y");
+        } else {
+            panic!("Expected DeclareDatatype");
+        }
+    }
+
+    #[test]
+    fn collect_no_duplicates() {
+        let point_ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: point_ty.clone(),
+            },
+            params: vec![crate::ir::Local {
+                name: "_1".to_string(),
+                ty: point_ty,
+            }],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+        };
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
+    }
+
+    #[test]
+    fn collect_tuple_datatype_declaration() {
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]),
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+        };
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1);
+        if let Command::DeclareDatatype { name, variants } = &decls[0] {
+            assert_eq!(name, "Tuple2");
+            assert_eq!(variants[0].constructor, "mk-Tuple2");
+            assert_eq!(variants[0].fields[0].0, "Tuple2-_0");
+            assert_eq!(variants[0].fields[1].0, "Tuple2-_1");
+        } else {
+            panic!("Expected DeclareDatatype");
+        }
+    }
+
+    #[test]
+    fn collect_enum_datatype_declaration() {
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: Ty::Enum(
+                    "Option_i32".to_string(),
+                    vec![
+                        ("None".to_string(), vec![]),
+                        ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+                    ],
+                ),
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+        };
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1);
+        if let Command::DeclareDatatype { name, variants } = &decls[0] {
+            assert_eq!(name, "Option_i32");
+            assert_eq!(variants.len(), 2);
+            assert_eq!(variants[0].constructor, "mk-None");
+            assert_eq!(variants[0].fields.len(), 0);
+            assert_eq!(variants[1].constructor, "mk-Some");
+            assert_eq!(variants[1].fields.len(), 1);
+            assert_eq!(variants[1].fields[0].0, "Some-0");
+        } else {
+            panic!("Expected DeclareDatatype");
+        }
     }
 
     #[test]

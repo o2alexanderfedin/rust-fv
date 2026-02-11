@@ -205,6 +205,26 @@ fn format_command(output: &mut String, cmd: &rust_fv_smtlib::command::Command) {
         SmtCmd::Exit => {
             output.push_str("(exit)");
         }
+        SmtCmd::DeclareDatatype { name, variants } => {
+            output.push_str(&format!("(declare-datatype {name} ("));
+            for (i, variant) in variants.iter().enumerate() {
+                if i > 0 {
+                    output.push(' ');
+                }
+                if variant.fields.is_empty() {
+                    output.push_str(&format!("({})", variant.constructor));
+                } else {
+                    output.push_str(&format!("({}", variant.constructor));
+                    for (field_name, field_sort) in &variant.fields {
+                        output.push_str(&format!(" ({field_name} "));
+                        format_sort(output, field_sort);
+                        output.push(')');
+                    }
+                    output.push(')');
+                }
+            }
+            output.push_str("))");
+        }
     }
 }
 

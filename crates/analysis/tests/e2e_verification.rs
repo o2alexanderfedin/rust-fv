@@ -110,6 +110,26 @@ fn format_command(out: &mut String, cmd: &rust_fv_smtlib::command::Command) {
         SmtCmd::Exit => {
             out.push_str("(exit)");
         }
+        SmtCmd::DeclareDatatype { name, variants } => {
+            out.push_str(&format!("(declare-datatype {name} ("));
+            for (i, variant) in variants.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                if variant.fields.is_empty() {
+                    out.push_str(&format!("({})", variant.constructor));
+                } else {
+                    out.push_str(&format!("({}", variant.constructor));
+                    for (field_name, field_sort) in &variant.fields {
+                        out.push_str(&format!(" ({field_name} "));
+                        format_sort(out, field_sort);
+                        out.push(')');
+                    }
+                    out.push(')');
+                }
+            }
+            out.push_str("))");
+        }
         // Catch-all for commands we do not need in the tests.
         _ => {
             out.push_str("; <unsupported command>");

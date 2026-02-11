@@ -52,6 +52,26 @@ fn format_command(out: &mut String, cmd: &rust_fv_smtlib::command::Command) {
         C::GetModel => out.push_str("(get-model)"),
         C::Comment(t) => out.push_str(&format!(";; {t}")),
         C::Exit => out.push_str("(exit)"),
+        C::DeclareDatatype { name, variants } => {
+            out.push_str(&format!("(declare-datatype {name} ("));
+            for (i, variant) in variants.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                if variant.fields.is_empty() {
+                    out.push_str(&format!("({})", variant.constructor));
+                } else {
+                    out.push_str(&format!("({}", variant.constructor));
+                    for (field_name, field_sort) in &variant.fields {
+                        out.push_str(&format!(" ({field_name} "));
+                        format_sort(out, field_sort);
+                        out.push(')');
+                    }
+                    out.push(')');
+                }
+            }
+            out.push_str("))");
+        }
         _ => out.push_str("; <unsupported>"),
     }
 }

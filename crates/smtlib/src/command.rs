@@ -1,6 +1,17 @@
 use crate::sort::Sort;
 use crate::term::Term;
 
+/// A single constructor variant in an SMT-LIB datatype declaration.
+///
+/// Each variant has a constructor name and zero or more named fields (selectors).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatatypeVariant {
+    /// Constructor name (e.g., `mk-Point`, `mk-None`, `mk-Some`)
+    pub constructor: String,
+    /// Selector fields: `(name, sort)` pairs
+    pub fields: Vec<(String, Sort)>,
+}
+
 /// SMT-LIB command representation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -36,4 +47,9 @@ pub enum Command {
     Comment(String),
     /// `(exit)`
     Exit,
+    /// `(declare-datatype name ((constructor (field sort) ...)))`
+    DeclareDatatype {
+        name: String,
+        variants: Vec<DatatypeVariant>,
+    },
 }
