@@ -9,19 +9,20 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 ## Current Position
 
-Phase: 4 of 5 (Differentiation) -- PLANNED
-Plan: 0 of 4 in current phase -- ready to execute
-Status: Phase 4 plans created, researched, and verified -- 4 plans in 3 waves
-Last activity: 2026-02-11 -- Phase 4 planning complete (04-01 through 04-04)
+Phase: 4 of 5 (Differentiation) -- IN PROGRESS
+Plan: 1 of 4 in current phase -- unbounded integers complete
+Status: Phase 4 execution started -- 04-01 complete (infrastructure, Z3 integration deferred)
+Last activity: 2026-02-11 -- 04-01 unbounded integers and ghost code
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Phase 4: planned, awaiting execution)
+Progress: [█████░░░░░░░░░░░░░░░] 25% (Phase 4: 1/4 plans complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 243+ tests passing (113 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 10 interprocedural E2E + 12 ownership E2E + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- 480+ tests passing (118 analysis unit + 37 spec_parser + 12 e2e + 10 loop E2E + 11 assertion E2E + 10 interprocedural E2E + 12 ownership E2E + 22 soundness + 22 completeness + 112 smtlib + 63 solver + 12 macros + rest), zero warnings
 - **Inter-procedural verification (03-01)**: ContractDatabase, call-site encoding (assert-pre/havoc/assume-post), modular verification of call chains
 - **Ownership-aware verification (03-02)**: OwnershipKind classification, pre-call snapshot constraints for SharedBorrow/Copied, havoc for MutableBorrow
+- **Unbounded integers (04-01)**: SpecInt/SpecNat types, `as int` cast syntax, Bv2Int/Int2Bv terms, `#[ghost]` macro (Z3 bv2int integration deferred)
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -44,9 +45,9 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Pha
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: ~12 min
-- Total execution time: ~120 min
+- Total execution time: ~134 min
 
 **By Phase:**
 
@@ -55,6 +56,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Pha
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 | 03-modular-verification | 2/2 | ~21 min | ~11 min |
+| 04-differentiation | 1/4 | ~14 min | ~14 min |
 
 *Updated after each plan completion*
 
@@ -108,6 +110,11 @@ Recent decisions affecting current work:
 - [03-02]: Pre-call snapshot via DeclareConst + assertion pairs for value preservation
 - [03-02]: No driver changes needed: ownership analysis driven by VCGen from ContractDatabase param types
 - [03-02]: Bounded callee return contracts in tests to prevent bitvector overflow
+- [04-01]: SpecInt/SpecNat for unbounded mathematical integers in specifications
+- [04-01]: `as int` cast produces Bv2Int wrapper (not int-mode for inner expr)
+- [04-01]: ALL logic when Int theory needed (bv2int requires Z3 extensions)
+- [04-01]: is_ghost field on Local (false default, backward compatible)
+- [04-01]: Z3 bv2int integration deferred - requires version/config research
 
 ### Pending Todos
 
@@ -115,11 +122,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- Nightly toolchain pinned (nightly-2026-02-11) -- resolved by 01-03
+- Z3 bv2int function availability: requires Z3 4.8.10+ or alternative encoding (04-01 deferred)
 
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 4 planning complete -- 4 plans verified, ready to execute
+Stopped at: Phase 4 Plan 01 complete -- unbounded integers and ghost code infrastructure
 Resume file: None
-Next step: Execute Phase 4 via /gsd:execute-phase 4
+Next step: Execute Phase 4 Plan 02 (quantifiers) - can use `as int` and `#[ghost]`
