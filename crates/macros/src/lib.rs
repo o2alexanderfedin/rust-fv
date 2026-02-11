@@ -97,6 +97,39 @@ pub fn invariant(attr: TokenStream, item: TokenStream) -> TokenStream {
     spec_attribute("invariant", attr, item)
 }
 
+/// Mark a variable or code block as specification-only (ghost code).
+///
+/// Ghost variables and functions are used in specifications but erased
+/// from the compiled executable. They exist only for verification purposes.
+///
+/// # Example
+///
+/// ```ignore
+/// #[ghost]
+/// fn spec_helper(x: i32) -> i32 { x * 2 }
+/// ```
+#[proc_macro_attribute]
+pub fn ghost(attr: TokenStream, item: TokenStream) -> TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new_spanned(
+            proc_macro2::TokenStream::from(attr),
+            "`#[ghost]` does not accept arguments",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let item = proc_macro2::TokenStream::from(item);
+    let doc_value = "rust_fv::ghost";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+    .into()
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------

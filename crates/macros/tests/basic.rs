@@ -3,7 +3,7 @@
 //! These tests verify that the macros compile, preserve the original item,
 //! and embed the expected hidden doc attributes.
 
-use rust_fv_macros::{ensures, invariant, pure, requires};
+use rust_fv_macros::{ensures, ghost, invariant, pure, requires};
 
 // ---------------------------------------------------------------------------
 // #[requires] — basic compilation
@@ -170,4 +170,18 @@ fn constant() -> i32 {
 #[test]
 fn pure_no_args() {
     assert_eq!(constant(), 42);
+}
+
+// ---------------------------------------------------------------------------
+// #[ghost] — specification-only code
+// ---------------------------------------------------------------------------
+
+#[ghost]
+fn spec_helper(x: i32) -> i32 {
+    x * 2
+}
+
+#[test]
+fn ghost_basic_compiles_and_runs() {
+    assert_eq!(spec_helper(21), 42);
 }
