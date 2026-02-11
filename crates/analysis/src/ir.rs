@@ -99,9 +99,38 @@ pub enum Terminator {
         cond: Operand,
         expected: bool,
         target: BlockId,
+        /// Classification of the assertion for specific error messages
+        kind: AssertKind,
     },
     /// Unreachable code (e.g. after a guaranteed panic)
     Unreachable,
+}
+
+/// Classification of MIR Assert terminators for specific error messages.
+///
+/// Rustc generates `Assert` terminators for various panic-producing operations:
+/// bounds checks, overflow checks, division-by-zero, etc. This enum lets
+/// the VCGen produce targeted error messages identifying the panic source.
+#[derive(Debug, Clone)]
+pub enum AssertKind {
+    /// User-written `assert!(expr)` or `assert_eq!(a, b)`
+    UserAssert,
+    /// Array/slice bounds check: index < len
+    BoundsCheck { len: Operand, index: Operand },
+    /// Integer overflow in arithmetic (add, sub, mul, etc.)
+    Overflow(BinOp),
+    /// Division by zero
+    DivisionByZero,
+    /// Remainder by zero
+    RemainderByZero,
+    /// Negation overflow (e.g., -i32::MIN)
+    NegationOverflow,
+    /// unwrap() on None
+    UnwrapNone,
+    /// expect() on None/Err
+    ExpectFailed(String),
+    /// Generic/unclassified assertion
+    Other(String),
 }
 
 /// Block index.

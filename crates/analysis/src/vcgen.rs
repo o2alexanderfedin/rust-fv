@@ -396,6 +396,7 @@ fn traverse_block(
             cond: _,
             expected: _,
             target,
+            kind: _,
         } => {
             // Process the assertion, then continue to target
             // (Assertion VCs are generated separately)
@@ -652,6 +653,10 @@ fn generate_overflow_vc(
 }
 
 /// Generate VCs for Terminator::Assert along all paths.
+///
+/// Each Assert terminator in the CFG produces a VC that checks whether the
+/// assertion condition can ever fail under the given preconditions. The
+/// `AssertKind` provides specific error messages identifying the panic source.
 fn generate_assert_terminator_vcs(
     func: &Function,
     datatype_declarations: &[Command],
@@ -662,7 +667,13 @@ fn generate_assert_terminator_vcs(
 
     // Find blocks with Assert terminators
     for (block_idx, block) in func.basic_blocks.iter().enumerate() {
-        if let Terminator::Assert { cond, expected, .. } = &block.terminator {
+        if let Terminator::Assert {
+            cond,
+            expected,
+            kind,
+            ..
+        } = &block.terminator
+        {
             let cond_term = encode_operand(cond);
             let expected_term = Term::BoolLit(*expected);
 
@@ -702,14 +713,18 @@ fn generate_assert_terminator_vcs(
                 }
             }
 
+            // Build description from AssertKind
+            let description = format_assert_description(&func.name, block_idx, kind);
+
             // Try to find a case where the assertion fails
             let assertion_holds = Term::Eq(Box::new(cond_term), Box::new(expected_term));
+            script.push(Command::Comment(description.clone()));
             script.push(Command::Assert(Term::Not(Box::new(assertion_holds))));
             script.push(Command::CheckSat);
             script.push(Command::GetModel);
 
             vcs.push(VerificationCondition {
-                description: format!("{}: assertion holds at block {block_idx}", func.name),
+                description,
                 script,
                 location: VcLocation {
                     function: func.name.clone(),
@@ -721,6 +736,39 @@ fn generate_assert_terminator_vcs(
     }
 
     vcs
+}
+
+/// Format a human-readable description from an AssertKind.
+fn format_assert_description(func_name: &str, block_idx: usize, kind: &AssertKind) -> String {
+    match kind {
+        AssertKind::UserAssert => {
+            format!("{func_name}: assertion might fail at block {block_idx}")
+        }
+        AssertKind::BoundsCheck { .. } => {
+            format!("{func_name}: array index out of bounds at block {block_idx}")
+        }
+        AssertKind::Overflow(op) => {
+            format!("{func_name}: arithmetic overflow in {op:?} at block {block_idx}")
+        }
+        AssertKind::DivisionByZero => {
+            format!("{func_name}: division by zero at block {block_idx}")
+        }
+        AssertKind::RemainderByZero => {
+            format!("{func_name}: remainder by zero at block {block_idx}")
+        }
+        AssertKind::NegationOverflow => {
+            format!("{func_name}: negation overflow at block {block_idx}")
+        }
+        AssertKind::UnwrapNone => {
+            format!("{func_name}: unwrap() called on None at block {block_idx}")
+        }
+        AssertKind::ExpectFailed(msg) => {
+            format!("{func_name}: expect() failed: {msg} at block {block_idx}")
+        }
+        AssertKind::Other(msg) => {
+            format!("{func_name}: {msg} at block {block_idx}")
+        }
+    }
 }
 
 /// Generate contract verification conditions using path-sensitive encoding.

@@ -148,12 +148,17 @@ fn convert_terminator(term: &mir::Terminator<'_>) -> ir::Terminator {
             cond,
             expected,
             target,
+            msg,
             ..
-        } => ir::Terminator::Assert {
-            cond: convert_operand(cond),
-            expected: *expected,
-            target: target.as_usize(),
-        },
+        } => {
+            let kind = classify_assert_kind(msg);
+            ir::Terminator::Assert {
+                cond: convert_operand(cond),
+                expected: *expected,
+                target: target.as_usize(),
+                kind,
+            }
+        }
 
         mir::TerminatorKind::Unreachable => ir::Terminator::Unreachable,
 
@@ -352,6 +357,24 @@ fn convert_float_ty(ty: &ty::FloatTy) -> ir::FloatTy {
     match ty {
         ty::FloatTy::F16 | ty::FloatTy::F32 => ir::FloatTy::F32,
         ty::FloatTy::F64 | ty::FloatTy::F128 => ir::FloatTy::F64,
+    }
+}
+
+/// Classify a MIR AssertKind into our IR AssertKind for specific error messages.
+fn classify_assert_kind(msg: &mir::AssertKind<mir::Operand<'_>>) -> ir::AssertKind {
+    match msg {
+        mir::AssertKind::BoundsCheck { len, index } => ir::AssertKind::BoundsCheck {
+            len: convert_operand(len),
+            index: convert_operand(index),
+        },
+        mir::AssertKind::Overflow(op, _, _) => ir::AssertKind::Overflow(convert_binop(op)),
+        mir::AssertKind::OverflowNeg(_) => ir::AssertKind::NegationOverflow,
+        mir::AssertKind::DivisionByZero(_) => ir::AssertKind::DivisionByZero,
+        mir::AssertKind::RemainderByZero(_) => ir::AssertKind::RemainderByZero,
+        _ => {
+            // MisalignedPointerDereference, ResumedAfterReturn, ResumedAfterPanic, etc.
+            ir::AssertKind::Other(format!("{msg:?}"))
+        }
     }
 }
 
