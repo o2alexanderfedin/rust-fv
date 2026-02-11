@@ -24,7 +24,6 @@
 /// In specifications:
 /// - `old(*param)` resolves to `param_initial`
 /// - `final_value(param)` or `*param` (in postcondition context) resolves to `param_prophecy`
-
 use std::collections::HashMap;
 
 use rust_fv_smtlib::command::Command;
@@ -76,10 +75,7 @@ pub fn prophecy_declarations(prophecies: &[ProphecyInfo]) -> Vec<Command> {
         ));
 
         // Declare prophecy (final value) variable
-        commands.push(Command::DeclareConst(
-            prophecy.prophecy_var.clone(),
-            sort,
-        ));
+        commands.push(Command::DeclareConst(prophecy.prophecy_var.clone(), sort));
 
         // Assert initial value equals current dereferenced param
         // This captures the pre-state: param_initial = *param

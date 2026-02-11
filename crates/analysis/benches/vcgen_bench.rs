@@ -50,7 +50,7 @@ fn make_add_function() -> Function {
         }],
         contracts: Contracts::default(),
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     }
 }
@@ -125,7 +125,7 @@ fn make_max_function() -> Function {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     }
 }
@@ -264,7 +264,7 @@ fn make_complex_function() -> Function {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     }
 }

@@ -770,17 +770,18 @@ fn convert_deref(
         // Check if this is a mutable reference parameter
         for param in &func.params {
             if param.name == param_name
-                && matches!(param.ty, Ty::Ref(_, crate::ir::Mutability::Mutable)) {
-                    // This is a mutable ref param - apply prophecy naming
-                    if in_old {
-                        // In old() context: use initial value
-                        return Some(Term::Const(format!("{param_name}_initial")));
-                    } else {
-                        // In normal context: use current value
-                        // (the param itself represents the dereferenced value in our encoding)
-                        return Some(Term::Const(param_name));
-                    }
+                && matches!(param.ty, Ty::Ref(_, crate::ir::Mutability::Mutable))
+            {
+                // This is a mutable ref param - apply prophecy naming
+                if in_old {
+                    // In old() context: use initial value
+                    return Some(Term::Const(format!("{param_name}_initial")));
+                } else {
+                    // In normal context: use current value
+                    // (the param itself represents the dereferenced value in our encoding)
+                    return Some(Term::Const(param_name));
                 }
+            }
         }
 
         // Not a mutable reference param - just treat as regular variable dereference

@@ -402,7 +402,7 @@ fn test_assert_true_verified() {
             is_pure: false,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -483,7 +483,7 @@ fn test_assert_false_counterexample() {
         ],
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -588,7 +588,7 @@ fn test_assert_after_computation() {
             is_pure: false,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -696,7 +696,7 @@ fn test_array_bounds_safe() {
             is_pure: false,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -780,7 +780,7 @@ fn test_array_bounds_unsafe() {
         ],
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -879,7 +879,7 @@ fn test_div_by_zero_safe() {
             is_pure: false,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -966,7 +966,7 @@ fn test_div_by_zero_unsafe() {
         ],
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -1053,7 +1053,7 @@ fn test_unwrap_safe() {
             is_pure: false,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -1126,7 +1126,7 @@ fn test_unwrap_unsafe() {
         ],
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -1201,7 +1201,7 @@ fn test_error_message_specificity() {
         ],
         contracts: Contracts::default(),
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -1362,7 +1362,7 @@ fn test_remainder_by_zero_unsafe() {
         ],
         contracts: Contracts::default(),
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 

@@ -39,7 +39,9 @@ impl Function {
 
     /// Returns true if this function has mutable reference parameters.
     pub fn has_mut_ref_params(&self) -> bool {
-        self.params.iter().any(|p| matches!(p.ty, Ty::Ref(_, Mutability::Mutable)))
+        self.params
+            .iter()
+            .any(|p| matches!(p.ty, Ty::Ref(_, Mutability::Mutable)))
     }
 }
 

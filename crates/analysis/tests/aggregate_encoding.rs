@@ -386,7 +386,7 @@ fn test_struct_construction() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -490,7 +490,7 @@ fn test_struct_field_postcondition_positive() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -558,7 +558,7 @@ fn test_struct_field_postcondition_negative() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -626,7 +626,7 @@ fn test_tuple_construction() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -722,7 +722,7 @@ fn test_tuple_field_access() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -811,7 +811,7 @@ fn test_array_select() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 
@@ -957,7 +957,7 @@ fn test_enum_variant_construction() {
             is_pure: true,
         },
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
         loops: vec![],
     };
 

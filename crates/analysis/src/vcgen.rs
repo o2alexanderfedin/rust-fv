@@ -150,8 +150,24 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
     // Collect datatype declarations (must come before variable declarations)
     let datatype_declarations = collect_datatype_declarations(func);
 
-    // Collect all variable declarations
-    let declarations = collect_declarations(func);
+    // Detect prophecies for mutable reference parameters
+    let prophecies = crate::encode_prophecy::detect_prophecies(func);
+    if !prophecies.is_empty() {
+        tracing::debug!(
+            function = %func.name,
+            prophecy_count = prophecies.len(),
+            "Detected mutable reference parameters requiring prophecy variables"
+        );
+    }
+
+    // Collect all variable declarations (including prophecy variables)
+    let mut declarations = collect_declarations(func);
+
+    // Add prophecy variable declarations if needed
+    if !prophecies.is_empty() {
+        let mut prophecy_decls = crate::encode_prophecy::prophecy_declarations(&prophecies);
+        declarations.append(&mut prophecy_decls);
+    }
 
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
@@ -967,6 +983,9 @@ fn generate_contract_vcs(
         return vcs;
     }
 
+    // Detect prophecies for mutable reference parameters
+    let prophecies = crate::encode_prophecy::detect_prophecies(func);
+
     for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
         let mut script = base_script(
             datatype_declarations,
@@ -979,6 +998,27 @@ fn generate_contract_vcs(
             let cmds = encode_path_assignments(func, path);
             for cmd in cmds {
                 script.push(cmd);
+            }
+
+            // Resolve prophecies at return (all paths end with Return)
+            if !prophecies.is_empty() {
+                // For simplified approach: assume the final value equals the current value
+                // (i.e., the last assignment to each prophecy param's deref place)
+                let final_values = HashMap::new(); // Empty map = use current value
+                let resolution_cmds =
+                    crate::encode_prophecy::prophecy_resolutions(&prophecies, &final_values);
+
+                for cmd in resolution_cmds {
+                    // Guard prophecy resolution by path condition
+                    if let (Some(cond), Command::Assert(inner_term)) = (&path.condition, &cmd) {
+                        script.push(Command::Assert(Term::Implies(
+                            Box::new(cond.clone()),
+                            Box::new(inner_term.clone()),
+                        )));
+                    } else {
+                        script.push(cmd);
+                    }
+                }
             }
         }
 
@@ -1497,7 +1537,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         contracts: Contracts::default(),
         loops: vec![],
         generic_params: vec![],
-            prophecies: vec![],
+        prophecies: vec![],
     }
 }
 
