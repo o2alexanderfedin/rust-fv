@@ -1,0 +1,238 @@
+# Architecture
+
+**Analysis Date:** 2026-02-10
+
+## Pattern Overview
+
+**Overall:** Layered compiler pipeline with formal verification
+
+**Key Characteristics:**
+- **Multi-crate monorepo**: Five independent crates integrated into a single verification pipeline
+- **Compiler hook integration**: Custom rustc driver (wrapper) that performs verification at the `after_analysis` phase
+- **SMT-based verification**: Automatic translation of Rust code to SMT-LIB2 for Z3 solver
+- **Separation of concerns**: Clean boundaries between macros, IR analysis, encoding, and solver interaction
+- **Test-driven design**: Stable IR decoupled from rustc internals for testability
+
+## Layers
+
+**Annotation Layer (Macros):**
+- Purpose: Parse formal specification attributes and embed them as hidden doc comments
+- Location: `crates/macros/src/lib.rs`
+- Contains: Procedural macro implementations for `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
+- Depends on: `syn`, `quote`, `proc-macro2` (standard proc-macro ecosystem)
+- Used by: User code being verified; macros are applied at compile time
+
+**MIR Conversion Layer (Driver):**
+- Purpose: Hook into rustc compilation pipeline and extract verified functions as intermediate representation
+- Location: `crates/driver/src/` — specifically `main.rs`, `callbacks.rs`, `mir_converter.rs`
+- Contains: Rustc driver wrapper, compilation phase callbacks, MIR-to-IR conversion
+- Depends on: rustc unstable APIs (`rustc_driver`, `rustc_middle`, `rustc_hir`, `rustc_interface`)
+- Used by: Cargo/rustc when `RUSTC=/path/to/rust-fv-driver` environment variable is set
+
+**Analysis Layer (Analysis):**
+- Purpose: Transform stable IR to verification conditions and generate SMT-LIB scripts
+- Location: `crates/analysis/src/`
+- Contains: IR definition, verification condition generation, type encoding, operation encoding
+- Key modules:
+  - `ir.rs`: Stable MIR-like representation (decoupled from rustc)
+  - `vcgen.rs`: Verification condition generator (translates functions to safety properties)
+  - `encode_sort.rs`: Maps Rust types to SMT sorts (BitVec, Bool, Array, etc.)
+  - `encode_term.rs`: Encodes operations with exact overflow/UB semantics
+- Depends on: `rust-fv-smtlib` for SMT term construction
+- Used by: Solver interaction layer; testable on stable Rust
+
+**SMT-LIB Abstraction Layer (SMTLib):**
+- Purpose: Represent SMT-LIB2 syntax as Rust types for compositional script construction
+- Location: `crates/smtlib/src/`
+- Contains: SMT sorts, terms, commands, and scripts as Rust enums
+- Key modules:
+  - `sort.rs`: Sort/type definitions (Bool, BitVec, FloatingPoint, Array, etc.)
+  - `term.rs`: Term/expression types (literals, variables, operations)
+  - `command.rs`: SMT-LIB commands (declare-const, assert, check-sat, get-model, etc.)
+  - `script.rs`: Scripts as ordered command sequences
+  - `formatter.rs`: Display implementation for converting AST to SMT-LIB2 text
+- Depends on: Nothing (pure data structures)
+- Used by: Analysis layer for VC construction, Solver layer for script submission
+
+**Solver Interaction Layer (Solver):**
+- Purpose: Interface with Z3 SMT solver by spawning subprocess and parsing results
+- Location: `crates/solver/src/`
+- Contains: Z3 process management, SMT-LIB communication, result parsing
+- Key modules:
+  - `solver.rs`: Z3Solver struct that spawns Z3 with `-in` flag, pipes SMT-LIB text, captures output
+  - `config.rs`: Solver configuration (Z3 path detection, timeouts, extra arguments)
+  - `error.rs`: Error types for solver failures
+  - `result.rs`: SolverResult enum (Sat, Unsat, Unknown) with model extraction
+  - `parser.rs`: Parser for Z3 output (model values)
+  - `model.rs`: Model type for capturing variable assignments
+- Depends on: `rust-fv-smtlib` for script types
+- Used by: End-to-end integration tests, verification pipeline completion
+
+## Data Flow
+
+**Compile-Time Verification Flow:**
+
+1. **User Code** (`#[requires(...)]` annotations)
+   ↓
+2. **Annotation Expansion** (`crates/macros/src/lib.rs`)
+   - Macros parse spec expressions and attach to item as hidden doc comments
+   - Function body remains unchanged; annotations are metadata-only
+   ↓
+3. **Rustc Compilation** (with `RUSTC=/path/to/rust-fv-driver` override)
+   - Standard Rust compilation proceeds
+   ↓
+4. **Driver Hook** (`crates/driver/src/callbacks.rs::VerificationCallbacks::after_analysis`)
+   - Triggered after Rust type checking and borrow checking
+   - Accesses fully-analyzed HIR (for annotations) and MIR (for semantics)
+   ↓
+5. **MIR Extraction** (`crates/driver/src/mir_converter.rs::convert_mir`)
+   - For each function marked for verification:
+     - Extract rustc MIR body
+     - Parse annotations from HIR
+     - Convert to stable `ir::Function` representation
+   ↓
+6. **VC Generation** (`crates/analysis/src/vcgen.rs::generate_vcs`)
+   - For each function:
+     - Declare all variables as SMT constants
+     - Walk basic blocks sequentially
+     - Generate SMT assertions for each operation's correctness
+     - Accumulate path conditions via ITE (if-then-else)
+     - Check preconditions are assumed
+     - Check postconditions are asserted
+     - Returns vector of `VerificationCondition` (each with description + SMT script)
+   ↓
+7. **Type & Operation Encoding**
+   - `crates/analysis/src/encode_sort.rs::encode_type`: Rust type → SMT Sort
+     - `i32` → `(_ BitVec 32)`
+     - `bool` → `Bool`
+     - `&[T]` → `(Array (_ BitVec 64) T_sort)`
+   - `crates/analysis/src/encode_term.rs::encode_operand`: Operation → SMT Term
+     - Arithmetic: Signed/unsigned semantics based on Rust type
+     - Overflow checks: `(and (>= result MIN) (<= result MAX))`
+     - Division-by-zero: `(not (= divisor 0))`
+   ↓
+8. **SMT Script Construction** (`crates/smtlib/src/`)
+   - Build SMT-LIB2 script AST using `Command`, `Term`, `Sort`, `Script` types
+   - Formatter (`crates/smtlib/src/formatter.rs`) converts to text via `Display` trait
+   ↓
+9. **Solver Invocation** (`crates/solver/src/solver.rs::Z3Solver::check_sat`)
+   - Spawn Z3 process with `-in` flag (read from stdin)
+   - Pipe SMT-LIB2 script text to Z3
+   - Capture stdout (solver output) and stderr
+   ↓
+10. **Result Parsing** (`crates/solver/src/parser.rs`)
+    - Parse `(check-sat)` response: `sat`, `unsat`, `unknown`
+    - Extract model if SAT: `(get-model)` output → `Model::get(var_name)`
+    ↓
+11. **Verification Results** (`crates/driver/src/callbacks.rs::VerificationResult`)
+    - Report to user: verified ✓ or counterexample found ✗
+    - Print to stderr on completion
+
+**State Management:**
+
+- **Per-function state**: `VerificationCallbacks` accumulates `VerificationResult` for each function
+- **Per-condition state**: Each `VerificationCondition` is independent (can be checked in parallel)
+- **Solver state**: Z3 process spawned fresh for each SMT script (no persistent solver session)
+- **IR state**: Stable IR representation (`ir::Function`) lives in `rust_fv_analysis` crate (no compiler coupling)
+
+## Key Abstractions
+
+**Function (ir::Function):**
+- Purpose: Represents a Rust function suitable for verification
+- Files: `crates/analysis/src/ir.rs`
+- Pattern: Enum-based CFG representation (basic blocks → statements → operations)
+- Example structure:
+  ```rust
+  Function {
+      name: "add".to_string(),
+      params: [Local { name: "_1", ty: Ty::Int(IntTy::I32) }, ...],
+      return_local: Local { name: "_0", ty: Ty::Int(IntTy::I32) },
+      locals: [...],
+      basic_blocks: [BasicBlock { statements: [...], terminator: Terminator::Return }],
+      contracts: Contracts { requires: [...], ensures: [...], is_pure: false }
+  }
+  ```
+
+**VerificationCondition (vcgen::VerificationCondition):**
+- Purpose: A single checkable property (must be UNSAT to be verified)
+- Files: `crates/analysis/src/vcgen.rs`
+- Pattern: Metadata wrapper around SMT script
+- Example: VC for "addition at line X doesn't overflow" includes script asserting `(assert (and (>= result -2147483648) (<= result 2147483647)))`
+
+**Term (smtlib::Term):**
+- Purpose: SMT-LIB2 expression tree
+- Files: `crates/smtlib/src/term.rs`
+- Pattern: Recursive enum; composite operations build larger terms from smaller ones
+- Examples: `BvAdd(Box<Term>, Box<Term>)`, `BvSDiv(Box<Term>, Box<Term>)`, `Const("x")`
+
+**Z3Solver (solver::Z3Solver):**
+- Purpose: Stateless solver interface
+- Files: `crates/solver/src/solver.rs`
+- Pattern: Configuration wrapper; each `check_sat` call spawns fresh Z3 process
+- Example: `Z3Solver::with_default_config()?.check_sat(&script)` → `SolverResult::Sat(model)` or `Unsat`
+
+## Entry Points
+
+**User-Facing (Procedural Macros):**
+- Location: `crates/macros/src/lib.rs`
+- Triggers: Applied at compile time when attributes like `#[requires(x > 0)]` are encountered
+- Responsibilities: Parse spec expression, embed as doc comment, pass through item unchanged
+
+**Compiler Integration (Driver Binary):**
+- Location: `crates/driver/src/main.rs`
+- Triggers: `RUSTC=/path/to/rust-fv-driver cargo check` or similar
+- Responsibilities:
+  1. Parse `RUST_FV_VERIFY` env var or `--rust-fv-verify` CLI flag
+  2. Instantiate `VerificationCallbacks` (enabled/disabled based on flag)
+  3. Hand off to `rustc_driver::run_compiler`
+  4. Print results to stderr on completion
+
+**Testing Entrypoints:**
+- IR + VCGen: `crates/analysis/tests/e2e_verification.rs` — constructs IR manually, generates VCs, submits to Z3
+- Solver: `crates/solver/tests/z3_integration.rs` — tests Z3 interaction directly with SMT-LIB strings
+- Macros: `crates/macros/tests/basic.rs` — verifies macros compile and embed annotations correctly
+
+## Error Handling
+
+**Strategy:** Fail-safe verification with clear error reporting
+
+**Patterns:**
+
+- **Solver errors** (`crates/solver/src/error.rs`):
+  - Z3 process failures → `SolverError::ProcessError`
+  - Z3 not found → `SolverError::Z3NotFound`
+  - Output parsing failures → `SolverError::ParseError`
+  - Timeouts → propagate as `Unknown` result
+
+- **Analysis errors**:
+  - Unsupported operations (Phase 1 limitation) → skip VC generation
+  - Type encoding failures → treat as uninterpreted sort (fallback to abstract type)
+  - Invalid contracts → parse error in macro expansion (compile-time rejection)
+
+- **Driver errors**:
+  - Callback panics caught by rustc error handling
+  - Verification results collected even on partial failures
+  - stderr output ensures visibility even on error
+
+## Cross-Cutting Concerns
+
+**Logging:** No structured logging framework; uses `eprintln!` for user-visible output
+- Driver prints: `[rust-fv] Verification Results:`
+- Solver errors logged to stderr
+- Debug output available via test harness
+
+**Validation:** Type checking performed at three levels
+1. **Macro compilation time** (`crates/macros/`): Spec expressions must be valid Rust syntax
+2. **IR construction time** (`crates/analysis/src/ir.rs`): All types have valid Sort encoding
+3. **SMT submission time** (`crates/solver/src/solver.rs`): Z3 validates SMT-LIB syntax
+
+**Authentication:** N/A (no external APIs)
+
+**Ownership Reasoning:** Phase 1 placeholder
+- Contracts accept ownership-aware specifications but don't yet verify them
+- Predicates on borrowed references stored as uninterpreted properties
+- Phase 2 will add proper prophecy-based borrow tracking
+
+---
+
+*Architecture analysis: 2026-02-10*
