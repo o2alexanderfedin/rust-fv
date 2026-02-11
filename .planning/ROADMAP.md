@@ -79,19 +79,19 @@ Plans:
 **Depends on**: Phase 3
 **Requirements**: SPEC-02, SPEC-03, SPEC-04, BRW-01, BRW-02, BRW-03
 **Research flag**: YES -- Prophecy variables are research-level. Must read Creusot source for exact encoding. POPL 2020 prophecy paper + Creusot POPL 2026 tutorial essential. Quantifier trigger inference is tricky -- study Verus's `#[trigger]` and tunable automation paper.
+**Plans:** 4 plans
 **Success Criteria** (what must be TRUE):
   1. A specification using `int` (unbounded mathematical integer) proves a property about arithmetic that would be unsound with fixed-width bitvectors (e.g., proving `a + b > a` for positive values without overflow concern)
   2. A `#[ghost]` annotated variable is usable in specifications but completely erased from compiled output -- `cargo build --release` produces identical binary with and without ghost annotations
   3. A specification with `forall(|x: i32| x > 0 ==> f(x) > 0)` or `exists(|x: i32| f(x) == 0)` is parsed, encoded to SMT quantifiers, and verified
   4. A function taking `&mut Vec<i32>` can be specified with `#[ensures(v.len() == old(v.len()) + 1)]` using prophecy variables to reason about the final value of the mutable borrow
   5. A generic function `fn max<T: Ord>(a: T, b: T) -> T` is verified via monomorphization for concrete type instantiations used in the crate
-**Plans**: TBD
 
 Plans:
-- [ ] 04-01: Unbounded integers and ghost code
-- [ ] 04-02: Quantifier support with trigger inference
-- [ ] 04-03: Prophecy variables for mutable borrow reasoning
-- [ ] 04-04: Trait and generic support via monomorphization
+- [ ] 04-01-PLAN.md -- Unbounded integers (int/nat), ghost code (#[ghost] attribute), bitvector-to-Int conversion
+- [ ] 04-02-PLAN.md -- Quantifier support (forall/exists) with conservative trigger inference and :pattern annotations
+- [ ] 04-03-PLAN.md -- Prophecy variables for mutable borrow reasoning (creation, resolution, final_value operator)
+- [ ] 04-04-PLAN.md -- Generic function verification via monomorphization (type substitution, per-instantiation VCs)
 
 ### Phase 5: Performance and Polish
 **Goal**: Verification is fast enough for interactive development and error messages guide developers to fixes
@@ -121,9 +121,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
 | 2. Table Stakes Completion | 5/5 | Complete | 2026-02-11 |
 | 3. Modular Verification | 2/2 | Complete | 2026-02-11 |
-| 4. Differentiation | 0/4 | Not started | - |
+| 4. Differentiation | 0/4 | Planned | - |
 | 5. Performance and Polish | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 3 complete)*
+*Last updated: 2026-02-11 (Phase 4 planned)*
