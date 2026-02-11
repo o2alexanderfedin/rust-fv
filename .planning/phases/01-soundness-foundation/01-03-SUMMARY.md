@@ -74,6 +74,7 @@ Each task was committed atomically:
 
 1. **Task 1: Document nightly toolchain pin and compatibility** - `a5d3243` (feat)
 2. **Task 2: Create performance benchmark baseline** - `a3490f3` (feat)
+3. **Deviation: Fix comparison signedness + commit prior plan work** - `ea034ba` (fix)
 
 ## Files Created/Modified
 - `TOOLCHAIN.md` - Nightly toolchain pin documentation, update procedure, compatibility table
@@ -88,11 +89,31 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Fixed comparison signedness in VCGen encode_assignment**
+- **Found during:** Push verification (pre-push hook ran E2E tests)
+- **Issue:** `BinOp::Gt/Lt/Ge/Le` for i32 operands used unsigned bitvector comparisons (bvugt) because `encode_assignment` inferred type from the Bool destination (`_3`) instead of the i32 operands (`_1`, `_2`). This caused Z3 to find false counterexamples for max/abs_or_zero functions.
+- **Fix:** Added `BinOp::is_comparison()` method to ir.rs. Modified `encode_assignment` to use operand types for comparison operations, falling back to destination type only for non-comparison ops.
+- **Files modified:** `crates/analysis/src/ir.rs`, `crates/analysis/src/vcgen.rs`
+- **Verification:** All 10 E2E tests pass including `test_if_else_branches_ssa` and `test_early_return_via_goto`
+- **Committed in:** ea034ba
+
+**2. [Rule 3 - Blocking] Committed prior plan (01-01/01-02) uncommitted work**
+- **Found during:** Push verification
+- **Issue:** Plans 01-01/01-02 had modified `vcgen.rs` and `e2e_verification.rs` with path-enumeration VCGen and new E2E tests, but these changes were uncommitted in the working tree.
+- **Fix:** Committed the path-enumeration VCGen and 6 new E2E tests alongside the signedness fix.
+- **Files modified:** `crates/analysis/src/vcgen.rs`, `crates/analysis/tests/e2e_verification.rs`, `Cargo.lock`
+- **Committed in:** ea034ba
+
+---
+
+**Total deviations:** 2 auto-fixed (1 bug, 1 blocking)
+**Impact on plan:** Bug fix was essential for soundness. Uncommitted prior work needed to be committed to pass pre-push tests.
 
 ## Issues Encountered
 
-None.
+Pre-push hook caught 2 failing E2E tests from prior plans' uncommitted work. Diagnosed as comparison signedness bug and fixed inline.
 
 ## User Setup Required
 
