@@ -9,17 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 ## Current Position
 
-Phase: 3 of 5 (Modular Verification) -- PLANNED
-Plan: 0 of 2 in current phase -- ready to execute
-Status: Phase 3 plans created and verified -- 2 plans in 2 waves
-Last activity: 2026-02-11 -- Phase 3 planning complete (03-01 + 03-02 plans verified)
+Phase: 3 of 5 (Modular Verification) -- IN PROGRESS
+Plan: 1 of 2 in current phase -- 03-01 complete
+Status: Phase 3 plan 1 complete -- inter-procedural verification with ContractDatabase
+Last activity: 2026-02-11 -- Completed 03-01-PLAN.md (ContractDatabase + call-site encoding)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Phase 3: planned, awaiting execution)
+Progress: [##########░░░░░░░░░░] 50% (Phase 3: plan 1 of 2 complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 399+ tests passing (98 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- 409+ tests passing (102 analysis unit + 36 spec_parser + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 10 interprocedural E2E + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- **Inter-procedural verification (03-01)**: ContractDatabase, call-site encoding (assert-pre/havoc/assume-post), modular verification of call chains
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -42,9 +43,9 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Pha
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: ~12 min
-- Total execution time: ~99 min
+- Total execution time: ~109 min
 
 **By Phase:**
 
@@ -52,6 +53,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Pha
 |-------|-------|-------|----------|
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
+| 03-modular-verification | 1/2 | ~10 min | ~10 min |
 
 *Updated after each plan completion*
 
@@ -96,6 +98,11 @@ Recent decisions affecting current work:
 - [02-05]: Skip cargo_metadata: read Cargo.toml directly to minimize dependencies
 - [02-05]: colored 3.1 for output (lightweight, simple API)
 - [02-05]: Dual binary targets (rust-fv-driver + cargo-verify) sharing main.rs
+- [03-01]: Optional ContractDatabase parameter for backward-compatible inter-procedural verification
+- [03-01]: CallSiteInfo recorded inline during traverse_block (not separate pass)
+- [03-01]: Callee postconditions asserted positively as assumptions in caller postcondition VCs
+- [03-01]: build_callee_func_context from FunctionSummary for spec parsing in caller context
+- [03-01]: normalize_callee_name: trim -> strip "const " -> take last :: segment
 
 ### Pending Todos
 
@@ -108,6 +115,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 3 planning complete -- 2 plans verified, ready to execute
+Stopped at: Completed 03-01-PLAN.md (ContractDatabase + call-site encoding)
 Resume file: None
-Next step: Execute Phase 3 via /gsd:execute-phase 3
+Next step: Execute 03-02-PLAN.md (remaining Phase 3 modular verification)
