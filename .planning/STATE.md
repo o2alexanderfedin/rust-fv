@@ -11,15 +11,15 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 Phase: 2 of 5 (Table Stakes Completion)
 Plan: 5 of 5 in current phase
-Status: In progress - loop invariant verification complete
-Last activity: 2026-02-11 -- Completed 02-02: Loop invariant verification (3-VC approach)
+Status: In progress - assertions/panic detection complete
+Last activity: 2026-02-11 -- Completed 02-03: Assertions and panic detection (AssertKind)
 
-Progress: [████████████████    ] 80% (Phase 2: plans 02-01, 02-02, 02-04 complete; 02-03, 02-05 remain)
+Progress: [██████████████████  ] 90% (Phase 2: plans 02-01, 02-02, 02-03, 02-04 complete; 02-05 remains)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 363+ tests passing (76 analysis unit + 8 aggregate E2E + 10 loop E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
+- 374+ tests passing (76 analysis unit + 8 aggregate E2E + 10 loop E2E + 11 assertion E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -29,6 +29,7 @@ Progress: [████████████████    ] 80% (Phase 2: p
 - Counterexample extraction from SAT results
 - **Aggregate type encoding (02-04)**: SMT datatypes for structs/tuples/enums, field selector and constructor encoding, result.field specs verified by Z3
 - **Loop invariant verification (02-02)**: Classical 3-VC approach (init/preserve/exit), DFS back-edge detection, next-state variable encoding
+- **Assertion and panic detection (02-03)**: AssertKind enum for 9 panic variants, specific error messages per kind
 
 ## What Must Be Fixed First
 
@@ -39,16 +40,16 @@ Progress: [████████████████    ] 80% (Phase 2: p
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: ~14 min
-- Total execution time: ~83 min
+- Total plans completed: 7
+- Average duration: ~13 min
+- Total execution time: ~88 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
-| 02-table-stakes-completion | 3/5 | ~62 min | ~21 min |
+| 02-table-stakes-completion | 4/5 | ~67 min | ~17 min |
 
 *Updated after each plan completion*
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [02-02]: Header statement encoding in exit VC to establish condition-variable relationship
 - [02-02]: Body-only assignments in preservation VC (header stmts encoded separately)
 - [02-02]: Loops without invariants skip verification with tracing::warn
+- [02-03]: AssertKind enum with 9 variants covering common Rust panic sources
+- [02-03]: classify_assert_kind maps rustc MIR AssertKind to IR AssertKind
+- [02-03]: AssertKind-based VCs complement (not replace) existing overflow VCs
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 02-02-PLAN.md (Loop invariant verification)
+Stopped at: Completed 02-03-PLAN.md (Assertions and panic detection)
 Resume file: None
-Next step: Continue with remaining Phase 2 plans (02-03 assertions/panic, 02-05 spec parser + cargo verify)
+Next step: Continue with 02-05 (spec parser + cargo verify) - final Phase 2 plan
