@@ -12,7 +12,7 @@ rust-fv evolves from a working v0.1.0 proof-of-concept (248 tests, 5-crate works
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Soundness Foundation** - Fix SSA violation, audit overflow encoding, establish soundness/completeness test suites
+- [x] **Phase 1: Soundness Foundation** - Fix SSA violation, audit overflow encoding, establish soundness/completeness test suites
 - [ ] **Phase 2: Table Stakes Completion** - Loops, cargo verify, assertions, panics, structs, z3 crate, spec parser
 - [ ] **Phase 3: Modular Verification** - Function summaries, inter-procedural verification, ownership reasoning
 - [ ] **Phase 4: Differentiation** - Unbounded integers, ghost code, quantifiers, prophecy variables, traits/generics
@@ -34,9 +34,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. Single-function contract verification completes in under 1 second
 
 Plans:
-- [ ] 01-01-PLAN.md -- SSA variable renaming and path-condition-based VCGen for sound control-flow handling
-- [ ] 01-02-PLAN.md -- Arithmetic overflow audit and soundness/completeness test suites (40+ tests)
-- [ ] 01-03-PLAN.md -- Nightly toolchain pinning, compatibility docs, and performance benchmark baseline
+- [x] 01-01-PLAN.md -- SSA variable renaming and path-condition-based VCGen for sound control-flow handling
+- [x] 01-02-PLAN.md -- Arithmetic overflow audit and soundness/completeness test suites (40+ tests)
+- [x] 01-03-PLAN.md -- Nightly toolchain pinning, compatibility docs, and performance benchmark baseline
 
 ### Phase 2: Table Stakes Completion
 **Goal**: Developers can verify loops, assertions, panic-freedom, and struct-manipulating code through a cargo-native workflow
@@ -118,7 +118,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Soundness Foundation | 0/3 | Planned | - |
+| 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
 | 2. Table Stakes Completion | 0/5 | Not started | - |
 | 3. Modular Verification | 0/2 | Not started | - |
 | 4. Differentiation | 0/4 | Not started | - |
@@ -126,4 +126,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11*
+*Last updated: 2026-02-11 (Phase 1 complete)*
