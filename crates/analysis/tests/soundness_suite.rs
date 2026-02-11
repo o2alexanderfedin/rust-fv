@@ -367,6 +367,7 @@ fn snd_signed_add_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -405,6 +406,7 @@ fn snd_unsigned_add_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -443,6 +445,7 @@ fn snd_signed_sub_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -481,6 +484,7 @@ fn snd_unsigned_sub_underflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -519,6 +523,7 @@ fn snd_signed_mul_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -557,6 +562,7 @@ fn snd_unsigned_mul_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -595,6 +601,7 @@ fn snd_division_by_zero() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -633,6 +640,7 @@ fn snd_shift_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -686,8 +694,10 @@ fn snd_wrong_postcondition_add() {
             ensures: vec![SpecExpr {
                 raw: "result == _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -753,8 +763,10 @@ fn snd_wrong_postcondition_max() {
             ensures: vec![SpecExpr {
                 raw: "result == _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -789,8 +801,10 @@ fn snd_wrong_postcondition_identity() {
             ensures: vec![SpecExpr {
                 raw: "result > _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -820,8 +834,10 @@ fn snd_wrong_postcondition_constant() {
             ensures: vec![SpecExpr {
                 raw: "result == 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -887,8 +903,10 @@ fn snd_wrong_postcondition_branch() {
             ensures: vec![SpecExpr {
                 raw: "result == 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -923,8 +941,10 @@ fn snd_postcondition_off_by_one() {
             ensures: vec![SpecExpr {
                 raw: "result >= _1 + 1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1012,8 +1032,10 @@ fn snd_branch_unsound_if_linear() {
             ensures: vec![SpecExpr {
                 raw: "result > 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1057,8 +1079,10 @@ fn snd_signed_div_int_min_neg_one() {
                 raw: "_2 != 0".to_string(),
             }],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1128,8 +1152,10 @@ fn snd_signed_rem_int_min_neg_one() {
                 raw: "_2 != 0".to_string(),
             }],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1207,6 +1233,7 @@ fn snd_unrestricted_input_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1340,8 +1367,10 @@ fn snd_nested_branch_wrong_result() {
             ensures: vec![SpecExpr {
                 raw: "result >= 1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1382,6 +1411,7 @@ fn snd_unsigned_rem_div_by_zero() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1424,6 +1454,7 @@ fn snd_shr_overflow() {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1473,8 +1504,10 @@ fn snd_add_wrong_upper_bound() {
             ensures: vec![SpecExpr {
                 raw: "result <= _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();

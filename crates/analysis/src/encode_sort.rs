@@ -328,6 +328,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -365,6 +366,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -382,6 +384,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -413,6 +416,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);

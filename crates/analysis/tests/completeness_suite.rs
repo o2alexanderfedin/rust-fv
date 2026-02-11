@@ -346,8 +346,10 @@ fn cmp_bounded_add() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -395,8 +397,10 @@ fn cmp_bounded_sub() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -444,8 +448,10 @@ fn cmp_bounded_mul() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -493,8 +499,10 @@ fn cmp_safe_div() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -537,8 +545,10 @@ fn cmp_safe_shift() {
                 raw: "_2 >= 0 && _2 <= 31".to_string(),
             }],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -571,8 +581,10 @@ fn cmp_identity_postcondition() {
             ensures: vec![SpecExpr {
                 raw: "result == _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -602,8 +614,10 @@ fn cmp_constant_postcondition() {
             ensures: vec![SpecExpr {
                 raw: "result == 42".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -653,8 +667,10 @@ fn cmp_bounded_add_postcondition() {
             ensures: vec![SpecExpr {
                 raw: "result >= _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -724,8 +740,10 @@ fn cmp_max_function() {
             ensures: vec![SpecExpr {
                 raw: "result >= _1 && result >= _2".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -826,8 +844,10 @@ fn cmp_abs_function() {
             ensures: vec![SpecExpr {
                 raw: "result >= 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -954,8 +974,10 @@ fn cmp_clamp_function() {
             ensures: vec![SpecExpr {
                 raw: "result >= _2 && result <= _3".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1034,8 +1056,10 @@ fn cmp_if_else_same_result() {
             ensures: vec![SpecExpr {
                 raw: "result == 42".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1140,8 +1164,10 @@ fn cmp_multi_branch_classify() {
             ensures: vec![SpecExpr {
                 raw: "result >= -1 && result <= 1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1220,8 +1246,10 @@ fn cmp_early_return() {
             ensures: vec![SpecExpr {
                 raw: "result >= 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1360,8 +1388,10 @@ fn cmp_nested_branches_correct() {
             ensures: vec![SpecExpr {
                 raw: "result >= 0 && result <= 3".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1426,8 +1456,10 @@ fn cmp_u8_bounded_add() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1475,8 +1507,10 @@ fn cmp_i64_bounded_add() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1524,8 +1558,10 @@ fn cmp_u64_bounded_mul() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1573,8 +1609,10 @@ fn cmp_i8_safe_operations() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1607,8 +1645,10 @@ fn cmp_mixed_width_identity() {
             ensures: vec![SpecExpr {
                 raw: "result == _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1655,8 +1695,10 @@ fn cmp_safe_unsigned_sub() {
                 raw: "_1 >= _2".to_string(),
             }],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();
@@ -1705,8 +1747,10 @@ fn cmp_safe_signed_rem() {
                 },
             ],
             ensures: vec![],
+            invariants: vec![],
             is_pure: false,
         },
+        loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func);
     let solver = solver_or_skip();

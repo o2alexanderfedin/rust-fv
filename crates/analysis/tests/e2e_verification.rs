@@ -46,6 +46,7 @@ fn make_add_function(contracts: Contracts) -> Function {
             terminator: Terminator::Return,
         }],
         contracts,
+        loops: vec![],
     }
 }
 
@@ -362,6 +363,7 @@ fn test_overflow_verification_unconstrained_add() {
         ensures: vec![SpecExpr {
             raw: "result == _1 + _2".to_string(),
         }],
+        invariants: vec![],
         is_pure: false,
     });
 
@@ -456,6 +458,7 @@ fn test_safe_add_with_preconditions() {
             },
         ],
         ensures: vec![],
+        invariants: vec![],
         is_pure: false,
     });
 
@@ -514,6 +517,7 @@ fn test_provable_postcondition() {
         ensures: vec![SpecExpr {
             raw: "result >= _1".to_string(),
         }],
+        invariants: vec![],
         is_pure: false,
     });
 
@@ -582,6 +586,7 @@ fn test_postcondition_violation() {
         ensures: vec![SpecExpr {
             raw: "result == _1".to_string(),
         }],
+        invariants: vec![],
         is_pure: false,
     });
 
@@ -679,6 +684,7 @@ fn make_max_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        loops: vec![],
     }
 }
 
@@ -698,6 +704,7 @@ fn test_if_else_branches_ssa() {
         ensures: vec![SpecExpr {
             raw: "result >= _1 && result >= _2".to_string(),
         }],
+        invariants: vec![],
         is_pure: true,
     });
 
@@ -742,6 +749,7 @@ fn test_if_else_wrong_postcondition() {
         ensures: vec![SpecExpr {
             raw: "result == _1".to_string(),
         }],
+        invariants: vec![],
         is_pure: true,
     });
 
@@ -862,6 +870,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        loops: vec![],
     }
 }
 
@@ -873,6 +882,7 @@ fn test_multi_branch_match() {
         ensures: vec![SpecExpr {
             raw: "result >= -1 && result <= 1".to_string(),
         }],
+        invariants: vec![],
         is_pure: true,
     });
 
@@ -962,6 +972,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        loops: vec![],
     }
 }
 
@@ -973,6 +984,7 @@ fn test_early_return_via_goto() {
         ensures: vec![SpecExpr {
             raw: "result >= 0".to_string(),
         }],
+        invariants: vec![],
         is_pure: true,
     });
 
@@ -1133,6 +1145,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        loops: vec![],
     }
 }
 
@@ -1144,6 +1157,7 @@ fn test_nested_branches() {
         ensures: vec![SpecExpr {
             raw: "result >= 0 && result <= 3".to_string(),
         }],
+        invariants: vec![],
         is_pure: true,
     });
 
@@ -1239,8 +1253,10 @@ fn test_single_branch_overflow_check() {
                 raw: "_1 >= 0 && _1 <= 100".to_string(),
             }],
             ensures: vec![],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);

@@ -46,6 +46,7 @@ fn make_add_function() -> Function {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        loops: vec![],
     }
 }
 
@@ -111,8 +112,10 @@ fn make_max_function() -> Function {
             ensures: vec![SpecExpr {
                 raw: "result >= _1 && result >= _2".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     }
 }
 
@@ -239,8 +242,10 @@ fn make_complex_function() -> Function {
                     raw: "result <= _3".to_string(),
                 },
             ],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     }
 }
 

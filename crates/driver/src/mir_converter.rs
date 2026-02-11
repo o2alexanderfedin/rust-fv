@@ -64,6 +64,7 @@ pub fn convert_mir(
         locals,
         basic_blocks,
         contracts,
+        loops: vec![],
     }
 }
 

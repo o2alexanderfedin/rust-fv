@@ -187,6 +187,7 @@ impl Callbacks for VerificationCallbacks {
 struct HirContracts {
     requires: Vec<String>,
     ensures: Vec<String>,
+    invariants: Vec<String>,
     is_pure: bool,
 }
 
@@ -211,13 +212,19 @@ fn extract_contracts(
                     contracts.requires.push(spec.to_string());
                 } else if let Some(spec) = doc.strip_prefix("rust_fv::ensures::") {
                     contracts.ensures.push(spec.to_string());
+                } else if let Some(spec) = doc.strip_prefix("rust_fv::invariant::") {
+                    contracts.invariants.push(spec.to_string());
                 } else if doc == "rust_fv::pure" {
                     contracts.is_pure = true;
                 }
             }
         }
 
-        if !contracts.requires.is_empty() || !contracts.ensures.is_empty() || contracts.is_pure {
+        if !contracts.requires.is_empty()
+            || !contracts.ensures.is_empty()
+            || !contracts.invariants.is_empty()
+            || contracts.is_pure
+        {
             map.insert(
                 local_def_id,
                 rust_fv_analysis::ir::Contracts {
@@ -228,6 +235,11 @@ fn extract_contracts(
                         .collect(),
                     ensures: contracts
                         .ensures
+                        .into_iter()
+                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
+                        .collect(),
+                    invariants: contracts
+                        .invariants
                         .into_iter()
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
                         .collect(),

@@ -148,6 +148,28 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
         generate_contract_vcs(func, &datatype_declarations, &declarations, &paths);
     conditions.append(&mut contract_vcs);
 
+    // Generate loop invariant VCs for loops with user-supplied invariants
+    let detected_loops = detect_loops(func);
+    for loop_info in &detected_loops {
+        if loop_info.invariants.is_empty() {
+            tracing::warn!(
+                function = %func.name,
+                header = loop_info.header_block,
+                "Loop without invariant annotation -- skipping verification"
+            );
+        } else {
+            tracing::debug!(
+                function = %func.name,
+                header = loop_info.header_block,
+                invariant_count = loop_info.invariants.len(),
+                "Generating loop invariant VCs"
+            );
+            let mut loop_vcs =
+                generate_loop_invariant_vcs(func, &datatype_declarations, &declarations, loop_info);
+            conditions.append(&mut loop_vcs);
+        }
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),
@@ -773,6 +795,521 @@ fn generate_contract_vcs(
     vcs
 }
 
+// === Loop invariant verification ===
+
+/// Detect loops in the CFG by finding back-edges.
+///
+/// A back-edge is an edge from block B to block A where A has already been
+/// visited during DFS traversal. The target (A) is the loop header.
+///
+/// Returns `LoopInfo` entries from `func.loops` (user-supplied) merged with
+/// any back-edges detected in the CFG. If the function has pre-populated
+/// `loops` field, those are returned directly. Otherwise, back-edges are
+/// detected and matched with invariants from `func.contracts.invariants`.
+pub fn detect_loops(func: &Function) -> Vec<LoopInfo> {
+    // If loops are already populated (e.g., from driver or test setup), use them
+    if !func.loops.is_empty() {
+        return func.loops.clone();
+    }
+
+    // Detect back-edges via DFS
+    let mut visited = HashSet::new();
+    let mut in_stack = HashSet::new();
+    let mut back_edges: Vec<(usize, usize)> = Vec::new(); // (from, to)
+
+    dfs_find_back_edges(func, 0, &mut visited, &mut in_stack, &mut back_edges);
+
+    if back_edges.is_empty() {
+        return vec![];
+    }
+
+    // Group back-edges by header (target of back-edge)
+    let mut header_to_back_edges: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (from, to) in &back_edges {
+        header_to_back_edges.entry(*to).or_default().push(*from);
+    }
+
+    // Create LoopInfo entries, matching with contract invariants
+    // For now, all invariants in contracts.invariants are assumed to apply to the
+    // first loop. A more sophisticated approach would use source location mapping.
+    let invariants = func.contracts.invariants.clone();
+
+    header_to_back_edges
+        .into_iter()
+        .map(|(header, back_edge_blocks)| LoopInfo {
+            header_block: header,
+            back_edge_blocks,
+            invariants: invariants.clone(),
+        })
+        .collect()
+}
+
+/// DFS to find back-edges in the CFG.
+fn dfs_find_back_edges(
+    func: &Function,
+    block_idx: usize,
+    visited: &mut HashSet<usize>,
+    in_stack: &mut HashSet<usize>,
+    back_edges: &mut Vec<(usize, usize)>,
+) {
+    if block_idx >= func.basic_blocks.len() {
+        return;
+    }
+
+    if visited.contains(&block_idx) {
+        return;
+    }
+
+    visited.insert(block_idx);
+    in_stack.insert(block_idx);
+
+    // Get successors from the terminator
+    let successors = terminator_successors(&func.basic_blocks[block_idx].terminator);
+
+    for succ in successors {
+        if in_stack.contains(&succ) {
+            // Back-edge found: block_idx -> succ
+            back_edges.push((block_idx, succ));
+        } else if !visited.contains(&succ) {
+            dfs_find_back_edges(func, succ, visited, in_stack, back_edges);
+        }
+    }
+
+    in_stack.remove(&block_idx);
+}
+
+/// Get successor block indices from a terminator.
+fn terminator_successors(term: &Terminator) -> Vec<usize> {
+    match term {
+        Terminator::Return | Terminator::Unreachable => vec![],
+        Terminator::Goto(target) => vec![*target],
+        Terminator::SwitchInt {
+            targets, otherwise, ..
+        } => {
+            let mut succs: Vec<usize> = targets.iter().map(|(_, t)| *t).collect();
+            succs.push(*otherwise);
+            succs
+        }
+        Terminator::Assert { target, .. } => vec![*target],
+        Terminator::Call { target, .. } => vec![*target],
+    }
+}
+
+/// Generate the 3 classical loop invariant VCs for a single loop.
+///
+/// **VC1 - Initialization**: Precondition AND pre-loop assignments IMPLY invariant
+/// **VC2 - Preservation**: Invariant AND loop condition AND body IMPLY invariant
+/// **VC3 - Exit**: Invariant AND NOT loop condition IMPLY postcondition
+fn generate_loop_invariant_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+    loop_info: &LoopInfo,
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+    let header = loop_info.header_block;
+
+    // Parse all invariants
+    let parsed_invariants: Vec<Term> = loop_info
+        .invariants
+        .iter()
+        .filter_map(|inv| parse_simple_spec(&inv.raw, func))
+        .collect();
+
+    if parsed_invariants.is_empty() {
+        return vcs;
+    }
+
+    // Build the combined invariant (conjunction of all invariants)
+    let invariant = if parsed_invariants.len() == 1 {
+        parsed_invariants[0].clone()
+    } else {
+        Term::And(parsed_invariants.clone())
+    };
+
+    // Extract the loop condition from the header block's terminator
+    let loop_condition = extract_loop_condition(func, header);
+
+    // Collect pre-loop assignments (from function entry to loop header)
+    let pre_loop_assignments = collect_pre_loop_assignments(func, header);
+
+    // Collect loop body assignments (from header's body entry to back-edge blocks)
+    let body_assignments = collect_loop_body_assignments(func, header, &loop_info.back_edge_blocks);
+
+    // === VC1: Initialization ===
+    // Preconditions + pre-loop assignments => invariant
+    {
+        let mut script = base_script(datatype_declarations, declarations);
+
+        // Encode pre-loop assignments
+        let mut ssa_counter = HashMap::new();
+        for (place, rvalue) in &pre_loop_assignments {
+            if let Some(cmd) = encode_assignment(place, rvalue, func, &mut ssa_counter) {
+                script.push(cmd);
+            }
+        }
+
+        // Assume preconditions
+        for pre in &func.contracts.requires {
+            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                script.push(Command::Assert(pre_term));
+            }
+        }
+
+        // Assert negation of invariant (checking if invariant can fail on entry)
+        script.push(Command::Comment(format!(
+            "Loop invariant initialization check at block {header}"
+        )));
+        script.push(Command::Assert(Term::Not(Box::new(invariant.clone()))));
+        script.push(Command::CheckSat);
+        script.push(Command::GetModel);
+
+        vcs.push(VerificationCondition {
+            description: format!(
+                "{}: loop invariant initialization at block {header}",
+                func.name
+            ),
+            script,
+            location: VcLocation {
+                function: func.name.clone(),
+                block: header,
+                statement: 0,
+            },
+        });
+    }
+
+    // === VC2: Preservation ===
+    // Invariant + loop condition + body => invariant'
+    {
+        let mut script = base_script(datatype_declarations, declarations);
+
+        // Assume invariant holds at loop entry
+        script.push(Command::Assert(invariant.clone()));
+
+        // Assume preconditions (they hold throughout)
+        for pre in &func.contracts.requires {
+            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                script.push(Command::Assert(pre_term));
+            }
+        }
+
+        // Assume loop condition is true (we're entering the loop body)
+        if let Some(ref cond) = loop_condition {
+            script.push(Command::Assert(cond.clone()));
+        }
+
+        // Encode loop body assignments
+        let mut ssa_counter = HashMap::new();
+        for (place, rvalue) in &body_assignments {
+            if let Some(cmd) = encode_assignment(place, rvalue, func, &mut ssa_counter) {
+                script.push(cmd);
+            }
+        }
+
+        // Assert negation of invariant after body (checking if invariant can break)
+        script.push(Command::Comment(format!(
+            "Loop invariant preservation check at block {header}"
+        )));
+        script.push(Command::Assert(Term::Not(Box::new(invariant.clone()))));
+        script.push(Command::CheckSat);
+        script.push(Command::GetModel);
+
+        vcs.push(VerificationCondition {
+            description: format!(
+                "{}: loop invariant preservation at block {header}",
+                func.name
+            ),
+            script,
+            location: VcLocation {
+                function: func.name.clone(),
+                block: header,
+                statement: 0,
+            },
+        });
+    }
+
+    // === VC3: Exit / Sufficiency ===
+    // Invariant + NOT loop condition => postcondition
+    {
+        for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
+            if let Some(post_term) = parse_simple_spec(&post.raw, func) {
+                let mut script = base_script(datatype_declarations, declarations);
+
+                // Assume invariant holds
+                script.push(Command::Assert(invariant.clone()));
+
+                // Assume preconditions
+                for pre in &func.contracts.requires {
+                    if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                        script.push(Command::Assert(pre_term));
+                    }
+                }
+
+                // Assume loop condition is false (loop exited)
+                if let Some(ref cond) = loop_condition {
+                    script.push(Command::Assert(Term::Not(Box::new(cond.clone()))));
+                }
+
+                // Encode post-loop assignments (from loop exit to function return)
+                let post_loop_assignments =
+                    collect_post_loop_assignments(func, header, &loop_condition);
+                let mut ssa_counter = HashMap::new();
+                for (place, rvalue) in &post_loop_assignments {
+                    if let Some(cmd) = encode_assignment(place, rvalue, func, &mut ssa_counter) {
+                        script.push(cmd);
+                    }
+                }
+
+                // Assert negation of postcondition
+                script.push(Command::Comment(format!(
+                    "Loop invariant sufficiency (exit) check at block {header}: {}",
+                    post.raw
+                )));
+                script.push(Command::Assert(Term::Not(Box::new(post_term))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "{}: loop invariant sufficiency (exit) at block {header} for postcondition {post_idx}",
+                        func.name
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: header,
+                        statement: 0,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Extract the loop condition from the header block's terminator.
+///
+/// For a SwitchInt terminator at the loop header, the loop condition is the
+/// discriminant being equal to the "continue" target value (typically true/1
+/// for the body, false/0 for the exit).
+fn extract_loop_condition(func: &Function, header_block: BlockId) -> Option<Term> {
+    if header_block >= func.basic_blocks.len() {
+        return None;
+    }
+
+    let block = &func.basic_blocks[header_block];
+    match &block.terminator {
+        Terminator::SwitchInt { discr, targets, .. } => {
+            // The loop condition is typically the discriminant.
+            // For `while cond { body }`, MIR generates:
+            //   header: switchInt(cond) -> [1: body, otherwise: exit]
+            // So the "true" branch goes to the body, and the condition is `discr == 1`
+            // (or simply `discr` for boolean discriminants).
+            let discr_term = encode_operand(discr);
+
+            // Check if discriminant is a boolean
+            if let Operand::Copy(place) | Operand::Move(place) = discr {
+                let discr_ty = find_local_type(func, &place.local);
+                if matches!(discr_ty, Some(Ty::Bool)) {
+                    // Boolean: the condition is just the discriminant being true
+                    return Some(discr_term);
+                }
+            }
+
+            // For integer discriminants, the first target is typically the body
+            if let Some((value, _)) = targets.first() {
+                let width = match discr {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        find_local_type(func, &place.local)
+                            .and_then(|ty| ty.bit_width())
+                            .unwrap_or(32)
+                    }
+                    _ => 32,
+                };
+                return Some(Term::Eq(
+                    Box::new(discr_term),
+                    Box::new(Term::BitVecLit(*value, width)),
+                ));
+            }
+
+            Some(discr_term)
+        }
+        _ => None, // Non-conditional loop header (unconditional loop)
+    }
+}
+
+/// Collect assignments from function entry to the loop header.
+///
+/// These are the "pre-loop" assignments needed for the initialization VC.
+fn collect_pre_loop_assignments(func: &Function, header_block: BlockId) -> Vec<(Place, Rvalue)> {
+    let mut assignments = Vec::new();
+    let mut visited = HashSet::new();
+    collect_assignments_to_block(func, 0, header_block, &mut visited, &mut assignments);
+    assignments
+}
+
+/// Recursively collect assignments from `current` block to `target` block.
+fn collect_assignments_to_block(
+    func: &Function,
+    current: BlockId,
+    target: BlockId,
+    visited: &mut HashSet<BlockId>,
+    assignments: &mut Vec<(Place, Rvalue)>,
+) {
+    if current == target || current >= func.basic_blocks.len() || visited.contains(&current) {
+        return;
+    }
+
+    visited.insert(current);
+    let block = &func.basic_blocks[current];
+
+    // Collect assignments from this block
+    for stmt in &block.statements {
+        if let Statement::Assign(place, rvalue) = stmt {
+            assignments.push((place.clone(), rvalue.clone()));
+        }
+    }
+
+    // Follow successors toward the target
+    let successors = terminator_successors(&block.terminator);
+    for succ in successors {
+        if succ == target || (!visited.contains(&succ) && succ < func.basic_blocks.len()) {
+            collect_assignments_to_block(func, succ, target, visited, assignments);
+            break; // Take the first path to target (simplified for single-entry loops)
+        }
+    }
+}
+
+/// Collect assignments in the loop body (from header's body successor to back-edge blocks).
+fn collect_loop_body_assignments(
+    func: &Function,
+    header: BlockId,
+    back_edge_blocks: &[BlockId],
+) -> Vec<(Place, Rvalue)> {
+    let mut assignments = Vec::new();
+
+    if header >= func.basic_blocks.len() {
+        return assignments;
+    }
+
+    // Find the body entry block: the first target from the header's SwitchInt
+    let body_entry = match &func.basic_blocks[header].terminator {
+        Terminator::SwitchInt { targets, .. } => {
+            // First target is typically the body (true branch)
+            targets.first().map(|(_, t)| *t)
+        }
+        Terminator::Goto(target) => Some(*target),
+        _ => None,
+    };
+
+    if let Some(entry) = body_entry {
+        // Include header's own statements (which may include the loop condition computation)
+        for stmt in &func.basic_blocks[header].statements {
+            if let Statement::Assign(place, rvalue) = stmt {
+                assignments.push((place.clone(), rvalue.clone()));
+            }
+        }
+
+        // Collect assignments from body entry to back-edge blocks
+        let back_edge_set: HashSet<BlockId> = back_edge_blocks.iter().copied().collect();
+        let mut visited = HashSet::new();
+        visited.insert(header); // Don't revisit header
+        collect_body_assignments_dfs(func, entry, &back_edge_set, &mut visited, &mut assignments);
+    }
+
+    assignments
+}
+
+/// DFS through the loop body, collecting assignments.
+fn collect_body_assignments_dfs(
+    func: &Function,
+    block_idx: BlockId,
+    back_edge_blocks: &HashSet<BlockId>,
+    visited: &mut HashSet<BlockId>,
+    assignments: &mut Vec<(Place, Rvalue)>,
+) {
+    if block_idx >= func.basic_blocks.len() || visited.contains(&block_idx) {
+        return;
+    }
+
+    visited.insert(block_idx);
+    let block = &func.basic_blocks[block_idx];
+
+    // Collect assignments
+    for stmt in &block.statements {
+        if let Statement::Assign(place, rvalue) = stmt {
+            assignments.push((place.clone(), rvalue.clone()));
+        }
+    }
+
+    // If this is a back-edge block, stop (we've collected the full body path)
+    if back_edge_blocks.contains(&block_idx) {
+        return;
+    }
+
+    // Continue to successors
+    let successors = terminator_successors(&block.terminator);
+    for succ in successors {
+        collect_body_assignments_dfs(func, succ, back_edge_blocks, visited, assignments);
+    }
+}
+
+/// Collect assignments after the loop exit to the function return.
+fn collect_post_loop_assignments(
+    func: &Function,
+    header: BlockId,
+    _loop_condition: &Option<Term>,
+) -> Vec<(Place, Rvalue)> {
+    let mut assignments = Vec::new();
+
+    if header >= func.basic_blocks.len() {
+        return assignments;
+    }
+
+    // Find the exit block: the "otherwise" target from the header's SwitchInt
+    let exit_block = match &func.basic_blocks[header].terminator {
+        Terminator::SwitchInt { otherwise, .. } => Some(*otherwise),
+        _ => None,
+    };
+
+    if let Some(exit) = exit_block {
+        let mut visited = HashSet::new();
+        visited.insert(header); // Don't go back into the loop
+        collect_post_loop_dfs(func, exit, &mut visited, &mut assignments);
+    }
+
+    assignments
+}
+
+/// DFS through post-loop blocks to Return, collecting assignments.
+fn collect_post_loop_dfs(
+    func: &Function,
+    block_idx: BlockId,
+    visited: &mut HashSet<BlockId>,
+    assignments: &mut Vec<(Place, Rvalue)>,
+) {
+    if block_idx >= func.basic_blocks.len() || visited.contains(&block_idx) {
+        return;
+    }
+
+    visited.insert(block_idx);
+    let block = &func.basic_blocks[block_idx];
+
+    // Collect assignments
+    for stmt in &block.statements {
+        if let Statement::Assign(place, rvalue) = stmt {
+            assignments.push((place.clone(), rvalue.clone()));
+        }
+    }
+
+    // Follow successors
+    let successors = terminator_successors(&block.terminator);
+    for succ in successors {
+        collect_post_loop_dfs(func, succ, visited, assignments);
+    }
+}
+
 /// Encode an operand for VCGen with type-aware projection resolution.
 ///
 /// If the operand references a place with projections (field access, indexing),
@@ -1159,6 +1696,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            loops: vec![],
         }
     }
 
@@ -1223,8 +1761,10 @@ mod tests {
                 ensures: vec![SpecExpr {
                     raw: "result >= _1 && result >= _2".to_string(),
                 }],
+                invariants: vec![],
                 is_pure: true,
             },
+            loops: vec![],
         }
     }
 
@@ -1371,6 +1911,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            loops: vec![],
         };
 
         let result = generate_vcs(&func);
@@ -1408,6 +1949,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            loops: vec![],
         };
 
         let result = generate_vcs(&func);

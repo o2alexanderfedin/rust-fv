@@ -352,8 +352,10 @@ fn test_struct_construction() {
             ensures: vec![SpecExpr {
                 raw: "result.x == 1 && result.y == 2".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);
@@ -450,8 +452,10 @@ fn test_struct_field_postcondition_positive() {
             ensures: vec![SpecExpr {
                 raw: "result.x > 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);
@@ -513,8 +517,10 @@ fn test_struct_field_postcondition_negative() {
             ensures: vec![SpecExpr {
                 raw: "result.x > 0".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);
@@ -576,8 +582,10 @@ fn test_tuple_construction() {
             ensures: vec![SpecExpr {
                 raw: "result.0 == 10 && result.1 == 20".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);
@@ -665,8 +673,10 @@ fn test_tuple_field_access() {
             ensures: vec![SpecExpr {
                 raw: "result.0 == _2 && result.1 == _1".to_string(),
             }],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);
@@ -748,8 +758,10 @@ fn test_array_select() {
         contracts: Contracts {
             requires: vec![],
             ensures: vec![],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     // Just verify VCGen doesn't panic and produces valid output
@@ -889,8 +901,10 @@ fn test_enum_variant_construction() {
         contracts: Contracts {
             requires: vec![],
             ensures: vec![],
+            invariants: vec![],
             is_pure: true,
         },
+        loops: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func);

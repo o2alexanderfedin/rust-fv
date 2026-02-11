@@ -12,6 +12,8 @@ pub struct Function {
     pub locals: Vec<Local>,
     pub basic_blocks: Vec<BasicBlock>,
     pub contracts: Contracts,
+    /// Detected loops with optional user-supplied invariants.
+    pub loops: Vec<LoopInfo>,
 }
 
 /// A local variable (parameter, return place, or temporary).
@@ -29,8 +31,21 @@ pub struct Contracts {
     pub requires: Vec<SpecExpr>,
     /// Postconditions (`#[ensures(...)]`)
     pub ensures: Vec<SpecExpr>,
+    /// Loop invariants (`#[invariant(...)]`)
+    pub invariants: Vec<SpecExpr>,
     /// Whether the function is marked `#[pure]`
     pub is_pure: bool,
+}
+
+/// Information about a loop detected in the CFG.
+#[derive(Debug, Clone)]
+pub struct LoopInfo {
+    /// Basic block index of the loop header (target of back-edge)
+    pub header_block: BlockId,
+    /// Basic block indices that have back-edges to the header
+    pub back_edge_blocks: Vec<BlockId>,
+    /// User-supplied loop invariant expressions
+    pub invariants: Vec<SpecExpr>,
 }
 
 /// A specification expression (parsed from attribute strings).
