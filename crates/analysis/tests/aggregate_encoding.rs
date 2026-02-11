@@ -358,7 +358,7 @@ fn test_struct_construction() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Should have a postcondition VC
     let post_vcs: Vec<_> = vcs
@@ -458,7 +458,7 @@ fn test_struct_field_postcondition_positive() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -523,7 +523,7 @@ fn test_struct_field_postcondition_negative() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -588,7 +588,7 @@ fn test_tuple_construction() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -679,7 +679,7 @@ fn test_tuple_field_access() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -765,7 +765,7 @@ fn test_array_select() {
     };
 
     // Just verify VCGen doesn't panic and produces valid output
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Check that the script is well-formed (no errors from Z3)
     // We don't have postconditions here, so just verify no crashes
@@ -907,7 +907,7 @@ fn test_enum_variant_construction() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Verify VCGen doesn't panic
     assert_eq!(vcs.function_name, "make_some");

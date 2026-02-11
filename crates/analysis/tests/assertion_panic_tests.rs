@@ -372,7 +372,7 @@ fn test_assert_true_verified() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let assert_vcs: Vec<_> = vcs
         .conditions
@@ -448,7 +448,7 @@ fn test_assert_false_counterexample() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let assert_vcs: Vec<_> = vcs
         .conditions
@@ -547,7 +547,7 @@ fn test_assert_after_computation() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let assert_vcs: Vec<_> = vcs
         .conditions
@@ -649,7 +649,7 @@ fn test_array_bounds_safe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let bounds_vcs: Vec<_> = vcs
         .conditions
@@ -727,7 +727,7 @@ fn test_array_bounds_unsafe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let bounds_vcs: Vec<_> = vcs
         .conditions
@@ -820,7 +820,7 @@ fn test_div_by_zero_safe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let div_vcs: Vec<_> = vcs
         .conditions
@@ -901,7 +901,7 @@ fn test_div_by_zero_unsafe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let div_vcs: Vec<_> = vcs
         .conditions
@@ -983,7 +983,7 @@ fn test_unwrap_safe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let unwrap_vcs: Vec<_> = vcs
         .conditions
@@ -1051,7 +1051,7 @@ fn test_unwrap_unsafe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let unwrap_vcs: Vec<_> = vcs
         .conditions
@@ -1123,7 +1123,7 @@ fn test_error_message_specificity() {
 
     // UserAssert
     let func1 = make_func("user_assert", AssertKind::UserAssert);
-    let vcs1 = vcgen::generate_vcs(&func1);
+    let vcs1 = vcgen::generate_vcs(&func1, None);
     let desc1 = vcs1
         .conditions
         .iter()
@@ -1144,7 +1144,7 @@ fn test_error_message_specificity() {
             index: Operand::Copy(Place::local("_1")),
         },
     );
-    let vcs2 = vcgen::generate_vcs(&func2);
+    let vcs2 = vcgen::generate_vcs(&func2, None);
     let desc2 = vcs2
         .conditions
         .iter()
@@ -1159,7 +1159,7 @@ fn test_error_message_specificity() {
 
     // DivisionByZero
     let func3 = make_func("div_zero", AssertKind::DivisionByZero);
-    let vcs3 = vcgen::generate_vcs(&func3);
+    let vcs3 = vcgen::generate_vcs(&func3, None);
     let desc3 = vcs3
         .conditions
         .iter()
@@ -1174,7 +1174,7 @@ fn test_error_message_specificity() {
 
     // UnwrapNone
     let func4 = make_func("unwrap", AssertKind::UnwrapNone);
-    let vcs4 = vcgen::generate_vcs(&func4);
+    let vcs4 = vcgen::generate_vcs(&func4, None);
     let desc4 = vcs4
         .conditions
         .iter()
@@ -1189,7 +1189,7 @@ fn test_error_message_specificity() {
 
     // Overflow
     let func5 = make_func("overflow", AssertKind::Overflow(BinOp::Add));
-    let vcs5 = vcgen::generate_vcs(&func5);
+    let vcs5 = vcgen::generate_vcs(&func5, None);
     let desc5 = vcs5
         .conditions
         .iter()
@@ -1276,7 +1276,7 @@ fn test_remainder_by_zero_unsafe() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let rem_vcs: Vec<_> = vcs
         .conditions

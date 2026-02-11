@@ -513,21 +513,21 @@ fn format_nary(out: &mut String, op: &str, terms: &[rust_fv_smtlib::term::Term])
 fn bench_vcgen_simple_add(c: &mut Criterion) {
     let func = make_add_function();
     c.bench_function("vcgen_simple_add", |b| {
-        b.iter(|| vcgen::generate_vcs(&func));
+        b.iter(|| vcgen::generate_vcs(&func, None));
     });
 }
 
 fn bench_vcgen_max_function(c: &mut Criterion) {
     let func = make_max_function();
     c.bench_function("vcgen_max_function", |b| {
-        b.iter(|| vcgen::generate_vcs(&func));
+        b.iter(|| vcgen::generate_vcs(&func, None));
     });
 }
 
 fn bench_vcgen_complex_function(c: &mut Criterion) {
     let func = make_complex_function();
     c.bench_function("vcgen_complex_function", |b| {
-        b.iter(|| vcgen::generate_vcs(&func));
+        b.iter(|| vcgen::generate_vcs(&func, None));
     });
 }
 
@@ -546,7 +546,7 @@ fn bench_e2e_simple_add(c: &mut Criterion) {
     let func = make_add_function();
     c.bench_function("e2e_simple_add", |b| {
         b.iter(|| {
-            let vcs = vcgen::generate_vcs(&func);
+            let vcs = vcgen::generate_vcs(&func, None);
             for vc in &vcs.conditions {
                 let smtlib = script_to_smtlib(&vc.script);
                 let _ = solver.check_sat_raw(&smtlib);
@@ -566,7 +566,7 @@ fn bench_e2e_max_function(c: &mut Criterion) {
     let func = make_max_function();
     c.bench_function("e2e_max_function", |b| {
         b.iter(|| {
-            let vcs = vcgen::generate_vcs(&func);
+            let vcs = vcgen::generate_vcs(&func, None);
             for vc in &vcs.conditions {
                 let smtlib = script_to_smtlib(&vc.script);
                 let _ = solver.check_sat_raw(&smtlib);
@@ -586,7 +586,7 @@ fn bench_e2e_complex_function(c: &mut Criterion) {
     let func = make_complex_function();
     c.bench_function("e2e_complex_function", |b| {
         b.iter(|| {
-            let vcs = vcgen::generate_vcs(&func);
+            let vcs = vcgen::generate_vcs(&func, None);
             for vc in &vcs.conditions {
                 let smtlib = script_to_smtlib(&vc.script);
                 let _ = solver.check_sat_raw(&smtlib);

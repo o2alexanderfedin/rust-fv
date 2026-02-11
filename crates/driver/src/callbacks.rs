@@ -160,7 +160,7 @@ impl Callbacks for VerificationCallbacks {
             );
 
             // Generate verification conditions
-            let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&ir_func);
+            let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&ir_func, None);
 
             // Check each VC with Z3
             for vc in &func_vcs.conditions {

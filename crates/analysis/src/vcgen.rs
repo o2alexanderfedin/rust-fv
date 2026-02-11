@@ -37,6 +37,7 @@ use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::term::Term;
 
+use crate::contract_db::ContractDatabase;
 use crate::encode_sort::{collect_datatype_declarations, encode_type};
 use crate::encode_term::{
     encode_aggregate_with_type, encode_binop, encode_field_access, encode_operand,
@@ -82,6 +83,25 @@ struct CfgPath {
     assignments: Vec<PathAssignment>,
     /// Overflow VCs found along this path.
     overflow_vcs: Vec<OverflowVcInfo>,
+    /// Call sites encountered along this path.
+    call_sites: Vec<CallSiteInfo>,
+}
+
+/// Information about a function call encountered during path traversal.
+#[derive(Debug, Clone)]
+struct CallSiteInfo {
+    /// Normalized callee function name (bare name, no `const ` prefix or path qualifiers).
+    callee_name: String,
+    /// Arguments passed to the callee.
+    args: Vec<Operand>,
+    /// Place where the return value is stored.
+    destination: Place,
+    /// Block index where the call occurs.
+    block_idx: usize,
+    /// Assignments before this call in the current path.
+    prior_assignments: Vec<PathAssignment>,
+    /// Path condition at the call point.
+    path_condition: Option<Term>,
 }
 
 /// An assignment found along a path, with its location info.
@@ -116,7 +136,12 @@ struct OverflowVcInfo {
 /// This is the main entry point. It produces a set of SMT-LIB scripts,
 /// each checking one verification condition. If any script is SAT,
 /// the corresponding condition is violated.
-pub fn generate_vcs(func: &Function) -> FunctionVCs {
+///
+/// The optional `contract_db` enables inter-procedural verification:
+/// when present, call sites are encoded modularly using callee contracts
+/// as summaries (assert precondition, havoc return, assume postcondition).
+/// Pass `None` for backward-compatible behavior where calls are opaque.
+pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> FunctionVCs {
     tracing::info!(function = %func.name, "Generating verification conditions");
 
     let mut conditions = Vec::new();
@@ -145,9 +170,23 @@ pub fn generate_vcs(func: &Function) -> FunctionVCs {
     conditions.append(&mut assert_vcs);
 
     // Generate contract verification conditions (postconditions)
-    let mut contract_vcs =
-        generate_contract_vcs(func, &datatype_declarations, &declarations, &paths);
+    // When contract_db is provided, callee postconditions are assumed during
+    // the caller's postcondition check.
+    let mut contract_vcs = generate_contract_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        contract_db,
+    );
     conditions.append(&mut contract_vcs);
+
+    // Generate call-site precondition VCs (inter-procedural)
+    if let Some(db) = contract_db {
+        let mut call_vcs =
+            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        conditions.append(&mut call_vcs);
+    }
 
     // Generate loop invariant VCs for loops with user-supplied invariants
     let detected_loops = detect_loops(func);
@@ -202,6 +241,7 @@ fn enumerate_paths(func: &Function) -> Vec<CfgPath> {
             condition: None,
             assignments: vec![],
             overflow_vcs: vec![],
+            call_sites: vec![],
         }];
     }
 
@@ -210,6 +250,7 @@ fn enumerate_paths(func: &Function) -> Vec<CfgPath> {
         conditions: Vec::new(),
         assignments: Vec::new(),
         overflow_vcs: Vec::new(),
+        call_sites: Vec::new(),
         visited: HashSet::new(),
     };
 
@@ -221,6 +262,7 @@ fn enumerate_paths(func: &Function) -> Vec<CfgPath> {
             condition: None,
             assignments: vec![],
             overflow_vcs: vec![],
+            call_sites: vec![],
         });
     }
 
@@ -236,6 +278,8 @@ struct PathState {
     assignments: Vec<PathAssignment>,
     /// Overflow VCs found along this path.
     overflow_vcs: Vec<OverflowVcInfo>,
+    /// Call sites encountered along this path.
+    call_sites: Vec<CallSiteInfo>,
     /// Blocks visited on this path (cycle detection).
     visited: HashSet<usize>,
 }
@@ -257,6 +301,7 @@ impl PathState {
             condition,
             assignments: self.assignments,
             overflow_vcs: self.overflow_vcs,
+            call_sites: self.call_sites,
         }
     }
 }
@@ -405,15 +450,23 @@ fn traverse_block(
         }
 
         Terminator::Call {
-            func: _,
-            args: _,
+            func: callee_func,
+            args,
             destination,
             target,
         } => {
-            // For now, treat the call as opaque but record the destination
-            // The destination gets an unconstrained value (no assignment encoded)
+            // Record the call site for inter-procedural verification
+            let callee_name = normalize_callee_name(callee_func);
+            state.call_sites.push(CallSiteInfo {
+                callee_name,
+                args: args.clone(),
+                destination: destination.clone(),
+                block_idx,
+                prior_assignments: state.assignments.clone(),
+                path_condition: state.path_condition(),
+            });
+            // The destination gets an unconstrained value (havoc)
             // Continue to the target block
-            let _ = destination; // acknowledged but not encoded
             traverse_block(func, *target, state, completed);
         }
 
@@ -778,12 +831,14 @@ fn format_assert_description(func_name: &str, block_idx: usize, kind: &AssertKin
 /// 1. Declare all variables
 /// 2. Encode all path assignments with path-condition guards
 /// 3. Assert all preconditions
-/// 4. Try to find a counterexample where the postcondition fails
+/// 4. Assume callee postconditions at call sites (if contract_db provided)
+/// 5. Try to find a counterexample where the postcondition fails
 fn generate_contract_vcs(
     func: &Function,
     datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
+    contract_db: Option<&ContractDatabase>,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -806,6 +861,15 @@ fn generate_contract_vcs(
         for pre in &func.contracts.requires {
             if let Some(pre_term) = parse_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
+            }
+        }
+
+        // Assume callee postconditions at call sites (inter-procedural)
+        if let Some(db) = contract_db {
+            for path in paths {
+                for call_site in &path.call_sites {
+                    encode_callee_postcondition_assumptions(func, db, call_site, &mut script);
+                }
             }
         }
 
@@ -842,6 +906,366 @@ fn generate_contract_vcs(
     }
 
     vcs
+}
+
+// === Inter-procedural verification ===
+
+/// Normalize a callee function name from MIR debug formatting.
+///
+/// MIR represents function operands with debug output like `const add` or
+/// `const my_module::helper`. This strips the `const ` prefix and takes
+/// the last path segment to get the bare function name for contract lookup.
+pub fn normalize_callee_name(raw: &str) -> String {
+    let stripped = raw.strip_prefix("const ").unwrap_or(raw).trim();
+    // Take the last segment after `::`
+    stripped
+        .rsplit_once("::")
+        .map(|(_, name)| name)
+        .unwrap_or(stripped)
+        .to_string()
+}
+
+/// Recursively substitute named constants in a Term tree.
+///
+/// For each `Term::Const(name)` where `substitutions` contains a mapping,
+/// the constant is replaced with the mapped term. This is used to map callee
+/// parameter names to actual argument terms at call sites.
+pub fn substitute_term(term: &Term, substitutions: &HashMap<String, Term>) -> Term {
+    match term {
+        Term::Const(name) => {
+            if let Some(replacement) = substitutions.get(name) {
+                replacement.clone()
+            } else {
+                term.clone()
+            }
+        }
+        Term::Not(t) => Term::Not(Box::new(substitute_term(t, substitutions))),
+        Term::And(terms) => Term::And(
+            terms
+                .iter()
+                .map(|t| substitute_term(t, substitutions))
+                .collect(),
+        ),
+        Term::Or(terms) => Term::Or(
+            terms
+                .iter()
+                .map(|t| substitute_term(t, substitutions))
+                .collect(),
+        ),
+        Term::Implies(a, b) => Term::Implies(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::Eq(a, b) => Term::Eq(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSLe(a, b) => Term::BvSLe(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSLt(a, b) => Term::BvSLt(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSGe(a, b) => Term::BvSGe(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSGt(a, b) => Term::BvSGt(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvULe(a, b) => Term::BvULe(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvULt(a, b) => Term::BvULt(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvUGe(a, b) => Term::BvUGe(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvUGt(a, b) => Term::BvUGt(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvAdd(a, b) => Term::BvAdd(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSub(a, b) => Term::BvSub(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvMul(a, b) => Term::BvMul(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSDiv(a, b) => Term::BvSDiv(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvUDiv(a, b) => Term::BvUDiv(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvSRem(a, b) => Term::BvSRem(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvURem(a, b) => Term::BvURem(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvNeg(a) => Term::BvNeg(Box::new(substitute_term(a, substitutions))),
+        Term::BvAnd(a, b) => Term::BvAnd(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvOr(a, b) => Term::BvOr(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvXor(a, b) => Term::BvXor(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvNot(a) => Term::BvNot(Box::new(substitute_term(a, substitutions))),
+        Term::BvShl(a, b) => Term::BvShl(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvLShr(a, b) => Term::BvLShr(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::BvAShr(a, b) => Term::BvAShr(
+            Box::new(substitute_term(a, substitutions)),
+            Box::new(substitute_term(b, substitutions)),
+        ),
+        Term::Ite(c, t, e) => Term::Ite(
+            Box::new(substitute_term(c, substitutions)),
+            Box::new(substitute_term(t, substitutions)),
+            Box::new(substitute_term(e, substitutions)),
+        ),
+        Term::App(name, args) => Term::App(
+            name.clone(),
+            args.iter()
+                .map(|a| substitute_term(a, substitutions))
+                .collect(),
+        ),
+        // Literals and other non-variable terms: return as-is
+        _ => term.clone(),
+    }
+}
+
+/// Build the argument substitution map for a call site.
+///
+/// Maps callee parameter names (e.g., "_1", "_2") to the caller's actual
+/// argument terms at the call site.
+fn build_arg_substitutions(
+    call_site: &CallSiteInfo,
+    callee_summary: &crate::contract_db::FunctionSummary,
+    caller_func: &Function,
+) -> HashMap<String, Term> {
+    let mut subs = HashMap::new();
+    for (i, param_name) in callee_summary.param_names.iter().enumerate() {
+        if let Some(arg) = call_site.args.get(i) {
+            let arg_term = encode_operand_for_vcgen(arg, caller_func);
+            subs.insert(param_name.clone(), arg_term);
+        }
+    }
+    subs
+}
+
+/// Generate call-site precondition VCs for inter-procedural verification.
+///
+/// For each call site on each path, if the callee has preconditions in the
+/// contract database, we generate a VC that checks whether the caller satisfies
+/// the callee's preconditions. The VC encodes:
+/// - Prior path assignments (establishing the caller's state)
+/// - Caller's preconditions as assumptions
+/// - Callee's precondition (with argument substitution) as the assertion
+///
+/// If the VC is SAT, the caller may violate the callee's precondition.
+fn generate_call_site_vcs(
+    func: &Function,
+    contract_db: &ContractDatabase,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+    paths: &[CfgPath],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for path in paths {
+        for call_site in &path.call_sites {
+            let callee_summary = match contract_db.get(&call_site.callee_name) {
+                Some(s) => s,
+                None => {
+                    tracing::debug!(
+                        caller = %func.name,
+                        callee = %call_site.callee_name,
+                        "Call to function without contracts -- treating as opaque"
+                    );
+                    continue;
+                }
+            };
+
+            if callee_summary.contracts.requires.is_empty() {
+                tracing::debug!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    "Callee has no preconditions -- skipping call-site VC"
+                );
+                continue;
+            }
+
+            tracing::debug!(
+                caller = %func.name,
+                callee = %call_site.callee_name,
+                preconditions = callee_summary.contracts.requires.len(),
+                "Encoding call-site precondition VCs"
+            );
+
+            // Build the callee function context for parsing specs
+            let callee_func_context = build_callee_func_context(callee_summary);
+            let arg_subs = build_arg_substitutions(call_site, callee_summary, func);
+
+            for (pre_idx, pre) in callee_summary.contracts.requires.iter().enumerate() {
+                // Parse the precondition in the callee's context
+                let pre_term = match parse_spec(&pre.raw, &callee_func_context) {
+                    Some(t) => t,
+                    None => continue,
+                };
+
+                // Substitute callee param names with actual caller arguments
+                let substituted_pre = substitute_term(&pre_term, &arg_subs);
+
+                let mut script = base_script(datatype_declarations, declarations);
+
+                // Encode prior assignments along this path
+                let mut ssa_counter = HashMap::new();
+                for pa in &call_site.prior_assignments {
+                    if let Some(cmd) =
+                        encode_assignment(&pa.place, &pa.rvalue, func, &mut ssa_counter)
+                    {
+                        script.push(cmd);
+                    }
+                }
+
+                // Assume caller's preconditions
+                for caller_pre in &func.contracts.requires {
+                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func) {
+                        script.push(Command::Assert(caller_pre_term));
+                    }
+                }
+
+                // If there's a path condition, assume it
+                if let Some(ref cond) = call_site.path_condition {
+                    script.push(Command::Assert(cond.clone()));
+                }
+
+                // Assert that the callee's precondition CAN be violated (negate it)
+                script.push(Command::Comment(format!(
+                    "Check call to {}: precondition {} ({})",
+                    call_site.callee_name, pre_idx, pre.raw,
+                )));
+                script.push(Command::Assert(Term::Not(Box::new(substituted_pre))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "{}: call to {} satisfies precondition {} ({})",
+                        func.name, call_site.callee_name, pre_idx, pre.raw,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: call_site.block_idx,
+                        statement: 0,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Encode callee postcondition assumptions into a script.
+///
+/// For each call site, if the callee has postconditions in the contract database,
+/// we assert them (positively) with `result` mapped to the call's destination
+/// and callee params mapped to actual arguments. This lets Z3 use the callee's
+/// postconditions as known facts when checking the caller's postcondition.
+fn encode_callee_postcondition_assumptions(
+    func: &Function,
+    contract_db: &ContractDatabase,
+    call_site: &CallSiteInfo,
+    script: &mut Script,
+) {
+    let callee_summary = match contract_db.get(&call_site.callee_name) {
+        Some(s) => s,
+        None => return,
+    };
+
+    if callee_summary.contracts.ensures.is_empty() {
+        return;
+    }
+
+    let callee_func_context = build_callee_func_context(callee_summary);
+    let mut arg_subs = build_arg_substitutions(call_site, callee_summary, func);
+
+    // Map callee's return place to the caller's destination for this call
+    // The callee's return local is "_0", which `result` maps to
+    arg_subs.insert(
+        callee_func_context.return_local.name.clone(),
+        Term::Const(call_site.destination.local.clone()),
+    );
+
+    for post in &callee_summary.contracts.ensures {
+        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context) {
+            let substituted_post = substitute_term(&post_term, &arg_subs);
+            tracing::debug!(
+                caller = %func.name,
+                callee = %call_site.callee_name,
+                postcondition = %post.raw,
+                "Assuming callee postcondition at call site"
+            );
+            script.push(Command::Assert(substituted_post));
+        }
+    }
+}
+
+/// Build a minimal Function context for parsing callee specs.
+///
+/// The spec parser needs a Function to resolve variable names and types.
+/// We construct one from the FunctionSummary.
+fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> Function {
+    Function {
+        name: String::new(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: summary.return_ty.clone(),
+        },
+        params: summary
+            .param_names
+            .iter()
+            .zip(summary.param_types.iter())
+            .map(|(name, ty)| Local {
+                name: name.clone(),
+                ty: ty.clone(),
+            })
+            .collect(),
+        locals: vec![],
+        basic_blocks: vec![],
+        contracts: Contracts::default(),
+        loops: vec![],
+    }
 }
 
 // === Loop invariant verification ===
@@ -2014,7 +2438,7 @@ mod tests {
     #[test]
     fn generates_overflow_vc_for_add() {
         let func = make_add_function();
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
 
         assert_eq!(result.function_name, "add");
         // Should have at least one VC for the addition overflow check
@@ -2035,7 +2459,7 @@ mod tests {
     #[test]
     fn generates_contract_vc_for_max() {
         let func = make_max_function();
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
 
         assert_eq!(result.function_name, "max");
         // Should have a postcondition VC
@@ -2112,7 +2536,7 @@ mod tests {
     #[test]
     fn vc_scripts_have_check_sat() {
         let func = make_add_function();
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
 
         for vc in &result.conditions {
             let script_str = vc.script.to_string();
@@ -2127,7 +2551,7 @@ mod tests {
     #[test]
     fn vc_scripts_declare_variables() {
         let func = make_add_function();
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
 
         for vc in &result.conditions {
             let script_str = vc.script.to_string();
@@ -2157,7 +2581,7 @@ mod tests {
             loops: vec![],
         };
 
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
         assert!(result.conditions.is_empty());
     }
 
@@ -2195,7 +2619,7 @@ mod tests {
             loops: vec![],
         };
 
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
         assert!(
             result
                 .conditions
@@ -2243,7 +2667,7 @@ mod tests {
     #[test]
     fn max_postcondition_uses_path_conditions() {
         let func = make_max_function();
-        let result = generate_vcs(&func);
+        let result = generate_vcs(&func, None);
 
         // The postcondition VC should exist
         let post_vcs: Vec<_> = result

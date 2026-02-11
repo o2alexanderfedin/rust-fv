@@ -368,7 +368,7 @@ fn test_overflow_verification_unconstrained_add() {
     });
 
     // Step 1: Generate VCs
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     assert_eq!(vcs.function_name, "add");
 
     // Step 2: Verify overflow VC exists
@@ -463,7 +463,7 @@ fn test_safe_add_with_preconditions() {
     });
 
     // Step 1: Generate VCs
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Step 2: Find the overflow VC
     let overflow_vcs: Vec<_> = vcs
@@ -522,7 +522,7 @@ fn test_provable_postcondition() {
     });
 
     // Step 1: Generate VCs
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Step 2: Find the postcondition VC
     let postcondition_vcs: Vec<_> = vcs
@@ -591,7 +591,7 @@ fn test_postcondition_violation() {
     });
 
     // Step 1: Generate VCs
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Step 2: Find the postcondition VC
     let postcondition_vcs: Vec<_> = vcs
@@ -708,7 +708,7 @@ fn test_if_else_branches_ssa() {
         is_pure: true,
     });
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Should have a postcondition VC
     let post_vcs: Vec<_> = vcs
@@ -753,7 +753,7 @@ fn test_if_else_wrong_postcondition() {
         is_pure: true,
     });
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -886,7 +886,7 @@ fn test_multi_branch_match() {
         is_pure: true,
     });
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -988,7 +988,7 @@ fn test_early_return_via_goto() {
         is_pure: true,
     });
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1161,7 +1161,7 @@ fn test_nested_branches() {
         is_pure: true,
     });
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1259,7 +1259,7 @@ fn test_single_branch_overflow_check() {
         loops: vec![],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Should have overflow VCs (from the add branch)
     let overflow_vcs: Vec<_> = vcs

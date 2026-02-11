@@ -369,7 +369,7 @@ fn snd_signed_add_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_signed_add_overflow");
 }
@@ -408,7 +408,7 @@ fn snd_unsigned_add_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_unsigned_add_overflow");
 }
@@ -447,7 +447,7 @@ fn snd_signed_sub_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_signed_sub_overflow");
 }
@@ -486,7 +486,7 @@ fn snd_unsigned_sub_underflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_unsigned_sub_underflow");
 }
@@ -525,7 +525,7 @@ fn snd_signed_mul_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_signed_mul_overflow");
 }
@@ -564,7 +564,7 @@ fn snd_unsigned_mul_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_unsigned_mul_overflow");
 }
@@ -603,7 +603,7 @@ fn snd_division_by_zero() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_division_by_zero");
 }
@@ -642,7 +642,7 @@ fn snd_shift_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_shift_overflow");
 }
@@ -699,7 +699,7 @@ fn snd_wrong_postcondition_add() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_wrong_postcondition_add");
 }
@@ -768,7 +768,7 @@ fn snd_wrong_postcondition_max() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_wrong_postcondition_max");
 }
@@ -806,7 +806,7 @@ fn snd_wrong_postcondition_identity() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_wrong_postcondition_identity");
 }
@@ -839,7 +839,7 @@ fn snd_wrong_postcondition_constant() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_wrong_postcondition_constant");
 }
@@ -908,7 +908,7 @@ fn snd_wrong_postcondition_branch() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_wrong_postcondition_branch");
 }
@@ -946,7 +946,7 @@ fn snd_postcondition_off_by_one() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_postcondition_off_by_one");
 }
@@ -1037,7 +1037,7 @@ fn snd_branch_unsound_if_linear() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_branch_unsound_if_linear");
 }
@@ -1084,7 +1084,7 @@ fn snd_signed_div_int_min_neg_one() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     // The overflow VCs include both div-by-zero and INT_MIN/-1.
     // With _2 != 0 precondition, the div-by-zero check is UNSAT (safe),
@@ -1157,7 +1157,7 @@ fn snd_signed_rem_int_min_neg_one() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let overflow_vcs: Vec<_> = vcs
         .conditions
@@ -1235,7 +1235,7 @@ fn snd_unrestricted_input_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_unrestricted_input_overflow");
 }
@@ -1372,7 +1372,7 @@ fn snd_nested_branch_wrong_result() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_nested_branch_wrong_result");
 }
@@ -1413,7 +1413,7 @@ fn snd_unsigned_rem_div_by_zero() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_unsigned_rem_div_by_zero");
 }
@@ -1456,7 +1456,7 @@ fn snd_shr_overflow() {
         contracts: Contracts::default(),
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_overflow_sat(&vcs, &solver, "snd_shr_overflow");
 }
@@ -1509,7 +1509,7 @@ fn snd_add_wrong_upper_bound() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_postcondition_sat(&vcs, &solver, "snd_add_wrong_upper_bound");
 }

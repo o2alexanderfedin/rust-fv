@@ -518,7 +518,7 @@ fn test_simple_counter_loop() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     // Should have loop invariant VCs
     let loop_vcs: Vec<_> = vcs
@@ -702,7 +702,7 @@ fn test_two_variable_loop() {
         }],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let loop_vcs: Vec<_> = vcs
         .conditions
@@ -759,7 +759,7 @@ fn test_countdown_loop() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let loop_vcs: Vec<_> = vcs
         .conditions
@@ -810,7 +810,7 @@ fn test_wrong_init_invariant() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let init_vcs: Vec<_> = vcs
         .conditions
@@ -857,7 +857,7 @@ fn test_wrong_preservation_invariant() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let pres_vcs: Vec<_> = vcs
         .conditions
@@ -906,7 +906,7 @@ fn test_wrong_exit_postcondition() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let exit_vcs: Vec<_> = vcs
         .conditions
@@ -1013,7 +1013,7 @@ fn test_loop_without_invariant_skipped() {
         }],
     };
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let loop_vcs: Vec<_> = vcs
         .conditions
@@ -1057,7 +1057,7 @@ fn test_zero_iteration_loop() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let loop_vcs: Vec<_> = vcs
         .conditions
@@ -1210,7 +1210,7 @@ fn test_vc_description_labels() {
         },
     );
 
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
 
     let loop_vcs: Vec<_> = vcs
         .conditions

@@ -351,7 +351,7 @@ fn cmp_bounded_add() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_bounded_add");
 }
@@ -402,7 +402,7 @@ fn cmp_bounded_sub() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_bounded_sub");
 }
@@ -453,7 +453,7 @@ fn cmp_bounded_mul() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_bounded_mul");
 }
@@ -504,7 +504,7 @@ fn cmp_safe_div() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_safe_div");
 }
@@ -550,7 +550,7 @@ fn cmp_safe_shift() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_safe_shift");
 }
@@ -586,7 +586,7 @@ fn cmp_identity_postcondition() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_identity_postcondition");
 }
@@ -619,7 +619,7 @@ fn cmp_constant_postcondition() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_constant_postcondition");
 }
@@ -672,7 +672,7 @@ fn cmp_bounded_add_postcondition() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_bounded_add_postcondition");
 }
@@ -745,7 +745,7 @@ fn cmp_max_function() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     // Only check postcondition VCs (overflow VCs will be SAT because unconstrained)
     let post_vcs: Vec<_> = vcs
@@ -849,7 +849,7 @@ fn cmp_abs_function() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -979,7 +979,7 @@ fn cmp_clamp_function() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1061,7 +1061,7 @@ fn cmp_if_else_same_result() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1169,7 +1169,7 @@ fn cmp_multi_branch_classify() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1251,7 +1251,7 @@ fn cmp_early_return() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1393,7 +1393,7 @@ fn cmp_nested_branches_correct() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     let post_vcs: Vec<_> = vcs
         .conditions
@@ -1461,7 +1461,7 @@ fn cmp_u8_bounded_add() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_u8_bounded_add");
 }
@@ -1512,7 +1512,7 @@ fn cmp_i64_bounded_add() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_i64_bounded_add");
 }
@@ -1563,7 +1563,7 @@ fn cmp_u64_bounded_mul() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_u64_bounded_mul");
 }
@@ -1614,7 +1614,7 @@ fn cmp_i8_safe_operations() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_i8_safe_operations");
 }
@@ -1650,7 +1650,7 @@ fn cmp_mixed_width_identity() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_mixed_width_identity");
 }
@@ -1700,7 +1700,7 @@ fn cmp_safe_unsigned_sub() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_safe_unsigned_sub");
 }
@@ -1752,7 +1752,7 @@ fn cmp_safe_signed_rem() {
         },
         loops: vec![],
     };
-    let vcs = vcgen::generate_vcs(&func);
+    let vcs = vcgen::generate_vcs(&func, None);
     let solver = solver_or_skip();
     assert_all_unsat(&vcs, &solver, "cmp_safe_signed_rem");
 }
