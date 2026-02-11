@@ -20,3 +20,6 @@ rust-fv-smtlib = { path = "crates/smtlib" }
 rust-fv-macros = { path = "crates/macros" }
 rust-fv-solver = { path = "crates/solver" }
 rust-fv-analysis = { path = "crates/analysis" }
+z3 = { version = "0.19" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

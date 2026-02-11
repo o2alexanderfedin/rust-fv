@@ -8,5 +8,11 @@ repository.workspace = true
 
 [dependencies]
 rust-fv-smtlib = { workspace = true }
+z3 = { workspace = true, optional = true }
+tracing = { workspace = true }
+
+[features]
+default = ["z3-native"]
+z3-native = ["z3"]
 
 [dev-dependencies]

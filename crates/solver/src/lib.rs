@@ -26,6 +26,7 @@
 //! }
 //! ```
 
+pub mod backend;
 pub mod config;
 pub mod error;
 pub mod model;
@@ -33,7 +34,11 @@ mod parser;
 pub mod result;
 pub mod solver;
 
+#[cfg(feature = "z3-native")]
+pub mod z3_native;
+
 // Re-export primary types for ergonomic use
+pub use backend::{create_default_backend, SolverBackend};
 pub use config::SolverConfig;
 pub use error::SolverError;
 pub use model::Model;
