@@ -1094,6 +1094,7 @@ dependencies = [
  "criterion",
  "rust-fv-smtlib",
  "rust-fv-solver",
+ "syn",
  "tracing",
 ]
 

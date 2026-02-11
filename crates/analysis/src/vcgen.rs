@@ -43,6 +43,7 @@ use crate::encode_term::{
     encode_place_with_type, encode_unop, overflow_check,
 };
 use crate::ir::*;
+use crate::spec_parser;
 
 /// A verification condition with metadata for error reporting.
 #[derive(Debug, Clone)]
@@ -620,7 +621,7 @@ fn generate_overflow_vc(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -708,7 +709,7 @@ fn generate_assert_terminator_vcs(
 
             // Assume preconditions
             for pre in &func.contracts.requires {
-                if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                if let Some(pre_term) = parse_spec(&pre.raw, func) {
                     script.push(Command::Assert(pre_term));
                 }
             }
@@ -803,7 +804,7 @@ fn generate_contract_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -816,7 +817,7 @@ fn generate_contract_vcs(
         }
 
         // Negate postcondition and check if SAT (= postcondition violated)
-        if let Some(post_term) = parse_simple_spec(&post.raw, func) {
+        if let Some(post_term) = parse_spec(&post.raw, func) {
             script.push(Command::Comment(format!(
                 "Check postcondition: {}",
                 post.raw
@@ -961,7 +962,7 @@ fn generate_loop_invariant_vcs(
     let parsed_invariants: Vec<Term> = loop_info
         .invariants
         .iter()
-        .filter_map(|inv| parse_simple_spec(&inv.raw, func))
+        .filter_map(|inv| parse_spec(&inv.raw, func))
         .collect();
 
     if parsed_invariants.is_empty() {
@@ -999,7 +1000,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1060,7 +1061,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions (they hold throughout)
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1139,7 +1140,7 @@ fn generate_loop_invariant_vcs(
     // Invariant + header stmts + NOT loop condition + post-loop => postcondition
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-            if let Some(post_term) = parse_simple_spec(&post.raw, func) {
+            if let Some(post_term) = parse_spec(&post.raw, func) {
                 let mut script = base_script(datatype_declarations, declarations);
 
                 // Assume invariant holds
@@ -1147,7 +1148,7 @@ fn generate_loop_invariant_vcs(
 
                 // Assume preconditions
                 for pre in &func.contracts.requires {
-                    if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
+                    if let Some(pre_term) = parse_spec(&pre.raw, func) {
                         script.push(Command::Assert(pre_term));
                     }
                 }
@@ -1590,6 +1591,15 @@ fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
             _ => None,
         },
     }
+}
+
+/// Parse a specification expression with the full syn-based parser, falling back
+/// to the simple parser if the syn parser returns None.
+///
+/// This ensures backward compatibility: all specs that worked before still work,
+/// and the new parser handles additional syntax (field access, old(), etc.).
+fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
+    spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))
 }
 
 /// Parse a simple specification expression into an SMT-LIB term.
