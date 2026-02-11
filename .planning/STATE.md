@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 ## Current Position
 
 Phase: 2 of 5 (Table Stakes Completion)
-Plan: 1 of 5 in current phase
-Status: In progress - native Z3 backend and tracing integrated
-Last activity: 2026-02-11 -- Completed 02-01: Z3 native backend + tracing
+Plan: 4 of 5 in current phase
+Status: In progress - aggregate type encoding complete
+Last activity: 2026-02-11 -- Completed 02-04: Aggregate encoding (structs, tuples, enums, arrays)
 
-Progress: [█████               ] 25% (Phase 2: 1/5 plans complete)
+Progress: [██████████████      ] 70% (Phase 2: 4/5 plans complete)
 
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 330+ tests passing (116 analysis + 33 solver + 181 across all crates), zero warnings
+- 353+ tests passing (76 analysis unit + 8 aggregate E2E + 10 e2e + 22 soundness + 22 completeness + 108 smtlib + 63 solver + rest), zero warnings
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -27,6 +27,7 @@ Progress: [█████               ] 25% (Phase 2: 1/5 plans complete)
 - **Z3 native API backend (02-01)**: SolverBackend trait with subprocess and z3-crate backends, ~50ms overhead eliminated
 - **Structured tracing (02-01)**: RUST_LOG-based pipeline debugging with info/debug/trace levels
 - Counterexample extraction from SAT results
+- **Aggregate type encoding (02-04)**: SMT datatypes for structs/tuples/enums, field selector and constructor encoding, result.field specs verified by Z3
 
 ## What Must Be Fixed First
 
@@ -37,16 +38,16 @@ Progress: [█████               ] 25% (Phase 2: 1/5 plans complete)
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: ~9 min
-- Total execution time: ~37 min
+- Total plans completed: 5
+- Average duration: ~13 min
+- Total execution time: ~67 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
-| 02-table-stakes-completion | 1/5 | ~16 min | ~16 min |
+| 02-table-stakes-completion | 4/5 | ~46 min | ~12 min |
 
 *Updated after each plan completion*
 
@@ -74,6 +75,10 @@ Recent decisions affecting current work:
 - [02-01]: z3 crate 0.19 global context model (simpler than explicit lifetimes)
 - [02-01]: SolverBackend trait for backend abstraction (zero-cost via feature flags)
 - [02-01]: Tracing at info/debug/trace levels (avoids noise, RUST_LOG controls verbosity)
+- [02-04]: QF_UFBVDT logic for datatypes+bitvectors (QF_UFDT lacks bitvectors, QF_BV lacks datatypes)
+- [02-04]: Selector naming convention: {TypeName}-{field_name} for global uniqueness
+- [02-04]: Constructor naming: mk-{TypeName} for structs/tuples, mk-{VariantName} for enum variants
+- [02-04]: Signedness inference from struct/tuple field types for correct comparison in specs
 
 ### Pending Todos
 
@@ -86,6 +91,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 02-01-PLAN.md (Z3 native backend + tracing)
+Stopped at: Completed 02-04-PLAN.md (Aggregate encoding)
 Resume file: None
-Next step: Continue with 02-02-PLAN.md (Parallel VC checking)
+Next step: Continue with remaining Phase 2 plans (02-02, 02-03, 02-05)
