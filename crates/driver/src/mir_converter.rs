@@ -299,7 +299,7 @@ fn convert_scalar(scalar: mir::interpret::Scalar, ty: ty::Ty<'_>) -> ir::Constan
 }
 
 /// Convert a rustc type to our IR type.
-fn convert_ty(ty: ty::Ty<'_>) -> ir::Ty {
+pub fn convert_ty(ty: ty::Ty<'_>) -> ir::Ty {
     match ty.kind() {
         ty::TyKind::Bool => ir::Ty::Bool,
         ty::TyKind::Int(int_ty) => ir::Ty::Int(convert_int_ty(int_ty)),

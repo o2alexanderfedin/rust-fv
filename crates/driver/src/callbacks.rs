@@ -122,6 +122,39 @@ impl Callbacks for VerificationCallbacks {
         // Extract contracts from HIR attributes
         let contracts_map = extract_contracts(tcx);
 
+        // Build the contract database for inter-procedural verification
+        let mut contract_db = rust_fv_analysis::contract_db::ContractDatabase::new();
+        for (&local_def_id, contracts) in &contracts_map {
+            let def_id = local_def_id.to_def_id();
+            let name = tcx.def_path_str(def_id);
+            let mir = tcx.optimized_mir(def_id);
+
+            // Extract param names and types from MIR
+            let params: Vec<_> = mir
+                .args_iter()
+                .map(|local| {
+                    let decl = &mir.local_decls[local];
+                    (
+                        format!("_{}", local.as_usize()),
+                        mir_converter::convert_ty(decl.ty),
+                    )
+                })
+                .collect();
+
+            let return_ty =
+                mir_converter::convert_ty(mir.local_decls[rustc_middle::mir::Local::ZERO].ty);
+
+            contract_db.insert(
+                name,
+                rust_fv_analysis::contract_db::FunctionSummary {
+                    contracts: contracts.clone(),
+                    param_names: params.iter().map(|(n, _)| n.clone()).collect(),
+                    param_types: params.iter().map(|(_, t)| t.clone()).collect(),
+                    return_ty,
+                },
+            );
+        }
+
         // Find the Z3 solver
         let solver = match rust_fv_solver::Z3Solver::with_default_config() {
             Ok(s) => s,
@@ -159,8 +192,8 @@ impl Callbacks for VerificationCallbacks {
                 contracts.cloned().unwrap_or_default(),
             );
 
-            // Generate verification conditions
-            let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&ir_func, None);
+            // Generate verification conditions with inter-procedural support
+            let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&ir_func, Some(&contract_db));
 
             // Check each VC with Z3
             for vc in &func_vcs.conditions {

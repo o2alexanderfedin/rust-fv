@@ -916,7 +916,8 @@ fn generate_contract_vcs(
 /// `const my_module::helper`. This strips the `const ` prefix and takes
 /// the last path segment to get the bare function name for contract lookup.
 pub fn normalize_callee_name(raw: &str) -> String {
-    let stripped = raw.strip_prefix("const ").unwrap_or(raw).trim();
+    let trimmed = raw.trim();
+    let stripped = trimmed.strip_prefix("const ").unwrap_or(trimmed).trim();
     // Take the last segment after `::`
     stripped
         .rsplit_once("::")
