@@ -19,7 +19,7 @@ Progress: [████████████████████] 100% (P
 ## What Exists (v0.1.0)
 
 - 5-crate workspace: macros/, smtlib/, solver/, analysis/, driver/
-- 248 tests passing, zero warnings
+- 248+ tests passing (62 in analysis crate: 52 unit + 10 E2E), zero warnings
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -29,8 +29,8 @@ Progress: [████████████████████] 100% (P
 
 ## What Must Be Fixed First
 
-- SSA violation in VCGen: linear block-walking is unsound for branches/loops
-- Variable shadowing produces incorrect verification for multi-path control flow
+- ~~SSA violation in VCGen: linear block-walking is unsound for branches/loops~~ (FIXED in 01-01)
+- ~~Variable shadowing produces incorrect verification for multi-path control flow~~ (FIXED in 01-01)
 - Arithmetic overflow encoding needs systematic audit against Rust semantics
 
 ## Performance Metrics
@@ -59,6 +59,9 @@ Recent decisions affecting current work:
 - [Init]: Proc macros for specs (stable API, no compiler fork)
 - [Init]: Bitvector theory for exact integer overflow semantics
 - [Init]: 5-crate workspace isolating nightly dependency to driver/
+- [01-01]: Path-sensitive encoding over SSA phi-nodes for simpler handling of early returns and match arms
+- [01-01]: Common-prefix detection via branch_depth to prevent circular path-condition constraints
+- [01-01]: Comparison operand-type inference for correct signed/unsigned bitvector operations
 - [01-03]: Criterion 0.5 for benchmarks (stable, html_reports, widely adopted in Rust)
 - [01-03]: Benchmarks are developer-only, not CI gate (avoid flaky perf failures)
 - [01-03]: Complex benchmark uses clamp function with 5 basic blocks for realistic coverage
@@ -74,6 +77,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 01-03-PLAN.md
+Stopped at: Completed 01-01-PLAN.md (executed, SUMMARY created)
 Resume file: None
-Next step: Phase 2 planning or next milestone
+Next step: Continue with 01-02-PLAN.md or Phase 2 planning
