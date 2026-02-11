@@ -49,6 +49,7 @@ fn make_add_function(contracts: Contracts) -> Function {
             terminator: Terminator::Return,
         }],
         contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -701,6 +702,7 @@ fn make_max_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -891,6 +893,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -996,6 +999,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -1175,6 +1179,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -1289,6 +1294,7 @@ fn test_single_branch_overflow_check() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 

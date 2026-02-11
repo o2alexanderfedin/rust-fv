@@ -287,6 +287,25 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
             }
             out.push(')');
         }
+        Term::Annotated(body, annotations) => {
+            if annotations.is_empty() {
+                format_term(out, body);
+            } else {
+                out.push_str("(! ");
+                format_term(out, body);
+                for (key, values) in annotations {
+                    out.push_str(&format!(" :{key} ("));
+                    for (i, val) in values.iter().enumerate() {
+                        if i > 0 {
+                            out.push(' ');
+                        }
+                        format_term(out, val);
+                    }
+                    out.push(')');
+                }
+                out.push(')');
+            }
+        }
     }
 }
 
@@ -407,6 +426,7 @@ fn test_copy_semantics_preserved() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -516,6 +536,7 @@ fn test_shared_borrow_preserved() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -630,6 +651,7 @@ fn test_mutable_borrow_havoced() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -750,6 +772,7 @@ fn test_move_semantics_value_consumed() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -939,6 +962,7 @@ fn test_mixed_ownership_call() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1051,6 +1075,7 @@ fn test_ownership_with_postcondition_assumption() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1168,6 +1193,7 @@ fn test_no_ownership_without_contract_db() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1252,6 +1278,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
                 invariants: vec![],
                 is_pure: false,
             },
+            generic_params: vec![],
             loops: vec![],
         }
     };
@@ -1449,6 +1476,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1593,6 +1621,7 @@ fn test_preservation_constraint_smt_encoding() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 

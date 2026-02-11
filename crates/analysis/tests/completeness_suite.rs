@@ -362,6 +362,7 @@ fn cmp_bounded_add() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -416,6 +417,7 @@ fn cmp_bounded_sub() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -470,6 +472,7 @@ fn cmp_bounded_mul() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -524,6 +527,7 @@ fn cmp_safe_div() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -573,6 +577,7 @@ fn cmp_safe_shift() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -611,6 +616,7 @@ fn cmp_identity_postcondition() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -645,6 +651,7 @@ fn cmp_constant_postcondition() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -701,6 +708,7 @@ fn cmp_bounded_add_postcondition() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -778,6 +786,7 @@ fn cmp_max_function() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -886,6 +895,7 @@ fn cmp_abs_function() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1022,6 +1032,7 @@ fn cmp_clamp_function() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1107,6 +1118,7 @@ fn cmp_if_else_same_result() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1219,6 +1231,7 @@ fn cmp_multi_branch_classify() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1304,6 +1317,7 @@ fn cmp_early_return() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1452,6 +1466,7 @@ fn cmp_nested_branches_correct() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1523,6 +1538,7 @@ fn cmp_u8_bounded_add() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1577,6 +1593,7 @@ fn cmp_i64_bounded_add() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1631,6 +1648,7 @@ fn cmp_u64_bounded_mul() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1685,6 +1703,7 @@ fn cmp_i8_safe_operations() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1723,6 +1742,7 @@ fn cmp_mixed_width_identity() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1776,6 +1796,7 @@ fn cmp_safe_unsigned_sub() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1831,6 +1852,7 @@ fn cmp_safe_signed_rem() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

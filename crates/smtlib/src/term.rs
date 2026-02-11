@@ -144,4 +144,9 @@ pub enum Term {
     // === Function application ===
     /// `(f arg1 arg2 ...)`
     App(String, Vec<Term>),
+
+    // === Annotations ===
+    /// Annotated term: `(! body :key1 (val1 val2) :key2 (val3))`
+    /// Used for trigger patterns on quantifiers: `(! body :pattern (f x))`
+    Annotated(Box<Term>, Vec<(String, Vec<Term>)>),
 }

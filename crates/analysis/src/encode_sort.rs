@@ -74,6 +74,12 @@ pub fn encode_type(ty: &Ty) -> Sort {
             tracing::trace!("Encoding spec integer as unbounded Int");
             Sort::Int
         }
+        Ty::Generic(name) => {
+            panic!(
+                "Cannot encode generic type parameter '{}' -- must be monomorphized first",
+                name
+            )
+        }
     }
 }
 
@@ -333,6 +339,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            generic_params: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -373,6 +380,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            generic_params: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -392,6 +400,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            generic_params: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -425,6 +434,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            generic_params: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);

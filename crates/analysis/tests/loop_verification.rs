@@ -407,6 +407,7 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -501,6 +502,7 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
             },
         ],
         contracts,
+        generic_params: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -708,6 +710,7 @@ fn test_two_variable_loop() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1033,6 +1036,7 @@ fn test_loop_without_invariant_skipped() {
         ],
         contracts: Contracts::default(),
         // Loop detected but NO invariants
+        generic_params: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1199,6 +1203,7 @@ fn test_loop_detection_from_cfg() {
             }],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![], // Empty -- should be auto-detected
     };
 

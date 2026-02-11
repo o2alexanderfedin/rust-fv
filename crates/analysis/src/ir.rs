@@ -3,6 +3,15 @@
 /// This mirrors `rustc_middle::mir` but is decoupled from the compiler,
 /// making the VCGen logic fully testable on stable Rust.
 /// The driver crate converts `rustc` MIR → this IR.
+/// A generic type parameter on a function.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GenericParam {
+    /// Parameter name, e.g., "T"
+    pub name: String,
+    /// Trait bounds, e.g., ["Ord", "Clone"]
+    pub trait_bounds: Vec<String>,
+}
+
 /// A function to be verified.
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -14,6 +23,16 @@ pub struct Function {
     pub contracts: Contracts,
     /// Detected loops with optional user-supplied invariants.
     pub loops: Vec<LoopInfo>,
+    /// Generic type parameters with trait bounds.
+    /// Empty for non-generic functions.
+    pub generic_params: Vec<GenericParam>,
+}
+
+impl Function {
+    /// Returns true if this function has generic type parameters.
+    pub fn is_generic(&self) -> bool {
+        !self.generic_params.is_empty()
+    }
 }
 
 /// A local variable (parameter, return place, or temporary).
@@ -344,6 +363,9 @@ pub enum Ty {
     /// Non-negative unbounded integer (specification-only).
     /// Encoded as Int with non-negativity constraint added separately.
     SpecNat,
+    /// Generic type parameter (e.g., T in fn foo<T>).
+    /// Replaced with concrete types during monomorphization.
+    Generic(String),
 }
 
 /// Signed integer types.
@@ -444,6 +466,7 @@ impl Ty {
             Self::Int(ity) => Some(ity.bit_width()),
             Self::Uint(uty) => Some(uty.bit_width()),
             Self::Char => Some(32),
+            Self::Generic(_) => None,
             _ => None,
         }
     }

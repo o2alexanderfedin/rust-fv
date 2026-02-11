@@ -32,6 +32,7 @@ fn make_i32_function() -> Function {
         locals: vec![],
         basic_blocks: vec![],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -52,6 +53,7 @@ fn make_u32_function() -> Function {
         locals: vec![],
         basic_blocks: vec![],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -78,6 +80,7 @@ fn make_struct_return_function() -> Function {
         locals: vec![],
         basic_blocks: vec![],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -94,6 +97,7 @@ fn make_tuple_return_function() -> Function {
         locals: vec![],
         basic_blocks: vec![],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -114,6 +118,7 @@ fn make_bool_return_function() -> Function {
         locals: vec![],
         basic_blocks: vec![],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }

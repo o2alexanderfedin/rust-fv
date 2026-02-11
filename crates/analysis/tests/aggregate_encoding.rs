@@ -366,6 +366,7 @@ fn test_struct_construction() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -468,6 +469,7 @@ fn test_struct_field_postcondition_positive() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -534,6 +536,7 @@ fn test_struct_field_postcondition_negative() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -600,6 +603,7 @@ fn test_tuple_construction() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -694,6 +698,7 @@ fn test_tuple_field_access() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -781,6 +786,7 @@ fn test_array_select() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -925,6 +931,7 @@ fn test_enum_variant_construction() {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 

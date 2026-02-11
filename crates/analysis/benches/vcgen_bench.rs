@@ -49,6 +49,7 @@ fn make_add_function() -> Function {
             terminator: Terminator::Return,
         }],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -122,6 +123,7 @@ fn make_max_function() -> Function {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -259,6 +261,7 @@ fn make_complex_function() -> Function {
             invariants: vec![],
             is_pure: true,
         },
+        generic_params: vec![],
         loops: vec![],
     }
 }

@@ -337,6 +337,7 @@ fn make_caller_function(
         locals: caller_locals,
         basic_blocks,
         contracts: caller_contracts,
+        generic_params: vec![],
         loops: vec![],
     }
 }
@@ -599,6 +600,7 @@ fn test_call_site_postcondition_assumed() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -704,6 +706,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -804,6 +807,7 @@ fn test_call_chain_no_blowup() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -868,6 +872,7 @@ fn test_call_without_contracts_treated_as_opaque() {
             },
         ],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     };
 

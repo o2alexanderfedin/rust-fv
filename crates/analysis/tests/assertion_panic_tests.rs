@@ -382,6 +382,7 @@ fn test_assert_true_verified() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -461,6 +462,7 @@ fn test_assert_false_counterexample() {
             },
         ],
         contracts: Contracts::default(), // No precondition
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -564,6 +566,7 @@ fn test_assert_after_computation() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -670,6 +673,7 @@ fn test_array_bounds_safe() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -752,6 +756,7 @@ fn test_array_bounds_unsafe() {
             },
         ],
         contracts: Contracts::default(), // No precondition
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -849,6 +854,7 @@ fn test_div_by_zero_safe() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -934,6 +940,7 @@ fn test_div_by_zero_unsafe() {
             },
         ],
         contracts: Contracts::default(), // No precondition
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1019,6 +1026,7 @@ fn test_unwrap_safe() {
             invariants: vec![],
             is_pure: false,
         },
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1090,6 +1098,7 @@ fn test_unwrap_unsafe() {
             },
         ],
         contracts: Contracts::default(), // No precondition
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1163,6 +1172,7 @@ fn test_error_message_specificity() {
             },
         ],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     };
 
@@ -1322,6 +1332,7 @@ fn test_remainder_by_zero_unsafe() {
             },
         ],
         contracts: Contracts::default(),
+        generic_params: vec![],
         loops: vec![],
     };
 

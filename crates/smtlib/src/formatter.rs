@@ -238,6 +238,22 @@ impl fmt::Display for Term {
                     write!(f, ")")
                 }
             }
+
+            // --- Annotations ---
+            Term::Annotated(body, annotations) => {
+                if annotations.is_empty() {
+                    // No annotations, just render the body
+                    write!(f, "{body}")
+                } else {
+                    write!(f, "(! {body}")?;
+                    for (key, values) in annotations {
+                        write!(f, " :{key} (")?;
+                        fmt_term_list(values, f)?;
+                        write!(f, ")")?;
+                    }
+                    write!(f, ")")
+                }
+            }
         }
     }
 }
@@ -1405,6 +1421,53 @@ mod tests {
         assert_eq!(
             cmd.to_string(),
             "(declare-datatype Tuple2 ((mk-Tuple2 (Tuple2-_0 (_ BitVec 32)) (Tuple2-_1 Bool))))"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Annotations
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn term_annotated_single_pattern() {
+        // (! body :pattern (f x))
+        let body = Term::Implies(
+            Box::new(Term::BvSGt(
+                Box::new(Term::Const("x".into())),
+                Box::new(Term::BitVecLit(0, 32)),
+            )),
+            Box::new(Term::BvSGt(
+                Box::new(Term::App("f".into(), vec![Term::Const("x".into())])),
+                Box::new(Term::BitVecLit(0, 32)),
+            )),
+        );
+        let trigger = Term::App("f".into(), vec![Term::Const("x".into())]);
+        let t = Term::Annotated(Box::new(body), vec![("pattern".into(), vec![trigger])]);
+        assert_eq!(
+            t.to_string(),
+            "(! (=> (bvsgt x (_ bv0 32)) (bvsgt (f x) (_ bv0 32))) :pattern ((f x)))"
+        );
+    }
+
+    #[test]
+    fn term_annotated_no_annotations() {
+        let body = Term::Const("x".into());
+        let t = Term::Annotated(Box::new(body), vec![]);
+        // Empty annotations should render just the body
+        assert_eq!(t.to_string(), "x");
+    }
+
+    #[test]
+    fn term_forall_with_pattern() {
+        // (forall ((x Int)) (! (> x 0) :pattern ((f x))))
+        let body = Term::IntGt(Box::new(Term::Const("x".into())), Box::new(Term::IntLit(0)));
+        let trigger = Term::App("f".into(), vec![Term::Const("x".into())]);
+        let annotated_body =
+            Term::Annotated(Box::new(body), vec![("pattern".into(), vec![trigger])]);
+        let t = Term::Forall(vec![("x".into(), Sort::Int)], Box::new(annotated_body));
+        assert_eq!(
+            t.to_string(),
+            "(forall ((x Int)) (! (> x 0) :pattern ((f x))))"
         );
     }
 }

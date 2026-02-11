@@ -1421,6 +1421,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         basic_blocks: vec![],
         contracts: Contracts::default(),
         loops: vec![],
+        generic_params: vec![],
     }
 }
 
@@ -2534,6 +2535,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            generic_params: vec![],
             loops: vec![],
         }
     }
@@ -2606,6 +2608,7 @@ mod tests {
                 invariants: vec![],
                 is_pure: true,
             },
+            generic_params: vec![],
             loops: vec![],
         }
     }
@@ -2754,6 +2757,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            generic_params: vec![],
             loops: vec![],
         };
 
@@ -2795,6 +2799,7 @@ mod tests {
                 terminator: Terminator::Return,
             }],
             contracts: Contracts::default(),
+            generic_params: vec![],
             loops: vec![],
         };
 
