@@ -25,18 +25,18 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Nothing (first phase)
 **Requirements**: SND-01, SND-02, SND-03, SND-04, SND-05, SND-06, PERF-01
 **Research flag**: No -- SSA is textbook compiler technique, overflow audit is systematic
+**Plans:** 3 plans
 **Success Criteria** (what must be TRUE):
   1. A function with if/else branches where each branch assigns different values to the same variable produces correct verification results (not unsound due to variable shadowing)
   2. A program containing a known integer overflow bug is rejected by the verifier with a counterexample showing the overflow
   3. A correct program with multi-path control flow (if/else, match arms, early return) verifies successfully without false alarms
   4. A soundness test suite of at least 20 programs with known bugs all fail verification, and a completeness test suite of at least 20 correct programs all pass verification
   5. Single-function contract verification completes in under 1 second
-**Plans**: TBD
 
 Plans:
-- [ ] 01-01: SSA variable renaming and phi functions
-- [ ] 01-02: Arithmetic overflow audit and soundness/completeness test suites
-- [ ] 01-03: Nightly toolchain pinning and performance baseline
+- [ ] 01-01-PLAN.md -- SSA variable renaming and path-condition-based VCGen for sound control-flow handling
+- [ ] 01-02-PLAN.md -- Arithmetic overflow audit and soundness/completeness test suites (40+ tests)
+- [ ] 01-03-PLAN.md -- Nightly toolchain pinning, compatibility docs, and performance benchmark baseline
 
 ### Phase 2: Table Stakes Completion
 **Goal**: Developers can verify loops, assertions, panic-freedom, and struct-manipulating code through a cargo-native workflow
@@ -118,7 +118,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Soundness Foundation | 0/3 | Not started | - |
+| 1. Soundness Foundation | 0/3 | Planned | - |
 | 2. Table Stakes Completion | 0/5 | Not started | - |
 | 3. Modular Verification | 0/2 | Not started | - |
 | 4. Differentiation | 0/4 | Not started | - |
@@ -126,4 +126,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-11*
