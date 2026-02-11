@@ -1,0 +1,16 @@
+[package]
+name = "rust-fv-driver"
+description = "Rustc driver for Rust formal verification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "rust-fv-driver"
+path = "src/main.rs"
+
+[dependencies]
+rust-fv-analysis = { workspace = true }
+rust-fv-solver = { workspace = true }
+rust-fv-smtlib = { workspace = true }

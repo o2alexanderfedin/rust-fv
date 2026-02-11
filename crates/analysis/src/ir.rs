@@ -1,0 +1,385 @@
+/// Our own MIR-like intermediate representation.
+///
+/// This mirrors `rustc_middle::mir` but is decoupled from the compiler,
+/// making the VCGen logic fully testable on stable Rust.
+/// The driver crate converts `rustc` MIR → this IR.
+/// A function to be verified.
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: String,
+    pub params: Vec<Local>,
+    pub return_local: Local,
+    pub locals: Vec<Local>,
+    pub basic_blocks: Vec<BasicBlock>,
+    pub contracts: Contracts,
+}
+
+/// A local variable (parameter, return place, or temporary).
+#[derive(Debug, Clone)]
+pub struct Local {
+    /// MIR-style name: `_0` (return), `_1`, `_2`, ...
+    pub name: String,
+    pub ty: Ty,
+}
+
+/// Formal contracts on a function.
+#[derive(Debug, Clone, Default)]
+pub struct Contracts {
+    /// Preconditions (`#[requires(...)]`)
+    pub requires: Vec<SpecExpr>,
+    /// Postconditions (`#[ensures(...)]`)
+    pub ensures: Vec<SpecExpr>,
+    /// Whether the function is marked `#[pure]`
+    pub is_pure: bool,
+}
+
+/// A specification expression (parsed from attribute strings).
+/// For Phase 1 we store the raw string and interpret simple expressions.
+#[derive(Debug, Clone)]
+pub struct SpecExpr {
+    pub raw: String,
+}
+
+/// A basic block in the control-flow graph.
+#[derive(Debug, Clone)]
+pub struct BasicBlock {
+    pub statements: Vec<Statement>,
+    pub terminator: Terminator,
+}
+
+/// A MIR statement.
+#[derive(Debug, Clone)]
+pub enum Statement {
+    /// `place = rvalue`
+    Assign(Place, Rvalue),
+    /// No-op (padding, debug info, etc.)
+    Nop,
+}
+
+/// A MIR terminator — ends a basic block.
+#[derive(Debug, Clone)]
+pub enum Terminator {
+    /// Function return (value is in `_0`)
+    Return,
+    /// Unconditional jump to block
+    Goto(BlockId),
+    /// Conditional branch on an integer discriminant
+    SwitchInt {
+        discr: Operand,
+        /// (value, target_block) pairs
+        targets: Vec<(i128, BlockId)>,
+        /// Fallback block
+        otherwise: BlockId,
+    },
+    /// Function call
+    Call {
+        func: String,
+        args: Vec<Operand>,
+        destination: Place,
+        /// Block to jump to after the call returns
+        target: BlockId,
+    },
+    /// `assert!(cond == expected)` — panics if false
+    Assert {
+        cond: Operand,
+        expected: bool,
+        target: BlockId,
+    },
+    /// Unreachable code (e.g. after a guaranteed panic)
+    Unreachable,
+}
+
+/// Block index.
+pub type BlockId = usize;
+
+/// An rvalue (right-hand side of an assignment).
+#[derive(Debug, Clone)]
+pub enum Rvalue {
+    /// Direct use of an operand
+    Use(Operand),
+    /// Binary operation: `op(lhs, rhs)`
+    BinaryOp(BinOp, Operand, Operand),
+    /// Checked binary operation: produces `(result, overflow_flag)`
+    CheckedBinaryOp(BinOp, Operand, Operand),
+    /// Unary operation: `op(operand)`
+    UnaryOp(UnOp, Operand),
+    /// Type cast
+    Cast(CastKind, Operand, Ty),
+    /// Reference to a place
+    Ref(Mutability, Place),
+    /// Aggregate construction (tuple, struct, enum variant)
+    Aggregate(AggregateKind, Vec<Operand>),
+    /// Length of an array/slice
+    Len(Place),
+    /// Discriminant of an enum
+    Discriminant(Place),
+}
+
+/// Aggregate kinds.
+#[derive(Debug, Clone)]
+pub enum AggregateKind {
+    Tuple,
+    Struct(String),
+    Enum(String, usize),
+}
+
+/// An operand — either a place (variable) or a constant.
+#[derive(Debug, Clone)]
+pub enum Operand {
+    /// Read from a place
+    Copy(Place),
+    /// Move from a place
+    Move(Place),
+    /// Compile-time constant
+    Constant(Constant),
+}
+
+/// A place expression (l-value).
+#[derive(Debug, Clone)]
+pub struct Place {
+    pub local: String,
+    pub projections: Vec<Projection>,
+}
+
+impl Place {
+    pub fn local(name: impl Into<String>) -> Self {
+        Self {
+            local: name.into(),
+            projections: Vec::new(),
+        }
+    }
+
+    pub fn field(mut self, idx: usize) -> Self {
+        self.projections.push(Projection::Field(idx));
+        self
+    }
+
+    pub fn index(mut self, operand: String) -> Self {
+        self.projections.push(Projection::Index(operand));
+        self
+    }
+
+    pub fn deref(mut self) -> Self {
+        self.projections.push(Projection::Deref);
+        self
+    }
+}
+
+/// Place projection.
+#[derive(Debug, Clone)]
+pub enum Projection {
+    /// Dereference: `*place`
+    Deref,
+    /// Struct field access by index
+    Field(usize),
+    /// Array/slice index: `place[idx]`
+    Index(String),
+    /// Downcast to enum variant
+    Downcast(usize),
+}
+
+/// A constant value.
+#[derive(Debug, Clone)]
+pub enum Constant {
+    Bool(bool),
+    Int(i128, IntTy),
+    Uint(u128, UintTy),
+    Float(f64, FloatTy),
+    Unit,
+    /// String for unresolved constants
+    Str(String),
+}
+
+/// Binary operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+/// Unary operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnOp {
+    Not,
+    Neg,
+}
+
+/// Cast kinds.
+#[derive(Debug, Clone)]
+pub enum CastKind {
+    /// Integer-to-integer (widening, narrowing, sign change)
+    IntToInt,
+    /// Integer-to-float
+    IntToFloat,
+    /// Float-to-integer
+    FloatToInt,
+    /// Float-to-float
+    FloatToFloat,
+    /// Pointer casts
+    Pointer,
+}
+
+/// Mutability flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mutability {
+    Shared,
+    Mutable,
+}
+
+/// Rust type representation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Ty {
+    Bool,
+    Int(IntTy),
+    Uint(UintTy),
+    Float(FloatTy),
+    Char,
+    Unit,
+    Never,
+    Tuple(Vec<Ty>),
+    Array(Box<Ty>, usize),
+    Slice(Box<Ty>),
+    Ref(Box<Ty>, Mutability),
+    RawPtr(Box<Ty>, Mutability),
+    Struct(String, Vec<(String, Ty)>),
+    Enum(String, Vec<(String, Vec<Ty>)>),
+    /// Opaque/unresolved type
+    Named(String),
+}
+
+/// Signed integer types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntTy {
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    Isize,
+}
+
+/// Unsigned integer types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UintTy {
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    Usize,
+}
+
+/// Floating-point types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatTy {
+    F32,
+    F64,
+}
+
+// === Helpers ===
+
+impl IntTy {
+    pub fn bit_width(self) -> u32 {
+        match self {
+            Self::I8 => 8,
+            Self::I16 => 16,
+            Self::I32 => 32,
+            Self::I64 => 64,
+            Self::I128 => 128,
+            Self::Isize => 64, // assume 64-bit target
+        }
+    }
+
+    pub fn min_value(self) -> i128 {
+        match self {
+            Self::I8 => i128::from(i8::MIN),
+            Self::I16 => i128::from(i16::MIN),
+            Self::I32 => i128::from(i32::MIN),
+            Self::I64 => i128::from(i64::MIN),
+            Self::I128 => i128::MIN,
+            Self::Isize => i128::from(i64::MIN),
+        }
+    }
+
+    pub fn max_value(self) -> i128 {
+        match self {
+            Self::I8 => i128::from(i8::MAX),
+            Self::I16 => i128::from(i16::MAX),
+            Self::I32 => i128::from(i32::MAX),
+            Self::I64 => i128::from(i64::MAX),
+            Self::I128 => i128::MAX,
+            Self::Isize => i128::from(i64::MAX),
+        }
+    }
+}
+
+impl UintTy {
+    pub fn bit_width(self) -> u32 {
+        match self {
+            Self::U8 => 8,
+            Self::U16 => 16,
+            Self::U32 => 32,
+            Self::U64 => 64,
+            Self::U128 => 128,
+            Self::Usize => 64,
+        }
+    }
+
+    pub fn max_value(self) -> u128 {
+        match self {
+            Self::U8 => u128::from(u8::MAX),
+            Self::U16 => u128::from(u16::MAX),
+            Self::U32 => u128::from(u32::MAX),
+            Self::U64 => u128::from(u64::MAX),
+            Self::U128 => u128::MAX,
+            Self::Usize => u128::from(u64::MAX),
+        }
+    }
+}
+
+impl Ty {
+    /// Returns the bit width for integer types, or `None` for non-integer types.
+    pub fn bit_width(&self) -> Option<u32> {
+        match self {
+            Self::Bool => Some(1),
+            Self::Int(ity) => Some(ity.bit_width()),
+            Self::Uint(uty) => Some(uty.bit_width()),
+            Self::Char => Some(32),
+            _ => None,
+        }
+    }
+
+    /// Whether this is a signed integer type.
+    pub fn is_signed(&self) -> bool {
+        matches!(self, Self::Int(_))
+    }
+
+    /// Whether this is an unsigned integer type.
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self, Self::Uint(_))
+    }
+
+    /// Whether this is any integer type (signed or unsigned).
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Int(_) | Self::Uint(_))
+    }
+
+    /// Whether this is a boolean type.
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+}

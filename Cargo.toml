@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/smtlib",
+    "crates/macros",
+    "crates/solver",
+    "crates/analysis",
+    "crates/driver",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/o2alexanderfedin/rust-fv"
+rust-version = "1.85.0"
+
+[workspace.dependencies]
+rust-fv-smtlib = { path = "crates/smtlib" }
+rust-fv-macros = { path = "crates/macros" }
+rust-fv-solver = { path = "crates/solver" }
+rust-fv-analysis = { path = "crates/analysis" }

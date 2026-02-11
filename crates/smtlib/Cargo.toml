@@ -1,0 +1,11 @@
+[package]
+name = "rust-fv-smtlib"
+description = "SMT-LIB AST, generation, and formatting for Rust formal verification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[dev-dependencies]

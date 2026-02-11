@@ -1,0 +1,12 @@
+[package]
+name = "rust-fv-solver"
+description = "SMT solver interface for Rust formal verification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rust-fv-smtlib = { workspace = true }
+
+[dev-dependencies]
