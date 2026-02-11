@@ -980,10 +980,34 @@ fn generate_loop_invariant_vcs(
 
     // === VC2: Preservation ===
     // Invariant + loop condition + body => invariant'
+    //
+    // We use "next-state" variables: for each variable modified in the body,
+    // declare a `_var_next` constant and encode the body with those on the LHS.
+    // Then check the invariant holds for the next-state variables.
     {
+        // Collect variables modified in the loop body
+        let modified_vars: HashSet<String> = body_assignments
+            .iter()
+            .map(|(place, _)| place.local.clone())
+            .collect();
+
+        // Build "next-state" declarations
+        let mut next_decls: Vec<Command> = Vec::new();
+        for var_name in &modified_vars {
+            if let Some(ty) = find_local_type(func, var_name) {
+                let sort = encode_type(ty);
+                next_decls.push(Command::DeclareConst(format!("{var_name}_next"), sort));
+            }
+        }
+
         let mut script = base_script(datatype_declarations, declarations);
 
-        // Assume invariant holds at loop entry
+        // Add next-state declarations
+        for decl in &next_decls {
+            script.push(decl.clone());
+        }
+
+        // Assume invariant holds at loop entry (on current-state variables)
         script.push(Command::Assert(invariant.clone()));
 
         // Assume preconditions (they hold throughout)
@@ -993,24 +1017,59 @@ fn generate_loop_invariant_vcs(
             }
         }
 
+        // Encode header statements (which compute the loop condition)
+        if header < func.basic_blocks.len() {
+            let header_block = &func.basic_blocks[header];
+            let mut ssa_counter = HashMap::new();
+            for stmt in &header_block.statements {
+                if let Statement::Assign(place, rvalue) = stmt
+                    && let Some(cmd) = encode_assignment(place, rvalue, func, &mut ssa_counter)
+                {
+                    script.push(cmd);
+                }
+            }
+        }
+
         // Assume loop condition is true (we're entering the loop body)
         if let Some(ref cond) = loop_condition {
             script.push(Command::Assert(cond.clone()));
         }
 
-        // Encode loop body assignments
-        let mut ssa_counter = HashMap::new();
-        for (place, rvalue) in &body_assignments {
-            if let Some(cmd) = encode_assignment(place, rvalue, func, &mut ssa_counter) {
-                script.push(cmd);
+        // Encode loop body assignments using next-state variables on the LHS.
+        // Body assignments from blocks AFTER the header (not header statements themselves).
+        let body_only_assignments =
+            collect_body_only_assignments(func, header, &loop_info.back_edge_blocks);
+        for (place, rvalue) in &body_only_assignments {
+            let rhs = match rvalue {
+                Rvalue::Use(op) => Some(encode_operand_for_vcgen(op, func)),
+                Rvalue::BinaryOp(op, lhs_op, rhs_op) => {
+                    let l = encode_operand(lhs_op);
+                    let r = encode_operand(rhs_op);
+                    let ty = infer_operand_type(func, lhs_op)
+                        .or_else(|| find_local_type(func, &place.local));
+                    ty.map(|t| encode_binop(*op, &l, &r, t))
+                }
+                _ => None,
+            };
+            if let Some(rhs_term) = rhs {
+                let lhs_name = if modified_vars.contains(&place.local) {
+                    format!("{}_next", place.local)
+                } else {
+                    place.local.clone()
+                };
+                script.push(Command::Assert(Term::Eq(
+                    Box::new(Term::Const(lhs_name)),
+                    Box::new(rhs_term),
+                )));
             }
         }
 
-        // Assert negation of invariant after body (checking if invariant can break)
+        // Check invariant with next-state variables substituted
+        let invariant_next = substitute_next_state(&invariant, &modified_vars);
         script.push(Command::Comment(format!(
             "Loop invariant preservation check at block {header}"
         )));
-        script.push(Command::Assert(Term::Not(Box::new(invariant.clone()))));
+        script.push(Command::Assert(Term::Not(Box::new(invariant_next))));
         script.push(Command::CheckSat);
         script.push(Command::GetModel);
 
@@ -1029,7 +1088,7 @@ fn generate_loop_invariant_vcs(
     }
 
     // === VC3: Exit / Sufficiency ===
-    // Invariant + NOT loop condition => postcondition
+    // Invariant + header stmts + NOT loop condition + post-loop => postcondition
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
             if let Some(post_term) = parse_simple_spec(&post.raw, func) {
@@ -1042,6 +1101,22 @@ fn generate_loop_invariant_vcs(
                 for pre in &func.contracts.requires {
                     if let Some(pre_term) = parse_simple_spec(&pre.raw, func) {
                         script.push(Command::Assert(pre_term));
+                    }
+                }
+
+                // Encode header statements (which compute the loop condition variable)
+                // This establishes the relationship between the condition variable and
+                // the loop variables (e.g., _4 = _3 < _1)
+                if header < func.basic_blocks.len() {
+                    let header_block = &func.basic_blocks[header];
+                    let mut ssa_counter = HashMap::new();
+                    for stmt in &header_block.statements {
+                        if let Statement::Assign(place, rvalue) = stmt
+                            && let Some(cmd) =
+                                encode_assignment(place, rvalue, func, &mut ssa_counter)
+                        {
+                            script.push(cmd);
+                        }
                     }
                 }
 
@@ -1307,6 +1382,116 @@ fn collect_post_loop_dfs(
     let successors = terminator_successors(&block.terminator);
     for succ in successors {
         collect_post_loop_dfs(func, succ, visited, assignments);
+    }
+}
+
+/// Collect body-only assignments (excluding header statements).
+///
+/// This collects assignments from the body entry block to back-edge blocks,
+/// skipping the header's own statements.
+fn collect_body_only_assignments(
+    func: &Function,
+    header: BlockId,
+    back_edge_blocks: &[BlockId],
+) -> Vec<(Place, Rvalue)> {
+    let mut assignments = Vec::new();
+
+    if header >= func.basic_blocks.len() {
+        return assignments;
+    }
+
+    // Find the body entry block
+    let body_entry = match &func.basic_blocks[header].terminator {
+        Terminator::SwitchInt { targets, .. } => targets.first().map(|(_, t)| *t),
+        Terminator::Goto(target) => Some(*target),
+        _ => None,
+    };
+
+    if let Some(entry) = body_entry {
+        let back_edge_set: HashSet<BlockId> = back_edge_blocks.iter().copied().collect();
+        let mut visited = HashSet::new();
+        visited.insert(header); // Don't revisit header
+        collect_body_assignments_dfs(func, entry, &back_edge_set, &mut visited, &mut assignments);
+    }
+
+    assignments
+}
+
+/// Substitute next-state variable names in a term.
+///
+/// For each variable in `modified_vars`, replaces `Const("x")` with `Const("x_next")`.
+fn substitute_next_state(term: &Term, modified_vars: &HashSet<String>) -> Term {
+    match term {
+        Term::Const(name) => {
+            if modified_vars.contains(name) {
+                Term::Const(format!("{name}_next"))
+            } else {
+                term.clone()
+            }
+        }
+        Term::Not(t) => Term::Not(Box::new(substitute_next_state(t, modified_vars))),
+        Term::And(terms) => Term::And(
+            terms
+                .iter()
+                .map(|t| substitute_next_state(t, modified_vars))
+                .collect(),
+        ),
+        Term::Or(terms) => Term::Or(
+            terms
+                .iter()
+                .map(|t| substitute_next_state(t, modified_vars))
+                .collect(),
+        ),
+        Term::Implies(a, b) => Term::Implies(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::Eq(a, b) => Term::Eq(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvSLe(a, b) => Term::BvSLe(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvSLt(a, b) => Term::BvSLt(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvSGe(a, b) => Term::BvSGe(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvSGt(a, b) => Term::BvSGt(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvULe(a, b) => Term::BvULe(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvULt(a, b) => Term::BvULt(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvUGe(a, b) => Term::BvUGe(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvUGt(a, b) => Term::BvUGt(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvAdd(a, b) => Term::BvAdd(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        Term::BvSub(a, b) => Term::BvSub(
+            Box::new(substitute_next_state(a, modified_vars)),
+            Box::new(substitute_next_state(b, modified_vars)),
+        ),
+        // For terms that don't contain variables (literals), return as-is
+        _ => term.clone(),
     }
 }
 
