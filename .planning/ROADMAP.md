@@ -13,7 +13,7 @@ rust-fv evolves from a working v0.1.0 proof-of-concept (248 tests, 5-crate works
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Soundness Foundation** - Fix SSA violation, audit overflow encoding, establish soundness/completeness test suites
-- [ ] **Phase 2: Table Stakes Completion** - Loops, cargo verify, assertions, panics, structs, z3 crate, spec parser
+- [x] **Phase 2: Table Stakes Completion** - Loops, cargo verify, assertions, panics, structs, z3 crate, spec parser
 - [ ] **Phase 3: Modular Verification** - Function summaries, inter-procedural verification, ownership reasoning
 - [ ] **Phase 4: Differentiation** - Unbounded integers, ghost code, quantifiers, prophecy variables, traits/generics
 - [ ] **Phase 5: Performance and Polish** - Benchmarks, caching, parallelism, formula simplification, error messages
@@ -52,11 +52,11 @@ Plans:
   5. A struct with named fields can be used in specifications (`#[ensures(result.x > 0)]`), and struct field access is correctly encoded in SMT
 
 Plans:
-- [ ] 02-01-PLAN.md -- Z3 native API backend (z3 crate with bundled feature) and structured tracing via tracing crate
-- [ ] 02-02-PLAN.md -- Loop invariant verification with 3-VC generation (initialization, preservation, exit)
-- [ ] 02-03-PLAN.md -- Assertion verification and panic detection (unwrap, bounds, div-by-zero) with specific error messages
-- [ ] 02-04-PLAN.md -- Aggregate type encoding: structs, tuples, enums as SMT datatypes, arrays as SMT arrays
-- [ ] 02-05-PLAN.md -- Full specification parser via syn, old() operator, and cargo verify subcommand with colored output
+- [x] 02-01-PLAN.md -- Z3 native API backend (z3 crate with bundled feature) and structured tracing via tracing crate
+- [x] 02-02-PLAN.md -- Loop invariant verification with 3-VC generation (initialization, preservation, exit)
+- [x] 02-03-PLAN.md -- Assertion verification and panic detection (unwrap, bounds, div-by-zero) with specific error messages
+- [x] 02-04-PLAN.md -- Aggregate type encoding: structs, tuples, enums as SMT datatypes, arrays as SMT arrays
+- [x] 02-05-PLAN.md -- Full specification parser via syn, old() operator, and cargo verify subcommand with colored output
 
 ### Phase 3: Modular Verification
 **Goal**: Functions that call other verified functions are verified using contracts as summaries, without inlining callee bodies
@@ -119,11 +119,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
-| 2. Table Stakes Completion | 0/5 | Planned | - |
+| 2. Table Stakes Completion | 5/5 | Complete | 2026-02-11 |
 | 3. Modular Verification | 0/2 | Not started | - |
 | 4. Differentiation | 0/4 | Not started | - |
 | 5. Performance and Polish | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 2 planned)*
+*Last updated: 2026-02-11 (Phase 2 complete)*
