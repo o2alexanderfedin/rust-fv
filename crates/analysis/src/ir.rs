@@ -22,6 +22,29 @@ pub struct Local {
     /// MIR-style name: `_0` (return), `_1`, `_2`, ...
     pub name: String,
     pub ty: Ty,
+    /// Whether this local is specification-only (ghost variable).
+    /// Ghost locals are used in specifications but erased from executable encoding.
+    pub is_ghost: bool,
+}
+
+impl Local {
+    /// Create a new non-ghost local variable.
+    pub fn new(name: impl Into<String>, ty: Ty) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+            is_ghost: false,
+        }
+    }
+
+    /// Create a new ghost local variable (specification-only).
+    pub fn ghost(name: impl Into<String>, ty: Ty) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+            is_ghost: true,
+        }
+    }
 }
 
 /// Formal contracts on a function.
@@ -314,6 +337,13 @@ pub enum Ty {
     Enum(String, Vec<(String, Vec<Ty>)>),
     /// Opaque/unresolved type
     Named(String),
+    /// Unbounded mathematical integer (specification-only).
+    /// Used with `as int` casts in specs to express arithmetic without overflow.
+    /// SOUNDNESS: Never silently mixed with bitvectors -- `as int` cast must be explicit.
+    SpecInt,
+    /// Non-negative unbounded integer (specification-only).
+    /// Encoded as Int with non-negativity constraint added separately.
+    SpecNat,
 }
 
 /// Signed integer types.
@@ -436,5 +466,10 @@ impl Ty {
     /// Whether this is a boolean type.
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    /// Whether this is a specification-only unbounded integer type.
+    pub fn is_spec_int(&self) -> bool {
+        matches!(self, Self::SpecInt | Self::SpecNat)
     }
 }

@@ -98,6 +98,10 @@ pub enum Term {
     Extract(u32, u32, Box<Term>),
     /// `(concat a b)`
     Concat(Box<Term>, Box<Term>),
+    /// `(bv2int a)` — convert bitvector to unbounded integer
+    Bv2Int(Box<Term>),
+    /// `((_ int2bv n) a)` — convert integer to n-bit bitvector
+    Int2Bv(u32, Box<Term>),
 
     // === Integer arithmetic ===
     /// `(+ a b)`

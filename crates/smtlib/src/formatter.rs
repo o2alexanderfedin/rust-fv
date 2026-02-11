@@ -186,6 +186,10 @@ impl fmt::Display for Term {
                 write!(f, "((_ extract {hi} {lo}) {a})")
             }
             Term::Concat(a, b) => fmt_binop("concat", a, b, f),
+            Term::Bv2Int(a) => fmt_unop("bv2int", a, f),
+            Term::Int2Bv(n, a) => {
+                write!(f, "((_ int2bv {n}) {a})")
+            }
 
             // --- Integer arithmetic ---
             Term::IntAdd(a, b) => fmt_binop("+", a, b, f),
@@ -776,6 +780,30 @@ mod tests {
             Box::new(Term::Const("lo".into())),
         );
         assert_eq!(t.to_string(), "(concat hi lo)");
+    }
+
+    #[test]
+    fn term_bv2int() {
+        let t = Term::Bv2Int(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(bv2int x)");
+    }
+
+    #[test]
+    fn term_bv2int_literal() {
+        let t = Term::Bv2Int(Box::new(Term::BitVecLit(42, 32)));
+        assert_eq!(t.to_string(), "(bv2int (_ bv42 32))");
+    }
+
+    #[test]
+    fn term_int2bv() {
+        let t = Term::Int2Bv(32, Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "((_ int2bv 32) x)");
+    }
+
+    #[test]
+    fn term_int2bv_literal() {
+        let t = Term::Int2Bv(8, Box::new(Term::IntLit(42)));
+        assert_eq!(t.to_string(), "((_ int2bv 8) 42)");
     }
 
     // -----------------------------------------------------------------------

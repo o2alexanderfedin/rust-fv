@@ -343,6 +343,16 @@ fn format_term(output: &mut String, term: &rust_fv_smtlib::term::Term) {
             output.push(')');
         }
         Term::Concat(a, b) => format_binary(output, "concat", a, b),
+        Term::Bv2Int(a) => {
+            output.push_str("(bv2int ");
+            format_term(output, a);
+            output.push(')');
+        }
+        Term::Int2Bv(n, a) => {
+            output.push_str(&format!("((_ int2bv {n}) "));
+            format_term(output, a);
+            output.push(')');
+        }
         Term::IntAdd(a, b) => format_binary(output, "+", a, b),
         Term::IntSub(a, b) => format_binary(output, "-", a, b),
         Term::IntMul(a, b) => format_binary(output, "*", a, b),

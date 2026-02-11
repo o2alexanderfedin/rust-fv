@@ -70,6 +70,10 @@ pub fn encode_type(ty: &Ty) -> Sort {
             tracing::trace!(type_name = %name, "Encoding named type as uninterpreted sort");
             Sort::Uninterpreted(name.clone())
         }
+        Ty::SpecInt | Ty::SpecNat => {
+            tracing::trace!("Encoding spec integer as unbounded Int");
+            Sort::Int
+        }
     }
 }
 
@@ -323,6 +327,7 @@ mod tests {
                         ("y".to_string(), Ty::Int(IntTy::I32)),
                     ],
                 ),
+                is_ghost: false,
             },
             params: vec![],
             locals: vec![],
@@ -358,10 +363,12 @@ mod tests {
             return_local: crate::ir::Local {
                 name: "_0".to_string(),
                 ty: point_ty.clone(),
+                is_ghost: false,
             },
             params: vec![crate::ir::Local {
                 name: "_1".to_string(),
                 ty: point_ty,
+                is_ghost: false,
             }],
             locals: vec![],
             basic_blocks: vec![],
@@ -379,6 +386,7 @@ mod tests {
             return_local: crate::ir::Local {
                 name: "_0".to_string(),
                 ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]),
+                is_ghost: false,
             },
             params: vec![],
             locals: vec![],
@@ -411,6 +419,7 @@ mod tests {
                         ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
                     ],
                 ),
+                is_ghost: false,
             },
             params: vec![],
             locals: vec![],

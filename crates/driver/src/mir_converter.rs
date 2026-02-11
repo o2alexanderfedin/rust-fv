@@ -24,6 +24,7 @@ pub fn convert_mir(
     let return_local = ir::Local {
         name: "_0".to_string(),
         ty: return_ty,
+        is_ghost: false,
     };
 
     // Convert parameters
@@ -34,6 +35,7 @@ pub fn convert_mir(
             ir::Local {
                 name: format!("_{}", local.as_usize()),
                 ty: convert_ty(decl.ty),
+                is_ghost: false,
             }
         })
         .collect();
@@ -46,6 +48,7 @@ pub fn convert_mir(
             ir::Local {
                 name: format!("_{}", local.as_usize()),
                 ty: convert_ty(decl.ty),
+                is_ghost: false,
             }
         })
         .collect();
