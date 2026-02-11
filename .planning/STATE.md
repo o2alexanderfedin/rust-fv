@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 ## Current Position
 
-Phase: 4 of 5 (Differentiation) -- IN PROGRESS
-Plan: 3 of 4 in current phase -- monomorphization and generics complete
-Status: Phase 4 execution -- 04-01, 04-02, and 04-04 complete
-Last activity: 2026-02-11 -- 04-04 generic function verification via monomorphization
+Phase: 4 of 5 (Differentiation) -- COMPLETE
+Plan: 4 of 4 in current phase -- all differentiation features complete
+Status: Phase 4 complete -- 04-01, 04-02, 04-03, and 04-04 complete
+Last activity: 2026-02-11 -- 04-03 prophecy variables for mutable borrow reasoning
 
-Progress: [███████████████░░░░░] 75% (Phase 4: 3/4 plans complete)
+Progress: [████████████████████] 100% (Phase 4: 4/4 plans complete)
 
 ## What Exists (v0.1.0)
 
@@ -25,6 +25,7 @@ Progress: [███████████████░░░░░] 75% (Ph
 - **Unbounded integers (04-01)**: SpecInt/SpecNat types, `as int` cast syntax, Bv2Int/Int2Bv terms, `#[ghost]` macro (Z3 bv2int integration deferred)
 - **Quantifiers and triggers (04-02)**: forall/exists specs with automatic trigger inference, Term::Annotated for :pattern, implies() function, verified by Z3
 - **Generic function verification (04-04)**: Monomorphization with MonomorphizationRegistry, per-instantiation VC generation, concrete type substitution, verified max<T: Ord> for i32/u64
+- **Prophecy variables (04-03)**: ProphecyInfo for &mut param tracking, spec parser *expr and final_value() operators, prophecy declarations/resolutions (encoding limitation documented for future SSA work)
 - End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result
 - Proc macro contracts: `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`
 - Bitvector encoding for all integer types (i8-i128, u8-u128, isize, usize)
@@ -47,9 +48,9 @@ Progress: [███████████████░░░░░] 75% (Ph
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: ~14 min
-- Total execution time: ~187 min
+- Total plans completed: 14
+- Average duration: ~14.5 min
+- Total execution time: ~203 min
 
 **By Phase:**
 
@@ -58,9 +59,10 @@ Progress: [███████████████░░░░░] 75% (Ph
 | 01-soundness-foundation | 3/3 | ~21 min | ~7 min |
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 | 03-modular-verification | 2/2 | ~21 min | ~11 min |
-| 04-differentiation | 3/4 | ~67 min | ~22 min |
+| 04-differentiation | 4/4 | ~83 min | ~21 min |
 
 *Updated after each plan completion*
+| Phase 04 P03 | 16 | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -127,6 +129,10 @@ Recent decisions affecting current work:
 - [04-04]: substitute_generics replaces Ty::Generic recursively throughout Function IR
 - [04-04]: encode_type panics on Ty::Generic to enforce monomorphization-first
 - [04-04]: generate_vcs_monomorphized wraps generate_vcs for backward compatibility
+- [04-03]: final_value(x) function call syntax for prophecy variables (valid Rust, self-documenting)
+- [04-03]: ProphecyInfo metadata struct for &mut param tracking
+- [04-03]: Prophecy variables in base declarations alongside regular variables
+- [04-03]: Initial value capture via SMT assertion (documented encoding limitation with direct param assignment)
 
 ### Pending Todos
 
@@ -135,10 +141,11 @@ None yet.
 ### Blockers/Concerns
 
 - Z3 bv2int function availability: requires Z3 4.8.10+ or alternative encoding (04-01 deferred)
+- Prophecy encoding limitation: Direct &mut param reassignment creates conflicting SMT constraints; requires SSA for parameters (04-03 infrastructure complete, encoding deferred to future work)
 
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 4 Plan 04 complete -- generic function verification via monomorphization
+Stopped at: Phase 4 complete -- prophecy variables, unbounded integers, quantifiers, generics all implemented
 Resume file: None
-Next step: Execute Phase 4 Plan 03 (arrays) - final plan in differentiation phase
+Next step: Begin Phase 5 (advanced features) or consolidate/polish existing work
