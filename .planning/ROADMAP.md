@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Soundness Foundation** - Fix SSA violation, audit overflow encoding, establish soundness/completeness test suites
 - [x] **Phase 2: Table Stakes Completion** - Loops, cargo verify, assertions, panics, structs, z3 crate, spec parser
-- [ ] **Phase 3: Modular Verification** - Function summaries, inter-procedural verification, ownership reasoning
+- [x] **Phase 3: Modular Verification** - Function summaries, inter-procedural verification, ownership reasoning
 - [ ] **Phase 4: Differentiation** - Unbounded integers, ghost code, quantifiers, prophecy variables, traits/generics
 - [ ] **Phase 5: Performance and Polish** - Benchmarks, caching, parallelism, formula simplification, error messages
 
@@ -71,8 +71,8 @@ Plans:
   4. The verifier leverages Rust's ownership guarantees (moved values cannot be used, immutable borrows cannot be mutated) to strengthen verification without additional annotations
 
 Plans:
-- [ ] 03-01-PLAN.md -- Contract database and inter-procedural call-site encoding (assert precondition, havoc return, assume postcondition)
-- [ ] 03-02-PLAN.md -- Ownership reasoning integration (move/copy/borrow classification, value preservation for shared borrows)
+- [x] 03-01-PLAN.md -- Contract database and inter-procedural call-site encoding (assert precondition, havoc return, assume postcondition)
+- [x] 03-02-PLAN.md -- Ownership reasoning integration (move/copy/borrow classification, value preservation for shared borrows)
 
 ### Phase 4: Differentiation
 **Goal**: Specifications can express properties using unbounded math, ghost state, quantifiers over collections, and mutable borrow reasoning
@@ -120,10 +120,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
 | 2. Table Stakes Completion | 5/5 | Complete | 2026-02-11 |
-| 3. Modular Verification | 0/2 | Planned | - |
+| 3. Modular Verification | 2/2 | Complete | 2026-02-11 |
 | 4. Differentiation | 0/4 | Not started | - |
 | 5. Performance and Polish | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 3 planned)*
+*Last updated: 2026-02-11 (Phase 3 complete)*
