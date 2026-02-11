@@ -86,6 +86,10 @@ struct PathAssignment {
     place: Place,
     rvalue: Rvalue,
     block_idx: usize,
+    /// Number of branch conditions accumulated at the time this assignment
+    /// was recorded. Assignments with `branch_depth == 0` are in the common
+    /// prefix and should NOT be guarded by the path condition.
+    branch_depth: usize,
 }
 
 /// Info about an overflow check found along a path.
@@ -261,11 +265,12 @@ fn traverse_block(
                 _ => {}
             }
 
-            // Record the assignment
+            // Record the assignment with the current branch depth
             state.assignments.push(PathAssignment {
                 place: place.clone(),
                 rvalue: rvalue.clone(),
                 block_idx,
+                branch_depth: state.conditions.len(),
             });
         }
     }
@@ -429,7 +434,15 @@ fn encode_assignment(
         Rvalue::BinaryOp(op, lhs_op, rhs_op) => {
             let l = encode_operand(lhs_op);
             let r = encode_operand(rhs_op);
-            let ty = find_local_type(func, &place.local)?;
+            // For comparison ops (Gt, Lt, Ge, Le, Eq, Ne), the result type is Bool
+            // but signedness must come from the *operand* types, not the destination.
+            let ty = if op.is_comparison() {
+                infer_operand_type(func, lhs_op)
+                    .or_else(|| infer_operand_type(func, rhs_op))
+                    .or_else(|| find_local_type(func, &place.local))?
+            } else {
+                find_local_type(func, &place.local)?
+            };
             encode_binop(*op, &l, &r, ty)
         }
         Rvalue::CheckedBinaryOp(op, lhs_op, rhs_op) => {
@@ -471,28 +484,32 @@ fn encode_assignment(
 
 /// Encode a path's assignments as guarded SMT assertions.
 ///
-/// If the path has a condition, each assignment is guarded:
+/// Assignments made AFTER a branch point (branch_depth > 0) are guarded:
 /// `(assert (=> path_cond (= var value)))`
 ///
-/// If there is no condition (single path), assertions are unguarded:
-/// `(assert (= var value))`
+/// Assignments made in the common prefix BEFORE any branch (branch_depth == 0)
+/// are unguarded: `(assert (= var value))`
+///
+/// If there is no condition (single path), all assertions are unguarded.
 fn encode_path_assignments(func: &Function, path: &CfgPath) -> Vec<Command> {
     let mut ssa_counter = HashMap::new();
     let mut assertions = Vec::new();
 
     for pa in &path.assignments {
         if let Some(cmd) = encode_assignment(&pa.place, &pa.rvalue, func, &mut ssa_counter) {
-            match (&path.condition, &cmd) {
-                (Some(cond), Command::Assert(inner_term)) => {
-                    // Guard the assertion with the path condition
+            // Only guard assignments that were made AFTER a branch point
+            if pa.branch_depth > 0 {
+                if let (Some(cond), Command::Assert(inner_term)) = (&path.condition, &cmd) {
                     assertions.push(Command::Assert(Term::Implies(
                         Box::new(cond.clone()),
                         Box::new(inner_term.clone()),
                     )));
-                }
-                _ => {
+                } else {
                     assertions.push(cmd);
                 }
+            } else {
+                // Common prefix assignment -- no guard needed
+                assertions.push(cmd);
             }
         }
     }

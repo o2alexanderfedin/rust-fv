@@ -593,3 +593,661 @@ fn test_postcondition_violation() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Branching / Multi-path Control Flow Tests (SSA fix validation)
+// ---------------------------------------------------------------------------
+
+/// Build: `fn max(a: i32, b: i32) -> i32 { if a > b { a } else { b } }`
+///
+/// This is the motivating example for the SSA fix. Before the fix, the VCGen
+/// would walk blocks linearly, causing the assignment `_0 = _2` (else branch)
+/// to clobber `_0 = _1` (then branch), making the postcondition unprovable.
+fn make_max_function(contracts: Contracts) -> Function {
+    Function {
+        name: "max".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        },
+        params: vec![
+            Local {
+                name: "_1".to_string(),
+                ty: Ty::Int(IntTy::I32),
+            },
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Int(IntTy::I32),
+            },
+        ],
+        locals: vec![Local {
+            name: "_3".to_string(),
+            ty: Ty::Bool,
+        }],
+        basic_blocks: vec![
+            // bb0: _3 = _1 > _2; switchInt(_3) -> [1: bb1, otherwise: bb2]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            // bb1 (then): _0 = _1; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+            // bb2 (else): _0 = _2; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_2"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: If/else branches with SSA -- the motivating soundness bug
+// ---------------------------------------------------------------------------
+
+/// The motivating bug: `max(a, b)` with postcondition `result >= _1 && result >= _2`.
+///
+/// Before the SSA fix, this would either fail (false alarm) or give wrong results
+/// because the linear block walk would only see the last assignment to `_0`.
+/// With path-condition-guarded encoding, both branches are properly represented.
+#[test]
+fn test_if_else_branches_ssa() {
+    let func = make_max_function(Contracts {
+        requires: vec![],
+        ensures: vec![SpecExpr {
+            raw: "result >= _1 && result >= _2".to_string(),
+        }],
+        is_pure: true,
+    });
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    // Should have a postcondition VC
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(
+        !post_vcs.is_empty(),
+        "Expected postcondition VCs for max function",
+    );
+
+    // Run Z3 -- the postcondition should be PROVED (UNSAT)
+    let solver = solver_or_skip();
+    for vc in &post_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on max postcondition VC");
+        assert!(
+            result.is_unsat(),
+            "max(a,b) >= a AND max(a,b) >= b should be PROVED (UNSAT), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: If/else with WRONG postcondition -- should find counterexample
+// ---------------------------------------------------------------------------
+
+/// Same max function but with incorrect postcondition `result == _1`.
+/// This fails when `_2 > _1` (the else branch returns `_2`, not `_1`).
+#[test]
+fn test_if_else_wrong_postcondition() {
+    let func = make_max_function(Contracts {
+        requires: vec![],
+        ensures: vec![SpecExpr {
+            raw: "result == _1".to_string(),
+        }],
+        is_pure: true,
+    });
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(!post_vcs.is_empty());
+
+    // Run Z3 -- postcondition is false, should find counterexample (SAT)
+    let solver = solver_or_skip();
+    for vc in &post_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on wrong max postcondition VC");
+        assert!(
+            result.is_sat(),
+            "Wrong postcondition `result == _1` for max should yield SAT, got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Multi-branch match (3-way if/else chain)
+// ---------------------------------------------------------------------------
+
+/// Build: `fn classify(x: i32) -> i32 { if x > 0 { 1 } else if x < 0 { -1 } else { 0 } }`
+///
+/// This simulates a 3-way match with postcondition `result >= -1 && result <= 1`.
+/// Implemented as nested SwitchInt with Goto to merge block.
+fn make_classify_function(contracts: Contracts) -> Function {
+    Function {
+        name: "classify".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        },
+        params: vec![Local {
+            name: "_1".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        }],
+        locals: vec![
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Bool,
+            },
+            Local {
+                name: "_3".to_string(),
+                ty: Ty::Bool,
+            },
+        ],
+        basic_blocks: vec![
+            // bb0: _2 = _1 > 0; switchInt(_2) -> [1: bb1, otherwise: bb2]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_2"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_2")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            // bb1: _0 = 1; goto bb5 (return block)
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(1, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(5),
+            },
+            // bb2: _3 = _1 < 0; switchInt(_3) -> [1: bb3, otherwise: bb4]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Lt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 3)],
+                    otherwise: 4,
+                },
+            },
+            // bb3: _0 = -1; goto bb5
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(-1, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(5),
+            },
+            // bb4: _0 = 0; goto bb5
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(5),
+            },
+            // bb5: return
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts,
+    }
+}
+
+/// 3-way classify with postcondition `result >= -1 && result <= 1`. Should verify.
+#[test]
+fn test_multi_branch_match() {
+    let func = make_classify_function(Contracts {
+        requires: vec![],
+        ensures: vec![SpecExpr {
+            raw: "result >= -1 && result <= 1".to_string(),
+        }],
+        is_pure: true,
+    });
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(!post_vcs.is_empty());
+
+    let solver = solver_or_skip();
+    for vc in &post_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on classify postcondition VC");
+        assert!(
+            result.is_unsat(),
+            "classify(x) result in [-1, 1] should be PROVED (UNSAT), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: Early return via Goto
+// ---------------------------------------------------------------------------
+
+/// Build: `fn abs_or_zero(x: i32) -> i32 { if x > 0 { x } else { 0 } }`
+///
+/// One branch returns early via Goto to return block, the other falls through.
+/// Postcondition: `result >= 0`. Should verify.
+fn make_abs_or_zero_function(contracts: Contracts) -> Function {
+    Function {
+        name: "abs_or_zero".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        },
+        params: vec![Local {
+            name: "_1".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        }],
+        locals: vec![Local {
+            name: "_2".to_string(),
+            ty: Ty::Bool,
+        }],
+        basic_blocks: vec![
+            // bb0: _2 = _1 > 0; switchInt(_2) -> [1: bb1, otherwise: bb2]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_2"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_2")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            // bb1 (then): _0 = _1; goto bb3 (return)
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Goto(3),
+            },
+            // bb2 (else): _0 = 0; goto bb3 (return)
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(3),
+            },
+            // bb3: return
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts,
+    }
+}
+
+/// Early return via Goto: `abs_or_zero(x)` with postcondition `result >= 0`.
+#[test]
+fn test_early_return_via_goto() {
+    let func = make_abs_or_zero_function(Contracts {
+        requires: vec![],
+        ensures: vec![SpecExpr {
+            raw: "result >= 0".to_string(),
+        }],
+        is_pure: true,
+    });
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(!post_vcs.is_empty());
+
+    let solver = solver_or_skip();
+    for vc in &post_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on abs_or_zero postcondition VC");
+        assert!(
+            result.is_unsat(),
+            "abs_or_zero(x) >= 0 should be PROVED (UNSAT), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: Nested branches (4 paths)
+// ---------------------------------------------------------------------------
+
+/// Build a function with nested if/else producing 4 paths:
+/// ```
+/// fn quad(a: i32, b: i32) -> i32 {
+///     if a > 0 {
+///         if b > 0 { 3 } else { 2 }
+///     } else {
+///         if b > 0 { 1 } else { 0 }
+///     }
+/// }
+/// ```
+/// Postcondition: `result >= 0 && result <= 3`. Should verify.
+fn make_quad_function(contracts: Contracts) -> Function {
+    Function {
+        name: "quad".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        },
+        params: vec![
+            Local {
+                name: "_1".to_string(),
+                ty: Ty::Int(IntTy::I32),
+            },
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Int(IntTy::I32),
+            },
+        ],
+        locals: vec![
+            Local {
+                name: "_3".to_string(),
+                ty: Ty::Bool,
+            },
+            Local {
+                name: "_4".to_string(),
+                ty: Ty::Bool,
+            },
+            Local {
+                name: "_5".to_string(),
+                ty: Ty::Bool,
+            },
+        ],
+        basic_blocks: vec![
+            // bb0: _3 = _1 > 0; switchInt(_3) -> [1: bb1, otherwise: bb4]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_3"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_3")),
+                    targets: vec![(1, 1)],
+                    otherwise: 4,
+                },
+            },
+            // bb1: _4 = _2 > 0; switchInt(_4) -> [1: bb2, otherwise: bb3]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_4"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_2")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_4")),
+                    targets: vec![(1, 2)],
+                    otherwise: 3,
+                },
+            },
+            // bb2: _0 = 3; goto bb7
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(3, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(7),
+            },
+            // bb3: _0 = 2; goto bb7
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(2, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(7),
+            },
+            // bb4: _5 = _2 > 0; switchInt(_5) -> [1: bb5, otherwise: bb6]
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_5"),
+                    Rvalue::BinaryOp(
+                        BinOp::Gt,
+                        Operand::Copy(Place::local("_2")),
+                        Operand::Constant(Constant::Int(0, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_5")),
+                    targets: vec![(1, 5)],
+                    otherwise: 6,
+                },
+            },
+            // bb5: _0 = 1; goto bb7
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(1, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(7),
+            },
+            // bb6: _0 = 0; goto bb7
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                )],
+                terminator: Terminator::Goto(7),
+            },
+            // bb7: return
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts,
+    }
+}
+
+/// Nested branches (4 paths): `result >= 0 && result <= 3`. Should verify.
+#[test]
+fn test_nested_branches() {
+    let func = make_quad_function(Contracts {
+        requires: vec![],
+        ensures: vec![SpecExpr {
+            raw: "result >= 0 && result <= 3".to_string(),
+        }],
+        is_pure: true,
+    });
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(!post_vcs.is_empty());
+
+    let solver = solver_or_skip();
+    for vc in &post_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on quad postcondition VC");
+        assert!(
+            result.is_unsat(),
+            "quad(a,b) result in [0,3] should be PROVED (UNSAT), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: Branch-specific overflow check
+// ---------------------------------------------------------------------------
+
+/// Build a function where overflow can only happen on one branch:
+/// ```
+/// fn maybe_add(x: i32, flag: bool) -> i32 {
+///     if flag { x + 1000000000 } else { x }
+/// }
+/// ```
+/// With precondition `_1 >= 0 && _1 <= 100` (x is small),
+/// the overflow VC for `x + 1000000000` should be UNSAT (safe).
+/// Without preconditions, it should be SAT (can overflow).
+#[test]
+fn test_single_branch_overflow_check() {
+    // Build the function
+    let func = Function {
+        name: "maybe_add".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+        },
+        params: vec![
+            Local {
+                name: "_1".to_string(),
+                ty: Ty::Int(IntTy::I32),
+            },
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Bool,
+            },
+        ],
+        locals: vec![],
+        basic_blocks: vec![
+            // bb0: switchInt(_2) -> [1: bb1, otherwise: bb2]
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_2")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            },
+            // bb1 (flag=true): _0 = _1 + 1000000000; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::BinaryOp(
+                        BinOp::Add,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Constant(Constant::Int(1_000_000_000, IntTy::I32)),
+                    ),
+                )],
+                terminator: Terminator::Return,
+            },
+            // bb2 (flag=false): _0 = _1; return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![SpecExpr {
+                raw: "_1 >= 0 && _1 <= 100".to_string(),
+            }],
+            ensures: vec![],
+            is_pure: true,
+        },
+    };
+
+    let vcs = vcgen::generate_vcs(&func);
+
+    // Should have overflow VCs (from the add branch)
+    let overflow_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("overflow"))
+        .collect();
+    assert!(
+        !overflow_vcs.is_empty(),
+        "Expected overflow VCs for the add branch",
+    );
+
+    // With precondition _1 in [0, 100], adding 1_000_000_000 fits in i32,
+    // so overflow should be UNSAT (proved safe)
+    let solver = solver_or_skip();
+    for vc in &overflow_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver
+            .check_sat_raw(&smtlib)
+            .expect("Z3 should not error on bounded overflow VC");
+        assert!(
+            result.is_unsat(),
+            "With _1 in [0,100], _1 + 1B should not overflow (UNSAT), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}

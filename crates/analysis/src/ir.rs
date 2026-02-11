@@ -211,6 +211,17 @@ pub enum BinOp {
     Ge,
 }
 
+impl BinOp {
+    /// Returns true for comparison operations whose result is Bool
+    /// but whose signedness depends on the operand types.
+    pub fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            Self::Eq | Self::Ne | Self::Lt | Self::Le | Self::Gt | Self::Ge
+        )
+    }
+}
+
 /// Unary operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnOp {
