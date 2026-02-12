@@ -516,4 +516,805 @@ mod tests {
         assert!(constraints[0].contains("signed"));
         assert!(constraints[1].contains("Clone"));
     }
+
+    // ====== substitute_statement: Nop arm ======
+
+    #[test]
+    fn test_substitute_statement_nop() {
+        let subs = HashMap::new();
+        let result = substitute_statement(&Statement::Nop, &subs);
+        assert!(matches!(result, Statement::Nop));
+    }
+
+    // ====== substitute_terminator: all arms ======
+
+    #[test]
+    fn test_substitute_terminator_return() {
+        let subs = HashMap::new();
+        let result = substitute_terminator(&Terminator::Return, &subs);
+        assert!(matches!(result, Terminator::Return));
+    }
+
+    #[test]
+    fn test_substitute_terminator_goto() {
+        let subs = HashMap::new();
+        let result = substitute_terminator(&Terminator::Goto(3), &subs);
+        assert!(matches!(result, Terminator::Goto(3)));
+    }
+
+    #[test]
+    fn test_substitute_terminator_switch_int() {
+        use crate::ir::Operand;
+        let subs = HashMap::new();
+        let term = Terminator::SwitchInt {
+            discr: Operand::Copy(crate::ir::Place::local("_1")),
+            targets: vec![(0, 1), (1, 2)],
+            otherwise: 3,
+        };
+        let result = substitute_terminator(&term, &subs);
+        if let Terminator::SwitchInt {
+            targets, otherwise, ..
+        } = result
+        {
+            assert_eq!(targets.len(), 2);
+            assert_eq!(targets[0], (0, 1));
+            assert_eq!(targets[1], (1, 2));
+            assert_eq!(otherwise, 3);
+        } else {
+            panic!("Expected SwitchInt");
+        }
+    }
+
+    #[test]
+    fn test_substitute_terminator_call() {
+        use crate::ir::Operand;
+        let subs = HashMap::new();
+        let term = Terminator::Call {
+            func: "some_func".to_string(),
+            args: vec![
+                Operand::Copy(crate::ir::Place::local("_1")),
+                Operand::Copy(crate::ir::Place::local("_2")),
+            ],
+            destination: crate::ir::Place::local("_0"),
+            target: 1,
+        };
+        let result = substitute_terminator(&term, &subs);
+        if let Terminator::Call {
+            func,
+            args,
+            destination,
+            target,
+        } = result
+        {
+            assert_eq!(func, "some_func");
+            assert_eq!(args.len(), 2);
+            assert_eq!(destination.local, "_0");
+            assert_eq!(target, 1);
+        } else {
+            panic!("Expected Call");
+        }
+    }
+
+    #[test]
+    fn test_substitute_terminator_assert() {
+        use crate::ir::{AssertKind, Operand};
+        let subs = HashMap::new();
+        let term = Terminator::Assert {
+            cond: Operand::Copy(crate::ir::Place::local("_3")),
+            expected: true,
+            target: 5,
+            kind: AssertKind::UserAssert,
+        };
+        let result = substitute_terminator(&term, &subs);
+        if let Terminator::Assert {
+            expected,
+            target,
+            kind,
+            ..
+        } = result
+        {
+            assert!(expected);
+            assert_eq!(target, 5);
+            assert!(matches!(kind, AssertKind::UserAssert));
+        } else {
+            panic!("Expected Assert");
+        }
+    }
+
+    #[test]
+    fn test_substitute_terminator_unreachable() {
+        let subs = HashMap::new();
+        let result = substitute_terminator(&Terminator::Unreachable, &subs);
+        assert!(matches!(result, Terminator::Unreachable));
+    }
+
+    // ====== substitute_rvalue: all uncovered arms ======
+
+    #[test]
+    fn test_substitute_rvalue_checked_binary_op() {
+        use crate::ir::{BinOp, Operand};
+        let subs = HashMap::new();
+        let rvalue = Rvalue::CheckedBinaryOp(
+            BinOp::Add,
+            Operand::Copy(crate::ir::Place::local("_1")),
+            Operand::Copy(crate::ir::Place::local("_2")),
+        );
+        let result = substitute_rvalue(&rvalue, &subs);
+        assert!(matches!(result, Rvalue::CheckedBinaryOp(BinOp::Add, _, _)));
+    }
+
+    #[test]
+    fn test_substitute_rvalue_unary_op() {
+        use crate::ir::{Operand, UnOp};
+        let subs = HashMap::new();
+        let rvalue = Rvalue::UnaryOp(UnOp::Neg, Operand::Copy(crate::ir::Place::local("_1")));
+        let result = substitute_rvalue(&rvalue, &subs);
+        assert!(matches!(result, Rvalue::UnaryOp(UnOp::Neg, _)));
+    }
+
+    #[test]
+    fn test_substitute_rvalue_cast_with_generic() {
+        use crate::ir::Operand;
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I64));
+        let rvalue = Rvalue::Cast(
+            crate::ir::CastKind::IntToInt,
+            Operand::Copy(crate::ir::Place::local("_1")),
+            Ty::Generic("T".to_string()),
+        );
+        let result = substitute_rvalue(&rvalue, &subs);
+        if let Rvalue::Cast(_, _, ty) = result {
+            assert_eq!(ty, Ty::Int(IntTy::I64));
+        } else {
+            panic!("Expected Cast");
+        }
+    }
+
+    #[test]
+    fn test_substitute_rvalue_ref() {
+        let subs = HashMap::new();
+        let rvalue = Rvalue::Ref(crate::ir::Mutability::Shared, crate::ir::Place::local("_1"));
+        let result = substitute_rvalue(&rvalue, &subs);
+        if let Rvalue::Ref(m, place) = result {
+            assert_eq!(m, crate::ir::Mutability::Shared);
+            assert_eq!(place.local, "_1");
+        } else {
+            panic!("Expected Ref");
+        }
+    }
+
+    #[test]
+    fn test_substitute_rvalue_aggregate() {
+        use crate::ir::{AggregateKind, Operand};
+        let subs = HashMap::new();
+        let rvalue = Rvalue::Aggregate(
+            AggregateKind::Tuple,
+            vec![
+                Operand::Copy(crate::ir::Place::local("_1")),
+                Operand::Copy(crate::ir::Place::local("_2")),
+            ],
+        );
+        let result = substitute_rvalue(&rvalue, &subs);
+        if let Rvalue::Aggregate(kind, ops) = result {
+            assert!(matches!(kind, AggregateKind::Tuple));
+            assert_eq!(ops.len(), 2);
+        } else {
+            panic!("Expected Aggregate");
+        }
+    }
+
+    #[test]
+    fn test_substitute_rvalue_len() {
+        let subs = HashMap::new();
+        let rvalue = Rvalue::Len(crate::ir::Place::local("_1"));
+        let result = substitute_rvalue(&rvalue, &subs);
+        if let Rvalue::Len(place) = result {
+            assert_eq!(place.local, "_1");
+        } else {
+            panic!("Expected Len");
+        }
+    }
+
+    #[test]
+    fn test_substitute_rvalue_discriminant() {
+        let subs = HashMap::new();
+        let rvalue = Rvalue::Discriminant(crate::ir::Place::local("_1"));
+        let result = substitute_rvalue(&rvalue, &subs);
+        if let Rvalue::Discriminant(place) = result {
+            assert_eq!(place.local, "_1");
+        } else {
+            panic!("Expected Discriminant");
+        }
+    }
+
+    // ====== substitute_ty: uncovered type arms ======
+
+    #[test]
+    fn test_substitute_ty_raw_ptr() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let ty = Ty::RawPtr(
+            Box::new(Ty::Generic("T".to_string())),
+            crate::ir::Mutability::Shared,
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), crate::ir::Mutability::Shared)
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_raw_ptr_mutable() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Uint(UintTy::U8));
+        let ty = Ty::RawPtr(
+            Box::new(Ty::Generic("T".to_string())),
+            crate::ir::Mutability::Mutable,
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::RawPtr(
+                Box::new(Ty::Uint(UintTy::U8)),
+                crate::ir::Mutability::Mutable
+            )
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_array() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let ty = Ty::Array(Box::new(Ty::Generic("T".to_string())), 10);
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(result, Ty::Array(Box::new(Ty::Int(IntTy::I32)), 10));
+    }
+
+    #[test]
+    fn test_substitute_ty_slice() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Bool);
+        let ty = Ty::Slice(Box::new(Ty::Generic("T".to_string())));
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(result, Ty::Slice(Box::new(Ty::Bool)));
+    }
+
+    #[test]
+    fn test_substitute_ty_struct() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I64));
+        let ty = Ty::Struct(
+            "MyStruct".to_string(),
+            vec![
+                ("x".to_string(), Ty::Generic("T".to_string())),
+                ("y".to_string(), Ty::Bool),
+            ],
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::Struct(
+                "MyStruct".to_string(),
+                vec![
+                    ("x".to_string(), Ty::Int(IntTy::I64)),
+                    ("y".to_string(), Ty::Bool),
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_struct_nested_generic() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Uint(UintTy::U32));
+        let ty = Ty::Struct(
+            "Pair".to_string(),
+            vec![
+                ("first".to_string(), Ty::Generic("T".to_string())),
+                (
+                    "second".to_string(),
+                    Ty::Ref(
+                        Box::new(Ty::Generic("T".to_string())),
+                        crate::ir::Mutability::Shared,
+                    ),
+                ),
+            ],
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::Struct(
+                "Pair".to_string(),
+                vec![
+                    ("first".to_string(), Ty::Uint(UintTy::U32)),
+                    (
+                        "second".to_string(),
+                        Ty::Ref(
+                            Box::new(Ty::Uint(UintTy::U32)),
+                            crate::ir::Mutability::Shared
+                        )
+                    ),
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_enum() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let ty = Ty::Enum(
+            "Option".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Generic("T".to_string())]),
+            ],
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::Enum(
+                "Option".to_string(),
+                vec![
+                    ("None".to_string(), vec![]),
+                    ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_enum_multiple_fields() {
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Bool);
+        subs.insert("E".to_string(), Ty::Int(IntTy::I32));
+        let ty = Ty::Enum(
+            "Result".to_string(),
+            vec![
+                ("Ok".to_string(), vec![Ty::Generic("T".to_string())]),
+                ("Err".to_string(), vec![Ty::Generic("E".to_string())]),
+            ],
+        );
+        let result = substitute_ty(&ty, &subs);
+        assert_eq!(
+            result,
+            Ty::Enum(
+                "Result".to_string(),
+                vec![
+                    ("Ok".to_string(), vec![Ty::Bool]),
+                    ("Err".to_string(), vec![Ty::Int(IntTy::I32)]),
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_substitute_ty_non_generic_unchanged() {
+        let subs = HashMap::new();
+        // Non-generic types should pass through unchanged
+        assert_eq!(substitute_ty(&Ty::Bool, &subs), Ty::Bool);
+        assert_eq!(substitute_ty(&Ty::Unit, &subs), Ty::Unit);
+        assert_eq!(substitute_ty(&Ty::Never, &subs), Ty::Never);
+        assert_eq!(substitute_ty(&Ty::Char, &subs), Ty::Char);
+        assert_eq!(
+            substitute_ty(&Ty::Int(IntTy::I32), &subs),
+            Ty::Int(IntTy::I32)
+        );
+        assert_eq!(
+            substitute_ty(&Ty::Uint(UintTy::U64), &subs),
+            Ty::Uint(UintTy::U64)
+        );
+        assert_eq!(
+            substitute_ty(&Ty::Named("Foo".to_string()), &subs),
+            Ty::Named("Foo".to_string())
+        );
+        assert_eq!(substitute_ty(&Ty::SpecInt, &subs), Ty::SpecInt);
+        assert_eq!(substitute_ty(&Ty::SpecNat, &subs), Ty::SpecNat);
+    }
+
+    // ====== substitute_generics with basic blocks ======
+
+    #[test]
+    fn test_substitute_generics_with_basic_blocks() {
+        use crate::ir::Operand;
+        // Function with basic blocks containing Nop, Assign, Goto, Call, Assert, Unreachable
+        let func = Function {
+            name: "complex".to_string(),
+            params: vec![Local::new("_1", Ty::Generic("T".to_string()))],
+            return_local: Local::new("_0", Ty::Generic("T".to_string())),
+            locals: vec![Local::new("_2", Ty::Generic("T".to_string()))],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![
+                        Statement::Nop,
+                        Statement::Assign(
+                            crate::ir::Place::local("_2"),
+                            Rvalue::Use(Operand::Copy(crate::ir::Place::local("_1"))),
+                        ),
+                    ],
+                    terminator: Terminator::Goto(1),
+                },
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        crate::ir::Place::local("_0"),
+                        Rvalue::Use(Operand::Copy(crate::ir::Place::local("_2"))),
+                    )],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![GenericParam {
+                name: "T".to_string(),
+                trait_bounds: vec![],
+            }],
+            prophecies: vec![],
+        };
+
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let inst = TypeInstantiation::new(subs, "::<i32>".to_string());
+
+        let result = substitute_generics(&func, &inst);
+
+        // Check locals are substituted
+        assert_eq!(result.locals[0].ty, Ty::Int(IntTy::I32));
+        // Check basic blocks are traversed
+        assert_eq!(result.basic_blocks.len(), 2);
+        assert_eq!(result.basic_blocks[0].statements.len(), 2);
+        assert!(matches!(
+            result.basic_blocks[0].statements[0],
+            Statement::Nop
+        ));
+        assert!(matches!(
+            result.basic_blocks[0].terminator,
+            Terminator::Goto(1)
+        ));
+        assert!(matches!(
+            result.basic_blocks[1].terminator,
+            Terminator::Return
+        ));
+    }
+
+    #[test]
+    fn test_substitute_generics_with_call_and_assert_blocks() {
+        use crate::ir::{AssertKind, Operand};
+        let func = Function {
+            name: "with_call".to_string(),
+            params: vec![Local::new("_1", Ty::Generic("T".to_string()))],
+            return_local: Local::new("_0", Ty::Generic("T".to_string())),
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "helper".to_string(),
+                        args: vec![Operand::Copy(crate::ir::Place::local("_1"))],
+                        destination: crate::ir::Place::local("_0"),
+                        target: 1,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Assert {
+                        cond: Operand::Copy(crate::ir::Place::local("_0")),
+                        expected: true,
+                        target: 2,
+                        kind: AssertKind::UserAssert,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Unreachable,
+                },
+            ],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![GenericParam {
+                name: "T".to_string(),
+                trait_bounds: vec![],
+            }],
+            prophecies: vec![],
+        };
+
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Bool);
+        let inst = TypeInstantiation::new(subs, "::<bool>".to_string());
+
+        let result = substitute_generics(&func, &inst);
+
+        assert_eq!(result.name, "with_call::<bool>");
+        assert_eq!(result.params[0].ty, Ty::Bool);
+        assert_eq!(result.basic_blocks.len(), 3);
+
+        // Verify Call terminator
+        if let Terminator::Call {
+            func: f, target, ..
+        } = &result.basic_blocks[0].terminator
+        {
+            assert_eq!(f, "helper");
+            assert_eq!(*target, 1);
+        } else {
+            panic!("Expected Call terminator");
+        }
+
+        // Verify Assert terminator
+        if let Terminator::Assert {
+            expected, target, ..
+        } = &result.basic_blocks[1].terminator
+        {
+            assert!(*expected);
+            assert_eq!(*target, 2);
+        } else {
+            panic!("Expected Assert terminator");
+        }
+
+        // Verify Unreachable terminator
+        assert!(matches!(
+            result.basic_blocks[2].terminator,
+            Terminator::Unreachable
+        ));
+    }
+
+    #[test]
+    fn test_substitute_generics_with_switch_int() {
+        use crate::ir::Operand;
+        let func = Function {
+            name: "switcher".to_string(),
+            params: vec![Local::new("_1", Ty::Generic("T".to_string()))],
+            return_local: Local::new("_0", Ty::Generic("T".to_string())),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(crate::ir::Place::local("_1")),
+                    targets: vec![(0, 1), (1, 2)],
+                    otherwise: 3,
+                },
+            }],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![GenericParam {
+                name: "T".to_string(),
+                trait_bounds: vec![],
+            }],
+            prophecies: vec![],
+        };
+
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let inst = TypeInstantiation::new(subs, "::<i32>".to_string());
+
+        let result = substitute_generics(&func, &inst);
+
+        if let Terminator::SwitchInt {
+            targets, otherwise, ..
+        } = &result.basic_blocks[0].terminator
+        {
+            assert_eq!(targets.len(), 2);
+            assert_eq!(*otherwise, 3);
+        } else {
+            panic!("Expected SwitchInt");
+        }
+    }
+
+    // ====== substitute_rvalue with basic blocks: rvalue variants ======
+
+    #[test]
+    fn test_substitute_basic_block_with_checked_binary_op() {
+        use crate::ir::{BinOp, Operand};
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let bb = BasicBlock {
+            statements: vec![Statement::Assign(
+                crate::ir::Place::local("_3"),
+                Rvalue::CheckedBinaryOp(
+                    BinOp::Add,
+                    Operand::Copy(crate::ir::Place::local("_1")),
+                    Operand::Copy(crate::ir::Place::local("_2")),
+                ),
+            )],
+            terminator: Terminator::Return,
+        };
+        let result = substitute_basic_block(&bb, &subs);
+        assert_eq!(result.statements.len(), 1);
+        if let Statement::Assign(_, Rvalue::CheckedBinaryOp(op, _, _)) = &result.statements[0] {
+            assert_eq!(*op, BinOp::Add);
+        } else {
+            panic!("Expected CheckedBinaryOp");
+        }
+    }
+
+    #[test]
+    fn test_substitute_basic_block_with_cast() {
+        use crate::ir::Operand;
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I64));
+        let bb = BasicBlock {
+            statements: vec![Statement::Assign(
+                crate::ir::Place::local("_2"),
+                Rvalue::Cast(
+                    crate::ir::CastKind::IntToInt,
+                    Operand::Copy(crate::ir::Place::local("_1")),
+                    Ty::Generic("T".to_string()),
+                ),
+            )],
+            terminator: Terminator::Return,
+        };
+        let result = substitute_basic_block(&bb, &subs);
+        if let Statement::Assign(_, Rvalue::Cast(_, _, ty)) = &result.statements[0] {
+            assert_eq!(*ty, Ty::Int(IntTy::I64));
+        } else {
+            panic!("Expected Cast with substituted type");
+        }
+    }
+
+    #[test]
+    fn test_substitute_basic_block_with_ref_and_aggregate() {
+        use crate::ir::{AggregateKind, Operand};
+        let subs = HashMap::new();
+        let bb = BasicBlock {
+            statements: vec![
+                Statement::Assign(
+                    crate::ir::Place::local("_2"),
+                    Rvalue::Ref(
+                        crate::ir::Mutability::Mutable,
+                        crate::ir::Place::local("_1"),
+                    ),
+                ),
+                Statement::Assign(
+                    crate::ir::Place::local("_3"),
+                    Rvalue::Aggregate(
+                        AggregateKind::Tuple,
+                        vec![Operand::Copy(crate::ir::Place::local("_1"))],
+                    ),
+                ),
+                Statement::Assign(
+                    crate::ir::Place::local("_4"),
+                    Rvalue::Len(crate::ir::Place::local("_1")),
+                ),
+                Statement::Assign(
+                    crate::ir::Place::local("_5"),
+                    Rvalue::Discriminant(crate::ir::Place::local("_1")),
+                ),
+            ],
+            terminator: Terminator::Return,
+        };
+        let result = substitute_basic_block(&bb, &subs);
+        assert_eq!(result.statements.len(), 4);
+        assert!(matches!(
+            &result.statements[0],
+            Statement::Assign(_, Rvalue::Ref(crate::ir::Mutability::Mutable, _))
+        ));
+        assert!(matches!(
+            &result.statements[1],
+            Statement::Assign(_, Rvalue::Aggregate(AggregateKind::Tuple, _))
+        ));
+        assert!(matches!(
+            &result.statements[2],
+            Statement::Assign(_, Rvalue::Len(_))
+        ));
+        assert!(matches!(
+            &result.statements[3],
+            Statement::Assign(_, Rvalue::Discriminant(_))
+        ));
+    }
+
+    // ====== trait_bound_constraints: unsigned and unknown bounds ======
+
+    #[test]
+    fn test_trait_bound_constraints_unsigned() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["PartialOrd".to_string()],
+        };
+        let constraints = trait_bound_constraints(&generic, &Ty::Uint(UintTy::U32));
+        assert_eq!(constraints.len(), 1);
+        assert!(constraints[0].contains("comparison operators"));
+        assert!(constraints[0].contains("unsigned"));
+    }
+
+    #[test]
+    fn test_trait_bound_constraints_copy() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Copy".to_string()],
+        };
+        let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
+        assert_eq!(constraints.len(), 1);
+        assert!(constraints[0].contains("Copy"));
+        assert!(constraints[0].contains("semantics"));
+    }
+
+    #[test]
+    fn test_trait_bound_constraints_unknown_trait() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Display".to_string()],
+        };
+        let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
+        assert_eq!(constraints.len(), 1);
+        assert!(constraints[0].contains("implements"));
+        assert!(constraints[0].contains("Display"));
+    }
+
+    #[test]
+    fn test_trait_bound_constraints_ord_non_integer() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        };
+        // Non-integer type: Ord won't produce a constraint
+        let constraints = trait_bound_constraints(&generic, &Ty::Bool);
+        assert!(constraints.is_empty());
+    }
+
+    #[test]
+    fn test_trait_bound_constraints_empty_bounds() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec![],
+        };
+        let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
+        assert!(constraints.is_empty());
+    }
+
+    #[test]
+    fn test_trait_bound_constraints_multiple_unknown() {
+        let generic = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec![
+                "Serialize".to_string(),
+                "Deserialize".to_string(),
+                "Clone".to_string(),
+            ],
+        };
+        let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
+        assert_eq!(constraints.len(), 3);
+        assert!(constraints[0].contains("implements"));
+        assert!(constraints[0].contains("Serialize"));
+        assert!(constraints[1].contains("implements"));
+        assert!(constraints[1].contains("Deserialize"));
+        assert!(constraints[2].contains("Clone"));
+        assert!(constraints[2].contains("semantics"));
+    }
+
+    // ====== substitute_generics preserves ghost locals ======
+
+    #[test]
+    fn test_substitute_generics_preserves_ghost_flag() {
+        let func = Function {
+            name: "ghosted".to_string(),
+            params: vec![Local {
+                name: "_1".to_string(),
+                ty: Ty::Generic("T".to_string()),
+                is_ghost: true,
+            }],
+            return_local: Local::new("_0", Ty::Generic("T".to_string())),
+            locals: vec![Local {
+                name: "_2".to_string(),
+                ty: Ty::Generic("T".to_string()),
+                is_ghost: true,
+            }],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![GenericParam {
+                name: "T".to_string(),
+                trait_bounds: vec![],
+            }],
+            prophecies: vec![],
+        };
+
+        let mut subs = HashMap::new();
+        subs.insert("T".to_string(), Ty::Int(IntTy::I32));
+        let inst = TypeInstantiation::new(subs, "::<i32>".to_string());
+
+        let result = substitute_generics(&func, &inst);
+
+        assert!(result.params[0].is_ghost);
+        assert!(result.locals[0].is_ghost);
+        assert!(!result.return_local.is_ghost);
+    }
 }

@@ -3068,4 +3068,2137 @@ mod tests {
             script_str,
         );
     }
+
+    // === substitute_term tests ===
+    // These cover the many uncovered branches in substitute_term (lines 1164-1280)
+
+    fn make_subs() -> HashMap<String, Term> {
+        let mut subs = HashMap::new();
+        subs.insert("x".to_string(), Term::Const("y".to_string()));
+        subs
+    }
+
+    #[test]
+    fn substitute_term_not() {
+        let subs = make_subs();
+        let term = Term::Not(Box::new(Term::Const("x".to_string())));
+        let result = substitute_term(&term, &subs);
+        assert_eq!(result, Term::Not(Box::new(Term::Const("y".to_string()))));
+    }
+
+    #[test]
+    fn substitute_term_and() {
+        let subs = make_subs();
+        let term = Term::And(vec![
+            Term::Const("x".to_string()),
+            Term::Const("z".to_string()),
+        ]);
+        let result = substitute_term(&term, &subs);
+        assert_eq!(
+            result,
+            Term::And(vec![
+                Term::Const("y".to_string()),
+                Term::Const("z".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn substitute_term_or() {
+        let subs = make_subs();
+        let term = Term::Or(vec![Term::Const("x".to_string()), Term::BoolLit(true)]);
+        let result = substitute_term(&term, &subs);
+        assert_eq!(
+            result,
+            Term::Or(vec![Term::Const("y".to_string()), Term::BoolLit(true)])
+        );
+    }
+
+    #[test]
+    fn substitute_term_implies() {
+        let subs = make_subs();
+        let term = Term::Implies(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("x".to_string())),
+        );
+        let result = substitute_term(&term, &subs);
+        assert_eq!(
+            result,
+            Term::Implies(
+                Box::new(Term::Const("y".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )
+        );
+    }
+
+    #[test]
+    fn substitute_term_bv_signed_comparisons() {
+        let subs = make_subs();
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(0, 32));
+        let y = || Box::new(Term::Const("y".to_string()));
+
+        // BvSLe
+        let result = substitute_term(&Term::BvSLe(x(), z()), &subs);
+        assert_eq!(result, Term::BvSLe(y(), z()));
+
+        // BvSLt
+        let result = substitute_term(&Term::BvSLt(x(), z()), &subs);
+        assert_eq!(result, Term::BvSLt(y(), z()));
+
+        // BvSGe
+        let result = substitute_term(&Term::BvSGe(x(), z()), &subs);
+        assert_eq!(result, Term::BvSGe(y(), z()));
+
+        // BvSGt
+        let result = substitute_term(&Term::BvSGt(x(), z()), &subs);
+        assert_eq!(result, Term::BvSGt(y(), z()));
+    }
+
+    #[test]
+    fn substitute_term_bv_unsigned_comparisons() {
+        let subs = make_subs();
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(0, 32));
+        let y = || Box::new(Term::Const("y".to_string()));
+
+        // BvULe
+        let result = substitute_term(&Term::BvULe(x(), z()), &subs);
+        assert_eq!(result, Term::BvULe(y(), z()));
+
+        // BvULt
+        let result = substitute_term(&Term::BvULt(x(), z()), &subs);
+        assert_eq!(result, Term::BvULt(y(), z()));
+
+        // BvUGe
+        let result = substitute_term(&Term::BvUGe(x(), z()), &subs);
+        assert_eq!(result, Term::BvUGe(y(), z()));
+
+        // BvUGt
+        let result = substitute_term(&Term::BvUGt(x(), z()), &subs);
+        assert_eq!(result, Term::BvUGt(y(), z()));
+    }
+
+    #[test]
+    fn substitute_term_bv_arithmetic() {
+        let subs = make_subs();
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(1, 32));
+        let y = || Box::new(Term::Const("y".to_string()));
+
+        assert_eq!(
+            substitute_term(&Term::BvAdd(x(), z()), &subs),
+            Term::BvAdd(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvSub(x(), z()), &subs),
+            Term::BvSub(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvMul(x(), z()), &subs),
+            Term::BvMul(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvSDiv(x(), z()), &subs),
+            Term::BvSDiv(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvUDiv(x(), z()), &subs),
+            Term::BvUDiv(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvSRem(x(), z()), &subs),
+            Term::BvSRem(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvURem(x(), z()), &subs),
+            Term::BvURem(y(), z())
+        );
+    }
+
+    #[test]
+    fn substitute_term_bv_neg() {
+        let subs = make_subs();
+        let result = substitute_term(&Term::BvNeg(Box::new(Term::Const("x".to_string()))), &subs);
+        assert_eq!(result, Term::BvNeg(Box::new(Term::Const("y".to_string()))));
+    }
+
+    #[test]
+    fn substitute_term_bv_bitwise() {
+        let subs = make_subs();
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(0xFF, 32));
+        let y = || Box::new(Term::Const("y".to_string()));
+
+        assert_eq!(
+            substitute_term(&Term::BvAnd(x(), z()), &subs),
+            Term::BvAnd(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvOr(x(), z()), &subs),
+            Term::BvOr(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvXor(x(), z()), &subs),
+            Term::BvXor(y(), z())
+        );
+        assert_eq!(substitute_term(&Term::BvNot(x()), &subs), Term::BvNot(y()));
+    }
+
+    #[test]
+    fn substitute_term_bv_shifts() {
+        let subs = make_subs();
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(2, 32));
+        let y = || Box::new(Term::Const("y".to_string()));
+
+        assert_eq!(
+            substitute_term(&Term::BvShl(x(), z()), &subs),
+            Term::BvShl(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvLShr(x(), z()), &subs),
+            Term::BvLShr(y(), z())
+        );
+        assert_eq!(
+            substitute_term(&Term::BvAShr(x(), z()), &subs),
+            Term::BvAShr(y(), z())
+        );
+    }
+
+    #[test]
+    fn substitute_term_ite() {
+        let subs = make_subs();
+        let term = Term::Ite(
+            Box::new(Term::BoolLit(true)),
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::BitVecLit(0, 32)),
+        );
+        let result = substitute_term(&term, &subs);
+        assert_eq!(
+            result,
+            Term::Ite(
+                Box::new(Term::BoolLit(true)),
+                Box::new(Term::Const("y".to_string())),
+                Box::new(Term::BitVecLit(0, 32)),
+            )
+        );
+    }
+
+    #[test]
+    fn substitute_term_app() {
+        let subs = make_subs();
+        let term = Term::App(
+            "foo".to_string(),
+            vec![Term::Const("x".to_string()), Term::Const("z".to_string())],
+        );
+        let result = substitute_term(&term, &subs);
+        assert_eq!(
+            result,
+            Term::App(
+                "foo".to_string(),
+                vec![Term::Const("y".to_string()), Term::Const("z".to_string()),],
+            )
+        );
+    }
+
+    #[test]
+    fn substitute_term_literal_unchanged() {
+        let subs = make_subs();
+        let term = Term::BitVecLit(42, 32);
+        let result = substitute_term(&term, &subs);
+        assert_eq!(result, Term::BitVecLit(42, 32));
+    }
+
+    #[test]
+    fn substitute_term_no_match_unchanged() {
+        let subs = make_subs();
+        let term = Term::Const("z".to_string());
+        let result = substitute_term(&term, &subs);
+        assert_eq!(result, Term::Const("z".to_string()));
+    }
+
+    // === substitute_next_state tests ===
+    // These cover lines 2262-2321
+
+    #[test]
+    fn substitute_next_state_basic() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+
+        let term = Term::Const("x".to_string());
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(result, Term::Const("x_next".to_string()));
+
+        // Non-modified variable stays the same
+        let term = Term::Const("z".to_string());
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(result, Term::Const("z".to_string()));
+    }
+
+    #[test]
+    fn substitute_next_state_not() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+        let term = Term::Not(Box::new(Term::Const("x".to_string())));
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(
+            result,
+            Term::Not(Box::new(Term::Const("x_next".to_string())))
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_and_or() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+
+        let term = Term::And(vec![Term::Const("x".to_string()), Term::BoolLit(true)]);
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(
+            result,
+            Term::And(vec![Term::Const("x_next".to_string()), Term::BoolLit(true)])
+        );
+
+        let term = Term::Or(vec![Term::Const("x".to_string()), Term::BoolLit(false)]);
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(
+            result,
+            Term::Or(vec![
+                Term::Const("x_next".to_string()),
+                Term::BoolLit(false)
+            ])
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_implies() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+        let term = Term::Implies(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::BoolLit(true)),
+        );
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(
+            result,
+            Term::Implies(
+                Box::new(Term::Const("x_next".to_string())),
+                Box::new(Term::BoolLit(true)),
+            )
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_eq() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+        let term = Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::BitVecLit(0, 32)),
+        );
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(
+            result,
+            Term::Eq(
+                Box::new(Term::Const("x_next".to_string())),
+                Box::new(Term::BitVecLit(0, 32)),
+            )
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_bv_comparisons() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(0, 32));
+        let xn = || Box::new(Term::Const("x_next".to_string()));
+
+        assert_eq!(
+            substitute_next_state(&Term::BvSLe(x(), z()), &vars),
+            Term::BvSLe(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvSLt(x(), z()), &vars),
+            Term::BvSLt(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvSGe(x(), z()), &vars),
+            Term::BvSGe(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvSGt(x(), z()), &vars),
+            Term::BvSGt(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvULe(x(), z()), &vars),
+            Term::BvULe(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvULt(x(), z()), &vars),
+            Term::BvULt(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvUGe(x(), z()), &vars),
+            Term::BvUGe(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvUGt(x(), z()), &vars),
+            Term::BvUGt(xn(), z())
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_bv_arithmetic() {
+        let mut vars = HashSet::new();
+        vars.insert("x".to_string());
+        let x = || Box::new(Term::Const("x".to_string()));
+        let z = || Box::new(Term::BitVecLit(1, 32));
+        let xn = || Box::new(Term::Const("x_next".to_string()));
+
+        assert_eq!(
+            substitute_next_state(&Term::BvAdd(x(), z()), &vars),
+            Term::BvAdd(xn(), z())
+        );
+        assert_eq!(
+            substitute_next_state(&Term::BvSub(x(), z()), &vars),
+            Term::BvSub(xn(), z())
+        );
+    }
+
+    #[test]
+    fn substitute_next_state_literal_unchanged() {
+        let vars = HashSet::new();
+        let term = Term::BitVecLit(42, 32);
+        let result = substitute_next_state(&term, &vars);
+        assert_eq!(result, Term::BitVecLit(42, 32));
+    }
+
+    // === format_assert_description tests ===
+    // These cover lines 1003, 1008-1009, 1011-1012
+
+    #[test]
+    fn format_assert_description_user_assert() {
+        let desc = format_assert_description("foo", 0, &AssertKind::UserAssert);
+        assert!(desc.contains("assertion might fail"));
+        assert!(desc.contains("foo"));
+    }
+
+    #[test]
+    fn format_assert_description_bounds_check() {
+        let desc = format_assert_description(
+            "bar",
+            1,
+            &AssertKind::BoundsCheck {
+                len: Operand::Constant(Constant::Uint(10, UintTy::Usize)),
+                index: Operand::Copy(Place::local("_1")),
+            },
+        );
+        assert!(desc.contains("index out of bounds"));
+    }
+
+    #[test]
+    fn format_assert_description_overflow() {
+        let desc = format_assert_description("baz", 2, &AssertKind::Overflow(BinOp::Add));
+        assert!(desc.contains("overflow"));
+        assert!(desc.contains("Add"));
+    }
+
+    #[test]
+    fn format_assert_description_division_by_zero() {
+        let desc = format_assert_description("div_fn", 3, &AssertKind::DivisionByZero);
+        assert!(desc.contains("division by zero"));
+    }
+
+    #[test]
+    fn format_assert_description_remainder_by_zero() {
+        let desc = format_assert_description("rem_fn", 4, &AssertKind::RemainderByZero);
+        assert!(desc.contains("remainder by zero"));
+    }
+
+    #[test]
+    fn format_assert_description_negation_overflow() {
+        let desc = format_assert_description("neg_fn", 5, &AssertKind::NegationOverflow);
+        assert!(desc.contains("negation overflow"));
+    }
+
+    #[test]
+    fn format_assert_description_unwrap_none() {
+        let desc = format_assert_description("unwrap_fn", 6, &AssertKind::UnwrapNone);
+        assert!(desc.contains("unwrap()"));
+        assert!(desc.contains("None"));
+    }
+
+    #[test]
+    fn format_assert_description_expect_failed() {
+        let desc = format_assert_description(
+            "expect_fn",
+            7,
+            &AssertKind::ExpectFailed("value must exist".to_string()),
+        );
+        assert!(desc.contains("expect()"));
+        assert!(desc.contains("value must exist"));
+    }
+
+    #[test]
+    fn format_assert_description_other() {
+        let desc =
+            format_assert_description("other_fn", 8, &AssertKind::Other("custom msg".to_string()));
+        assert!(desc.contains("custom msg"));
+    }
+
+    // === VcKind::from_overflow_op tests ===
+
+    #[test]
+    fn vc_kind_from_overflow_op() {
+        assert_eq!(VcKind::from_overflow_op(BinOp::Add), VcKind::Overflow);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Sub), VcKind::Overflow);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Mul), VcKind::Overflow);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Div), VcKind::DivisionByZero);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Rem), VcKind::DivisionByZero);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Shl), VcKind::ShiftBounds);
+        assert_eq!(VcKind::from_overflow_op(BinOp::Shr), VcKind::ShiftBounds);
+    }
+
+    // === enumerate_paths tests ===
+    // Cover lines 376-380 (empty basic_blocks), 397-401 (unreachable), 461-462 (out of bounds),
+    // 609 (Unreachable terminator)
+
+    #[test]
+    fn enumerate_paths_empty_function() {
+        let func = Function {
+            name: "empty".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![], // No blocks
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].condition.is_none());
+        assert!(paths[0].assignments.is_empty());
+    }
+
+    #[test]
+    fn enumerate_paths_unreachable_terminator() {
+        let func = Function {
+            name: "unreachable_fn".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Unreachable,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        // With only unreachable paths, should fall back to empty path
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].assignments.is_empty());
+    }
+
+    #[test]
+    fn enumerate_paths_with_call() {
+        let func = Function {
+            name: "caller".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "callee".to_string(),
+                        args: vec![Operand::Copy(Place::local("_1"))],
+                        destination: Place::local("_0"),
+                        target: 1,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].call_sites.len(), 1);
+        assert_eq!(paths[0].call_sites[0].callee_name, "callee");
+    }
+
+    #[test]
+    fn enumerate_paths_with_assert_terminator() {
+        let func = Function {
+            name: "assert_fn".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![Local::new("_1", Ty::Bool)],
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Assert {
+                        cond: Operand::Copy(Place::local("_1")),
+                        expected: true,
+                        target: 1,
+                        kind: AssertKind::UserAssert,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        assert_eq!(paths.len(), 1);
+    }
+
+    // === uses_spec_int_types tests ===
+    // Cover lines 644, 649, 655
+
+    #[test]
+    fn uses_spec_int_types_return() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::SpecInt),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        assert!(uses_spec_int_types(&func));
+    }
+
+    #[test]
+    fn uses_spec_int_types_param() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![Local::new("_1", Ty::SpecNat)],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        assert!(uses_spec_int_types(&func));
+    }
+
+    #[test]
+    fn uses_spec_int_types_local() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![Local::new("_1", Ty::SpecInt)],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        assert!(uses_spec_int_types(&func));
+    }
+
+    #[test]
+    fn uses_spec_int_types_none() {
+        let func = make_add_function();
+        assert!(!uses_spec_int_types(&func));
+    }
+
+    // === encode_assignment tests ===
+    // Cover lines 718-723 (projected LHS), 744-749 (CheckedBinaryOp),
+    // 756-758 (Ref), 760-762 (Len), 764-766 (Cast), 776-778 (Discriminant)
+
+    #[test]
+    fn encode_assignment_use() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::Use(Operand::Copy(Place::local("_1"))),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn encode_assignment_ref() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::Ref(Mutability::Shared, Place::local("_1")),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn encode_assignment_len_returns_none() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::Len(Place::local("_1")),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_assignment_cast() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::Cast(
+                CastKind::IntToInt,
+                Operand::Copy(Place::local("_1")),
+                Ty::Int(IntTy::I64),
+            ),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn encode_assignment_discriminant_returns_none() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::Discriminant(Place::local("_1")),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_assignment_checked_binary_op() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::CheckedBinaryOp(
+                BinOp::Add,
+                Operand::Copy(Place::local("_1")),
+                Operand::Copy(Place::local("_2")),
+            ),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn encode_assignment_unary_op() {
+        let func = Function {
+            name: "neg".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("_0"),
+            &Rvalue::UnaryOp(UnOp::Neg, Operand::Copy(Place::local("_1"))),
+            &func,
+            &mut ssa,
+        );
+        assert!(result.is_some());
+    }
+
+    // === find_local_type tests ===
+    // Cover line 2361 (locals path)
+
+    #[test]
+    fn find_local_type_in_locals() {
+        let func = make_max_function();
+        // _3 is in locals
+        let ty = find_local_type(&func, "_3");
+        assert!(ty.is_some());
+        assert_eq!(*ty.unwrap(), Ty::Bool);
+    }
+
+    #[test]
+    fn find_local_type_return() {
+        let func = make_add_function();
+        let ty = find_local_type(&func, "_0");
+        assert!(ty.is_some());
+        assert_eq!(*ty.unwrap(), Ty::Int(IntTy::I32));
+    }
+
+    #[test]
+    fn find_local_type_param() {
+        let func = make_add_function();
+        let ty = find_local_type(&func, "_1");
+        assert!(ty.is_some());
+    }
+
+    #[test]
+    fn find_local_type_not_found() {
+        let func = make_add_function();
+        let ty = find_local_type(&func, "nonexistent");
+        assert!(ty.is_none());
+    }
+
+    // === infer_operand_type tests ===
+    // Cover lines 2368-2372
+
+    #[test]
+    fn infer_operand_type_from_place() {
+        let func = make_add_function();
+        let ty = infer_operand_type(&func, &Operand::Copy(Place::local("_1")));
+        assert!(ty.is_some());
+    }
+
+    #[test]
+    fn infer_operand_type_constant_bool() {
+        let func = make_add_function();
+        let ty = infer_operand_type(&func, &Operand::Constant(Constant::Bool(true)));
+        assert!(ty.is_none());
+    }
+
+    #[test]
+    fn infer_operand_type_constant_int() {
+        let func = make_add_function();
+        let ty = infer_operand_type(&func, &Operand::Constant(Constant::Int(42, IntTy::I32)));
+        assert!(ty.is_none());
+    }
+
+    #[test]
+    fn infer_operand_type_constant_uint() {
+        let func = make_add_function();
+        let ty = infer_operand_type(&func, &Operand::Constant(Constant::Uint(42, UintTy::U32)));
+        assert!(ty.is_none());
+    }
+
+    #[test]
+    fn infer_operand_type_constant_unit() {
+        let func = make_add_function();
+        let ty = infer_operand_type(&func, &Operand::Constant(Constant::Unit));
+        assert!(ty.is_none());
+    }
+
+    // === parse_simple_spec tests ===
+    // Cover lines 2414-2416 (OR), 2441-2442, 2444-2445 (bool constants), 2449 (single var)
+
+    #[test]
+    fn parse_simple_spec_or() {
+        let func = make_add_function();
+        let term = parse_simple_spec("result >= 0 || result <= 100", &func);
+        assert!(term.is_some());
+        if let Some(Term::Or(parts)) = &term {
+            assert_eq!(parts.len(), 2);
+        } else {
+            panic!("Expected Or term, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_simple_spec_true() {
+        let func = make_add_function();
+        let term = parse_simple_spec("true", &func);
+        assert_eq!(term, Some(Term::BoolLit(true)));
+    }
+
+    #[test]
+    fn parse_simple_spec_false() {
+        let func = make_add_function();
+        let term = parse_simple_spec("false", &func);
+        assert_eq!(term, Some(Term::BoolLit(false)));
+    }
+
+    #[test]
+    fn parse_simple_spec_single_variable() {
+        let func = make_max_function();
+        // _3 is a Bool local
+        let term = parse_simple_spec("_3", &func);
+        assert!(term.is_some());
+        assert_eq!(term.unwrap(), Term::Const("_3".to_string()));
+    }
+
+    #[test]
+    fn parse_simple_spec_not_equal() {
+        let func = make_add_function();
+        let term = parse_simple_spec("result != 0", &func);
+        assert!(term.is_some());
+        if let Some(Term::Not(inner)) = &term {
+            assert!(matches!(**inner, Term::Eq(_, _)));
+        } else {
+            panic!("Expected Not(Eq(...)), got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_simple_spec_gt_not_confused_with_ge() {
+        let func = make_add_function();
+        // ">" should not match ">="
+        let term = parse_simple_spec("result > 0", &func);
+        assert!(term.is_some());
+    }
+
+    #[test]
+    fn parse_simple_spec_lt_not_confused_with_le() {
+        let func = make_add_function();
+        let term = parse_simple_spec("result < 100", &func);
+        assert!(term.is_some());
+    }
+
+    // === parse_spec_operand tests ===
+    // Cover lines 2601-2616 (struct/tuple field access), 2635-2643 (subtraction)
+
+    #[test]
+    fn parse_spec_operand_result_struct_field() {
+        let func = Function {
+            name: "struct_fn".to_string(),
+            return_local: Local {
+                name: "_0".to_string(),
+                ty: Ty::Struct(
+                    "Point".to_string(),
+                    vec![
+                        ("x".to_string(), Ty::Int(IntTy::I32)),
+                        ("y".to_string(), Ty::Int(IntTy::I32)),
+                    ],
+                ),
+                is_ghost: false,
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let term = parse_spec_operand("result.x", &func);
+        assert!(term.is_some());
+        if let Some(Term::App(name, args)) = &term {
+            assert_eq!(name, "Point-x");
+            assert_eq!(args.len(), 1);
+        } else {
+            panic!("Expected App term for struct field, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_spec_operand_result_tuple_field() {
+        let func = Function {
+            name: "tuple_fn".to_string(),
+            return_local: Local {
+                name: "_0".to_string(),
+                ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]),
+                is_ghost: false,
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let term = parse_spec_operand("result.0", &func);
+        assert!(term.is_some());
+        if let Some(Term::App(name, args)) = &term {
+            assert_eq!(name, "Tuple2-_0");
+            assert_eq!(args.len(), 1);
+        } else {
+            panic!("Expected App term for tuple field, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_spec_operand_result_tuple_field_with_underscore() {
+        let func = Function {
+            name: "tuple_fn".to_string(),
+            return_local: Local {
+                name: "_0".to_string(),
+                ty: Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]),
+                is_ghost: false,
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        // Test with _1 style index
+        let term = parse_spec_operand("result._1", &func);
+        assert!(term.is_some());
+        if let Some(Term::App(name, _)) = &term {
+            assert_eq!(name, "Tuple2-_1");
+        } else {
+            panic!("Expected App term for tuple field, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_spec_operand_integer_literal() {
+        let func = make_add_function();
+        let term = parse_spec_operand("42", &func);
+        assert_eq!(term, Some(Term::BitVecLit(42, 32)));
+    }
+
+    #[test]
+    fn parse_spec_operand_addition() {
+        let func = make_add_function();
+        let term = parse_spec_operand("_1 + 1", &func);
+        assert!(term.is_some());
+        if let Some(Term::BvAdd(_, _)) = &term {
+            // OK
+        } else {
+            panic!("Expected BvAdd term, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_spec_operand_subtraction() {
+        let func = make_add_function();
+        let term = parse_spec_operand("_1 - 1", &func);
+        assert!(term.is_some());
+        if let Some(Term::BvSub(_, _)) = &term {
+            // OK
+        } else {
+            panic!("Expected BvSub term, got: {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_spec_operand_unknown_returns_none() {
+        let func = make_add_function();
+        let term = parse_spec_operand("unknown_var", &func);
+        assert!(term.is_none());
+    }
+
+    // === make_comparison tests ===
+    // Cover lines 2569-2575
+
+    fn make_unsigned_function() -> Function {
+        Function {
+            name: "unsigned_fn".to_string(),
+            return_local: Local::new("_0", Ty::Uint(UintTy::U32)),
+            params: vec![Local::new("_1", Ty::Uint(UintTy::U32))],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        }
+    }
+
+    #[test]
+    fn make_comparison_signed_lt() {
+        let func = make_add_function();
+        let result = make_comparison(
+            BinOp::Lt,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvSLt(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_unsigned_lt() {
+        let func = make_unsigned_function();
+        let result = make_comparison(
+            BinOp::Lt,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvULt(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_signed_gt() {
+        let func = make_add_function();
+        let result = make_comparison(
+            BinOp::Gt,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvSGt(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_unsigned_gt() {
+        let func = make_unsigned_function();
+        let result = make_comparison(
+            BinOp::Gt,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvUGt(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_signed_le() {
+        let func = make_add_function();
+        let result = make_comparison(
+            BinOp::Le,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvSLe(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_unsigned_le() {
+        let func = make_unsigned_function();
+        let result = make_comparison(
+            BinOp::Le,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvULe(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_signed_ge() {
+        let func = make_add_function();
+        let result = make_comparison(
+            BinOp::Ge,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvSGe(_, _)));
+    }
+
+    #[test]
+    fn make_comparison_unsigned_ge() {
+        let func = make_unsigned_function();
+        let result = make_comparison(
+            BinOp::Ge,
+            Term::Const("_0".to_string()),
+            Term::BitVecLit(0, 32),
+            &func,
+        );
+        assert!(matches!(result, Term::BvUGe(_, _)));
+    }
+
+    // === infer_signedness_from_context / infer_signedness_from_term tests ===
+    // Cover lines 2476-2481, 2498-2504
+
+    #[test]
+    fn infer_signedness_signed_return() {
+        let func = make_add_function(); // i32 return
+        let signed =
+            infer_signedness_from_context(&func, &Term::BitVecLit(0, 32), &Term::BitVecLit(1, 32));
+        assert!(signed);
+    }
+
+    #[test]
+    fn infer_signedness_unsigned_return() {
+        let func = make_unsigned_function(); // u32 return
+        let signed =
+            infer_signedness_from_context(&func, &Term::BitVecLit(0, 32), &Term::BitVecLit(1, 32));
+        assert!(!signed);
+    }
+
+    #[test]
+    fn infer_signedness_from_term_variable() {
+        let func = make_add_function();
+        // _1 is i32, should be signed
+        let signed = infer_signedness_from_term(&func, &Term::Const("_1".to_string()));
+        assert_eq!(signed, Some(true));
+    }
+
+    #[test]
+    fn infer_signedness_from_term_unsigned_variable() {
+        let func = make_unsigned_function();
+        let signed = infer_signedness_from_term(&func, &Term::Const("_1".to_string()));
+        assert_eq!(signed, Some(false));
+    }
+
+    #[test]
+    fn infer_signedness_from_term_unknown_variable() {
+        let func = make_add_function();
+        let signed = infer_signedness_from_term(&func, &Term::Const("unknown".to_string()));
+        assert_eq!(signed, None);
+    }
+
+    #[test]
+    fn infer_signedness_from_term_selector() {
+        // Create a function with a struct return type
+        let func = Function {
+            name: "selector_fn".to_string(),
+            return_local: Local {
+                name: "_0".to_string(),
+                ty: Ty::Struct(
+                    "Pair".to_string(),
+                    vec![
+                        ("x".to_string(), Ty::Int(IntTy::I32)),
+                        ("y".to_string(), Ty::Uint(UintTy::U32)),
+                    ],
+                ),
+                is_ghost: false,
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        // Selector "Pair-x" should resolve to i32 (signed)
+        let signed = infer_signedness_from_term(
+            &func,
+            &Term::App("Pair-x".to_string(), vec![Term::Const("_0".to_string())]),
+        );
+        assert_eq!(signed, Some(true));
+
+        // Selector "Pair-y" should resolve to u32 (unsigned)
+        let signed = infer_signedness_from_term(
+            &func,
+            &Term::App("Pair-y".to_string(), vec![Term::Const("_0".to_string())]),
+        );
+        assert_eq!(signed, Some(false));
+    }
+
+    // === resolve_selector_from_ty tests ===
+    // Cover lines 2543-2555 (Tuple path)
+
+    #[test]
+    fn resolve_selector_from_ty_struct() {
+        let ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let result = resolve_selector_from_ty(&ty, "Point-x");
+        assert_eq!(result, Some(&Ty::Int(IntTy::I32)));
+
+        let result = resolve_selector_from_ty(&ty, "Point-z");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn resolve_selector_from_ty_tuple() {
+        let ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        let result = resolve_selector_from_ty(&ty, "Tuple2-_0");
+        assert_eq!(result, Some(&Ty::Int(IntTy::I32)));
+
+        let result = resolve_selector_from_ty(&ty, "Tuple2-_1");
+        assert_eq!(result, Some(&Ty::Bool));
+
+        // Out of range
+        let result = resolve_selector_from_ty(&ty, "Tuple2-_5");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn resolve_selector_from_ty_other() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = resolve_selector_from_ty(&ty, "anything");
+        assert!(result.is_none());
+    }
+
+    // === resolve_selector_type tests ===
+    // Cover lines 2516-2527
+
+    #[test]
+    fn resolve_selector_type_in_params() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![Local {
+                name: "_1".to_string(),
+                ty: Ty::Struct("Foo".to_string(), vec![("bar".to_string(), Ty::Bool)]),
+                is_ghost: false,
+            }],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        let result = resolve_selector_type(&func, "Foo-bar");
+        assert_eq!(result, Some(&Ty::Bool));
+    }
+
+    #[test]
+    fn resolve_selector_type_in_locals() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![Local {
+                name: "_1".to_string(),
+                ty: Ty::Struct(
+                    "Baz".to_string(),
+                    vec![("qux".to_string(), Ty::Int(IntTy::I64))],
+                ),
+                is_ghost: false,
+            }],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        let result = resolve_selector_type(&func, "Baz-qux");
+        assert_eq!(result, Some(&Ty::Int(IntTy::I64)));
+    }
+
+    #[test]
+    fn resolve_selector_type_not_found() {
+        let func = make_add_function();
+        let result = resolve_selector_type(&func, "NoSuchType-field");
+        assert!(result.is_none());
+    }
+
+    // === normalize_callee_name tests ===
+
+    #[test]
+    fn normalize_callee_name_basic() {
+        assert_eq!(normalize_callee_name("add"), "add");
+        assert_eq!(normalize_callee_name("const add"), "add");
+        assert_eq!(normalize_callee_name("const my_module::helper"), "helper");
+        assert_eq!(normalize_callee_name("  const add  "), "add");
+    }
+
+    // === detect_loops tests ===
+    // Cover lines 1662, 1666
+
+    #[test]
+    fn detect_loops_no_loops() {
+        let func = make_add_function();
+        let loops = detect_loops(&func);
+        assert!(loops.is_empty());
+    }
+
+    #[test]
+    fn detect_loops_pre_populated() {
+        let mut func = make_add_function();
+        func.loops = vec![LoopInfo {
+            header_block: 0,
+            back_edge_blocks: vec![1],
+            invariants: vec![],
+        }];
+        let loops = detect_loops(&func);
+        assert_eq!(loops.len(), 1);
+        assert_eq!(loops[0].header_block, 0);
+    }
+
+    #[test]
+    fn detect_loops_simple_loop() {
+        // bb0: goto bb1
+        // bb1: switchInt(_1) -> [1: bb2, otherwise: bb3]
+        // bb2: _2 = _2 + 1; goto bb1 (back-edge)
+        // bb3: return
+        let func = Function {
+            name: "loop_fn".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![],
+            locals: vec![
+                Local::new("_1", Ty::Bool),
+                Local::new("_2", Ty::Int(IntTy::I32)),
+            ],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Goto(1),
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::SwitchInt {
+                        discr: Operand::Copy(Place::local("_1")),
+                        targets: vec![(1, 2)],
+                        otherwise: 3,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_2"),
+                        Rvalue::BinaryOp(
+                            BinOp::Add,
+                            Operand::Copy(Place::local("_2")),
+                            Operand::Constant(Constant::Int(1, IntTy::I32)),
+                        ),
+                    )],
+                    terminator: Terminator::Goto(1), // back-edge to header
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let loops = detect_loops(&func);
+        assert!(!loops.is_empty());
+        assert_eq!(loops[0].header_block, 1);
+    }
+
+    // === extract_loop_condition tests ===
+    // Cover lines 2003, 2026-2043
+
+    #[test]
+    fn extract_loop_condition_out_of_bounds() {
+        let func = make_add_function();
+        let result = extract_loop_condition(&func, 999);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn extract_loop_condition_bool_discr() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![Local::new("_1", Ty::Bool)],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_1")),
+                    targets: vec![(1, 1)],
+                    otherwise: 2,
+                },
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let cond = extract_loop_condition(&func, 0);
+        assert!(cond.is_some());
+        // For bool discriminant, just returns the discriminant term itself
+        assert_eq!(cond.unwrap(), Term::Const("_1".to_string()));
+    }
+
+    #[test]
+    fn extract_loop_condition_int_discr() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_1")),
+                    targets: vec![(42, 1)],
+                    otherwise: 2,
+                },
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let cond = extract_loop_condition(&func, 0);
+        assert!(cond.is_some());
+        if let Some(Term::Eq(l, r)) = &cond {
+            assert_eq!(**l, Term::Const("_1".to_string()));
+            assert_eq!(**r, Term::BitVecLit(42, 32));
+        } else {
+            panic!("Expected Eq term, got: {cond:?}");
+        }
+    }
+
+    #[test]
+    fn extract_loop_condition_non_switch() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let cond = extract_loop_condition(&func, 0);
+        assert!(cond.is_none());
+    }
+
+    #[test]
+    fn extract_loop_condition_constant_discr() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Constant(Constant::Int(1, IntTy::I32)),
+                    targets: vec![],
+                    otherwise: 0,
+                },
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let cond = extract_loop_condition(&func, 0);
+        // Empty targets -> returns discr_term directly
+        assert!(cond.is_some());
+    }
+
+    // === collect_loop_body_assignments / collect_post_loop_assignments / collect_body_only_assignments tests ===
+    // Cover lines 2098, 2107-2108, 2157-2159, 2172, 2178, 2198, 2214, 2230, 2236-2237
+
+    fn make_loop_function() -> Function {
+        // bb0: _1 = 0; goto bb1  (pre-loop)
+        // bb1: switchInt(_2) -> [1: bb2, otherwise: bb3]  (header)
+        // bb2: _1 = _1 + 1; goto bb1 (body, back-edge)
+        // bb3: _0 = _1; return (exit)
+        Function {
+            name: "loop_fn".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![],
+            locals: vec![
+                Local::new("_1", Ty::Int(IntTy::I32)),
+                Local::new("_2", Ty::Bool),
+            ],
+            basic_blocks: vec![
+                // bb0: pre-loop
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_1"),
+                        Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                    )],
+                    terminator: Terminator::Goto(1),
+                },
+                // bb1: loop header
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::SwitchInt {
+                        discr: Operand::Copy(Place::local("_2")),
+                        targets: vec![(1, 2)],
+                        otherwise: 3,
+                    },
+                },
+                // bb2: loop body
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_1"),
+                        Rvalue::BinaryOp(
+                            BinOp::Add,
+                            Operand::Copy(Place::local("_1")),
+                            Operand::Constant(Constant::Int(1, IntTy::I32)),
+                        ),
+                    )],
+                    terminator: Terminator::Goto(1), // back-edge
+                },
+                // bb3: post-loop
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                    )],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        }
+    }
+
+    #[test]
+    fn collect_loop_body_assignments_basic() {
+        let func = make_loop_function();
+        let assignments = collect_loop_body_assignments(&func, 1, &[2]);
+        // Should include header statements + body block statements
+        assert!(!assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_loop_body_assignments_out_of_bounds() {
+        let func = make_loop_function();
+        let assignments = collect_loop_body_assignments(&func, 999, &[]);
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_post_loop_assignments_basic() {
+        let func = make_loop_function();
+        let assignments = collect_post_loop_assignments(&func, 1, &None);
+        // Should include bb3's assignment (_0 = _1)
+        assert!(!assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_post_loop_assignments_out_of_bounds() {
+        let func = make_loop_function();
+        let assignments = collect_post_loop_assignments(&func, 999, &None);
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_post_loop_assignments_non_switch_header() {
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        let assignments = collect_post_loop_assignments(&func, 0, &None);
+        // No SwitchInt -> no exit_block -> empty
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_body_only_assignments_basic() {
+        let func = make_loop_function();
+        let assignments = collect_body_only_assignments(&func, 1, &[2]);
+        // Should include only body assignments (not header statements)
+        assert!(!assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_body_only_assignments_out_of_bounds() {
+        let func = make_loop_function();
+        let assignments = collect_body_only_assignments(&func, 999, &[]);
+        assert!(assignments.is_empty());
+    }
+
+    #[test]
+    fn collect_body_only_assignments_goto_header() {
+        // When header has Goto terminator instead of SwitchInt
+        let func = Function {
+            name: "f".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            basic_blocks: vec![
+                // bb0: header with Goto
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Goto(1),
+                },
+                // bb1: body
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_1"),
+                        Rvalue::Use(Operand::Constant(Constant::Int(1, IntTy::I32))),
+                    )],
+                    terminator: Terminator::Goto(0), // back-edge
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+        let assignments = collect_body_only_assignments(&func, 0, &[1]);
+        assert!(!assignments.is_empty());
+    }
+
+    // === terminator_successors tests ===
+
+    #[test]
+    fn terminator_successors_return() {
+        let succs = terminator_successors(&Terminator::Return);
+        assert!(succs.is_empty());
+    }
+
+    #[test]
+    fn terminator_successors_unreachable() {
+        let succs = terminator_successors(&Terminator::Unreachable);
+        assert!(succs.is_empty());
+    }
+
+    #[test]
+    fn terminator_successors_goto() {
+        let succs = terminator_successors(&Terminator::Goto(5));
+        assert_eq!(succs, vec![5]);
+    }
+
+    #[test]
+    fn terminator_successors_switch() {
+        let succs = terminator_successors(&Terminator::SwitchInt {
+            discr: Operand::Copy(Place::local("_1")),
+            targets: vec![(1, 2), (2, 3)],
+            otherwise: 4,
+        });
+        assert_eq!(succs, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn terminator_successors_assert() {
+        let succs = terminator_successors(&Terminator::Assert {
+            cond: Operand::Copy(Place::local("_1")),
+            expected: true,
+            target: 7,
+            kind: AssertKind::UserAssert,
+        });
+        assert_eq!(succs, vec![7]);
+    }
+
+    #[test]
+    fn terminator_successors_call() {
+        let succs = terminator_successors(&Terminator::Call {
+            func: "callee".to_string(),
+            args: vec![],
+            destination: Place::local("_0"),
+            target: 3,
+        });
+        assert_eq!(succs, vec![3]);
+    }
+
+    // === encode_operand_for_vcgen tests ===
+
+    #[test]
+    fn encode_operand_for_vcgen_simple_copy() {
+        let func = make_add_function();
+        let result = encode_operand_for_vcgen(&Operand::Copy(Place::local("_1")), &func);
+        assert_eq!(result, Term::Const("_1".to_string()));
+    }
+
+    #[test]
+    fn encode_operand_for_vcgen_constant() {
+        let func = make_add_function();
+        let result =
+            encode_operand_for_vcgen(&Operand::Constant(Constant::Int(42, IntTy::I32)), &func);
+        assert_eq!(result, Term::BitVecLit(42, 32));
+    }
+
+    // === split_at_operator tests ===
+
+    #[test]
+    fn split_logical_and_simple() {
+        let result = split_logical_and("a > 0 && b > 0");
+        assert!(result.is_some());
+        let (l, r) = result.unwrap();
+        assert_eq!(l, "a > 0");
+        assert_eq!(r, "b > 0");
+    }
+
+    #[test]
+    fn split_logical_and_nested_parens() {
+        let result = split_logical_and("(a > 0 && b > 0) && c > 0");
+        assert!(result.is_some());
+        let (l, r) = result.unwrap();
+        assert_eq!(l, "(a > 0 && b > 0)");
+        assert_eq!(r, "c > 0");
+    }
+
+    #[test]
+    fn split_logical_or_simple() {
+        let result = split_logical_or("a > 0 || b > 0");
+        assert!(result.is_some());
+        let (l, r) = result.unwrap();
+        assert_eq!(l, "a > 0");
+        assert_eq!(r, "b > 0");
+    }
+
+    #[test]
+    fn split_logical_and_none() {
+        let result = split_logical_and("a > 0");
+        assert!(result.is_none());
+    }
+
+    // === base_script tests ===
+
+    #[test]
+    fn base_script_no_datatypes() {
+        let script = base_script(&[], &[], false);
+        let s = script.to_string();
+        assert!(s.contains("QF_BV"));
+    }
+
+    #[test]
+    fn base_script_with_datatypes() {
+        let script = base_script(&[Command::Comment("datatype".to_string())], &[], false);
+        let s = script.to_string();
+        assert!(s.contains("QF_UFBVDT"));
+    }
+
+    #[test]
+    fn base_script_with_int() {
+        let script = base_script(&[], &[], true);
+        let s = script.to_string();
+        assert!(s.contains("ALL"));
+    }
+
+    // === SwitchInt with non-bool discriminant ===
+    // Covers lines 529, 532-536, 541-544, 552-553
+
+    #[test]
+    fn enumerate_paths_switch_int_non_bool() {
+        // SwitchInt with integer discriminant (not bool)
+        let func = Function {
+            name: "switch_int".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![],
+            locals: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::SwitchInt {
+                        discr: Operand::Copy(Place::local("_1")),
+                        targets: vec![(0, 1), (1, 2)],
+                        otherwise: 3,
+                    },
+                },
+                // bb1: case 0
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Constant(Constant::Int(10, IntTy::I32))),
+                    )],
+                    terminator: Terminator::Return,
+                },
+                // bb2: case 1
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Constant(Constant::Int(20, IntTy::I32))),
+                    )],
+                    terminator: Terminator::Return,
+                },
+                // bb3: otherwise
+                BasicBlock {
+                    statements: vec![Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Constant(Constant::Int(30, IntTy::I32))),
+                    )],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        assert_eq!(paths.len(), 3); // one per target + otherwise
+    }
+
+    #[test]
+    fn enumerate_paths_switch_constant_discr() {
+        // SwitchInt with constant discriminant
+        let func = Function {
+            name: "switch_const".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::SwitchInt {
+                        discr: Operand::Constant(Constant::Int(1, IntTy::I32)),
+                        targets: vec![(1, 1)],
+                        otherwise: 2,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        assert_eq!(paths.len(), 2);
+    }
+
+    #[test]
+    fn enumerate_paths_switch_no_type_info() {
+        // SwitchInt with unknown discriminant type (None from find_local_type)
+        let func = Function {
+            name: "switch_unknown".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![],
+            locals: vec![], // _1 not declared in locals
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::SwitchInt {
+                        discr: Operand::Copy(Place::local("_1")),
+                        targets: vec![(1, 1)],
+                        otherwise: 2,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let paths = enumerate_paths(&func);
+        // Should handle unknown type by defaulting to boolean
+        assert_eq!(paths.len(), 2);
+    }
+
+    // === generate_assert_terminator_vcs test ===
+    // Cover lines 920, 940-943
+
+    #[test]
+    fn generate_assert_vcs_for_assert_terminator() {
+        let func = Function {
+            name: "assert_fn".to_string(),
+            return_local: Local::new("_0", Ty::Unit),
+            params: vec![Local::new("_1", Ty::Bool)],
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Assert {
+                        cond: Operand::Copy(Place::local("_1")),
+                        expected: true,
+                        target: 1,
+                        kind: AssertKind::UserAssert,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let result = generate_vcs(&func, None);
+        assert!(
+            result
+                .conditions
+                .iter()
+                .any(|vc| vc.description.contains("assertion")),
+            "Expected an assertion VC, got: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| &vc.description)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // === PathState tests ===
+
+    #[test]
+    fn path_state_condition_none() {
+        let state = PathState {
+            conditions: vec![],
+            assignments: vec![],
+            overflow_vcs: vec![],
+            call_sites: vec![],
+            visited: HashSet::new(),
+        };
+        assert!(state.path_condition().is_none());
+    }
+
+    #[test]
+    fn path_state_condition_single() {
+        let state = PathState {
+            conditions: vec![Term::BoolLit(true)],
+            assignments: vec![],
+            overflow_vcs: vec![],
+            call_sites: vec![],
+            visited: HashSet::new(),
+        };
+        assert_eq!(state.path_condition(), Some(Term::BoolLit(true)));
+    }
+
+    #[test]
+    fn path_state_condition_multiple() {
+        let state = PathState {
+            conditions: vec![Term::BoolLit(true), Term::BoolLit(false)],
+            assignments: vec![],
+            overflow_vcs: vec![],
+            call_sites: vec![],
+            visited: HashSet::new(),
+        };
+        let cond = state.path_condition();
+        assert!(matches!(cond, Some(Term::And(_))));
+    }
+
+    // === Shift overflow check classification ===
+
+    #[test]
+    fn shift_generates_bounds_check() {
+        let func = Function {
+            name: "shift_fn".to_string(),
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            params: vec![
+                Local::new("_1", Ty::Int(IntTy::I32)),
+                Local::new("_2", Ty::Int(IntTy::I32)),
+            ],
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::BinaryOp(
+                        BinOp::Shl,
+                        Operand::Copy(Place::local("_1")),
+                        Operand::Copy(Place::local("_2")),
+                    ),
+                )],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let result = generate_vcs(&func, None);
+        assert!(
+            result
+                .conditions
+                .iter()
+                .any(|vc| vc.location.vc_kind == VcKind::ShiftBounds),
+            "Expected a shift bounds VC"
+        );
+    }
+
+    // === Loop invariant VCs with user-supplied invariants ===
+    // Cover lines 1726 (empty invariants return early)
+
+    #[test]
+    fn generate_loop_invariant_vcs_empty_invariants() {
+        let func = make_loop_function();
+        let decls = collect_declarations(&func);
+        let dt_decls = collect_datatype_declarations(&func);
+        let loop_info = LoopInfo {
+            header_block: 1,
+            back_edge_blocks: vec![2],
+            invariants: vec![], // No invariants
+        };
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        assert!(vcs.is_empty(), "No VCs when invariants are empty");
+    }
+
+    #[test]
+    fn generate_loop_invariant_vcs_with_invariant() {
+        let mut func = make_loop_function();
+        // VC3 (exit) requires postconditions
+        func.contracts.ensures.push(SpecExpr {
+            raw: "_0 >= 0".to_string(),
+        });
+        let decls = collect_declarations(&func);
+        let dt_decls = collect_datatype_declarations(&func);
+        let loop_info = LoopInfo {
+            header_block: 1,
+            back_edge_blocks: vec![2],
+            invariants: vec![SpecExpr {
+                raw: "_1 >= 0".to_string(),
+            }],
+        };
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        // Should generate 3 VCs: init, preserve, exit
+        assert_eq!(vcs.len(), 3, "Expected 3 loop invariant VCs");
+    }
+
+    // === encode_path_assignments with branch depth ===
+    // Cover lines 808 (else branch of path condition guard)
+
+    #[test]
+    fn encode_path_assignments_no_condition() {
+        let func = make_add_function();
+        let path = CfgPath {
+            condition: None,
+            assignments: vec![PathAssignment {
+                place: Place::local("_0"),
+                rvalue: Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                block_idx: 0,
+                branch_depth: 1, // Even with depth > 0, no condition means no guard
+            }],
+            overflow_vcs: vec![],
+            call_sites: vec![],
+        };
+        let cmds = encode_path_assignments(&func, &path);
+        // Should still produce an assertion (just unguarded since condition is None)
+        assert!(!cmds.is_empty());
+    }
 }

@@ -468,11 +468,244 @@ mod tests {
     }
 
     // --- read_crate_name tests ---
-    // Note: read_crate_name() reads from the current directory's Cargo.toml.
-    // Testing it would require changing directories, which can interfere with
-    // other tests and the test runner. Instead, we verify the parsing logic
-    // indirectly through integration tests or manual testing.
-    // The function is simple enough that visual inspection confirms correctness.
+    // These tests use set_current_dir to a temporary directory. Since changing
+    // the current directory is a process-global operation, a mutex serializes
+    // all tests that rely on it.
+
+    use std::sync::Mutex;
+
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// Helper: run a closure inside a temporary directory, restoring the
+    /// original working directory afterwards. The CWD_MUTEX is held for
+    /// the duration to avoid interference from concurrent tests.
+    fn with_temp_dir<F: FnOnce(&std::path::Path)>(f: F) {
+        let _lock = CWD_MUTEX.lock().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+
+        // Create a unique temp directory
+        let mut tmp = std::env::temp_dir();
+        tmp.push(format!(
+            "rust_fv_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        std::env::set_current_dir(&tmp).unwrap();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(&tmp)));
+
+        // Always restore the original directory and clean up
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        if let Err(panic) = result {
+            std::panic::resume_unwind(panic);
+        }
+    }
+
+    #[test]
+    fn test_read_crate_name_valid_package() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[package]
+name = "my-awesome-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("my-awesome-crate".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_no_cargo_toml() {
+        with_temp_dir(|_tmp| {
+            // No Cargo.toml exists in temp dir
+            assert_eq!(read_crate_name(), None);
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_no_package_section() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[workspace]
+members = ["crates/*"]
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), None);
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_empty_file() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(&cargo_toml, "").unwrap();
+            assert_eq!(read_crate_name(), None);
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_name_in_wrong_section() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[dependencies]
+name = "not-a-crate"
+
+[package]
+version = "0.1.0"
+"#,
+            )
+            .unwrap();
+            // Name is in [dependencies], not [package], so no name found
+            assert_eq!(read_crate_name(), None);
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_with_single_quotes() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                "[package]\nname = 'single-quoted'\nversion = \"0.1.0\"\n",
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("single-quoted".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_with_spaces_around_equals() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                "[package]\nname   =   \"spaced-name\"\nversion = \"0.1.0\"\n",
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("spaced-name".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_with_leading_whitespace_on_lines() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                "[package]\n  name = \"indented-crate\"\n  version = \"0.1.0\"\n",
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("indented-crate".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_package_not_first_section() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[workspace]
+members = ["crates/*"]
+
+[package]
+name = "after-workspace"
+version = "0.1.0"
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("after-workspace".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_name_after_other_fields() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[package]
+version = "0.1.0"
+edition = "2021"
+name = "name-last"
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("name-last".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_multiple_sections_after_package() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[package]
+name = "multi-section"
+version = "0.1.0"
+
+[dependencies]
+serde = "1.0"
+
+[dev-dependencies]
+name = "should-not-match"
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), Some("multi-section".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_no_name_field_in_package() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[package]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), None);
+        });
+    }
+
+    #[test]
+    fn test_read_crate_name_package_section_at_end_without_name() {
+        with_temp_dir(|tmp| {
+            let cargo_toml = tmp.join("Cargo.toml");
+            std::fs::write(
+                &cargo_toml,
+                r#"[dependencies]
+serde = "1.0"
+
+[package]
+version = "0.1.0"
+"#,
+            )
+            .unwrap();
+            assert_eq!(read_crate_name(), None);
+        });
+    }
 
     // --- Additional edge case tests ---
 

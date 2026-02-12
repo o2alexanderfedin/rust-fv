@@ -762,4 +762,1093 @@ mod tests {
         let vars = free_variables(&term);
         assert_eq!(vars.len(), 3);
     }
+
+    // ====== free_variables: Not variant ======
+
+    #[test]
+    fn test_free_variables_not() {
+        let term = Term::Not(Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    // ====== free_variables: binary operation variants (Iff, BvSub, BvMul, etc.) ======
+
+    #[test]
+    fn test_free_variables_iff() {
+        let term = Term::Iff(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+        assert!(vars.contains("a"));
+        assert!(vars.contains("b"));
+    }
+
+    #[test]
+    fn test_free_variables_bv_sub() {
+        let term = Term::BvSub(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+        assert!(vars.contains("x"));
+        assert!(vars.contains("y"));
+    }
+
+    #[test]
+    fn test_free_variables_bv_mul() {
+        let term = Term::BvMul(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_sdiv() {
+        let term = Term::BvSDiv(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_udiv() {
+        let term = Term::BvUDiv(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_srem() {
+        let term = Term::BvSRem(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_urem() {
+        let term = Term::BvURem(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_sle() {
+        let term = Term::BvSLe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_sge() {
+        let term = Term::BvSGe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_ult() {
+        let term = Term::BvULt(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_ule() {
+        let term = Term::BvULe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_ugt() {
+        let term = Term::BvUGt(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_uge() {
+        let term = Term::BvUGe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_and() {
+        let term = Term::BvAnd(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_or() {
+        let term = Term::BvOr(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_xor() {
+        let term = Term::BvXor(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_shl() {
+        let term = Term::BvShl(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_lshr() {
+        let term = Term::BvLShr(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_bv_ashr() {
+        let term = Term::BvAShr(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_concat() {
+        let term = Term::Concat(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_add() {
+        let term = Term::IntAdd(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_sub() {
+        let term = Term::IntSub(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_mul() {
+        let term = Term::IntMul(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_div() {
+        let term = Term::IntDiv(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_mod() {
+        let term = Term::IntMod(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_lt() {
+        let term = Term::IntLt(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_le() {
+        let term = Term::IntLe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_gt() {
+        let term = Term::IntGt(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_int_ge() {
+        let term = Term::IntGe(
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_free_variables_select() {
+        let term = Term::Select(
+            Box::new(Term::Const("arr".to_string())),
+            Box::new(Term::Const("idx".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+        assert!(vars.contains("arr"));
+        assert!(vars.contains("idx"));
+    }
+
+    #[test]
+    fn test_free_variables_store() {
+        let term = Term::Store(
+            Box::new(Term::Const("arr".to_string())),
+            Box::new(Term::Const("idx".to_string())),
+            Box::new(Term::Const("val".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 3);
+        assert!(vars.contains("arr"));
+        assert!(vars.contains("idx"));
+        assert!(vars.contains("val"));
+    }
+
+    // ====== free_variables: unary operation variants ======
+
+    #[test]
+    fn test_free_variables_bv_not() {
+        let term = Term::BvNot(Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_zero_extend() {
+        let term = Term::ZeroExtend(8, Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_sign_extend() {
+        let term = Term::SignExtend(16, Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_extract() {
+        let term = Term::Extract(7, 0, Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_bv2int() {
+        let term = Term::Bv2Int(Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_int2bv() {
+        let term = Term::Int2Bv(32, Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_int_neg() {
+        let term = Term::IntNeg(Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    // ====== free_variables: quantifier variants ======
+
+    #[test]
+    fn test_free_variables_forall() {
+        // forall x. f(x, y) -- y is free
+        let term = Term::Forall(
+            vec![("x".to_string(), Sort::Int)],
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string()), Term::Const("y".to_string())],
+            )),
+        );
+        let vars = free_variables(&term);
+        // Note: collect_free_variables does descend into quantifier bodies,
+        // so both x and y appear as free variables in the raw collection
+        assert!(vars.contains("x"));
+        assert!(vars.contains("y"));
+    }
+
+    #[test]
+    fn test_free_variables_exists() {
+        let term = Term::Exists(
+            vec![("x".to_string(), Sort::Int)],
+            Box::new(Term::App(
+                "g".to_string(),
+                vec![Term::Const("x".to_string()), Term::Const("z".to_string())],
+            )),
+        );
+        let vars = free_variables(&term);
+        assert!(vars.contains("x"));
+        assert!(vars.contains("z"));
+    }
+
+    // ====== collect_trigger_candidates: binary operation variants ======
+
+    #[test]
+    fn test_candidates_from_iff() {
+        let term = Term::Iff(
+            Box::new(Term::App(
+                "p".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::App(
+                "q".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_sub() {
+        let term = Term::BvSub(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(1)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_mul() {
+        let term = Term::BvMul(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_sdiv() {
+        let term = Term::BvSDiv(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_udiv() {
+        let term = Term::BvUDiv(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_srem() {
+        let term = Term::BvSRem(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_urem() {
+        let term = Term::BvURem(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_slt() {
+        let term = Term::BvSLt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_sle() {
+        let term = Term::BvSLe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_sge() {
+        let term = Term::BvSGe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_ult() {
+        let term = Term::BvULt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_ule() {
+        let term = Term::BvULe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_ugt() {
+        let term = Term::BvUGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_uge() {
+        let term = Term::BvUGe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_and() {
+        let term = Term::BvAnd(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_or() {
+        let term = Term::BvOr(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_xor() {
+        let term = Term::BvXor(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_shl() {
+        let term = Term::BvShl(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_lshr() {
+        let term = Term::BvLShr(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_ashr() {
+        let term = Term::BvAShr(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_concat() {
+        let term = Term::Concat(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_add() {
+        let term = Term::IntAdd(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(1)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_sub() {
+        let term = Term::IntSub(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(1)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_mul() {
+        let term = Term::IntMul(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_div() {
+        let term = Term::IntDiv(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_mod() {
+        let term = Term::IntMod(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(2)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_lt() {
+        let term = Term::IntLt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_le() {
+        let term = Term::IntLe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_gt() {
+        let term = Term::IntGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_ge() {
+        let term = Term::IntGe(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_select() {
+        let term = Term::Select(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("idx".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_store() {
+        let term = Term::Store(
+            Box::new(Term::Const("arr".to_string())),
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::Const("val".to_string())),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    // ====== collect_trigger_candidates: unary operation variants ======
+
+    #[test]
+    fn test_candidates_from_bv_neg() {
+        let term = Term::BvNeg(Box::new(Term::App(
+            "f".to_string(),
+            vec![Term::Const("x".to_string())],
+        )));
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv_not() {
+        let term = Term::BvNot(Box::new(Term::App(
+            "f".to_string(),
+            vec![Term::Const("x".to_string())],
+        )));
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_zero_extend() {
+        let term = Term::ZeroExtend(
+            8,
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_sign_extend() {
+        let term = Term::SignExtend(
+            16,
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_extract() {
+        let term = Term::Extract(
+            7,
+            0,
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_bv2int() {
+        let term = Term::Bv2Int(Box::new(Term::App(
+            "f".to_string(),
+            vec![Term::Const("x".to_string())],
+        )));
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int2bv() {
+        let term = Term::Int2Bv(
+            32,
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_int_neg() {
+        let term = Term::IntNeg(Box::new(Term::App(
+            "f".to_string(),
+            vec![Term::Const("x".to_string())],
+        )));
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    // ====== collect_trigger_candidates: nested exists ======
+
+    #[test]
+    fn test_candidates_from_nested_exists() {
+        let term = Term::Exists(
+            vec![("y".to_string(), Sort::Int)],
+            Box::new(Term::App(
+                "h".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+        if let Term::App(name, _) = &candidates[0] {
+            assert_eq!(name, "h");
+        } else {
+            panic!("Expected App candidate from exists body");
+        }
+    }
+
+    // ====== collect_trigger_candidates: Eq and Implies ======
+
+    #[test]
+    fn test_candidates_from_eq() {
+        let term = Term::Eq(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::App(
+                "g".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn test_candidates_from_implies() {
+        let term = Term::Implies(
+            Box::new(Term::App(
+                "p".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::App(
+                "q".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    // ====== collect_trigger_candidates: Distinct and Or ======
+
+    #[test]
+    fn test_candidates_from_distinct() {
+        let term = Term::Distinct(vec![
+            Term::App("f".to_string(), vec![Term::Const("x".to_string())]),
+            Term::App("g".to_string(), vec![Term::Const("y".to_string())]),
+        ]);
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn test_candidates_from_or() {
+        let term = Term::Or(vec![
+            Term::App("f".to_string(), vec![Term::Const("x".to_string())]),
+            Term::Const("y".to_string()),
+        ]);
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    // ====== collect_trigger_candidates: let bindings ======
+
+    #[test]
+    fn test_candidates_from_let_binding_both_sides() {
+        let term = Term::Let(
+            vec![(
+                "tmp".to_string(),
+                Term::App("f".to_string(), vec![Term::Const("x".to_string())]),
+            )],
+            Box::new(Term::App(
+                "g".to_string(),
+                vec![Term::Const("tmp".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2); // f(x) and g(tmp)
+    }
+
+    // ====== annotate_quantifier: multiple bound variables ======
+
+    #[test]
+    fn test_annotate_forall_multiple_bound_vars_with_trigger() {
+        // forall x y. f(x, y) > 0
+        let body = Term::BvSGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string()), Term::Const("y".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let forall_term = Term::Forall(
+            vec![("x".to_string(), Sort::Int), ("y".to_string(), Sort::Int)],
+            Box::new(body),
+        );
+
+        let annotated = annotate_quantifier(forall_term);
+
+        if let Term::Forall(vars, body) = annotated {
+            assert_eq!(vars.len(), 2);
+            assert!(matches!(&*body, Term::Annotated(_, _)));
+        } else {
+            panic!("Expected Forall term");
+        }
+    }
+
+    #[test]
+    fn test_annotate_exists_multiple_bound_vars_no_trigger() {
+        // exists x y. x + y > 0 (no function app covering both)
+        let body = Term::BvSGt(
+            Box::new(Term::BvAdd(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let exists_term = Term::Exists(
+            vec![("x".to_string(), Sort::Int), ("y".to_string(), Sort::Int)],
+            Box::new(body),
+        );
+
+        let annotated = annotate_quantifier(exists_term);
+
+        if let Term::Exists(vars, result_body) = annotated {
+            assert_eq!(vars.len(), 2);
+            assert!(
+                !matches!(&*result_body, Term::Annotated(_, _)),
+                "Body should not be annotated without covering trigger"
+            );
+        } else {
+            panic!("Expected Exists term");
+        }
+    }
 }

@@ -665,4 +665,1135 @@ mod tests {
         let simplified = simplify_term(&term);
         assert_eq!(simplified, Term::BoolLit(true));
     }
+
+    // ====== Or: multiple non-literal terms remain (line 71) ======
+
+    #[test]
+    fn test_or_multiple_non_literal_terms() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Or(vec![x.clone(), y.clone()]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Or(vec![x, y]));
+    }
+
+    #[test]
+    fn test_or_mixed_false_and_multiple_vars() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        // Or(false, x, y) -> Or(x, y) since false is filtered and 2 remain
+        let term = Term::Or(vec![Term::BoolLit(false), x.clone(), y.clone()]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Or(vec![x, y]));
+    }
+
+    // ====== Implies: non-literal fallthrough (line 87) ======
+
+    #[test]
+    fn test_implies_non_literal_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Implies(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Implies(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_implies_false_consequent() {
+        // Implies(x, false) -> Not(x)
+        let x = Term::Const("x".to_string());
+        let term = Term::Implies(Box::new(x.clone()), Box::new(Term::BoolLit(false)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Not(Box::new(x)));
+    }
+
+    // ====== Eq simplification (lines 92-95) ======
+
+    #[test]
+    fn test_eq_simplification_with_literals() {
+        let term = Term::Eq(Box::new(Term::IntLit(5)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Eq(Box::new(Term::IntLit(5)), Box::new(Term::IntLit(5)))
+        );
+    }
+
+    #[test]
+    fn test_eq_simplification_with_vars() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Eq(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Eq(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_eq_simplifies_subterms() {
+        // Eq(BvAdd(x, 0), y) -> Eq(x, y)
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Eq(
+            Box::new(Term::BvAdd(
+                Box::new(x.clone()),
+                Box::new(Term::BitVecLit(0, 32)),
+            )),
+            Box::new(y.clone()),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Eq(Box::new(x), Box::new(y)));
+    }
+
+    // ====== Ite with non-constant condition (lines 106-111) ======
+
+    #[test]
+    fn test_ite_non_constant_condition() {
+        let cond = Term::Const("c".to_string());
+        let t = Term::IntLit(1);
+        let e = Term::IntLit(2);
+        let term = Term::Ite(
+            Box::new(cond.clone()),
+            Box::new(t.clone()),
+            Box::new(e.clone()),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Ite(Box::new(cond), Box::new(t), Box::new(e))
+        );
+    }
+
+    #[test]
+    fn test_ite_non_constant_simplifies_branches() {
+        let cond = Term::Const("c".to_string());
+        let t = Term::BvAdd(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::BitVecLit(0, 32)),
+        );
+        let e = Term::Not(Box::new(Term::Not(Box::new(Term::Const("y".to_string())))));
+        let term = Term::Ite(Box::new(cond.clone()), Box::new(t), Box::new(e));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Ite(
+                Box::new(cond),
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )
+        );
+    }
+
+    // ====== BvAdd with width >= 128 (line 125) ======
+
+    #[test]
+    fn test_bvadd_large_width_128() {
+        let term = Term::BvAdd(
+            Box::new(Term::BitVecLit(10, 128)),
+            Box::new(Term::BitVecLit(20, 128)),
+        );
+        let simplified = simplify_term(&term);
+        // For width 128, mask = i128::MAX
+        let expected = (10i128.wrapping_add(20)) & i128::MAX;
+        assert_eq!(simplified, Term::BitVecLit(expected, 128));
+    }
+
+    #[test]
+    fn test_bvadd_zero_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvAdd(Box::new(Term::BitVecLit(0, 32)), Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    // ====== BvSub large width and non-literal fallthrough (lines 147, 156) ======
+
+    #[test]
+    fn test_bvsub_large_width_128() {
+        let term = Term::BvSub(
+            Box::new(Term::BitVecLit(50, 128)),
+            Box::new(Term::BitVecLit(20, 128)),
+        );
+        let simplified = simplify_term(&term);
+        let expected = (50i128.wrapping_sub(20)) & i128::MAX;
+        assert_eq!(simplified, Term::BitVecLit(expected, 128));
+    }
+
+    #[test]
+    fn test_bvsub_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSub(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSub(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvsub_identity_zero() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvSub(Box::new(x.clone()), Box::new(Term::BitVecLit(0, 32)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    // ====== BvMul large width and non-literal fallthrough (lines 167, 182) ======
+
+    #[test]
+    fn test_bvmul_large_width_128() {
+        let term = Term::BvMul(
+            Box::new(Term::BitVecLit(3, 128)),
+            Box::new(Term::BitVecLit(7, 128)),
+        );
+        let simplified = simplify_term(&term);
+        let expected = (3i128.wrapping_mul(7)) & i128::MAX;
+        assert_eq!(simplified, Term::BitVecLit(expected, 128));
+    }
+
+    #[test]
+    fn test_bvmul_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvMul(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvMul(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvmul_zero_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvMul(Box::new(Term::BitVecLit(0, 32)), Box::new(x));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BitVecLit(0, 32));
+    }
+
+    #[test]
+    fn test_bvmul_one_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvMul(Box::new(Term::BitVecLit(1, 32)), Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    // ====== BvSLt large width and non-literal fallthrough (lines 195, 211) ======
+
+    #[test]
+    fn test_bvslt_large_width_128() {
+        let term = Term::BvSLt(
+            Box::new(Term::BitVecLit(5, 128)),
+            Box::new(Term::BitVecLit(10, 128)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_bvslt_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSLt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSLt(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvslt_false_case() {
+        // 10 is not < 5
+        let term = Term::BvSLt(
+            Box::new(Term::BitVecLit(10, 32)),
+            Box::new(Term::BitVecLit(5, 32)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    // ====== BvULt large width and non-literal fallthrough (lines 221, 229) ======
+
+    #[test]
+    fn test_bvult_large_width_128() {
+        let term = Term::BvULt(
+            Box::new(Term::BitVecLit(3, 128)),
+            Box::new(Term::BitVecLit(100, 128)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_bvult_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvULt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvULt(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvult_false_case() {
+        let term = Term::BvULt(
+            Box::new(Term::BitVecLit(10, 32)),
+            Box::new(Term::BitVecLit(5, 32)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    // ====== Passthrough bitvector operations (lines 234-251) ======
+
+    #[test]
+    fn test_bvsdiv_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSDiv(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSDiv(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvudiv_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvUDiv(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvUDiv(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvsrem_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSRem(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSRem(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvurem_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvURem(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvURem(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvneg_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvNeg(Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvNeg(Box::new(x)));
+    }
+
+    #[test]
+    fn test_bvsle_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSLe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSLe(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvsgt_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSGt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSGt(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvsge_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvSGe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvSGe(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvule_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvULe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvULe(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvugt_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvUGt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvUGt(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvuge_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvUGe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvUGe(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvand_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvAnd(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvAnd(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvor_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvOr(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvOr(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvxor_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvXor(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvXor(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvnot_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvNot(Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvNot(Box::new(x)));
+    }
+
+    #[test]
+    fn test_bvshl_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvShl(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvShl(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvlshr_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvLShr(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvLShr(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bvashr_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::BvAShr(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvAShr(Box::new(x), Box::new(y)));
+    }
+
+    // ====== Bitvector conversion passthroughs (lines 254-259) ======
+
+    #[test]
+    fn test_zero_extend_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::ZeroExtend(16, Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::ZeroExtend(16, Box::new(x)));
+    }
+
+    #[test]
+    fn test_sign_extend_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::SignExtend(16, Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::SignExtend(16, Box::new(x)));
+    }
+
+    #[test]
+    fn test_extract_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::Extract(31, 0, Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Extract(31, 0, Box::new(x)));
+    }
+
+    #[test]
+    fn test_concat_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Concat(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Concat(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_bv2int_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::Bv2Int(Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Bv2Int(Box::new(x)));
+    }
+
+    #[test]
+    fn test_int2bv_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::Int2Bv(32, Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Int2Bv(32, Box::new(x)));
+    }
+
+    // ====== IntAdd non-literal fallthrough (line 269) ======
+
+    #[test]
+    fn test_intadd_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntAdd(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntAdd(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_intadd_zero_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntAdd(Box::new(Term::IntLit(0)), Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    // ====== IntSub identity and fallthrough (lines 277-278) ======
+
+    #[test]
+    fn test_intsub_identity_zero() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntSub(Box::new(x.clone()), Box::new(Term::IntLit(0)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_intsub_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntSub(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntSub(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_intsub_constant_folding() {
+        let term = Term::IntSub(Box::new(Term::IntLit(10)), Box::new(Term::IntLit(3)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(7));
+    }
+
+    // ====== IntMul non-literal fallthrough (line 289) ======
+
+    #[test]
+    fn test_intmul_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntMul(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntMul(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_intmul_zero_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntMul(Box::new(Term::IntLit(0)), Box::new(x));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(0));
+    }
+
+    #[test]
+    fn test_intmul_one_left() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntMul(Box::new(Term::IntLit(1)), Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    // ====== IntDiv and IntMod passthrough (lines 292-293) ======
+
+    #[test]
+    fn test_intdiv_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntDiv(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntDiv(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_intmod_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntMod(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntMod(Box::new(x), Box::new(y)));
+    }
+
+    // ====== IntNeg non-literal fallthrough (line 298) ======
+
+    #[test]
+    fn test_intneg_constant_folding() {
+        let term = Term::IntNeg(Box::new(Term::IntLit(42)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(-42));
+    }
+
+    #[test]
+    fn test_intneg_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntNeg(Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntNeg(Box::new(x)));
+    }
+
+    // ====== IntLt non-literal fallthrough (line 306) ======
+
+    #[test]
+    fn test_intlt_constant_folding_true() {
+        let term = Term::IntLt(Box::new(Term::IntLit(3)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_intlt_constant_folding_false() {
+        let term = Term::IntLt(Box::new(Term::IntLit(5)), Box::new(Term::IntLit(3)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    #[test]
+    fn test_intlt_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntLt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLt(Box::new(x), Box::new(y)));
+    }
+
+    // ====== IntLe non-literal fallthrough (line 314) ======
+
+    #[test]
+    fn test_intle_constant_folding_true() {
+        let term = Term::IntLe(Box::new(Term::IntLit(5)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_intle_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntLe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLe(Box::new(x), Box::new(y)));
+    }
+
+    // ====== IntGt non-literal fallthrough (line 322) ======
+
+    #[test]
+    fn test_intgt_constant_folding_true() {
+        let term = Term::IntGt(Box::new(Term::IntLit(10)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_intgt_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntGt(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntGt(Box::new(x), Box::new(y)));
+    }
+
+    // ====== IntGe non-literal fallthrough (line 330) ======
+
+    #[test]
+    fn test_intge_constant_folding_true() {
+        let term = Term::IntGe(Box::new(Term::IntLit(5)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_intge_constant_folding_false() {
+        let term = Term::IntGe(Box::new(Term::IntLit(3)), Box::new(Term::IntLit(5)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    #[test]
+    fn test_intge_non_literal_fallthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::IntGe(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntGe(Box::new(x), Box::new(y)));
+    }
+
+    // ====== Select (line 335) ======
+
+    #[test]
+    fn test_select_passthrough() {
+        let arr = Term::Const("arr".to_string());
+        let idx = Term::IntLit(0);
+        let term = Term::Select(Box::new(arr.clone()), Box::new(idx.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Select(Box::new(arr), Box::new(idx)));
+    }
+
+    #[test]
+    fn test_select_simplifies_subterms() {
+        let arr = Term::Const("arr".to_string());
+        let idx = Term::IntAdd(Box::new(Term::IntLit(0)), Box::new(Term::IntLit(5)));
+        let term = Term::Select(Box::new(arr.clone()), Box::new(idx));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Select(Box::new(arr), Box::new(Term::IntLit(5)))
+        );
+    }
+
+    // ====== Store (lines 337-339) ======
+
+    #[test]
+    fn test_store_passthrough() {
+        let arr = Term::Const("arr".to_string());
+        let idx = Term::IntLit(0);
+        let val = Term::IntLit(42);
+        let term = Term::Store(
+            Box::new(arr.clone()),
+            Box::new(idx.clone()),
+            Box::new(val.clone()),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Store(Box::new(arr), Box::new(idx), Box::new(val))
+        );
+    }
+
+    #[test]
+    fn test_store_simplifies_subterms() {
+        let arr = Term::Const("arr".to_string());
+        let idx = Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2)));
+        let val = Term::IntMul(Box::new(Term::IntLit(3)), Box::new(Term::IntLit(4)));
+        let term = Term::Store(Box::new(arr.clone()), Box::new(idx), Box::new(val));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Store(
+                Box::new(arr),
+                Box::new(Term::IntLit(3)),
+                Box::new(Term::IntLit(12)),
+            )
+        );
+    }
+
+    // ====== Forall and Exists (lines 344-345) ======
+
+    #[test]
+    fn test_forall_simplifies_body() {
+        use rust_fv_smtlib::sort::Sort;
+        let body = Term::Not(Box::new(Term::Not(Box::new(Term::Const("x".to_string())))));
+        let bindings = vec![("x".to_string(), Sort::Bool)];
+        let term = Term::Forall(bindings.clone(), Box::new(body));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Forall(bindings, Box::new(Term::Const("x".to_string())))
+        );
+    }
+
+    #[test]
+    fn test_exists_simplifies_body() {
+        use rust_fv_smtlib::sort::Sort;
+        let body = Term::IntAdd(
+            Box::new(Term::IntLit(0)),
+            Box::new(Term::Const("x".to_string())),
+        );
+        let bindings = vec![("x".to_string(), Sort::Int)];
+        let term = Term::Exists(bindings.clone(), Box::new(body));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Exists(bindings, Box::new(Term::Const("x".to_string())))
+        );
+    }
+
+    // ====== Let (lines 347-352) ======
+
+    #[test]
+    fn test_let_simplifies_bindings_and_body() {
+        let binding_val = Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2)));
+        let body = Term::Not(Box::new(Term::Not(Box::new(Term::Const("y".to_string())))));
+        let bindings = vec![("x".to_string(), binding_val)];
+        let term = Term::Let(bindings, Box::new(body));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Let(
+                vec![("x".to_string(), Term::IntLit(3))],
+                Box::new(Term::Const("y".to_string())),
+            )
+        );
+    }
+
+    #[test]
+    fn test_let_multiple_bindings() {
+        let bindings = vec![
+            ("a".to_string(), Term::IntLit(5)),
+            (
+                "b".to_string(),
+                Term::BvAdd(
+                    Box::new(Term::Const("c".to_string())),
+                    Box::new(Term::BitVecLit(0, 32)),
+                ),
+            ),
+        ];
+        let body = Term::Const("a".to_string());
+        let term = Term::Let(bindings, Box::new(body.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Let(
+                vec![
+                    ("a".to_string(), Term::IntLit(5)),
+                    ("b".to_string(), Term::Const("c".to_string())),
+                ],
+                Box::new(body),
+            )
+        );
+    }
+
+    // ====== App (lines 354-356) ======
+
+    #[test]
+    fn test_app_simplifies_args() {
+        let args = vec![
+            Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2))),
+            Term::Const("y".to_string()),
+        ];
+        let term = Term::App("f".to_string(), args);
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::App(
+                "f".to_string(),
+                vec![Term::IntLit(3), Term::Const("y".to_string())],
+            )
+        );
+    }
+
+    #[test]
+    fn test_app_no_args() {
+        let term = Term::App("g".to_string(), vec![]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::App("g".to_string(), vec![]));
+    }
+
+    // ====== Annotated (lines 358-368) ======
+
+    #[test]
+    fn test_annotated_simplifies_body_and_values() {
+        let body = Term::Not(Box::new(Term::Not(Box::new(Term::Const("x".to_string())))));
+        let annotation_val = Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2)));
+        let annotations = vec![("pattern".to_string(), vec![annotation_val])];
+        let term = Term::Annotated(Box::new(body), annotations);
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Annotated(
+                Box::new(Term::Const("x".to_string())),
+                vec![("pattern".to_string(), vec![Term::IntLit(3)])],
+            )
+        );
+    }
+
+    #[test]
+    fn test_annotated_multiple_annotations() {
+        let body = Term::Const("x".to_string());
+        let annotations = vec![
+            ("key1".to_string(), vec![Term::BoolLit(true)]),
+            (
+                "key2".to_string(),
+                vec![
+                    Term::IntAdd(Box::new(Term::IntLit(0)), Box::new(Term::IntLit(7))),
+                    Term::Const("y".to_string()),
+                ],
+            ),
+        ];
+        let term = Term::Annotated(Box::new(body.clone()), annotations);
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Annotated(
+                Box::new(body),
+                vec![
+                    ("key1".to_string(), vec![Term::BoolLit(true)]),
+                    (
+                        "key2".to_string(),
+                        vec![Term::IntLit(7), Term::Const("y".to_string())],
+                    ),
+                ],
+            )
+        );
+    }
+
+    #[test]
+    fn test_annotated_empty_annotation_values() {
+        let body = Term::Const("x".to_string());
+        let annotations = vec![("named".to_string(), vec![])];
+        let term = Term::Annotated(Box::new(body.clone()), annotations);
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Annotated(Box::new(body), vec![("named".to_string(), vec![])],)
+        );
+    }
+
+    // ====== Iff (line 372) ======
+
+    #[test]
+    fn test_iff_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Iff(Box::new(x.clone()), Box::new(y.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Iff(Box::new(x), Box::new(y)));
+    }
+
+    #[test]
+    fn test_iff_simplifies_subterms() {
+        let a = Term::Not(Box::new(Term::Not(Box::new(Term::Const("x".to_string())))));
+        let b = Term::IntAdd(
+            Box::new(Term::IntLit(0)),
+            Box::new(Term::Const("y".to_string())),
+        );
+        let term = Term::Iff(Box::new(a), Box::new(b));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::Iff(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )
+        );
+    }
+
+    // ====== Distinct (lines 373-375) ======
+
+    #[test]
+    fn test_distinct_passthrough() {
+        let x = Term::Const("x".to_string());
+        let y = Term::Const("y".to_string());
+        let term = Term::Distinct(vec![x.clone(), y.clone()]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Distinct(vec![x, y]));
+    }
+
+    #[test]
+    fn test_distinct_simplifies_subterms() {
+        let a = Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2)));
+        let b = Term::Const("y".to_string());
+        let term = Term::Distinct(vec![a, b.clone()]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Distinct(vec![Term::IntLit(3), b]));
+    }
+
+    // ====== Additional edge cases for improved coverage ======
+
+    #[test]
+    fn test_not_variable_passthrough() {
+        let x = Term::Const("x".to_string());
+        let term = Term::Not(Box::new(x.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::Not(Box::new(x)));
+    }
+
+    #[test]
+    fn test_and_empty() {
+        let term = Term::And(vec![]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(true));
+    }
+
+    #[test]
+    fn test_or_empty() {
+        let term = Term::Or(vec![]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    #[test]
+    fn test_and_single_after_filter() {
+        // And(true, x) -> x (single element after filtering true)
+        let x = Term::Const("x".to_string());
+        let term = Term::And(vec![Term::BoolLit(true), x.clone(), Term::BoolLit(true)]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_or_single_after_filter() {
+        // Or(false, x) -> x (single element after filtering false)
+        let x = Term::Const("x".to_string());
+        let term = Term::Or(vec![Term::BoolLit(false), x.clone(), Term::BoolLit(false)]);
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_literal_passthrough() {
+        assert_eq!(simplify_term(&Term::BoolLit(true)), Term::BoolLit(true));
+        assert_eq!(simplify_term(&Term::BoolLit(false)), Term::BoolLit(false));
+        assert_eq!(simplify_term(&Term::IntLit(42)), Term::IntLit(42));
+        assert_eq!(
+            simplify_term(&Term::BitVecLit(255, 8)),
+            Term::BitVecLit(255, 8)
+        );
+        assert_eq!(
+            simplify_term(&Term::Const("x".to_string())),
+            Term::Const("x".to_string())
+        );
+    }
+
+    #[test]
+    fn test_bvsub_zero_right() {
+        let x = Term::Const("x".to_string());
+        let term = Term::BvSub(Box::new(x.clone()), Box::new(Term::BitVecLit(0, 64)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_bvslt_equal_values() {
+        // 5 is not < 5
+        let term = Term::BvSLt(
+            Box::new(Term::BitVecLit(5, 32)),
+            Box::new(Term::BitVecLit(5, 32)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    #[test]
+    fn test_bvult_equal_values() {
+        let term = Term::BvULt(
+            Box::new(Term::BitVecLit(5, 32)),
+            Box::new(Term::BitVecLit(5, 32)),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BoolLit(false));
+    }
+
+    #[test]
+    fn test_intadd_zero_right() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntAdd(Box::new(x.clone()), Box::new(Term::IntLit(0)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_intmul_constant_folding() {
+        let term = Term::IntMul(Box::new(Term::IntLit(6)), Box::new(Term::IntLit(7)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(42));
+    }
+
+    #[test]
+    fn test_intmul_zero_right() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntMul(Box::new(x), Box::new(Term::IntLit(0)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(0));
+    }
+
+    #[test]
+    fn test_intmul_one_right() {
+        let x = Term::Const("x".to_string());
+        let term = Term::IntMul(Box::new(x.clone()), Box::new(Term::IntLit(1)));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, x);
+    }
+
+    #[test]
+    fn test_bvneg_simplifies_subterm() {
+        // BvNeg(BvAdd(x, 0)) -> BvNeg(x)
+        let x = Term::Const("x".to_string());
+        let inner = Term::BvAdd(Box::new(x.clone()), Box::new(Term::BitVecLit(0, 32)));
+        let term = Term::BvNeg(Box::new(inner));
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::BvNeg(Box::new(x)));
+    }
+
+    #[test]
+    fn test_zero_extend_simplifies_subterm() {
+        let inner = Term::BvAdd(
+            Box::new(Term::BitVecLit(1, 16)),
+            Box::new(Term::BitVecLit(2, 16)),
+        );
+        let term = Term::ZeroExtend(16, Box::new(inner));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::ZeroExtend(16, Box::new(Term::BitVecLit(3, 16)))
+        );
+    }
+
+    #[test]
+    fn test_deeply_nested_simplification() {
+        // IntAdd(IntAdd(IntLit(1), IntLit(2)), IntMul(IntLit(3), IntLit(1)))
+        // -> IntAdd(IntLit(3), IntLit(3)) -> IntLit(6)
+        let term = Term::IntAdd(
+            Box::new(Term::IntAdd(
+                Box::new(Term::IntLit(1)),
+                Box::new(Term::IntLit(2)),
+            )),
+            Box::new(Term::IntMul(
+                Box::new(Term::IntLit(3)),
+                Box::new(Term::IntLit(1)),
+            )),
+        );
+        let simplified = simplify_term(&term);
+        assert_eq!(simplified, Term::IntLit(6));
+    }
+
+    #[test]
+    fn test_intdiv_simplifies_subterms() {
+        let a = Term::IntAdd(Box::new(Term::IntLit(1)), Box::new(Term::IntLit(2)));
+        let b = Term::Const("x".to_string());
+        let term = Term::IntDiv(Box::new(a), Box::new(b.clone()));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::IntDiv(Box::new(Term::IntLit(3)), Box::new(b))
+        );
+    }
+
+    #[test]
+    fn test_intmod_simplifies_subterms() {
+        let a = Term::Const("x".to_string());
+        let b = Term::IntAdd(Box::new(Term::IntLit(2)), Box::new(Term::IntLit(3)));
+        let term = Term::IntMod(Box::new(a.clone()), Box::new(b));
+        let simplified = simplify_term(&term);
+        assert_eq!(
+            simplified,
+            Term::IntMod(Box::new(a), Box::new(Term::IntLit(5)))
+        );
+    }
 }

@@ -555,4 +555,361 @@ mod tests {
         let suggestion = suggest_fix(&VcKind::PanicFreedom);
         assert!(suggestion.is_none());
     }
+
+    // --- VerificationFailure construction helper ---
+
+    /// Helper to create a VerificationFailure for testing.
+    fn make_failure(
+        vc_kind: VcKind,
+        contract_text: Option<&str>,
+        source_file: Option<&str>,
+        source_line: Option<usize>,
+        counterexample: Option<Vec<(String, String)>>,
+    ) -> VerificationFailure {
+        VerificationFailure {
+            function_name: "test_func".to_string(),
+            vc_kind,
+            contract_text: contract_text.map(|s| s.to_string()),
+            source_file: source_file.map(|s| s.to_string()),
+            source_line,
+            counterexample,
+            message: "test failure message".to_string(),
+        }
+    }
+
+    // --- report_verification_failure tests ---
+    // These tests exercise the public entry point and both code paths.
+    // Output goes to stderr, so we verify the functions execute without panicking.
+
+    #[test]
+    fn test_report_verification_failure_without_source_location() {
+        // No source_file/source_line -> takes the text-only path (line 33)
+        let failure = make_failure(VcKind::Overflow, None, None, None, None);
+        report_verification_failure(&failure);
+        // If we reach here without panic, the text-only path executed successfully.
+    }
+
+    #[test]
+    fn test_report_verification_failure_with_source_location() {
+        // Both source_file and source_line present -> takes ariadne path (line 30)
+        let failure = make_failure(
+            VcKind::Postcondition,
+            Some("result > 0"),
+            Some("src/lib.rs"),
+            Some(42),
+            Some(vec![("x".to_string(), "0".to_string())]),
+        );
+        report_verification_failure(&failure);
+    }
+
+    #[test]
+    fn test_report_verification_failure_source_file_only() {
+        // source_file present but source_line is None -> text-only path
+        let failure = make_failure(VcKind::Assertion, None, Some("src/lib.rs"), None, None);
+        report_verification_failure(&failure);
+    }
+
+    #[test]
+    fn test_report_verification_failure_source_line_only() {
+        // source_line present but source_file is None -> text-only path
+        let failure = make_failure(VcKind::DivisionByZero, None, None, Some(10), None);
+        report_verification_failure(&failure);
+    }
+
+    // --- report_with_ariadne tests ---
+    // These test the ariadne-based reporting path which builds rich error reports.
+
+    #[test]
+    fn test_report_with_ariadne_minimal() {
+        // Minimal failure: no contract, no counterexample
+        let failure = make_failure(VcKind::Overflow, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 10);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_with_contract() {
+        // With contract text -> covers line 61-62
+        let failure = make_failure(VcKind::Precondition, Some("x > 0"), None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 5);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_without_contract() {
+        // Without contract text -> covers line 64 (else branch)
+        let failure = make_failure(VcKind::Postcondition, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 20);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_with_counterexample() {
+        // With counterexample -> covers lines 67-68
+        let cx = vec![
+            ("x".to_string(), "42".to_string()),
+            ("y".to_string(), "-1".to_string()),
+        ];
+        let failure = make_failure(VcKind::Overflow, None, None, None, Some(cx));
+        report_with_ariadne(&failure, "src/lib.rs", 15);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_without_counterexample() {
+        // No counterexample -> covers line 70 (else branch)
+        let failure = make_failure(VcKind::ShiftBounds, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 1);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_with_fix_suggestion() {
+        // VcKind with a fix suggestion -> covers lines 73-74
+        let failure = make_failure(VcKind::Overflow, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 100);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_without_fix_suggestion() {
+        // VcKind without fix suggestion (ShiftBounds) -> covers line 76
+        let failure = make_failure(VcKind::ShiftBounds, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 50);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_all_fields() {
+        // Full failure with all optional fields populated
+        let cx = vec![("_1".to_string(), "#x0000000a".to_string())];
+        let failure = make_failure(
+            VcKind::Precondition,
+            Some("n > 0 && n < 100"),
+            Some("src/main.rs"),
+            Some(42),
+            Some(cx),
+        );
+        report_with_ariadne(&failure, "src/main.rs", 42);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_source_line_zero() {
+        // source_line = 0 -> saturating_sub(1) = 0 (line 45)
+        let failure = make_failure(VcKind::Assertion, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 0);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_source_line_one() {
+        // source_line = 1 -> offset = 0 (line 45)
+        let failure = make_failure(VcKind::PanicFreedom, None, None, None, None);
+        report_with_ariadne(&failure, "src/lib.rs", 1);
+    }
+
+    #[test]
+    fn test_report_with_ariadne_each_vc_kind() {
+        // Exercise ariadne path with every VcKind to cover vc_kind_description calls
+        let vc_kinds = [
+            VcKind::Precondition,
+            VcKind::Postcondition,
+            VcKind::LoopInvariantInit,
+            VcKind::LoopInvariantPreserve,
+            VcKind::LoopInvariantExit,
+            VcKind::Overflow,
+            VcKind::DivisionByZero,
+            VcKind::ShiftBounds,
+            VcKind::Assertion,
+            VcKind::PanicFreedom,
+        ];
+        for vc_kind in vc_kinds {
+            let failure = make_failure(vc_kind, None, None, None, None);
+            report_with_ariadne(&failure, "test.rs", 10);
+        }
+    }
+
+    // --- report_text_only tests ---
+    // These test the colored text output path directly.
+
+    #[test]
+    fn test_report_text_only_minimal() {
+        // Minimal failure: no contract, no counterexample, no fix suggestion
+        // ShiftBounds has no fix suggestion -> covers lines 88-96, 99, 106, 118
+        let failure = make_failure(VcKind::ShiftBounds, None, None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_with_contract() {
+        // With contract text -> covers lines 102-103
+        let failure = make_failure(VcKind::Overflow, Some("x + y < 100"), None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_without_contract() {
+        // Without contract -> skips lines 102-103
+        let failure = make_failure(VcKind::Overflow, None, None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_with_counterexample() {
+        // With counterexample -> covers lines 108-110
+        let cx = vec![
+            ("x".to_string(), "42".to_string()),
+            ("y".to_string(), "-1".to_string()),
+        ];
+        let failure = make_failure(VcKind::Assertion, None, None, None, Some(cx));
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_without_counterexample() {
+        // Without counterexample -> skips lines 108-110
+        let failure = make_failure(VcKind::Assertion, None, None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_with_fix_suggestion() {
+        // VcKind with suggestion (Overflow) -> covers lines 113-115
+        let failure = make_failure(VcKind::Overflow, None, None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_without_fix_suggestion() {
+        // VcKind without suggestion (PanicFreedom) -> skips lines 113-115
+        let failure = make_failure(VcKind::PanicFreedom, None, None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_all_fields() {
+        // Full failure with all optional fields populated
+        let cx = vec![
+            ("_1".to_string(), "#x0000002a".to_string()),
+            ("result".to_string(), "0".to_string()),
+        ];
+        let failure = make_failure(
+            VcKind::Postcondition,
+            Some("result > 0"),
+            Some("src/lib.rs"),
+            Some(42),
+            Some(cx),
+        );
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_each_vc_kind() {
+        // Exercise text-only path with every VcKind to maximize line coverage
+        let vc_kinds = [
+            VcKind::Precondition,
+            VcKind::Postcondition,
+            VcKind::LoopInvariantInit,
+            VcKind::LoopInvariantPreserve,
+            VcKind::LoopInvariantExit,
+            VcKind::Overflow,
+            VcKind::DivisionByZero,
+            VcKind::ShiftBounds,
+            VcKind::Assertion,
+            VcKind::PanicFreedom,
+        ];
+        for vc_kind in vc_kinds {
+            let failure = make_failure(vc_kind, None, None, None, None);
+            report_text_only(&failure);
+        }
+    }
+
+    #[test]
+    fn test_report_text_only_with_empty_counterexample() {
+        // Empty counterexample vec -> format_counterexample returns "no user-visible variables"
+        let failure = make_failure(VcKind::Overflow, None, None, None, Some(vec![]));
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_precondition_with_all_optionals() {
+        // Precondition with contract, counterexample, and suggestion
+        let cx = vec![("n".to_string(), "-5".to_string())];
+        let failure = make_failure(VcKind::Precondition, Some("n >= 0"), None, None, Some(cx));
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_division_by_zero_with_counterexample() {
+        let cx = vec![("divisor".to_string(), "0".to_string())];
+        let failure = make_failure(
+            VcKind::DivisionByZero,
+            Some("divisor != 0"),
+            None,
+            None,
+            Some(cx),
+        );
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_loop_invariant_init_with_contract() {
+        let failure = make_failure(VcKind::LoopInvariantInit, Some("i < len"), None, None, None);
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_loop_invariant_preserve_with_counterexample() {
+        let cx = vec![
+            ("i".to_string(), "10".to_string()),
+            ("len".to_string(), "10".to_string()),
+        ];
+        let failure = make_failure(
+            VcKind::LoopInvariantPreserve,
+            Some("i < len"),
+            None,
+            None,
+            Some(cx),
+        );
+        report_text_only(&failure);
+    }
+
+    // --- report_verification_failure end-to-end tests ---
+
+    #[test]
+    fn test_report_verification_failure_overflow_no_source() {
+        let failure = VerificationFailure {
+            function_name: "add_numbers".to_string(),
+            vc_kind: VcKind::Overflow,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: Some(vec![
+                ("_1".to_string(), "#xffffffff".to_string()),
+                ("_2".to_string(), "#x00000001".to_string()),
+            ]),
+            message: "i32 addition may overflow".to_string(),
+        };
+        report_verification_failure(&failure);
+    }
+
+    #[test]
+    fn test_report_verification_failure_postcondition_with_source() {
+        let failure = VerificationFailure {
+            function_name: "compute".to_string(),
+            vc_kind: VcKind::Postcondition,
+            contract_text: Some("result >= 0".to_string()),
+            source_file: Some("src/math.rs".to_string()),
+            source_line: Some(15),
+            counterexample: Some(vec![("_1".to_string(), "-1".to_string())]),
+            message: "postcondition 'result >= 0' not proven".to_string(),
+        };
+        report_verification_failure(&failure);
+    }
+
+    #[test]
+    fn test_report_verification_failure_assertion_no_extras() {
+        let failure = VerificationFailure {
+            function_name: "validate".to_string(),
+            vc_kind: VcKind::Assertion,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "assertion might fail".to_string(),
+        };
+        report_verification_failure(&failure);
+    }
 }

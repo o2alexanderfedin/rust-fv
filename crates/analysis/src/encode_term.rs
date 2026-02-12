@@ -827,4 +827,954 @@ mod tests {
             panic!("Expected BvULt for shift overflow check");
         }
     }
+
+    // ====== Coverage: encode_place with projections (lines 30, 35-38, 40-42) ======
+
+    #[test]
+    fn encode_place_with_deref_projection() {
+        let place = Place::local("_1").deref();
+        assert_eq!(encode_place(&place), Term::Const("_1.deref".to_string()));
+    }
+
+    #[test]
+    fn encode_place_with_index_projection() {
+        let place = Place::local("_1").index("_2".to_string());
+        assert_eq!(encode_place(&place), Term::Const("_1[_2]".to_string()));
+    }
+
+    #[test]
+    fn encode_place_with_downcast_projection() {
+        let place = Place {
+            local: "_1".to_string(),
+            projections: vec![Projection::Downcast(3)],
+        };
+        assert_eq!(encode_place(&place), Term::Const("_1.variant3".to_string()));
+    }
+
+    #[test]
+    fn encode_place_with_multiple_projections() {
+        // deref then field then index
+        let place = Place {
+            local: "_1".to_string(),
+            projections: vec![
+                Projection::Deref,
+                Projection::Field(2),
+                Projection::Index("idx".to_string()),
+            ],
+        };
+        assert_eq!(
+            encode_place(&place),
+            Term::Const("_1.deref.2[idx]".to_string())
+        );
+    }
+
+    #[test]
+    fn encode_place_with_downcast_then_field() {
+        let place = Place {
+            local: "_1".to_string(),
+            projections: vec![Projection::Downcast(0), Projection::Field(1)],
+        };
+        assert_eq!(
+            encode_place(&place),
+            Term::Const("_1.variant0.1".to_string())
+        );
+    }
+
+    // ====== Coverage: encode_operand (lines 12-13) ======
+
+    #[test]
+    fn encode_operand_copy() {
+        let op = Operand::Copy(Place::local("_1"));
+        assert_eq!(encode_operand(&op), Term::Const("_1".to_string()));
+    }
+
+    #[test]
+    fn encode_operand_move() {
+        let op = Operand::Move(Place::local("_2"));
+        assert_eq!(encode_operand(&op), Term::Const("_2".to_string()));
+    }
+
+    #[test]
+    fn encode_operand_constant() {
+        let op = Operand::Constant(Constant::Bool(false));
+        assert_eq!(encode_operand(&op), Term::BoolLit(false));
+    }
+
+    // ====== Coverage: encode_constant (lines 222, 224-225) ======
+
+    #[test]
+    fn encode_float_constant_unsupported() {
+        let c = Constant::Float(2.71, crate::ir::FloatTy::F64);
+        assert_eq!(
+            encode_constant(&c),
+            Term::Const("FLOAT_UNSUPPORTED".to_string())
+        );
+    }
+
+    #[test]
+    fn encode_unit_constant() {
+        let c = Constant::Unit;
+        assert_eq!(encode_constant(&c), Term::BoolLit(true));
+    }
+
+    #[test]
+    fn encode_str_constant() {
+        let c = Constant::Str("hello".to_string());
+        assert_eq!(encode_constant(&c), Term::Const("STR_hello".to_string()));
+    }
+
+    // ====== Coverage: encode_binop remaining variants (lines 240, 252, 255-258, 272, 276-277, 279, 293) ======
+
+    #[test]
+    fn binop_mul_produces_bvmul() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Mul, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvMul(_, _)));
+    }
+
+    #[test]
+    fn binop_signed_rem_produces_bvsrem() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Rem, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSRem(_, _)));
+    }
+
+    #[test]
+    fn binop_unsigned_rem_produces_bvurem() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Rem, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvURem(_, _)));
+    }
+
+    #[test]
+    fn binop_bitand_produces_bvand() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::BitAnd, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvAnd(_, _)));
+    }
+
+    #[test]
+    fn binop_bitor_produces_bvor() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::BitOr, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvOr(_, _)));
+    }
+
+    #[test]
+    fn binop_bitxor_produces_bvxor() {
+        let ty = Ty::Uint(UintTy::U64);
+        let result = encode_binop(BinOp::BitXor, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvXor(_, _)));
+    }
+
+    #[test]
+    fn binop_shl_produces_bvshl() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Shl, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvShl(_, _)));
+    }
+
+    #[test]
+    fn binop_unsigned_lt_produces_bvult() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Lt, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvULt(_, _)));
+    }
+
+    #[test]
+    fn binop_signed_lt_produces_bvslt() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Lt, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSLt(_, _)));
+    }
+
+    #[test]
+    fn binop_signed_le_produces_bvsle() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Le, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSLe(_, _)));
+    }
+
+    #[test]
+    fn binop_unsigned_le_produces_bvule() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Le, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvULe(_, _)));
+    }
+
+    #[test]
+    fn binop_signed_gt_produces_bvsgt() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Gt, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSGt(_, _)));
+    }
+
+    #[test]
+    fn binop_unsigned_gt_produces_bvugt() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Gt, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvUGt(_, _)));
+    }
+
+    #[test]
+    fn binop_signed_ge_produces_bvsge() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Ge, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSGe(_, _)));
+    }
+
+    #[test]
+    fn binop_unsigned_ge_produces_bvuge() {
+        let ty = Ty::Uint(UintTy::U32);
+        let result = encode_binop(BinOp::Ge, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvUGe(_, _)));
+    }
+
+    #[test]
+    fn binop_eq_produces_eq() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Eq, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::Eq(_, _)));
+    }
+
+    #[test]
+    fn binop_sub_produces_bvsub() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_binop(BinOp::Sub, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSub(_, _)));
+    }
+
+    // ====== Coverage: overflow_check Add on non-integer type returns None (line 463) ======
+
+    #[test]
+    fn overflow_check_add_on_bool_returns_none() {
+        let ty = Ty::Bool;
+        let check = overflow_check(BinOp::Add, &var("a"), &var("b"), &ty);
+        // Bool has bit_width = Some(1), but is neither signed nor unsigned
+        assert!(check.is_none());
+    }
+
+    // ====== Coverage: overflow_check remaining no-overflow ops (Ne, Lt, Le, Gt, Ge) ======
+
+    #[test]
+    fn overflow_check_ne_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        assert!(overflow_check(BinOp::Ne, &var("a"), &var("b"), &ty).is_none());
+    }
+
+    #[test]
+    fn overflow_check_lt_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        assert!(overflow_check(BinOp::Lt, &var("a"), &var("b"), &ty).is_none());
+    }
+
+    #[test]
+    fn overflow_check_le_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        assert!(overflow_check(BinOp::Le, &var("a"), &var("b"), &ty).is_none());
+    }
+
+    #[test]
+    fn overflow_check_gt_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        assert!(overflow_check(BinOp::Gt, &var("a"), &var("b"), &ty).is_none());
+    }
+
+    #[test]
+    fn overflow_check_ge_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        assert!(overflow_check(BinOp::Ge, &var("a"), &var("b"), &ty).is_none());
+    }
+
+    // ====== Coverage: encode_field_access (lines 94-99, 101-104, 106, 109) ======
+
+    #[test]
+    fn encode_field_access_struct() {
+        let ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let result = encode_field_access(var("p"), &ty, 0);
+        assert_eq!(
+            result,
+            Some(Term::App("Point-x".to_string(), vec![var("p")]))
+        );
+    }
+
+    #[test]
+    fn encode_field_access_struct_second_field() {
+        let ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let result = encode_field_access(var("p"), &ty, 1);
+        assert_eq!(
+            result,
+            Some(Term::App("Point-y".to_string(), vec![var("p")]))
+        );
+    }
+
+    #[test]
+    fn encode_field_access_struct_out_of_bounds() {
+        let ty = Ty::Struct(
+            "Point".to_string(),
+            vec![("x".to_string(), Ty::Int(IntTy::I32))],
+        );
+        let result = encode_field_access(var("p"), &ty, 5);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn encode_field_access_tuple() {
+        let ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        let result = encode_field_access(var("t"), &ty, 0);
+        assert_eq!(
+            result,
+            Some(Term::App("Tuple2-_0".to_string(), vec![var("t")]))
+        );
+    }
+
+    #[test]
+    fn encode_field_access_tuple_second_field() {
+        let ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        let result = encode_field_access(var("t"), &ty, 1);
+        assert_eq!(
+            result,
+            Some(Term::App("Tuple2-_1".to_string(), vec![var("t")]))
+        );
+    }
+
+    #[test]
+    fn encode_field_access_tuple_out_of_bounds() {
+        let ty = Ty::Tuple(vec![Ty::Int(IntTy::I32)]);
+        let result = encode_field_access(var("t"), &ty, 3);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn encode_field_access_non_struct_returns_none() {
+        let ty = Ty::Int(IntTy::I32);
+        let result = encode_field_access(var("x"), &ty, 0);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn encode_field_access_bool_returns_none() {
+        let ty = Ty::Bool;
+        let result = encode_field_access(var("b"), &ty, 0);
+        assert_eq!(result, None);
+    }
+
+    // ====== Coverage: encode_aggregate (lines 114-115, 117-120, 123-124, 126, 128-129, 131, 136-137) ======
+
+    #[test]
+    fn encode_aggregate_struct() {
+        let kind = AggregateKind::Struct("Point".to_string());
+        let ops = vec![
+            Operand::Constant(Constant::Int(1, IntTy::I32)),
+            Operand::Constant(Constant::Int(2, IntTy::I32)),
+        ];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Point".to_string(),
+                vec![Term::BitVecLit(1, 32), Term::BitVecLit(2, 32)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_tuple_two_elements() {
+        let kind = AggregateKind::Tuple;
+        let ops = vec![
+            Operand::Constant(Constant::Int(10, IntTy::I32)),
+            Operand::Constant(Constant::Bool(true)),
+        ];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Tuple2".to_string(),
+                vec![Term::BitVecLit(10, 32), Term::BoolLit(true)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_unit_tuple() {
+        let kind = AggregateKind::Tuple;
+        let ops: Vec<Operand> = vec![];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(result, Some(Term::BoolLit(true)));
+    }
+
+    #[test]
+    fn encode_aggregate_single_tuple() {
+        let kind = AggregateKind::Tuple;
+        let ops = vec![Operand::Constant(Constant::Bool(false))];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Tuple1".to_string(),
+                vec![Term::BoolLit(false)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_enum_variant() {
+        let kind = AggregateKind::Enum("Option".to_string(), 1);
+        let ops = vec![Operand::Constant(Constant::Int(42, IntTy::I32))];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-variant-1".to_string(),
+                vec![Term::BitVecLit(42, 32)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_enum_variant_no_fields() {
+        let kind = AggregateKind::Enum("Option".to_string(), 0);
+        let ops: Vec<Operand> = vec![];
+        let result = encode_aggregate(&kind, &ops);
+        assert_eq!(result, Some(Term::App("mk-variant-0".to_string(), vec![])));
+    }
+
+    // ====== Coverage: encode_aggregate_with_type (lines 160, 165-167, 169-170, 173-174) ======
+
+    #[test]
+    fn encode_aggregate_with_type_struct() {
+        let kind = AggregateKind::Struct("Point".to_string());
+        let ops = vec![
+            Operand::Constant(Constant::Int(1, IntTy::I32)),
+            Operand::Constant(Constant::Int(2, IntTy::I32)),
+        ];
+        let result_ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Point".to_string(),
+                vec![Term::BitVecLit(1, 32), Term::BitVecLit(2, 32)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_with_type_unit_tuple() {
+        let kind = AggregateKind::Tuple;
+        let ops: Vec<Operand> = vec![];
+        let result_ty = Ty::Unit;
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(result, Some(Term::BoolLit(true)));
+    }
+
+    #[test]
+    fn encode_aggregate_with_type_tuple() {
+        let kind = AggregateKind::Tuple;
+        let ops = vec![
+            Operand::Constant(Constant::Int(1, IntTy::I32)),
+            Operand::Constant(Constant::Bool(true)),
+        ];
+        let result_ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Tuple2".to_string(),
+                vec![Term::BitVecLit(1, 32), Term::BoolLit(true)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_with_type_enum_variant_resolved() {
+        // Enum with type info resolves variant name
+        let kind = AggregateKind::Enum("Option".to_string(), 1);
+        let ops = vec![Operand::Constant(Constant::Int(42, IntTy::I32))];
+        let result_ty = Ty::Enum(
+            "Option".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+            ],
+        );
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-Some".to_string(),
+                vec![Term::BitVecLit(42, 32)]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_aggregate_with_type_enum_variant_fallback() {
+        // Enum variant out of bounds falls back to generic constructor
+        let kind = AggregateKind::Enum("Option".to_string(), 5);
+        let ops: Vec<Operand> = vec![];
+        let result_ty = Ty::Enum(
+            "Option".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+            ],
+        );
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(result, Some(Term::App("mk-variant-5".to_string(), vec![])));
+    }
+
+    #[test]
+    fn encode_aggregate_with_type_enum_non_enum_type_fallback() {
+        // If result_ty is not Enum, falls back to generic constructor
+        let kind = AggregateKind::Enum("Foo".to_string(), 0);
+        let ops = vec![Operand::Constant(Constant::Bool(true))];
+        let result_ty = Ty::Int(IntTy::I32); // Not an Enum type
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "mk-variant-0".to_string(),
+                vec![Term::BoolLit(true)]
+            ))
+        );
+    }
+
+    // ====== Coverage: encode_place_with_type + find_local_type + get_field_type + get_element_type
+    //        (lines 56-58, 61-62, 64-67, 69, 71-73, 75, 79-80, 83, 90,
+    //         180-184, 189-192, 197-199, 201-203, 206-208, 211) ======
+
+    use crate::ir::{BasicBlock, Contracts, Function, Local, Mutability, Terminator};
+
+    /// Helper to build a minimal Function for encode_place_with_type tests.
+    fn make_func(params: Vec<Local>, locals: Vec<Local>, return_ty: Ty) -> Function {
+        Function {
+            name: "test_fn".to_string(),
+            params,
+            return_local: Local::new("_0", return_ty),
+            locals,
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        }
+    }
+
+    #[test]
+    fn encode_place_with_type_no_projections() {
+        let func = make_func(
+            vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_1");
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, Some(Term::Const("_1".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_struct_field() {
+        let struct_ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let func = make_func(
+            vec![Local::new("_1", struct_ty)],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_1").field(0);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "Point-x".to_string(),
+                vec![Term::Const("_1".to_string())]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_place_with_type_tuple_field() {
+        let tuple_ty = Ty::Tuple(vec![Ty::Int(IntTy::I32), Ty::Bool]);
+        let func = make_func(
+            vec![Local::new("_1", tuple_ty)],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_1").field(1);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "Tuple2-_1".to_string(),
+                vec![Term::Const("_1".to_string())]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_place_with_type_index_projection() {
+        let array_ty = Ty::Array(Box::new(Ty::Int(IntTy::I32)), 10);
+        let func = make_func(
+            vec![Local::new("_1", array_ty)],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_1").index("idx".to_string());
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::Select(
+                Box::new(Term::Const("_1".to_string())),
+                Box::new(Term::Const("idx".to_string()))
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_place_with_type_deref_ref() {
+        let ref_ty = Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared);
+        let func = make_func(vec![Local::new("_1", ref_ty)], vec![], Ty::Int(IntTy::I32));
+        let place = Place::local("_1").deref();
+        let result = encode_place_with_type(&place, &func);
+        // Deref is transparent for references
+        assert_eq!(result, Some(Term::Const("_1".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_deref_non_ref() {
+        // Deref on non-ref type (e.g., raw pointer behavior)
+        let func = make_func(
+            vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_1").deref();
+        let result = encode_place_with_type(&place, &func);
+        // Deref on non-ref is a no-op (doesn't change current)
+        assert_eq!(result, Some(Term::Const("_1".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_downcast_projection() {
+        let enum_ty = Ty::Enum(
+            "Option".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+            ],
+        );
+        let func = make_func(vec![Local::new("_1", enum_ty)], vec![], Ty::Int(IntTy::I32));
+        let place = Place {
+            local: "_1".to_string(),
+            projections: vec![Projection::Downcast(1)],
+        };
+        let result = encode_place_with_type(&place, &func);
+        // Downcast doesn't change the term, just keeps current
+        assert_eq!(result, Some(Term::Const("_1".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_unknown_local_returns_none() {
+        let func = make_func(
+            vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            vec![],
+            Ty::Int(IntTy::I32),
+        );
+        let place = Place::local("_unknown").field(0);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn encode_place_with_type_return_local() {
+        // Tests find_local_type finding the return local
+        let func = make_func(vec![], vec![], Ty::Int(IntTy::I32));
+        let place = Place::local("_0");
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, Some(Term::Const("_0".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_in_locals() {
+        // Tests find_local_type finding a local variable
+        let func = make_func(
+            vec![],
+            vec![Local::new("_3", Ty::Int(IntTy::I32))],
+            Ty::Unit,
+        );
+        let place = Place::local("_3");
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, Some(Term::Const("_3".to_string())));
+    }
+
+    #[test]
+    fn encode_place_with_type_locals_with_field() {
+        // Tests find_local_type via locals vec + field projection
+        let struct_ty = Ty::Struct(
+            "Pair".to_string(),
+            vec![
+                ("a".to_string(), Ty::Bool),
+                ("b".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let func = make_func(vec![], vec![Local::new("_5", struct_ty)], Ty::Unit);
+        let place = Place::local("_5").field(1);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "Pair-b".to_string(),
+                vec![Term::Const("_5".to_string())]
+            ))
+        );
+    }
+
+    #[test]
+    fn find_local_type_returns_none_for_absent_name() {
+        let func = make_func(
+            vec![Local::new("_1", Ty::Bool)],
+            vec![Local::new("_2", Ty::Int(IntTy::I32))],
+            Ty::Unit,
+        );
+        // Access a place with projections for an unknown local
+        let place = Place::local("_99").field(0);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, None);
+    }
+
+    // ====== Coverage: get_field_type edge cases ======
+
+    #[test]
+    fn encode_place_with_type_field_out_of_bounds_returns_none() {
+        let struct_ty = Ty::Struct("S".to_string(), vec![("x".to_string(), Ty::Bool)]);
+        let func = make_func(vec![Local::new("_1", struct_ty)], vec![], Ty::Unit);
+        let place = Place::local("_1").field(5); // out of bounds
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn encode_place_with_type_field_on_non_struct_returns_none() {
+        let func = make_func(
+            vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            vec![],
+            Ty::Unit,
+        );
+        let place = Place::local("_1").field(0); // field on Int - invalid
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(result, None);
+    }
+
+    // ====== Coverage: get_element_type edge cases ======
+
+    #[test]
+    fn encode_place_with_type_index_on_slice() {
+        let slice_ty = Ty::Slice(Box::new(Ty::Bool));
+        let func = make_func(vec![Local::new("_1", slice_ty)], vec![], Ty::Unit);
+        let place = Place::local("_1").index("i".to_string());
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::Select(
+                Box::new(Term::Const("_1".to_string())),
+                Box::new(Term::Const("i".to_string()))
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_place_with_type_index_on_non_array_returns_none() {
+        // Index projection on a non-indexable type
+        let func = make_func(
+            vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            vec![],
+            Ty::Unit,
+        );
+        let place = Place::local("_1").index("i".to_string());
+        let result = encode_place_with_type(&place, &func);
+        // get_element_type returns None for Int
+        assert_eq!(result, None);
+    }
+
+    // ====== Coverage: multi-projection chains with type info ======
+
+    #[test]
+    fn encode_place_with_type_struct_field_chain() {
+        // Nested struct access: _1.field0.field0
+        let inner_struct = Ty::Struct(
+            "Inner".to_string(),
+            vec![("val".to_string(), Ty::Int(IntTy::I32))],
+        );
+        let outer_struct = Ty::Struct(
+            "Outer".to_string(),
+            vec![("inner".to_string(), inner_struct)],
+        );
+        let func = make_func(vec![Local::new("_1", outer_struct)], vec![], Ty::Unit);
+        let place = Place::local("_1").field(0).field(0);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "Inner-val".to_string(),
+                vec![Term::App(
+                    "Outer-inner".to_string(),
+                    vec![Term::Const("_1".to_string())]
+                )]
+            ))
+        );
+    }
+
+    #[test]
+    fn encode_place_with_type_deref_then_field() {
+        // _1.deref.field(0) where _1 is &Struct
+        let struct_ty = Ty::Struct("S".to_string(), vec![("x".to_string(), Ty::Bool)]);
+        let ref_ty = Ty::Ref(Box::new(struct_ty), Mutability::Shared);
+        let func = make_func(vec![Local::new("_1", ref_ty)], vec![], Ty::Unit);
+        let place = Place::local("_1").deref().field(0);
+        let result = encode_place_with_type(&place, &func);
+        assert_eq!(
+            result,
+            Some(Term::App(
+                "S-x".to_string(),
+                vec![Term::Const("_1".to_string())]
+            ))
+        );
+    }
+
+    // ====== Coverage: various integer widths for binop encoding ======
+
+    #[test]
+    fn binop_add_i8() {
+        let ty = Ty::Int(IntTy::I8);
+        let result = encode_binop(BinOp::Add, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvAdd(_, _)));
+    }
+
+    #[test]
+    fn binop_mul_u64() {
+        let ty = Ty::Uint(UintTy::U64);
+        let result = encode_binop(BinOp::Mul, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvMul(_, _)));
+    }
+
+    #[test]
+    fn binop_div_i128() {
+        let ty = Ty::Int(IntTy::I128);
+        let result = encode_binop(BinOp::Div, &var("a"), &var("b"), &ty);
+        assert!(matches!(result, Term::BvSDiv(_, _)));
+    }
+
+    // ====== Coverage: encode_constant for different int/uint widths ======
+
+    #[test]
+    fn encode_constant_i8() {
+        let c = Constant::Int(-128, IntTy::I8);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(-128, 8));
+    }
+
+    #[test]
+    fn encode_constant_u8() {
+        let c = Constant::Uint(255, UintTy::U8);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(255, 8));
+    }
+
+    #[test]
+    fn encode_constant_i16() {
+        let c = Constant::Int(-1, IntTy::I16);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(-1, 16));
+    }
+
+    #[test]
+    fn encode_constant_u16() {
+        let c = Constant::Uint(0, UintTy::U16);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(0, 16));
+    }
+
+    #[test]
+    fn encode_constant_i128() {
+        let c = Constant::Int(0, IntTy::I128);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(0, 128));
+    }
+
+    #[test]
+    fn encode_constant_u128() {
+        let c = Constant::Uint(1, UintTy::U128);
+        assert_eq!(encode_constant(&c), Term::BitVecLit(1, 128));
+    }
+
+    #[test]
+    fn encode_constant_bool_false() {
+        let c = Constant::Bool(false);
+        assert_eq!(encode_constant(&c), Term::BoolLit(false));
+    }
+
+    #[test]
+    fn encode_constant_f32() {
+        let c = Constant::Float(1.0, crate::ir::FloatTy::F32);
+        assert_eq!(
+            encode_constant(&c),
+            Term::Const("FLOAT_UNSUPPORTED".to_string())
+        );
+    }
+
+    // ====== Coverage: overflow_check on non-bit-width type returns None ======
+
+    #[test]
+    fn overflow_check_on_unit_type_returns_none() {
+        // Unit has no bit_width, so overflow_check returns None early
+        let ty = Ty::Unit;
+        let check = overflow_check(BinOp::Add, &var("a"), &var("b"), &ty);
+        assert!(check.is_none());
+    }
+
+    #[test]
+    fn overflow_check_on_named_type_returns_none() {
+        let ty = Ty::Named("SomeType".to_string());
+        let check = overflow_check(BinOp::Sub, &var("a"), &var("b"), &ty);
+        assert!(check.is_none());
+    }
+
+    // ====== Coverage: encode_aggregate_with_type enum variant 0 (None) ======
+
+    #[test]
+    fn encode_aggregate_with_type_enum_none_variant() {
+        let kind = AggregateKind::Enum("Option".to_string(), 0);
+        let ops: Vec<Operand> = vec![];
+        let result_ty = Ty::Enum(
+            "Option".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+            ],
+        );
+        let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
+        assert_eq!(result, Some(Term::App("mk-None".to_string(), vec![])));
+    }
 }
