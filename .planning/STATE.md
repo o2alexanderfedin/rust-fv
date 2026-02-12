@@ -137,8 +137,13 @@ Recent decisions affecting current work:
 - [04-03]: ProphecyInfo metadata struct for &mut param tracking
 - [04-03]: Prophecy variables in base declarations alongside regular variables
 - [04-03]: Initial value capture via SMT assertion (documented encoding limitation with direct param assignment)
-- [Phase 05-01]: AST-level simplification over Z3 built-in API (backend-agnostic, zero overhead)
-- [Phase 05-01]: A/B benchmarks for both regression tests and synthetic stress tests (measure real-world + scalability)
+- [05-01]: AST-level simplification over Z3 built-in API (backend-agnostic, zero overhead)
+- [05-01]: A/B benchmarks for both regression tests and synthetic stress tests (measure real-world + scalability)
+- [05-03]: Ariadne 0.4 for rustc-style diagnostics (mature, well-documented library)
+- [05-03]: VcKind classification with 10 categories for error categorization
+- [05-03]: JSON to stdout, all other output to stderr (IDE integration best practice)
+- [05-03]: Fallback text diagnostics when source location unavailable (ariadne requires source file access)
+- [05-03]: Fix suggestions for common patterns (overflow, precondition, postcondition, loop invariants, division-by-zero)
 
 ### Pending Todos
 
@@ -152,6 +157,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 4 complete -- prophecy variables, unbounded integers, quantifiers, generics all implemented
+Stopped at: Completed 05-03 (enhanced diagnostics and JSON output)
 Resume file: None
-Next step: Begin Phase 5 (advanced features) or consolidate/polish existing work
+Next step: Continue Phase 5 with remaining plans (documentation, performance optimization, or additional polish features)
