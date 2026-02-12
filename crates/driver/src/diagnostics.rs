@@ -145,6 +145,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::Assertion => "assertion might fail",
         VcKind::PanicFreedom => "panic possible",
         VcKind::Termination => "termination measure not proven to decrease",
+        VcKind::ClosureContract => "closure contract not satisfied",
     }
 }
 

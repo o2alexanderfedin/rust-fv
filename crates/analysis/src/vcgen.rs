@@ -99,6 +99,8 @@ pub enum VcKind {
     PanicFreedom,
     /// Termination measure decreases check
     Termination,
+    /// Closure contract verification
+    ClosureContract,
 }
 
 impl VcKind {
@@ -5475,5 +5477,16 @@ mod tests {
                 .map(|vc| &vc.description)
                 .collect::<Vec<_>>(),
         );
+    }
+
+    // ====== VcKind::ClosureContract tests (Phase 7) ======
+
+    #[test]
+    fn test_vc_kind_closure_contract() {
+        let kind1 = VcKind::ClosureContract;
+        let kind2 = VcKind::ClosureContract;
+        assert_eq!(kind1, kind2);
+        assert_ne!(kind1, VcKind::Precondition);
+        assert_ne!(kind1, VcKind::Termination);
     }
 }

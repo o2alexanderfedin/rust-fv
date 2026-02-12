@@ -12,6 +12,33 @@ pub struct GenericParam {
     pub trait_bounds: Vec<String>,
 }
 
+/// Closure trait classification (Fn, FnMut, FnOnce).
+/// These correspond to Rust's closure capture modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClosureTrait {
+    /// Immutable borrow capture — can be called multiple times
+    Fn,
+    /// Mutable borrow capture — can be called multiple times, requires mutability
+    FnMut,
+    /// Move capture — can only be called once
+    FnOnce,
+}
+
+/// Information about a closure type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosureInfo {
+    /// Unique closure identifier (e.g., "closure_add_captured")
+    pub name: String,
+    /// Captured variable names and their types (environment)
+    pub env_fields: Vec<(String, Ty)>,
+    /// Closure parameter names and types
+    pub params: Vec<(String, Ty)>,
+    /// Closure return type
+    pub return_ty: Ty,
+    /// Which Fn trait this closure implements
+    pub trait_kind: ClosureTrait,
+}
+
 /// A function to be verified.
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -242,6 +269,8 @@ pub enum AggregateKind {
     Tuple,
     Struct(String),
     Enum(String, usize),
+    /// Closure environment construction (closure name)
+    Closure(String),
 }
 
 /// An operand — either a place (variable) or a constant.
@@ -401,6 +430,9 @@ pub enum Ty {
     /// Generic type parameter (e.g., T in fn foo<T>).
     /// Replaced with concrete types during monomorphization.
     Generic(String),
+    /// Closure type with environment, parameters, return type, and trait kind.
+    /// Box is used to avoid recursive type size explosion.
+    Closure(Box<ClosureInfo>),
 }
 
 /// Signed integer types.
@@ -529,6 +561,11 @@ impl Ty {
     /// Whether this is a specification-only unbounded integer type.
     pub fn is_spec_int(&self) -> bool {
         matches!(self, Self::SpecInt | Self::SpecNat)
+    }
+
+    /// Whether this is a closure type.
+    pub fn is_closure(&self) -> bool {
+        matches!(self, Self::Closure(_))
     }
 }
 
@@ -936,5 +973,74 @@ mod tests {
         };
         assert!(contracts.decreases.is_some());
         assert_eq!(contracts.decreases.unwrap().raw, "n");
+    }
+
+    // ====== Closure types tests (Phase 7) ======
+
+    #[test]
+    fn test_closure_trait_equality() {
+        assert_eq!(ClosureTrait::Fn, ClosureTrait::Fn);
+        assert_eq!(ClosureTrait::FnMut, ClosureTrait::FnMut);
+        assert_eq!(ClosureTrait::FnOnce, ClosureTrait::FnOnce);
+        assert_ne!(ClosureTrait::Fn, ClosureTrait::FnMut);
+        assert_ne!(ClosureTrait::Fn, ClosureTrait::FnOnce);
+        assert_ne!(ClosureTrait::FnMut, ClosureTrait::FnOnce);
+    }
+
+    #[test]
+    fn test_closure_info_creation() {
+        let env_fields = vec![
+            ("captured_x".to_string(), Ty::Int(IntTy::I32)),
+            ("captured_y".to_string(), Ty::Bool),
+        ];
+        let params = vec![("arg1".to_string(), Ty::Int(IntTy::I32))];
+        let return_ty = Ty::Bool;
+        let trait_kind = ClosureTrait::Fn;
+
+        let info = ClosureInfo {
+            name: "closure_test".to_string(),
+            env_fields: env_fields.clone(),
+            params: params.clone(),
+            return_ty: return_ty.clone(),
+            trait_kind,
+        };
+
+        assert_eq!(info.name, "closure_test");
+        assert_eq!(info.env_fields.len(), 2);
+        assert_eq!(info.env_fields[0].0, "captured_x");
+        assert_eq!(info.env_fields[0].1, Ty::Int(IntTy::I32));
+        assert_eq!(info.params.len(), 1);
+        assert_eq!(info.params[0].0, "arg1");
+        assert_eq!(info.return_ty, Ty::Bool);
+        assert_eq!(info.trait_kind, ClosureTrait::Fn);
+    }
+
+    #[test]
+    fn test_ty_closure_variant() {
+        let info = ClosureInfo {
+            name: "closure_add".to_string(),
+            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+            params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
+            return_ty: Ty::Int(IntTy::I32),
+            trait_kind: ClosureTrait::Fn,
+        };
+        let closure_ty = Ty::Closure(Box::new(info));
+        assert!(closure_ty.is_closure());
+    }
+
+    #[test]
+    fn test_ty_non_closure_is_not_closure() {
+        assert!(!Ty::Int(IntTy::I32).is_closure());
+        assert!(!Ty::Bool.is_closure());
+        assert!(!Ty::Unit.is_closure());
+        assert!(!Ty::SpecInt.is_closure());
+    }
+
+    #[test]
+    fn test_aggregate_kind_closure() {
+        let closure_agg = AggregateKind::Closure("test_closure".to_string());
+        let debug_output = format!("{:?}", closure_agg);
+        assert!(debug_output.contains("Closure"));
+        assert!(debug_output.contains("test_closure"));
     }
 }

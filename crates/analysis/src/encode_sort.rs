@@ -80,6 +80,10 @@ pub fn encode_type(ty: &Ty) -> Sort {
                 name
             )
         }
+        Ty::Closure(info) => {
+            tracing::trace!(closure_name = %info.name, "Encoding closure as datatype sort");
+            Sort::Datatype(info.name.clone())
+        }
     }
 }
 

@@ -521,6 +521,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::Assertion => "assertion",
         VcKind::PanicFreedom => "panic_freedom",
         VcKind::Termination => "termination",
+        VcKind::ClosureContract => "closure_contract",
     }
     .to_string()
 }

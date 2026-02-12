@@ -136,6 +136,11 @@ pub fn encode_aggregate(kind: &AggregateKind, operands: &[Operand]) -> Option<Te
             let constructor = format!("mk-variant-{variant_idx}");
             Some(Term::App(constructor, encoded_ops))
         }
+        AggregateKind::Closure(name) => {
+            // Closure environment construction
+            let constructor = format!("mk-{name}");
+            Some(Term::App(constructor, encoded_ops))
+        }
     }
 }
 
@@ -171,6 +176,11 @@ pub fn encode_aggregate_with_type(
             }
             // Fallback: use variant index
             let constructor = format!("mk-variant-{variant_idx}");
+            Some(Term::App(constructor, encoded_ops))
+        }
+        AggregateKind::Closure(name) => {
+            // Closure environment construction (same as Struct)
+            let constructor = format!("mk-{name}");
             Some(Term::App(constructor, encoded_ops))
         }
     }
