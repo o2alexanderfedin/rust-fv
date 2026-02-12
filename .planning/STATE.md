@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-12T08:08:03Z
+**Last updated:** 2026-02-12T08:24:50Z
 
 ## Project Reference
 
@@ -13,18 +13,18 @@
 ## Current Position
 
 **Phase:** 6 - Recursive Functions
-**Plan:** 1 of 3 complete
+**Plan:** 2 of 3 complete
 **Status:** In Progress
-**Progress:** `[#         ] 0/7 phases` (v0.2 milestone, Phase 6: 1/3 plans)
+**Progress:** `[#         ] 0/7 phases` (v0.2 milestone, Phase 6: 2/3 plans)
 
 ### Active Work
 - Completed Plan 06-01: Infrastructure (decreases macro, IR extensions, recursion detection)
+- Completed Plan 06-02: Recursion verification core (termination VCs, uninterpreted function encoding, VCGen integration)
 - Next: Plan 06-02 (termination VC generation)
 
 ### Next Steps
-1. Execute Plan 06-02: Termination VC generation using Contracts.decreases and detect_recursion()
-2. Execute Plan 06-03: Encoding and diagnostics for termination VCs
-3. Complete Phase 6 and move to Phase 7 (Closures)
+1. Execute Plan 06-03: End-to-end integration testing, diagnostics, and verification
+2. Complete Phase 6 and move to Phase 7 (Closures)
 
 ## Performance Metrics
 
@@ -44,6 +44,13 @@
 - Files modified: 18
 - New LOC: ~589 (285 impl + 304 test updates)
 - petgraph 0.8.3 added
+
+**Phase 6-02 (2026-02-12):**
+- Duration: 10 min
+- Tasks: 2 (TDD)
+- New tests: 13 (total: 1,768)
+- Files modified: 3
+- New LOC: ~890 (recursion.rs) + ~325 (vcgen.rs integration + tests)
 
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
@@ -66,10 +73,13 @@
 | Reused spec_attribute helper for #[decreases] | Same doc attribute encoding pattern; zero code duplication | Phase 6 |
 | petgraph 0.8 for SCC analysis | Mature, well-tested, minimal API surface | Phase 6 |
 | Self-loop check for direct recursion in tarjan_scc | Size-1 SCCs include non-recursive nodes; only self-edge nodes are recursive | Phase 6 |
+| Termination VCs use BvSLt for signed params | Matches Z3 bitvector theory semantics for signed comparison | Phase 6 |
+| Missing-decreases as diagnostic VC (always-SAT) | Flows through normal VC pipeline; simpler than separate error path | Phase 6 |
+| Uninterpreted function encoding with forall axioms | Dafny/F* pattern; better control than Z3 define-fun-rec | Phase 6 |
 
 ### In-Progress Todos
 
-- Phase 6: Plans 02 and 03 remaining (termination VC generation, encoding/diagnostics).
+- Phase 6: Plan 03 remaining (end-to-end integration testing and diagnostics).
 
 ### Blockers
 
@@ -141,16 +151,15 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - Completed Plan 06-01 (infrastructure)
-- Added #[decreases(expr)] proc macro, Contracts.decreases field, VcKind::Termination
-- Added petgraph SCC-based recursion detection with RecursiveGroup type
-- 14 new tests, 1755 total passing, 0 warnings
+**Last session:** 2026-02-12 - Completed Plan 06-02 (recursion verification core)
+- Created recursion.rs with check_missing_decreases, generate_termination_vcs, encode_recursive_function
+- Integrated recursion detection into generate_vcs() in vcgen.rs
+- 13 new tests, 1768 total passing, 0 warnings
 
-**Stopped at:** Completed 06-01-PLAN.md
+**Stopped at:** Completed 06-02-PLAN.md
 
 **Next session expectations:**
-- Execute Plan 06-02: Termination VC generation
-- Execute Plan 06-03: Encoding and diagnostics
+- Execute Plan 06-03: End-to-end integration testing, diagnostics, verification
 - Complete Phase 6
 
 ---
