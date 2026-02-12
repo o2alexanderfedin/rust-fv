@@ -1,14 +1,41 @@
-//! Call graph extraction and topological sorting for verification order.
+//! Call graph extraction, topological sorting, and recursion detection.
 //!
 //! Builds a call graph from IR functions and produces a topological ordering
 //! where leaf functions (callees) are verified before their callers.
+//!
+//! Also detects recursive functions via Tarjan's SCC algorithm (petgraph),
+//! identifying both direct recursion (self-loops) and mutual recursion
+//! (multi-node strongly connected components).
 //!
 //! This ensures that function summaries are available when verifying callers,
 //! enabling modular verification.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use petgraph::algo::tarjan_scc;
+use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::visit::EdgeRef;
+
 use crate::ir::{Function, Terminator};
+
+/// A group of mutually recursive functions (or a single directly recursive function).
+#[derive(Debug, Clone)]
+pub struct RecursiveGroup {
+    /// Function names in this recursive group.
+    pub functions: Vec<String>,
+}
+
+impl RecursiveGroup {
+    /// Check if a function is in this recursive group.
+    pub fn contains(&self, name: &str) -> bool {
+        self.functions.iter().any(|f| f == name)
+    }
+
+    /// True if this is mutual recursion (2+ functions), false if direct recursion.
+    pub fn is_mutual(&self) -> bool {
+        self.functions.len() > 1
+    }
+}
 
 /// Call graph representation.
 pub struct CallGraph {
@@ -124,6 +151,62 @@ impl CallGraph {
         }
 
         result
+    }
+
+    /// Detect recursive functions using Tarjan's SCC algorithm.
+    ///
+    /// Returns a list of `RecursiveGroup`s. Each group contains either:
+    /// - A single directly recursive function (calls itself), or
+    /// - Two or more mutually recursive functions (form a cycle).
+    ///
+    /// Non-recursive functions are excluded even though `tarjan_scc` returns
+    /// them as size-1 SCCs. We check for self-edges to distinguish direct
+    /// recursion from non-recursive singletons.
+    pub fn detect_recursion(&self) -> Vec<RecursiveGroup> {
+        let mut graph: DiGraph<String, ()> = DiGraph::new();
+        let mut node_map: HashMap<String, NodeIndex> = HashMap::new();
+
+        // Add all functions as nodes
+        for func in &self.all_functions {
+            let idx = graph.add_node(func.clone());
+            node_map.insert(func.clone(), idx);
+        }
+
+        // Add edges (only for calls within our function set)
+        for (caller, callees) in &self.edges {
+            if let Some(&caller_idx) = node_map.get(caller) {
+                for callee in callees {
+                    if let Some(&callee_idx) = node_map.get(callee) {
+                        graph.add_edge(caller_idx, callee_idx, ());
+                    }
+                }
+            }
+        }
+
+        // Run Tarjan's SCC algorithm
+        let sccs = tarjan_scc(&graph);
+
+        // Filter: keep SCCs with size > 1 (mutual recursion) or
+        // size == 1 with a self-edge (direct recursion)
+        let mut groups = Vec::new();
+        for scc in sccs {
+            if scc.len() > 1 {
+                // Mutual recursion: multi-node SCC
+                let functions: Vec<String> = scc.iter().map(|&idx| graph[idx].clone()).collect();
+                groups.push(RecursiveGroup { functions });
+            } else if scc.len() == 1 {
+                // Check for self-edge (direct recursion)
+                let node = scc[0];
+                let has_self_edge = graph.edges(node).any(|e| e.target() == node);
+                if has_self_edge {
+                    groups.push(RecursiveGroup {
+                        functions: vec![graph[node].clone()],
+                    });
+                }
+            }
+        }
+
+        groups
     }
 }
 
@@ -417,5 +500,168 @@ mod tests {
         assert!(order.contains(&"a".to_string()));
         assert!(order.contains(&"b".to_string()));
         assert!(order.contains(&"c".to_string()));
+    }
+
+    // ====== RecursiveGroup tests (Phase 6) ======
+
+    #[test]
+    fn test_recursive_group_contains() {
+        let group = RecursiveGroup {
+            functions: vec!["factorial".to_string()],
+        };
+        assert!(group.contains("factorial"));
+        assert!(!group.contains("fibonacci"));
+    }
+
+    #[test]
+    fn test_recursive_group_is_mutual() {
+        let direct = RecursiveGroup {
+            functions: vec!["factorial".to_string()],
+        };
+        assert!(!direct.is_mutual());
+
+        let mutual = RecursiveGroup {
+            functions: vec!["even".to_string(), "odd".to_string()],
+        };
+        assert!(mutual.is_mutual());
+    }
+
+    // ====== CallGraph::detect_recursion tests (Phase 6) ======
+
+    #[test]
+    fn test_detect_recursion_empty_graph() {
+        let funcs: Vec<(String, &Function)> = vec![];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn test_detect_recursion_no_recursion() {
+        // a -> b -> c (linear chain, no recursion)
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("c"), return_block()]);
+        let c = make_function("c", vec![return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert!(
+            groups.is_empty(),
+            "Linear chain should have no recursive groups"
+        );
+    }
+
+    #[test]
+    fn test_detect_recursion_direct_self_loop() {
+        // factorial calls itself
+        let factorial = make_function("factorial", vec![call_block("factorial"), return_block()]);
+        let funcs = vec![("factorial".to_string(), &factorial)];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 1);
+        assert!(groups[0].contains("factorial"));
+        assert!(!groups[0].is_mutual());
+    }
+
+    #[test]
+    fn test_detect_recursion_mutual_two_functions() {
+        // even -> odd -> even (cycle)
+        let even = make_function("even", vec![call_block("odd"), return_block()]);
+        let odd = make_function("odd", vec![call_block("even"), return_block()]);
+        let funcs = vec![("even".to_string(), &even), ("odd".to_string(), &odd)];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 1);
+        assert!(groups[0].contains("even"));
+        assert!(groups[0].contains("odd"));
+        assert!(groups[0].is_mutual());
+    }
+
+    #[test]
+    fn test_detect_recursion_mutual_three_functions() {
+        // a -> b -> c -> a
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("c"), return_block()]);
+        let c = make_function("c", vec![call_block("a"), return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 1);
+        assert!(groups[0].contains("a"));
+        assert!(groups[0].contains("b"));
+        assert!(groups[0].contains("c"));
+        assert!(groups[0].is_mutual());
+    }
+
+    #[test]
+    fn test_detect_recursion_mixed_recursive_and_non() {
+        // helper (non-recursive) + factorial (self-loop)
+        let helper = make_function("helper", vec![return_block()]);
+        let factorial = make_function(
+            "factorial",
+            vec![
+                call_block("factorial"),
+                call_block("helper"),
+                return_block(),
+            ],
+        );
+        let funcs = vec![
+            ("helper".to_string(), &helper),
+            ("factorial".to_string(), &factorial),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 1);
+        assert!(groups[0].contains("factorial"));
+        assert!(!groups[0].contains("helper"));
+    }
+
+    #[test]
+    fn test_detect_recursion_two_separate_sccs() {
+        // Group 1: factorial (self-loop), Group 2: even <-> odd
+        let factorial = make_function("factorial", vec![call_block("factorial"), return_block()]);
+        let even = make_function("even", vec![call_block("odd"), return_block()]);
+        let odd = make_function("odd", vec![call_block("even"), return_block()]);
+        let funcs = vec![
+            ("factorial".to_string(), &factorial),
+            ("even".to_string(), &even),
+            ("odd".to_string(), &odd),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 2);
+
+        // Find which group is which
+        let has_factorial = groups
+            .iter()
+            .any(|g| g.contains("factorial") && g.functions.len() == 1);
+        let has_even_odd = groups
+            .iter()
+            .any(|g| g.contains("even") && g.contains("odd") && g.functions.len() == 2);
+        assert!(has_factorial, "Should have factorial self-loop group");
+        assert!(has_even_odd, "Should have even/odd mutual recursion group");
+    }
+
+    #[test]
+    fn test_detect_recursion_self_loop_in_size_one_scc() {
+        // Critical pitfall: tarjan_scc returns size-1 SCCs for ALL nodes.
+        // Only nodes with self-edges are truly recursive.
+        // Non-recursive node 'a' should NOT appear in recursive groups.
+        let a = make_function("a", vec![return_block()]);
+        let b = make_function("b", vec![call_block("b"), return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+        let groups = cg.detect_recursion();
+        assert_eq!(groups.len(), 1, "Only 'b' (self-loop) should be recursive");
+        assert!(groups[0].contains("b"));
+        assert!(!groups[0].contains("a"));
     }
 }
