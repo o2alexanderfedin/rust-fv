@@ -152,7 +152,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None.
+- **Improve test coverage to 85%+** (area: testing) - Prioritize lowest coverage files first: encode_term.rs (73.88%), macros/lib.rs (73.33%), cargo_verify.rs (78.19%), vcgen.rs (79.38%), simplify.rs (79.91%)
 
 ### Blockers/Concerns
 
