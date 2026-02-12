@@ -123,6 +123,15 @@ fn report_text_only(failure: &VerificationFailure) {
         eprintln!("{}", format_missing_decreases_help(&failure.function_name));
     }
 
+    if failure.vc_kind == VcKind::ClosureContract {
+        eprintln!();
+        if failure.message.contains("FnOnce") && failure.message.contains("called more than once") {
+            eprintln!("{}", format_fnonce_double_call_help(&failure.function_name));
+        } else {
+            eprintln!("{}", format_closure_contract_help());
+        }
+    }
+
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
         eprintln!();
         eprintln!("{}: {}", "help".cyan().bold(), suggestion);
@@ -190,6 +199,28 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         ),
         _ => None,
     }
+}
+
+/// Format a help message for a closure contract violation.
+///
+/// Provides guidance on what a closure contract failure means.
+pub fn format_closure_contract_help() -> String {
+    "Closure contract violation: the closure's behavior at the call site does not satisfy \
+     the specified contract. Check that the closure's ensures clause holds for all valid \
+     inputs satisfying the requires clause."
+        .to_string()
+}
+
+/// Format a help message for a FnOnce closure called more than once.
+///
+/// Explains why FnOnce closures can only be called once.
+pub fn format_fnonce_double_call_help(closure_name: &str) -> String {
+    format!(
+        "FnOnce closure '{}' is called more than once. FnOnce closures consume their \
+         environment and can only be called once. Consider using Fn or FnMut if multiple \
+         calls are needed.",
+        closure_name
+    )
 }
 
 /// Format a help message for a recursive function missing a `#[decreases]` annotation.
@@ -1084,5 +1115,89 @@ mod tests {
         // Should not crash with empty values
         assert!(!result.contains("at function entry"));
         assert!(!result.contains("at recursive call"));
+    }
+
+    // --- format_closure_contract_help tests ---
+
+    #[test]
+    fn test_format_closure_contract_help_contains_explanation() {
+        let help = format_closure_contract_help();
+        assert!(
+            help.contains("Closure contract violation"),
+            "Help text should mention closure contract violation"
+        );
+        assert!(
+            help.contains("ensures clause"),
+            "Help text should mention ensures clause"
+        );
+        assert!(
+            help.contains("requires clause"),
+            "Help text should mention requires clause"
+        );
+    }
+
+    // --- format_fnonce_double_call_help tests ---
+
+    #[test]
+    fn test_format_fnonce_double_call_help_contains_closure_name() {
+        let help = format_fnonce_double_call_help("my_closure");
+        assert!(
+            help.contains("my_closure"),
+            "Help text should contain closure name"
+        );
+    }
+
+    #[test]
+    fn test_format_fnonce_double_call_help_contains_explanation() {
+        let help = format_fnonce_double_call_help("test_closure");
+        assert!(help.contains("FnOnce"), "Help text should mention FnOnce");
+        assert!(
+            help.contains("called more than once"),
+            "Help text should mention double-call issue"
+        );
+        assert!(
+            help.contains("consume their environment"),
+            "Help text should explain why FnOnce is restricted"
+        );
+        assert!(
+            help.contains("Fn or FnMut"),
+            "Help text should suggest alternatives"
+        );
+    }
+
+    // --- report_text_only closure contract tests ---
+
+    #[test]
+    fn test_report_text_only_closure_contract() {
+        let failure = make_failure(
+            VcKind::ClosureContract,
+            Some("predicate(x) == true"),
+            None,
+            None,
+            None,
+        );
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_fnonce_double_call() {
+        let failure = VerificationFailure {
+            function_name: "my_closure".to_string(),
+            vc_kind: VcKind::ClosureContract,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "FnOnce closure called more than once".to_string(),
+        };
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_vc_kind_description_closure_contract() {
+        assert_eq!(
+            vc_kind_description(&VcKind::ClosureContract),
+            "closure contract not satisfied"
+        );
     }
 }
