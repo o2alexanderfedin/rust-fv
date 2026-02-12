@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-12
+**Last updated:** 2026-02-12T08:08:03Z
 
 ## Project Reference
 
@@ -13,18 +13,18 @@
 ## Current Position
 
 **Phase:** 6 - Recursive Functions
-**Plan:** Not yet started
-**Status:** Pending
-**Progress:** `[          ] 0/7 phases` (v0.2 milestone)
+**Plan:** 1 of 3 complete
+**Status:** In Progress
+**Progress:** `[#         ] 0/7 phases` (v0.2 milestone, Phase 6: 1/3 plans)
 
 ### Active Work
-- Awaiting planning for Phase 6: Recursive Functions
+- Completed Plan 06-01: Infrastructure (decreases macro, IR extensions, recursion detection)
+- Next: Plan 06-02 (termination VC generation)
 
 ### Next Steps
-1. Execute `/gsd:plan-phase 6` to create execution plans for recursive function verification
-2. Implement termination checking with `#[decreases(expr)]` annotation
-3. Add petgraph dependency for call graph SCC analysis
-4. Extend VcKind enum with Termination variant
+1. Execute Plan 06-02: Termination VC generation using Contracts.decreases and detect_recursion()
+2. Execute Plan 06-03: Encoding and diagnostics for termination VCs
+3. Complete Phase 6 and move to Phase 7 (Closures)
 
 ## Performance Metrics
 
@@ -36,6 +36,14 @@
 - Build time: ~15s (debug), ~45s (release)
 - Single-function verification: <1s
 - Loop/inter-procedural: <5s
+
+**Phase 6-01 (2026-02-12):**
+- Duration: 25 min
+- Tasks: 2 (TDD)
+- New tests: 14 (total: 1,755)
+- Files modified: 18
+- New LOC: ~589 (285 impl + 304 test updates)
+- petgraph 0.8.3 added
 
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
@@ -55,10 +63,13 @@
 | Mandatory `#[decreases]` for recursive functions | Termination undecidable; unsound to assume termination without proof | Phase 6 |
 | Bounded concurrency verification (max threads/context switches) | State explosion mitigation; document limitations clearly | Phase 12 |
 | Sequential consistency only for atomics (v0.2) | Weak memory models deferred; SC first for foundational verification | Phase 12 |
+| Reused spec_attribute helper for #[decreases] | Same doc attribute encoding pattern; zero code duplication | Phase 6 |
+| petgraph 0.8 for SCC analysis | Mature, well-tested, minimal API surface | Phase 6 |
+| Self-loop check for direct recursion in tarjan_scc | Size-1 SCCs include non-recursive nodes; only self-edge nodes are recursive | Phase 6 |
 
 ### In-Progress Todos
 
-None (awaiting Phase 6 planning).
+- Phase 6: Plans 02 and 03 remaining (termination VC generation, encoding/diagnostics).
 
 ### Blockers
 
@@ -130,21 +141,17 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - v0.2 milestone initialization
-- Completed project research (SUMMARY.md)
-- Created REQUIREMENTS.md with 44 v0.2 requirements
-- Created this roadmap (phases 6-12)
+**Last session:** 2026-02-12 - Completed Plan 06-01 (infrastructure)
+- Added #[decreases(expr)] proc macro, Contracts.decreases field, VcKind::Termination
+- Added petgraph SCC-based recursion detection with RecursiveGroup type
+- 14 new tests, 1755 total passing, 0 warnings
 
-**This session:** Roadmap creation for v0.2
-- Derived 7 phases from requirement categories
-- Applied goal-backward thinking to create success criteria
-- Validated 100% requirement coverage (44/44 mapped)
-- Ready for Phase 6 planning
+**Stopped at:** Completed 06-01-PLAN.md
 
 **Next session expectations:**
-- Execute `/gsd:plan-phase 6` to begin Phase 6: Recursive Functions
-- Implement termination checking infrastructure
-- Add petgraph dependency and call graph analysis
+- Execute Plan 06-02: Termination VC generation
+- Execute Plan 06-03: Encoding and diagnostics
+- Complete Phase 6
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
