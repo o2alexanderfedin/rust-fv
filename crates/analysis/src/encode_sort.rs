@@ -192,6 +192,30 @@ fn collect_from_type(ty: &Ty, seen: &mut HashSet<String>, declarations: &mut Vec
                 });
             }
         }
+        Ty::Closure(info) => {
+            if seen.insert(info.name.clone()) {
+                // Recurse into environment field types
+                for (_field_name, field_ty) in &info.env_fields {
+                    collect_from_type(field_ty, seen, declarations);
+                }
+                // Closure is encoded as a datatype with environment fields
+                // (params and return type are not part of the environment structure)
+                let variant = DatatypeVariant {
+                    constructor: format!("mk-{}", info.name),
+                    fields: info
+                        .env_fields
+                        .iter()
+                        .map(|(field_name, field_ty)| {
+                            (format!("{}-{field_name}", info.name), encode_type(field_ty))
+                        })
+                        .collect(),
+                };
+                declarations.push(Command::DeclareDatatype {
+                    name: info.name.clone(),
+                    variants: vec![variant],
+                });
+            }
+        }
         // Recurse into composite types that may contain datatypes
         Ty::Array(elem_ty, _) | Ty::Slice(elem_ty) => {
             collect_from_type(elem_ty, seen, declarations);
@@ -465,5 +489,122 @@ mod tests {
         assert!(is_signed_type(&Ty::Int(IntTy::I32)));
         assert!(!is_signed_type(&Ty::Uint(UintTy::U32)));
         assert!(!is_signed_type(&Ty::Bool));
+    }
+
+    // ====== Ty::Closure encoding tests (Phase 7) ======
+
+    #[test]
+    fn test_closure_encodes_to_datatype() {
+        use crate::ir::{ClosureInfo, ClosureTrait};
+        let info = ClosureInfo {
+            name: "closure_add".to_string(),
+            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+            params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
+            return_ty: Ty::Int(IntTy::I32),
+            trait_kind: ClosureTrait::Fn,
+        };
+        let closure_ty = Ty::Closure(Box::new(info));
+        assert_eq!(
+            encode_type(&closure_ty),
+            Sort::Datatype("closure_add".to_string())
+        );
+    }
+
+    #[test]
+    fn test_collect_closure_datatype_declaration() {
+        use crate::ir::{ClosureInfo, ClosureTrait};
+        let closure_info = ClosureInfo {
+            name: "test_closure".to_string(),
+            env_fields: vec![
+                ("captured_x".to_string(), Ty::Int(IntTy::I32)),
+                ("captured_y".to_string(), Ty::Bool),
+            ],
+            params: vec![("arg".to_string(), Ty::Int(IntTy::I32))],
+            return_ty: Ty::Int(IntTy::I32),
+            trait_kind: ClosureTrait::Fn,
+        };
+
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: Ty::Unit,
+                is_ghost: false,
+            },
+            params: vec![crate::ir::Local {
+                name: "_1".to_string(),
+                ty: Ty::Closure(Box::new(closure_info)),
+                is_ghost: false,
+            }],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1);
+        if let Command::DeclareDatatype { name, variants } = &decls[0] {
+            assert_eq!(name, "test_closure");
+            assert_eq!(variants.len(), 1);
+            assert_eq!(variants[0].constructor, "mk-test_closure");
+            assert_eq!(
+                variants[0].fields.len(),
+                2,
+                "Should have 2 environment fields"
+            );
+            assert_eq!(variants[0].fields[0].0, "test_closure-captured_x");
+            assert_eq!(variants[0].fields[0].1, Sort::BitVec(32));
+            assert_eq!(variants[0].fields[1].0, "test_closure-captured_y");
+            assert_eq!(variants[0].fields[1].1, Sort::Bool);
+        } else {
+            panic!("Expected DeclareDatatype");
+        }
+    }
+
+    #[test]
+    fn test_closure_env_field_types_encoded() {
+        use crate::ir::{ClosureInfo, ClosureTrait};
+        let closure_info = ClosureInfo {
+            name: "multi_type_closure".to_string(),
+            env_fields: vec![
+                ("i32_field".to_string(), Ty::Int(IntTy::I32)),
+                ("bool_field".to_string(), Ty::Bool),
+                ("u64_field".to_string(), Ty::Uint(UintTy::U64)),
+            ],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+
+        let func = Function {
+            name: "test".to_string(),
+            return_local: crate::ir::Local {
+                name: "_0".to_string(),
+                ty: Ty::Closure(Box::new(closure_info)),
+                is_ghost: false,
+            },
+            params: vec![],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            prophecies: vec![],
+            loops: vec![],
+        };
+
+        let decls = collect_datatype_declarations(&func);
+        assert_eq!(decls.len(), 1);
+        if let Command::DeclareDatatype { name: _, variants } = &decls[0] {
+            let variant = &variants[0];
+            assert_eq!(variant.fields.len(), 3);
+            assert_eq!(variant.fields[0].1, Sort::BitVec(32)); // i32 -> BitVec(32)
+            assert_eq!(variant.fields[1].1, Sort::Bool); // bool -> Bool
+            assert_eq!(variant.fields[2].1, Sort::BitVec(64)); // u64 -> BitVec(64)
+        } else {
+            panic!("Expected DeclareDatatype");
+        }
     }
 }
