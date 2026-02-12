@@ -886,4 +886,69 @@ mod tests {
             "Should return empty for non-recursive function"
         );
     }
+
+    // ====== encode_recursive_function tests ======
+
+    #[test]
+    fn test_encode_recursive_function_declares_uninterpreted_fun() {
+        let factorial = make_factorial(Some("_1"), vec!["_1 >= 0"]);
+        let commands = encode_recursive_function(&factorial);
+
+        // First command should be DeclareFun with name "factorial_uninterp"
+        let has_declare_fun = commands.iter().any(
+            |cmd| matches!(cmd, Command::DeclareFun(name, _, _) if name.contains("factorial")),
+        );
+        assert!(
+            has_declare_fun,
+            "Should declare uninterpreted function for factorial, got: {:?}",
+            commands
+        );
+    }
+
+    #[test]
+    fn test_encode_recursive_function_adds_base_case_axiom() {
+        let factorial = make_factorial(Some("_1"), vec![]);
+        let commands = encode_recursive_function(&factorial);
+
+        // Should have at least one Assert command (for axioms)
+        let assert_count = commands
+            .iter()
+            .filter(|cmd| matches!(cmd, Command::Assert(_)))
+            .count();
+        assert!(
+            assert_count >= 1,
+            "Should have at least one axiom assertion for base case, got {} asserts in {:?}",
+            assert_count,
+            commands
+        );
+    }
+
+    #[test]
+    fn test_encode_recursive_function_adds_recursive_case_axiom() {
+        let factorial = make_factorial(Some("_1"), vec![]);
+        let commands = encode_recursive_function(&factorial);
+
+        // Should have at least 2 Assert commands: base case + recursive case
+        let assert_count = commands
+            .iter()
+            .filter(|cmd| matches!(cmd, Command::Assert(_)))
+            .count();
+        assert!(
+            assert_count >= 2,
+            "Should have axioms for both base and recursive cases, got {} asserts in {:?}",
+            assert_count,
+            commands
+        );
+
+        // At least one axiom should reference the uninterpreted function in its body
+        // (the recursive case axiom uses factorial_uninterp)
+        let has_recursive_axiom = commands.iter().any(|cmd| {
+            let cmd_str = format!("{:?}", cmd);
+            cmd_str.contains("factorial_uninterp") && matches!(cmd, Command::Assert(_))
+        });
+        assert!(
+            has_recursive_axiom,
+            "Should have recursive case axiom referencing factorial_uninterp"
+        );
+    }
 }

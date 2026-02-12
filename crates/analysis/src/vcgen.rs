@@ -251,6 +251,74 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         conditions.append(&mut call_vcs);
     }
 
+    // Recursion analysis: detect recursive functions and generate termination VCs
+    {
+        // Build function list for call graph (current function + contract_db functions)
+        let func_list: Vec<(String, &Function)> = vec![(func.name.clone(), func)];
+
+        // Build call graph and detect recursion
+        let cg = crate::call_graph::CallGraph::from_functions(&func_list);
+        let recursive_groups = cg.detect_recursion();
+
+        if !recursive_groups.is_empty() {
+            tracing::info!(
+                function = %func.name,
+                group_count = recursive_groups.len(),
+                "Detected recursive function(s)"
+            );
+
+            // Check for missing decreases annotations
+            let missing = crate::recursion::check_missing_decreases(&func_list, &recursive_groups);
+            for err in &missing {
+                tracing::warn!(
+                    function = %err.function_name,
+                    group = ?err.recursive_group,
+                    "Recursive function missing #[decreases] annotation"
+                );
+
+                // Generate diagnostic VC (always SAT = failure)
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+                script.push(rust_fv_smtlib::command::Command::Assert(
+                    rust_fv_smtlib::term::Term::BoolLit(true),
+                ));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                conditions.push(VerificationCondition {
+                    description: format!(
+                        "recursive function `{}` missing termination measure",
+                        err.function_name,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: err.function_name.clone(),
+                        block: 0,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        contract_text: Some("add #[decreases(expr)] annotation".to_string()),
+                        vc_kind: VcKind::Termination,
+                    },
+                });
+            }
+
+            // Generate termination VCs for functions with decreases annotations
+            if missing.is_empty() || func.contracts.decreases.is_some() {
+                let mut term_vcs = crate::recursion::generate_termination_vcs(
+                    func,
+                    &recursive_groups,
+                    contract_db,
+                );
+                conditions.append(&mut term_vcs);
+            }
+        }
+
+        // Clean up: func_list is no longer needed
+        drop(func_list);
+    }
+
     // Generate loop invariant VCs for loops with user-supplied invariants
     let detected_loops = detect_loops(func);
     for loop_info in &detected_loops {
@@ -5215,5 +5283,197 @@ mod tests {
         assert_ne!(kind, VcKind::Precondition);
         assert_ne!(kind, VcKind::Postcondition);
         assert_ne!(kind, VcKind::Assertion);
+    }
+
+    // ====== Recursion integration tests (Phase 6, Plan 02) ======
+
+    /// Build a factorial function with recursive call for integration testing.
+    fn make_recursive_factorial() -> Function {
+        let params = vec![Local {
+            name: "_1".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        }];
+
+        let locals = vec![
+            Local::new("_2", Ty::Bool),            // condition
+            Local::new("_3", Ty::Int(IntTy::I32)), // call result
+        ];
+
+        // bb0: _2 = _1 <= 1; switchInt(_2) -> bb1 (true) or bb2 (false)
+        let bb0 = BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_2"),
+                Rvalue::BinaryOp(
+                    BinOp::Le,
+                    Operand::Copy(Place::local("_1")),
+                    Operand::Constant(Constant::Int(1, IntTy::I32)),
+                ),
+            )],
+            terminator: Terminator::SwitchInt {
+                discr: Operand::Copy(Place::local("_2")),
+                targets: vec![(1, 1)],
+                otherwise: 2,
+            },
+        };
+
+        // bb1 (base case): _0 = 1; return
+        let bb1 = BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_0"),
+                Rvalue::Use(Operand::Constant(Constant::Int(1, IntTy::I32))),
+            )],
+            terminator: Terminator::Return,
+        };
+
+        // bb2 (recursive case): call factorial(_1); _3 = result; -> bb3
+        let bb2 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "factorial".to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_3"),
+                target: 3,
+            },
+        };
+
+        // bb3: _0 = _1 * _3; return
+        let bb3 = BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_0"),
+                Rvalue::BinaryOp(
+                    BinOp::Mul,
+                    Operand::Copy(Place::local("_1")),
+                    Operand::Copy(Place::local("_3")),
+                ),
+            )],
+            terminator: Terminator::Return,
+        };
+
+        Function {
+            name: "factorial".to_string(),
+            params,
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals,
+            basic_blocks: vec![bb0, bb1, bb2, bb3],
+            contracts: Contracts {
+                requires: vec![SpecExpr {
+                    raw: "_1 >= 0".to_string(),
+                }],
+                ensures: vec![SpecExpr {
+                    raw: "result > 0".to_string(),
+                }],
+                invariants: vec![],
+                is_pure: false,
+                decreases: Some(SpecExpr {
+                    raw: "_1".to_string(),
+                }),
+            },
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        }
+    }
+
+    #[test]
+    fn test_generate_vcs_recursive_function_produces_termination_vc() {
+        let factorial = make_recursive_factorial();
+
+        // Build a ContractDatabase with factorial's summary
+        let mut contract_db = crate::contract_db::ContractDatabase::new();
+        contract_db.insert(
+            "factorial".to_string(),
+            crate::contract_db::FunctionSummary {
+                contracts: factorial.contracts.clone(),
+                param_names: vec!["_1".to_string()],
+                param_types: vec![Ty::Int(IntTy::I32)],
+                return_ty: Ty::Int(IntTy::I32),
+            },
+        );
+
+        let result = generate_vcs(&factorial, Some(&contract_db));
+
+        // Should have at least one termination VC
+        let termination_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+            .collect();
+
+        assert!(
+            !termination_vcs.is_empty(),
+            "Expected at least one Termination VC for recursive factorial, got VCs: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{}: {:?}", vc.description, vc.location.vc_kind))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn test_generate_vcs_non_recursive_no_termination_vc() {
+        let func = make_add_function();
+        let result = generate_vcs(&func, None);
+
+        let termination_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+            .collect();
+
+        assert!(
+            termination_vcs.is_empty(),
+            "Non-recursive function should not produce Termination VCs"
+        );
+    }
+
+    #[test]
+    fn test_generate_vcs_recursive_without_decreases_produces_diagnostic_vc() {
+        // Factorial WITHOUT decreases annotation
+        let mut factorial = make_recursive_factorial();
+        factorial.contracts.decreases = None;
+
+        let mut contract_db = crate::contract_db::ContractDatabase::new();
+        contract_db.insert(
+            "factorial".to_string(),
+            crate::contract_db::FunctionSummary {
+                contracts: factorial.contracts.clone(),
+                param_names: vec!["_1".to_string()],
+                param_types: vec![Ty::Int(IntTy::I32)],
+                return_ty: Ty::Int(IntTy::I32),
+            },
+        );
+
+        let result = generate_vcs(&factorial, Some(&contract_db));
+
+        // Should have a diagnostic termination VC (missing decreases)
+        let termination_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+            .collect();
+
+        assert!(
+            !termination_vcs.is_empty(),
+            "Recursive function without decreases should produce diagnostic Termination VC, got VCs: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{}: {:?}", vc.description, vc.location.vc_kind))
+                .collect::<Vec<_>>(),
+        );
+
+        // The diagnostic VC description should mention "missing"
+        assert!(
+            termination_vcs
+                .iter()
+                .any(|vc| vc.description.contains("missing")),
+            "Diagnostic VC should mention 'missing': {:?}",
+            termination_vcs
+                .iter()
+                .map(|vc| &vc.description)
+                .collect::<Vec<_>>(),
+        );
     }
 }
