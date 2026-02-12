@@ -54,6 +54,13 @@ Plans:
 
 **Requirements:** CLO-01, CLO-02, CLO-03, CLO-04, CLO-05, CLO-06
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md -- Infrastructure: IR closure types (Ty::Closure, ClosureTrait, ClosureInfo), closure_analysis module, encode_sort extension
+- [ ] 07-02-PLAN.md -- Core: defunctionalize.rs module, VCGen closure integration, spec parser closure references
+- [ ] 07-03-PLAN.md -- Integration: closure diagnostics, end-to-end Z3 verification tests
+
 **Success Criteria:**
 1. Developer verifies function accepting `Fn` closure with immutable captures (e.g., `Vec::map` with `|x| x + 1`)
 2. Developer verifies function accepting `FnMut` closure with mutable captures using prophecy variables (e.g., counter closure)
@@ -158,7 +165,7 @@ Plans:
 | 4. Differentiation | v0.1 | 4/4 | Complete | 2026-02-11 |
 | 5. Performance and Polish | v0.1 | 3/3 | Complete | 2026-02-11 |
 | 6. Recursive Functions | v0.2 | 3/3 | Complete | 2026-02-12 |
-| 7. Closures | v0.2 | 0/? | Pending | - |
+| 7. Closures | v0.2 | 0/3 | Planned | - |
 | 8. Trait Objects | v0.2 | 0/? | Pending | - |
 | 9. Lifetime Reasoning | v0.2 | 0/? | Pending | - |
 | 10. Unsafe Code Detection | v0.2 | 0/? | Pending | - |
@@ -167,4 +174,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-12 (Phase 6 complete: 3/3 plans, 1788 tests, 0 warnings)*
+*Last updated: 2026-02-12 (Phase 7 planned: 3 plans, 3 waves)*
