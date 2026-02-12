@@ -49,14 +49,29 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Active
 
-- [ ] Recursive function support with termination measures
+- [ ] Recursive function support with termination measures (`#[decreases]`)
+- [ ] Closure verification (capture reasoning, Fn/FnMut/FnOnce contracts)
+- [ ] Trait object and dynamic dispatch verification
+- [ ] Unsafe code verification with conservative approximations
+- [ ] Deeper reference/lifetime reasoning (reborrow tracking, lifetime-aware specs)
+- [ ] SSA-based parameter encoding for prophecy variable resolution
+- [ ] Floating-point verification (IEEE 754, QF_FP theory)
+- [ ] Concurrency verification (atomics, Mutex/RwLock, Send/Sync, async/await)
 - [ ] Standard library contracts (Vec, HashMap, Option, Result)
 - [ ] Trigger customization (`#[trigger]`) for quantifier performance
-- [ ] Floating-point verification (IEEE 754)
-- [ ] Unsafe code verification with conservative approximations
-- [ ] VSCode extension / rust-analyzer integration
-- [ ] SSA-based parameter encoding for prophecy variable resolution
 - [ ] Z3 bv2int native integration (currently deferred)
+
+## Current Milestone: v0.2 Advanced Verification
+
+**Goal:** Extend verification to cover all major Rust language features -- recursive functions, closures, traits, unsafe code, lifetimes, floating-point, and concurrency.
+
+**Target features:**
+- Recursive functions with termination measures
+- Closure and trait object verification
+- Unsafe code with conservative approximations
+- Deeper reference/lifetime reasoning with SSA fix
+- Floating-point verification (IEEE 754)
+- Concurrency verification (atomics, locks, async)
 
 ### Out of Scope
 
@@ -109,4 +124,4 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | JSON output to stdout | IDE integration best practice, stderr for human output | ✓ Good |
 
 ---
-*Last updated: 2026-02-12 after v0.1 milestone*
+*Last updated: 2026-02-12 after v0.2 milestone start*

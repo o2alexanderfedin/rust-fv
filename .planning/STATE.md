@@ -5,15 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden
-**Current focus:** Planning next milestone
+**Current focus:** v0.2 Advanced Verification
 
 ## Current Position
 
-Milestone: v0.1 SHIPPED (2026-02-12)
-Status: All 5 phases complete, 17/17 plans executed, 37/37 requirements shipped
-Last activity: 2026-02-12 -- Milestone v0.1 archived
+Phase: Not started (defining requirements)
+Plan: --
+Status: Defining requirements
+Last activity: 2026-02-12 -- Milestone v0.2 started
 
-Progress: [████████████████████] 100% (v0.1 complete)
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v0.2 not started)
 
 ## What Exists (v0.1)
 
@@ -38,7 +39,7 @@ Progress: [████████████████████] 100% (v
 
 ### Decisions
 
-All decisions logged in PROJECT.md Key Decisions table (18 decisions, all ✓ Good).
+All decisions logged in PROJECT.md Key Decisions table (18 decisions, all Good).
 
 ### Pending Todos
 
@@ -52,6 +53,6 @@ All decisions logged in PROJECT.md Key Decisions table (18 decisions, all ✓ Go
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Milestone v0.1 archived
+Stopped at: Starting milestone v0.2
 Resume file: None
-Next step: /gsd:new-milestone to plan next version
+Next step: Research and requirements definition for v0.2
