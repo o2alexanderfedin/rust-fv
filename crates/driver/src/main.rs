@@ -22,12 +22,14 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
+mod cache;
 mod callbacks;
 mod cargo_verify;
 mod diagnostics;
 mod json_output;
 mod mir_converter;
 mod output;
+mod parallel;
 
 use std::process::ExitCode;
 
@@ -64,13 +66,27 @@ fn main() -> ExitCode {
         _ => callbacks::OutputFormat::Text,
     };
 
+    // Read RUST_FV_FRESH flag (default: false)
+    let fresh = std::env::var("RUST_FV_FRESH").is_ok();
+
+    // Read RUST_FV_JOBS flag (default: num_cpus/2, min 1)
+    let jobs = std::env::var("RUST_FV_JOBS")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or_else(|| {
+            let cpus = std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(2);
+            (cpus / 2).max(1)
+        });
+
     let rustc_args: Vec<String> = args
         .into_iter()
         .filter(|a| a != "--rust-fv-verify")
         .collect();
 
     let mut callbacks = if verify {
-        callbacks::VerificationCallbacks::new(output_format)
+        callbacks::VerificationCallbacks::new(output_format, jobs, fresh)
     } else {
         callbacks::VerificationCallbacks::passthrough()
     };

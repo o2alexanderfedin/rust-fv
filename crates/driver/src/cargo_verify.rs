@@ -53,6 +53,12 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse output format from args (default: text)
     let output_format = parse_output_format(args);
 
+    // Parse fresh flag from args (default: false)
+    let fresh = parse_fresh(args);
+
+    // Parse jobs flag from args (default: num_cpus/2)
+    let jobs = parse_jobs(args);
+
     // Build the cargo check command with our driver as RUSTC
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
@@ -69,9 +75,21 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
         cmd.env("RUST_FV_OUTPUT_FORMAT", "json");
     }
 
+    if fresh {
+        cmd.env("RUST_FV_FRESH", "1");
+    }
+
+    if let Some(j) = jobs {
+        cmd.env("RUST_FV_JOBS", j.to_string());
+    }
+
     // Forward any extra args (e.g., --package, --lib, etc.)
     for arg in args {
-        if !arg.starts_with("--timeout") && !arg.starts_with("--output-format") {
+        if !arg.starts_with("--timeout")
+            && !arg.starts_with("--output-format")
+            && !arg.starts_with("--fresh")
+            && !arg.starts_with("--jobs")
+        {
             cmd.arg(arg);
         }
     }
@@ -160,6 +178,26 @@ fn parse_output_format(args: &[String]) -> String {
     "text".to_string() // default: text
 }
 
+/// Parse --fresh flag from arguments.
+fn parse_fresh(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--fresh")
+}
+
+/// Parse --jobs N from arguments.
+fn parse_jobs(args: &[String]) -> Option<usize> {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--jobs"
+            && let Some(val) = args.get(i + 1)
+        {
+            return val.parse().ok();
+        }
+        if let Some(val) = arg.strip_prefix("--jobs=") {
+            return val.parse().ok();
+        }
+    }
+    None
+}
+
 /// Print usage information.
 fn print_usage() {
     eprintln!("rust-fv: Formal verification for Rust");
@@ -170,6 +208,10 @@ fn print_usage() {
     eprintln!("OPTIONS:");
     eprintln!("    --timeout <SECONDS>         Verification timeout per function (default: 30)");
     eprintln!("    --output-format <FORMAT>    Output format: text or json (default: text)");
+    eprintln!("    --fresh                     Force re-verification, bypassing cache");
+    eprintln!(
+        "    --jobs <N>                  Number of parallel verification threads (default: num_cpus/2)"
+    );
     eprintln!("    --help, -h                  Print this help message");
     eprintln!();
     eprintln!("DESCRIPTION:");
@@ -183,6 +225,9 @@ fn print_usage() {
     eprintln!("      [TIMEOUT] - Verification timed out");
     eprintln!();
     eprintln!("    JSON mode outputs structured results to stdout for IDE integration.");
+    eprintln!();
+    eprintln!("    Caching: Verification results are cached in target/rust-fv-cache/ and reused");
+    eprintln!("    when source code hasn't changed. Use --fresh to force re-verification.");
     eprintln!();
     eprintln!("EXIT CODES:");
     eprintln!("    0  All functions verified successfully");

@@ -47,17 +47,26 @@ pub struct VerificationCallbacks {
     failures: Vec<diagnostics::VerificationFailure>,
     /// Crate name (extracted during after_analysis)
     crate_name: Option<String>,
+    /// Number of parallel verification threads
+    jobs: usize,
+    /// Force re-verification bypassing cache
+    fresh: bool,
+    /// Apply formula simplification before solver submission
+    use_simplification: bool,
 }
 
 impl VerificationCallbacks {
     /// Create callbacks with verification enabled.
-    pub fn new(output_format: OutputFormat) -> Self {
+    pub fn new(output_format: OutputFormat, jobs: usize, fresh: bool) -> Self {
         Self {
             enabled: true,
             results: Vec::new(),
             output_format,
             failures: Vec::new(),
             crate_name: None,
+            jobs,
+            fresh,
+            use_simplification: true, // Default: enable simplification
         }
     }
 
@@ -69,6 +78,9 @@ impl VerificationCallbacks {
             output_format: OutputFormat::Text,
             failures: Vec::new(),
             crate_name: None,
+            jobs: 1,
+            fresh: false,
+            use_simplification: true,
         }
     }
 
@@ -265,16 +277,23 @@ impl Callbacks for VerificationCallbacks {
             );
         }
 
-        // Find the Z3 solver
-        let solver = match rust_fv_solver::Z3Solver::with_default_config() {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("[rust-fv] Error: Could not find Z3 solver: {e}");
-                return rustc_driver::Compilation::Continue;
-            }
-        };
+        // Determine cache directory (target/rust-fv-cache/)
+        let cache_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+        let cache_path = std::path::PathBuf::from(cache_dir).join("rust-fv-cache");
 
-        // Iterate over all function bodies
+        // Load cache
+        let mut cache = crate::cache::VcCache::new(cache_path);
+        cache.load();
+
+        // Clear cache if --fresh flag is set
+        if self.fresh {
+            cache.clear();
+        }
+
+        // Collect all functions to verify and build verification tasks
+        let mut tasks = Vec::new();
+        let mut func_infos = Vec::new(); // For call graph
+
         for local_def_id in tcx.hir_body_owners() {
             let def_id = local_def_id.to_def_id();
             let name = tcx.def_path_str(def_id);
@@ -284,13 +303,9 @@ impl Callbacks for VerificationCallbacks {
             let has_contracts =
                 contracts.is_some_and(|c| !c.requires.is_empty() || !c.ensures.is_empty());
 
-            // Skip functions without contracts (for now)
+            // Skip functions without contracts
             if !has_contracts {
                 continue;
-            }
-
-            if self.output_format == OutputFormat::Text {
-                eprintln!("[rust-fv] Verifying: {name}");
             }
 
             // Get the optimized MIR
@@ -304,76 +319,89 @@ impl Callbacks for VerificationCallbacks {
                 contracts.cloned().unwrap_or_default(),
             );
 
-            // Generate verification conditions with inter-procedural support
-            let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&ir_func, Some(&contract_db));
+            // Compute cache key
+            let ir_debug = format!("{:?}", ir_func);
+            let cache_key =
+                crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
 
-            // Check each VC with Z3
-            for vc in &func_vcs.conditions {
-                let script_text = vc.script.to_string();
-                match solver.check_sat_raw(&script_text) {
-                    Ok(rust_fv_solver::SolverResult::Unsat) => {
-                        self.results.push(VerificationResult {
-                            function_name: name.clone(),
-                            condition: vc.description.clone(),
-                            verified: true,
-                            counterexample: None,
-                            vc_location: vc.location.clone(),
-                        });
-                    }
-                    Ok(rust_fv_solver::SolverResult::Sat(model)) => {
-                        let cx_str = model.as_ref().map(|m| {
-                            m.assignments
-                                .iter()
-                                .map(|(k, v)| format!("{k} = {v}"))
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        });
+            func_infos.push((name.clone(), ir_func.clone()));
 
-                        // Build structured failure information
-                        let counterexample = model.as_ref().map(|m| {
-                            m.assignments
-                                .iter()
-                                .map(|(k, v)| (k.clone(), v.clone()))
-                                .collect()
-                        });
+            tasks.push(crate::parallel::VerificationTask {
+                name: name.clone(),
+                ir_func,
+                contract_db: std::sync::Arc::new(contract_db.clone()),
+                cache_key,
+            });
+        }
 
-                        self.failures.push(diagnostics::VerificationFailure {
-                            function_name: name.clone(),
-                            vc_kind: vc.location.vc_kind.clone(),
-                            contract_text: vc.location.contract_text.clone(),
-                            source_file: vc.location.source_file.clone(),
-                            source_line: vc.location.source_line,
-                            counterexample,
-                            message: vc.description.clone(),
-                        });
+        // Build call graph and compute topological order
+        let call_graph = rust_fv_analysis::call_graph::CallGraph::from_functions(
+            &func_infos
+                .iter()
+                .map(|(n, f)| (n.clone(), f))
+                .collect::<Vec<_>>(),
+        );
+        let topo_order = call_graph.topological_order();
 
-                        self.results.push(VerificationResult {
-                            function_name: name.clone(),
-                            condition: vc.description.clone(),
-                            verified: false,
-                            counterexample: cx_str,
-                            vc_location: vc.location.clone(),
-                        });
-                    }
-                    Ok(rust_fv_solver::SolverResult::Unknown(reason)) => {
-                        self.results.push(VerificationResult {
-                            function_name: name.clone(),
-                            condition: format!("{} (unknown: {reason})", vc.description),
-                            verified: false,
-                            counterexample: None,
-                            vc_location: vc.location.clone(),
-                        });
-                    }
-                    Err(e) => {
-                        self.results.push(VerificationResult {
-                            function_name: name.clone(),
-                            condition: format!("{} (error: {e})", vc.description),
-                            verified: false,
-                            counterexample: None,
-                            vc_location: vc.location.clone(),
-                        });
-                    }
+        // Sort tasks by topological order
+        tasks.sort_by_key(|task| {
+            topo_order
+                .iter()
+                .position(|n| n == &task.name)
+                .unwrap_or(usize::MAX)
+        });
+
+        if self.output_format == OutputFormat::Text {
+            eprintln!(
+                "[rust-fv] Verifying {} functions ({} parallel threads)...",
+                tasks.len(),
+                self.jobs
+            );
+        }
+
+        // Run parallel verification
+        let task_results = crate::parallel::verify_functions_parallel(
+            tasks,
+            &mut cache,
+            self.jobs,
+            self.fresh,
+            self.use_simplification,
+        );
+
+        // Collect results and failures
+        for task_result in task_results {
+            for result in task_result.results {
+                // Build structured failure if this VC failed
+                if !result.verified
+                    && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::Postcondition
+                {
+                    // Parse counterexample string back into map
+                    let counterexample = result.counterexample.as_ref().map(|cx_str| {
+                        cx_str
+                            .split(", ")
+                            .filter_map(|s| {
+                                let parts: Vec<_> = s.split(" = ").collect();
+                                if parts.len() == 2 {
+                                    Some((parts[0].to_string(), parts[1].to_string()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    });
+
+                    self.failures.push(diagnostics::VerificationFailure {
+                        function_name: result.function_name.clone(),
+                        vc_kind: result.vc_location.vc_kind.clone(),
+                        contract_text: result.vc_location.contract_text.clone(),
+                        source_file: result.vc_location.source_file.clone(),
+                        source_line: result.vc_location.source_line,
+                        counterexample,
+                        message: result.condition.clone(),
+                    });
                 }
+
+                self.results.push(result);
             }
         }
 
