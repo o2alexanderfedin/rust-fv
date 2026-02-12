@@ -247,6 +247,41 @@ pub fn is_signed_type(ty: &Ty) -> bool {
     matches!(ty, Ty::Int(_))
 }
 
+/// Encode a sealed trait as an SMT datatype (sum type) over known implementations.
+///
+/// This generates a DeclareDatatype command with one variant per implementation.
+/// Each variant has:
+/// - Constructor: `{TraitName}_{ImplType}`
+/// - Selector: `as-{ImplType}` that projects to the implementation type sort
+///
+/// Example for `trait Stack` with impls `VecStack` and `ArrayStack`:
+/// ```smt
+/// (declare-datatype Stack
+///   ((Stack_VecStack (as-VecStack VecStack))
+///    (Stack_ArrayStack (as-ArrayStack ArrayStack))))
+/// ```
+pub fn encode_sealed_trait_sum_type(trait_name: &str, impl_types: &[String]) -> Command {
+    let variants: Vec<DatatypeVariant> = impl_types
+        .iter()
+        .map(|impl_type| {
+            DatatypeVariant {
+                constructor: format!("{}_{}", trait_name, impl_type),
+                // Single field per variant with selector name "as-{ImplType}"
+                // and sort as the impl type (which will be Sort::Datatype(impl_type) or Sort::Uninterpreted(impl_type))
+                fields: vec![(
+                    format!("as-{}", impl_type),
+                    Sort::Uninterpreted(impl_type.clone()),
+                )],
+            }
+        })
+        .collect();
+
+    Command::DeclareDatatype {
+        name: trait_name.to_string(),
+        variants,
+    }
+}
+
 // === Unit tests ===
 
 #[cfg(test)]
@@ -621,5 +656,59 @@ mod tests {
             encode_type(&trait_obj),
             Sort::Uninterpreted("Stack".to_string())
         );
+    }
+
+    // ====== Sealed trait sum type encoding tests (Phase 8-02) ======
+
+    #[test]
+    fn test_encode_sealed_trait_sum_type_two_impls() {
+        let impl_types = vec!["VecStack".to_string(), "ArrayStack".to_string()];
+        let cmd = super::encode_sealed_trait_sum_type("Stack", &impl_types);
+
+        if let Command::DeclareDatatype { name, variants } = cmd {
+            assert_eq!(name, "Stack");
+            assert_eq!(variants.len(), 2);
+            assert_eq!(variants[0].constructor, "Stack_VecStack");
+            assert_eq!(variants[1].constructor, "Stack_ArrayStack");
+        } else {
+            panic!("Expected DeclareDatatype command");
+        }
+    }
+
+    #[test]
+    fn test_encode_sealed_trait_sum_type_single_impl() {
+        let impl_types = vec!["SingleImpl".to_string()];
+        let cmd = super::encode_sealed_trait_sum_type("MyTrait", &impl_types);
+
+        if let Command::DeclareDatatype { name, variants } = cmd {
+            assert_eq!(name, "MyTrait");
+            assert_eq!(variants.len(), 1);
+            assert_eq!(variants[0].constructor, "MyTrait_SingleImpl");
+        } else {
+            panic!("Expected DeclareDatatype command");
+        }
+    }
+
+    #[test]
+    fn test_encode_sealed_trait_sum_type_three_impls() {
+        let impl_types = vec![
+            "ImplA".to_string(),
+            "ImplB".to_string(),
+            "ImplC".to_string(),
+        ];
+        let cmd = super::encode_sealed_trait_sum_type("Trait", &impl_types);
+
+        if let Command::DeclareDatatype { name, variants } = cmd {
+            assert_eq!(name, "Trait");
+            assert_eq!(variants.len(), 3);
+            assert_eq!(variants[0].constructor, "Trait_ImplA");
+            assert_eq!(variants[1].constructor, "Trait_ImplB");
+            assert_eq!(variants[2].constructor, "Trait_ImplC");
+            // Check that each variant has the correct selector pattern
+            assert_eq!(variants[0].fields.len(), 1);
+            assert_eq!(variants[0].fields[0].0, "as-ImplA");
+        } else {
+            panic!("Expected DeclareDatatype command");
+        }
     }
 }

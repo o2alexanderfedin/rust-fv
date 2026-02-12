@@ -5752,4 +5752,57 @@ mod tests {
         // Just check that the function completed without panicking
         let _ = result.conditions.len();
     }
+
+    // ====== Trait object and dyn Trait tests (Phase 8-02) ======
+
+    #[test]
+    fn test_vcgen_without_trait_db_backward_compatible() {
+        // Simple function to verify backward compatibility without TraitDatabase
+        let func = Function {
+            name: "simple".to_string(),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        // Call with None TraitDatabase - should work as before
+        let result = generate_vcs(&func, None);
+        // Should not panic - just verify result exists
+        let _ = result.conditions;
+    }
+
+    #[test]
+    fn test_vcgen_trait_object_param_accepted() {
+        // Function with trait object parameter
+        let func = Function {
+            name: "uses_trait_object".to_string(),
+            params: vec![Local::new("_1", Ty::TraitObject("Stack".to_string()))],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        // Should generate VCs without panicking even without TraitDatabase
+        let result = generate_vcs(&func, None);
+        // Should not panic - just verify result exists
+        let _ = result.conditions;
+    }
 }

@@ -865,6 +865,30 @@ fn convert_final_value(
     }
 }
 
+/// Check if a callee name matches a trait method pattern and return (trait_name, method_name).
+///
+/// Trait method calls in specs are written as `TraitName::method`.
+/// This function parses the callee string and checks if the trait exists in the database.
+///
+/// Returns `Some((trait_name, method_name))` if the pattern matches a known trait method,
+/// `None` otherwise.
+pub fn is_trait_method_call(
+    callee: &str,
+    trait_db: &crate::trait_analysis::TraitDatabase,
+) -> Option<(String, String)> {
+    // Parse "TraitName::method_name" pattern
+    if let Some((trait_name, method_name)) = callee.split_once("::") {
+        // Check if trait exists in database
+        if let Some(trait_def) = trait_db.get_trait(trait_name) {
+            // Check if method exists in trait
+            if trait_def.methods.iter().any(|m| m.name == method_name) {
+                return Some((trait_name.to_string(), method_name.to_string()));
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1568,5 +1592,41 @@ mod tests {
 
         // Should produce normal comparison, not a closure call
         assert!(matches!(term, Term::BvSGt(_, _)));
+    }
+
+    // ====== Trait method call recognition tests (Phase 8-02) ======
+
+    #[test]
+    fn test_is_trait_method_call_recognized() {
+        use crate::ir::{TraitDef, TraitMethod};
+        use crate::trait_analysis::TraitDatabase;
+
+        let mut trait_db = TraitDatabase::new();
+        let trait_def = TraitDef {
+            name: "Stack".to_string(),
+            methods: vec![TraitMethod {
+                name: "push".to_string(),
+                params: vec![],
+                return_ty: crate::ir::Ty::Unit,
+                requires: vec![],
+                ensures: vec![],
+                is_pure: false,
+            }],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        trait_db.register_trait(trait_def);
+
+        let result = super::is_trait_method_call("Stack::push", &trait_db);
+        assert_eq!(result, Some(("Stack".to_string(), "push".to_string())));
+    }
+
+    #[test]
+    fn test_is_trait_method_call_unknown() {
+        use crate::trait_analysis::TraitDatabase;
+
+        let trait_db = TraitDatabase::new();
+        let result = super::is_trait_method_call("Unknown::method", &trait_db);
+        assert_eq!(result, None);
     }
 }
