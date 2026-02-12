@@ -152,7 +152,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- Improve test coverage to 70%+ across all crates (testing)
 
 ### Blockers/Concerns
 
