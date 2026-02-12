@@ -33,9 +33,9 @@ See `.planning/milestones/v0.1-ROADMAP.md` for full details.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Infrastructure: #[decreases] macro, IR/VcKind extensions, petgraph SCC detection
-- [ ] 06-02-PLAN.md -- Core: recursion.rs module with termination VCs and uninterpreted function encoding
-- [ ] 06-03-PLAN.md -- Integration: driver extraction, diagnostics, end-to-end Z3 verification tests
+- [x] 06-01-PLAN.md -- Infrastructure: #[decreases] macro, IR/VcKind extensions, petgraph SCC detection
+- [x] 06-02-PLAN.md -- Core: recursion.rs module with termination VCs and uninterpreted function encoding
+- [x] 06-03-PLAN.md -- Integration: driver extraction, diagnostics, end-to-end Z3 verification tests
 
 **Success Criteria:**
 1. Developer annotates recursive function with `#[decreases(expr)]` and verifier proves termination measure decreases on each recursive call
@@ -157,7 +157,7 @@ Plans:
 | 3. Modular Verification | v0.1 | 2/2 | Complete | 2026-02-11 |
 | 4. Differentiation | v0.1 | 4/4 | Complete | 2026-02-11 |
 | 5. Performance and Polish | v0.1 | 3/3 | Complete | 2026-02-11 |
-| 6. Recursive Functions | v0.2 | 0/3 | Planned | - |
+| 6. Recursive Functions | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 7. Closures | v0.2 | 0/? | Pending | - |
 | 8. Trait Objects | v0.2 | 0/? | Pending | - |
 | 9. Lifetime Reasoning | v0.2 | 0/? | Pending | - |
@@ -167,4 +167,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-12 (Phase 6 planned: 3 plans in 3 waves)*
+*Last updated: 2026-02-12 (Phase 6 complete: 3/3 plans, 1788 tests, 0 warnings)*
