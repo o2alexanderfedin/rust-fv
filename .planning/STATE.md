@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-12T12:40:01Z
+**Last updated:** 2026-02-12T19:18:43Z
 
 ## Project Reference
 
@@ -12,19 +12,19 @@
 
 ## Current Position
 
-**Phase:** 7 - Closures
-**Plan:** 3 of 3 complete
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Phase:** 8 - Traits and Trait Objects
+**Plan:** 1 of 3 complete
+**Status:** In Progress
+**Progress:** [███░░░░░░░] 33%
 
 ### Active Work
-- Phase 7 COMPLETE: All 3 plans executed successfully
-- Closure verification infrastructure complete (IR types, defunctionalization, VCGen integration, e2e tests, diagnostics)
-- All 5 success criteria validated via Z3
-- All 6 CLO requirements satisfied
+- Phase 8-01 COMPLETE: Trait IR and analysis infrastructure
+- TraitDef, TraitMethod, TraitImpl, Ty::TraitObject types added
+- VcKind::BehavioralSubtyping integrated
+- TraitDatabase and analysis utilities implemented
 
 ### Next Steps
-1. Begin Phase 8: Traits and trait objects
+1. Continue Phase 8: Plan 02 (Behavioral Subtyping VCs)
 2. Continue v0.2 Advanced Verification milestone
 
 ## Performance Metrics
@@ -81,6 +81,13 @@
 - Files modified: 2 (1 created, 1 modified)
 - New LOC: ~1,260 (closure_verification.rs 1,145 + diagnostics.rs 115)
 
+**Phase 8-01 (2026-02-12):**
+- Duration: 11 min
+- Tasks: 2 (TDD)
+- New tests: 29 (9 IR/encode/vc + 20 trait_analysis) (total: 1,872 workspace)
+- Files modified: 7 (1 created, 6 modified)
+- New LOC: ~744 (trait_analysis.rs 453 + IR extensions 291)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -114,6 +121,9 @@
 | Closure spec references via is_closure_param | Transforms predicate(x) → predicate_impl(env, x) in spec parser | Phase 7 |
 | Uninterpreted closure encoding | Closures as declare-fun (sound but requires contracts); matches Rust verification tool patterns | Phase 7 |
 | E2E test infrastructure validates pipeline correctness | Tests verify encoding, VC generation, Z3 processing rather than specific results | Phase 7 |
+| Ty::TraitObject as Sort::Uninterpreted for open-world | Default open-world encoding; sealed traits switch to Sort::Datatype in closed-world analysis | Phase 8 |
+| Sealed trait heuristics (visibility + super-trait) | Detects pub(crate), private, and sealed super-trait patterns without MIR visibility analysis | Phase 8 |
+| Behavioral subtyping diagnostics explain LSP | Precondition WEAKER/postcondition STRONGER guidance for trait contract refinement | Phase 8 |
 
 ### In-Progress Todos
 
@@ -189,16 +199,16 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - Phase 7-03 (Closure verification integration)
-- Completed: Closure diagnostic helpers (format_closure_contract_help, format_fnonce_double_call_help)
-- Completed: E2E closure verification tests (10 tests via Z3: Fn, FnMut, FnOnce, contracts, diagnostics)
-- Completed: Full Phase 7 validation (all 5 success criteria + 6 CLO requirements)
-- Status: 55 new tests (6 diagnostic + 10 e2e closure + 39 updates), 1,843 total workspace tests passing, 0 warnings
+**Last session:** 2026-02-12 - Phase 8-01 (Trait IR and analysis infrastructure)
+- Completed: TraitDef, TraitMethod, TraitImpl, Ty::TraitObject IR types
+- Completed: VcKind::BehavioralSubtyping with full driver integration
+- Completed: TraitDatabase, sealed detection, analysis utilities
+- Status: 29 new tests (9 IR/VC + 20 trait_analysis), 1,872 total workspace tests passing, 0 warnings
 
-**Stopped at:** Phase 7 COMPLETE (3 of 3)
+**Stopped at:** Phase 8-01 COMPLETE (1 of 3)
 
 **Next session expectations:**
-- Begin Phase 8: Traits and trait objects
+- Continue Phase 8: Plan 02 (Behavioral Subtyping VCs)
 - Continue v0.2 Advanced Verification milestone
 
 ---
