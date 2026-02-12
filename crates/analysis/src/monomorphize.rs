@@ -454,6 +454,7 @@ mod tests {
                 }],
                 invariants: vec![],
                 is_pure: false,
+                decreases: None,
             },
             loops: vec![],
             generic_params: vec![GenericParam {

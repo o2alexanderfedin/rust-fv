@@ -416,6 +416,7 @@ struct HirContracts {
     ensures: Vec<String>,
     invariants: Vec<String>,
     is_pure: bool,
+    decreases: Option<String>,
 }
 
 /// Extract contracts from HIR doc attributes.
@@ -441,6 +442,8 @@ fn extract_contracts(
                     contracts.ensures.push(spec.to_string());
                 } else if let Some(spec) = doc.strip_prefix("rust_fv::invariant::") {
                     contracts.invariants.push(spec.to_string());
+                } else if let Some(spec) = doc.strip_prefix("rust_fv::decreases::") {
+                    contracts.decreases = Some(spec.to_string());
                 } else if doc == "rust_fv::pure" {
                     contracts.is_pure = true;
                 }
@@ -451,6 +454,7 @@ fn extract_contracts(
             || !contracts.ensures.is_empty()
             || !contracts.invariants.is_empty()
             || contracts.is_pure
+            || contracts.decreases.is_some()
         {
             map.insert(
                 local_def_id,
@@ -471,6 +475,9 @@ fn extract_contracts(
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
                         .collect(),
                     is_pure: contracts.is_pure,
+                    decreases: contracts
+                        .decreases
+                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
                 },
             );
         }
@@ -513,6 +520,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::ShiftBounds => "shift_bounds",
         VcKind::Assertion => "assertion",
         VcKind::PanicFreedom => "panic_freedom",
+        VcKind::Termination => "termination",
     }
     .to_string()
 }

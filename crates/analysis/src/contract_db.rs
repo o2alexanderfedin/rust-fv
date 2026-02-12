@@ -98,6 +98,7 @@ mod tests {
                     }],
                     invariants: vec![],
                     is_pure: true,
+                    decreases: None,
                 },
                 param_names: vec!["_1".to_string(), "_2".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],

@@ -399,6 +399,7 @@ fn test_overflow_verification_unconstrained_add() {
         }],
         invariants: vec![],
         is_pure: false,
+        decreases: None,
     });
 
     // Step 1: Generate VCs
@@ -494,6 +495,7 @@ fn test_safe_add_with_preconditions() {
         ensures: vec![],
         invariants: vec![],
         is_pure: false,
+        decreases: None,
     });
 
     // Step 1: Generate VCs
@@ -553,6 +555,7 @@ fn test_provable_postcondition() {
         }],
         invariants: vec![],
         is_pure: false,
+        decreases: None,
     });
 
     // Step 1: Generate VCs
@@ -622,6 +625,7 @@ fn test_postcondition_violation() {
         }],
         invariants: vec![],
         is_pure: false,
+        decreases: None,
     });
 
     // Step 1: Generate VCs
@@ -746,6 +750,7 @@ fn test_if_else_branches_ssa() {
         }],
         invariants: vec![],
         is_pure: true,
+        decreases: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -791,6 +796,7 @@ fn test_if_else_wrong_postcondition() {
         }],
         invariants: vec![],
         is_pure: true,
+        decreases: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -930,6 +936,7 @@ fn test_multi_branch_match() {
         }],
         invariants: vec![],
         is_pure: true,
+        decreases: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1037,6 +1044,7 @@ fn test_early_return_via_goto() {
         }],
         invariants: vec![],
         is_pure: true,
+        decreases: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1218,6 +1226,7 @@ fn test_nested_branches() {
         }],
         invariants: vec![],
         is_pure: true,
+        decreases: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1317,6 +1326,7 @@ fn test_single_branch_overflow_check() {
             ensures: vec![],
             invariants: vec![],
             is_pure: true,
+            decreases: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1407,7 +1417,7 @@ fn test_single_branch_overflow_check() {
 // TODO:                 raw: "(result as int) > (_1 as int)".to_string(),
 // TODO:             }],
 // TODO:             invariants: vec![],
-// TODO:             is_pure: false,
+// TODO:             is_pure: false, decreases: None,
 // TODO:         },
 // TODO:         loops: vec![],
 // TODO:     };
@@ -1491,7 +1501,7 @@ fn test_single_branch_overflow_check() {
 // TODO:                 raw: "(result as int) == (_1 as int) + (_2 as int)".to_string(),
 // TODO:             }],
 // TODO:             invariants: vec![],
-// TODO:             is_pure: false,
+// TODO:             is_pure: false, decreases: None,
 // TODO:         },
 // TODO:         loops: vec![],
 // TODO:     };
@@ -1737,6 +1747,7 @@ fn test_quantifier_full_pipeline() {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1838,6 +1849,7 @@ fn test_generic_max_i32_verified() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -1937,6 +1949,7 @@ fn test_generic_max_u64_verified() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2036,6 +2049,7 @@ fn test_generic_max_wrong_postcondition() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2119,6 +2133,7 @@ fn test_generic_multiple_instantiations() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2265,6 +2280,7 @@ fn test_prophecy_increment_mut_ref() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2321,6 +2337,7 @@ fn test_prophecy_no_mutation_verified() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2403,6 +2420,7 @@ fn test_prophecy_conditional_mutation() {
             ],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2462,6 +2480,7 @@ fn test_prophecy_basic() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         loops: vec![],
         generic_params: vec![],

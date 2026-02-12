@@ -700,6 +700,7 @@ mod tests {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("my_func", &contracts, "ir_debug_repr");
@@ -714,6 +715,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("func_a", &contracts, "same_ir");
@@ -730,6 +732,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let contracts2 = rust_fv_analysis::ir::Contracts {
@@ -739,6 +742,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("func", &contracts1, "same_ir");
@@ -753,6 +757,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("func", &contracts, "ir_v1");
@@ -767,6 +772,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: true,
+            decreases: None,
         };
 
         let contracts_not_pure = rust_fv_analysis::ir::Contracts {
@@ -774,6 +780,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("func", &contracts_pure, "same_ir");
@@ -790,6 +797,7 @@ mod tests {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let contracts_with_invariant = rust_fv_analysis::ir::Contracts {
@@ -799,6 +807,7 @@ mod tests {
                 raw: "i < n".to_string(),
             }],
             is_pure: false,
+            decreases: None,
         };
 
         let key1 = VcCache::compute_key("func", &contracts_with_ensures, "same_ir");
@@ -813,6 +822,7 @@ mod tests {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         };
 
         let key = VcCache::compute_key("func", &contracts, "ir");

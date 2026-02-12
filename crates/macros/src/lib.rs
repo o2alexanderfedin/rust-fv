@@ -10,6 +10,7 @@
 //! - `#[ensures(condition)]` — Function postcondition (`result` refers to the return value)
 //! - `#[pure]` — Pure function marker (usable in specifications)
 //! - `#[invariant(condition)]` — Type or loop invariant
+//! - `#[decreases(expr)]` — Termination measure for recursive functions
 
 extern crate proc_macro;
 
@@ -78,6 +79,25 @@ pub fn pure(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn invariant(attr: TokenStream, item: TokenStream) -> TokenStream {
     spec_attribute("invariant", attr, item)
+}
+
+/// Attach a termination measure (decreases clause) to a recursive function.
+///
+/// The expression must be a valid Rust expression that decreases at each
+/// recursive call site. It is stored as a hidden doc attribute so the
+/// verification driver can retrieve it later.
+///
+/// # Example
+///
+/// ```ignore
+/// #[decreases(n)]
+/// fn factorial(n: u64) -> u64 {
+///     if n == 0 { 1 } else { n * factorial(n - 1) }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn decreases(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("decreases", attr, item)
 }
 
 /// Mark a variable or code block as specification-only (ghost code).
@@ -544,5 +564,70 @@ mod tests {
 
         assert!(result_str.contains("rust_fv::ghost"));
         assert!(result_str.contains("struct GhostState"));
+    }
+
+    // --- decreases tests (Phase 6) ---
+
+    #[test]
+    fn test_decreases_simple() {
+        let attr: proc_macro2::TokenStream = quote! { n };
+        let item: proc_macro2::TokenStream = quote! {
+            fn factorial(n: u64) -> u64 { if n == 0 { 1 } else { n * factorial(n - 1) } }
+        };
+
+        let result = spec_attribute_impl("decreases", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::decreases::n"));
+        assert!(result_str.contains("fn factorial"));
+    }
+
+    #[test]
+    fn test_decreases_complex_expr() {
+        let attr: proc_macro2::TokenStream = quote! { n - 1 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn countdown(n: u64) -> u64 { n }
+        };
+
+        let result = spec_attribute_impl("decreases", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::decreases::n - 1"));
+        assert!(result_str.contains("fn countdown"));
+    }
+
+    #[test]
+    fn test_decreases_method_call_expr() {
+        let attr: proc_macro2::TokenStream = quote! { tree.size() };
+        let item: proc_macro2::TokenStream = quote! {
+            fn traverse(tree: &Tree) -> usize { 0 }
+        };
+
+        let result = spec_attribute_impl("decreases", attr, item);
+        let result_str = normalise(result);
+
+        // proc_macro2 serialises `tree.size()` as `tree . size ()`
+        assert!(result_str.contains("rust_fv::decreases::tree . size ()"));
+        assert!(result_str.contains("fn traverse"));
+    }
+
+    #[test]
+    fn test_decreases_preserves_function_body() {
+        let attr: proc_macro2::TokenStream = quote! { n };
+        let item: proc_macro2::TokenStream = quote! {
+            fn factorial(n: u64) -> u64 {
+                if n == 0 {
+                    1
+                } else {
+                    n * factorial(n - 1)
+                }
+            }
+        };
+
+        let result = spec_attribute_impl("decreases", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("if n == 0"));
+        assert!(result_str.contains("n * factorial (n - 1)"));
     }
 }

@@ -131,6 +131,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::ShiftBounds => "shift amount out of bounds",
         VcKind::Assertion => "assertion might fail",
         VcKind::PanicFreedom => "panic possible",
+        VcKind::Termination => "termination measure not proven to decrease",
     }
 }
 
@@ -166,6 +167,11 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::Assertion => Some(
             "The assert condition may not hold on all paths. \
              Add preconditions to constrain inputs."
+                .to_string(),
+        ),
+        VcKind::Termination => Some(
+            "Verify that #[decreases(expr)] expression strictly decreases \
+             at each recursive call site"
                 .to_string(),
         ),
         _ => None,
@@ -714,6 +720,7 @@ mod tests {
             VcKind::ShiftBounds,
             VcKind::Assertion,
             VcKind::PanicFreedom,
+            VcKind::Termination,
         ];
         for vc_kind in vc_kinds {
             let failure = make_failure(vc_kind, None, None, None, None);
@@ -809,6 +816,7 @@ mod tests {
             VcKind::ShiftBounds,
             VcKind::Assertion,
             VcKind::PanicFreedom,
+            VcKind::Termination,
         ];
         for vc_kind in vc_kinds {
             let failure = make_failure(vc_kind, None, None, None, None);
@@ -911,5 +919,23 @@ mod tests {
             message: "assertion might fail".to_string(),
         };
         report_verification_failure(&failure);
+    }
+
+    // --- VcKind::Termination tests (Phase 6) ---
+
+    #[test]
+    fn test_vc_kind_description_termination() {
+        assert_eq!(
+            vc_kind_description(&VcKind::Termination),
+            "termination measure not proven to decrease"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_termination() {
+        let suggestion = suggest_fix(&VcKind::Termination);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("decreases"));
     }
 }

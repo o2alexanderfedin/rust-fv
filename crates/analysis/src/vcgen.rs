@@ -97,6 +97,8 @@ pub enum VcKind {
     Assertion,
     /// Panic-freedom check (unwrap, index, etc.)
     PanicFreedom,
+    /// Termination measure decreases check
+    Termination,
 }
 
 impl VcKind {
@@ -2803,6 +2805,7 @@ mod tests {
                 }],
                 invariants: vec![],
                 is_pure: true,
+                decreases: None,
             },
             generic_params: vec![],
             prophecies: vec![],
@@ -5200,5 +5203,17 @@ mod tests {
         let cmds = encode_path_assignments(&func, &path);
         // Should still produce an assertion (just unguarded since condition is None)
         assert!(!cmds.is_empty());
+    }
+
+    // ====== VcKind::Termination tests (Phase 6) ======
+
+    #[test]
+    fn test_vc_kind_termination_variant_exists() {
+        let kind = VcKind::Termination;
+        assert_eq!(kind, VcKind::Termination);
+        // Ensure it is distinct from other variants
+        assert_ne!(kind, VcKind::Precondition);
+        assert_ne!(kind, VcKind::Postcondition);
+        assert_ne!(kind, VcKind::Assertion);
     }
 }

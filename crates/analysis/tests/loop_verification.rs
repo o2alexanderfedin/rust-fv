@@ -556,6 +556,7 @@ fn test_simple_counter_loop() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -730,6 +731,7 @@ fn test_two_variable_loop() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -804,6 +806,7 @@ fn test_countdown_loop() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -855,6 +858,7 @@ fn test_wrong_init_invariant() {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -902,6 +906,7 @@ fn test_wrong_preservation_invariant() {
             ensures: vec![],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -951,6 +956,7 @@ fn test_wrong_exit_postcondition() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -1108,6 +1114,7 @@ fn test_zero_iteration_loop() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 
@@ -1225,6 +1232,7 @@ fn test_loop_detection_from_cfg() {
                 raw: "_3 <= _1".to_string(),
             }],
             is_pure: false,
+            decreases: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1267,6 +1275,7 @@ fn test_vc_description_labels() {
             }],
             invariants: vec![],
             is_pure: false,
+            decreases: None,
         },
     );
 

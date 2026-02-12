@@ -87,6 +87,9 @@ pub struct Contracts {
     pub invariants: Vec<SpecExpr>,
     /// Whether the function is marked `#[pure]`
     pub is_pure: bool,
+    /// Termination measure (`#[decreases(expr)]`) for recursive functions.
+    /// None means no termination measure specified.
+    pub decreases: Option<SpecExpr>,
 }
 
 /// Information about a loop detected in the CFG.
@@ -913,5 +916,25 @@ mod tests {
     #[test]
     fn uint_ty_max_u128() {
         assert_eq!(UintTy::U128.max_value(), u128::MAX);
+    }
+
+    // ====== Contracts.decreases tests (Phase 6) ======
+
+    #[test]
+    fn test_contracts_default_has_no_decreases() {
+        let contracts = Contracts::default();
+        assert!(contracts.decreases.is_none());
+    }
+
+    #[test]
+    fn test_contracts_with_decreases() {
+        let contracts = Contracts {
+            decreases: Some(SpecExpr {
+                raw: "n".to_string(),
+            }),
+            ..Default::default()
+        };
+        assert!(contracts.decreases.is_some());
+        assert_eq!(contracts.decreases.unwrap().raw, "n");
     }
 }
