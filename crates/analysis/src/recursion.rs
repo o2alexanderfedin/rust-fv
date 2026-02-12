@@ -125,9 +125,56 @@ pub fn generate_termination_vcs(
             ));
 
             // Declare variables for function parameters
+            let mut declared = std::collections::HashSet::new();
             for param in &func.params {
                 let sort = encode_type(&param.ty);
-                script.push(Command::DeclareConst(param.name.clone(), sort));
+                script.push(Command::DeclareConst(param.name.clone(), sort.clone()));
+                declared.insert(param.name.clone());
+            }
+
+            // Declare local variables and encode assignments from the current block.
+            // This is needed when the call argument is a local computed from params
+            // (e.g., _4 = _1 - 1; call f(_4) needs _4 declared and defined).
+            for local in &func.locals {
+                if !declared.contains(&local.name) {
+                    let sort = encode_type(&local.ty);
+                    script.push(Command::DeclareConst(local.name.clone(), sort));
+                    declared.insert(local.name.clone());
+                }
+            }
+
+            // Declare return local if not already declared
+            if !declared.contains(&func.return_local.name) {
+                let sort = encode_type(&func.return_local.ty);
+                script.push(Command::DeclareConst(func.return_local.name.clone(), sort));
+                declared.insert(func.return_local.name.clone());
+            }
+
+            // Encode assignments from the current block that define call arguments.
+            // These assignments establish the relationship between params and locals
+            // (e.g., _4 = _1 - 1 is essential for proving _4 < _1).
+            for stmt in &bb.statements {
+                if let Statement::Assign(place, rvalue) = stmt {
+                    let lhs = encode_operand(&Operand::Copy(place.clone()));
+                    let rhs = match rvalue {
+                        Rvalue::Use(op) => Some(encode_operand(op)),
+                        Rvalue::BinaryOp(op, l, r) => {
+                            let lt = encode_operand(l);
+                            let rt = encode_operand(r);
+                            Some(encode_binop_term(*op, lt, rt))
+                        }
+                        Rvalue::UnaryOp(UnOp::Neg, op) => {
+                            Some(Term::BvNeg(Box::new(encode_operand(op))))
+                        }
+                        Rvalue::UnaryOp(UnOp::Not, op) => {
+                            Some(Term::Not(Box::new(encode_operand(op))))
+                        }
+                        _ => None,
+                    };
+                    if let Some(rhs_term) = rhs {
+                        script.push(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs_term))));
+                    }
+                }
             }
 
             // Assume preconditions
