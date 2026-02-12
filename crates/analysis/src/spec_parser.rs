@@ -384,6 +384,20 @@ fn convert_field_access(
     }
 }
 
+/// Check if a name is a closure parameter and return its ClosureInfo.
+fn is_closure_param<'a>(name: &str, func: &'a Function) -> Option<&'a crate::ir::ClosureInfo> {
+    // Check function parameters
+    for param in &func.params {
+        if param.name == name
+            && let Ty::Closure(info) = &param.ty
+        {
+            return Some(info.as_ref());
+        }
+    }
+    // Could also check locals, but typically closures are passed as parameters
+    None
+}
+
 /// Convert a function call expression (handles `old()`, `forall()`, `exists()`, `implies()` operators).
 fn convert_call(
     call_expr: &syn::ExprCall,
@@ -397,6 +411,26 @@ fn convert_call(
         && path.path.segments.len() == 1
     {
         let func_name = path.path.segments[0].ident.to_string();
+
+        // Check if this is a closure parameter being called
+        if let Some(_closure_info) = is_closure_param(&func_name, func) {
+            // This is a closure call: closure_name(args...)
+            // Encode as: closure_name_impl(env, args...)
+            let impl_name = format!("{}_impl", func_name);
+
+            // Create environment term (for now, use placeholder since we don't have the actual env)
+            // In the context of specs, the env is part of the closure parameter
+            let env_term = Term::Const(format!("{}_env", func_name));
+
+            // Convert call arguments
+            let mut arg_terms = vec![env_term];
+            for arg in &call_expr.args {
+                let arg_term = convert_expr_with_bounds(arg, func, false, in_int_mode, bound_vars)?;
+                arg_terms.push(arg_term);
+            }
+
+            return Some(Term::App(impl_name, arg_terms));
+        }
 
         match func_name.as_str() {
             "old" => {
@@ -1471,5 +1505,68 @@ mod tests {
         } else {
             panic!("Expected Eq, got {term:?}");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Closure parameter reference tests
+    // -----------------------------------------------------------------------
+
+    fn make_closure_param_func() -> Function {
+        use crate::ir::{ClosureInfo, ClosureTrait};
+        Function {
+            name: "test_closure_param".to_string(),
+            params: vec![
+                Local::new(
+                    "predicate",
+                    Ty::Closure(Box::new(ClosureInfo {
+                        name: "predicate".to_string(),
+                        env_fields: vec![],
+                        params: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+                        return_ty: Ty::Bool,
+                        trait_kind: ClosureTrait::Fn,
+                    })),
+                ),
+                Local::new("_2", Ty::Int(IntTy::I32)),
+            ],
+            return_local: Local::new("_0", Ty::Bool),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        }
+    }
+
+    #[test]
+    fn test_closure_param_reference_in_spec() {
+        let func = make_closure_param_func();
+        // Simple closure call: predicate(_2)
+        let term = parse_spec_expr("predicate(_2)", &func);
+        assert!(term.is_some(), "Failed to parse closure call");
+        let term = term.unwrap();
+
+        // Should produce: predicate_impl(predicate_env, _2)
+        match &term {
+            Term::App(name, args) => {
+                assert_eq!(name, "predicate_impl");
+                assert_eq!(args.len(), 2); // env + arg
+                assert_eq!(args[0], Term::Const("predicate_env".to_string()));
+                assert_eq!(args[1], Term::Const("_2".to_string()));
+            }
+            _ => panic!("Expected Term::App for closure call, got {term:?}"),
+        }
+    }
+
+    #[test]
+    fn test_non_closure_param_not_treated_as_closure() {
+        let func = make_i32_func();
+        // Regular param "result" should not be treated as closure
+        let term = parse_spec_expr("result > 0", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+
+        // Should produce normal comparison, not a closure call
+        assert!(matches!(term, Term::BvSGt(_, _)));
     }
 }
