@@ -107,7 +107,20 @@ fn report_text_only(failure: &VerificationFailure) {
 
     if let Some(ref cx) = failure.counterexample {
         eprintln!();
-        eprintln!("{}", format_counterexample(cx));
+        if failure.vc_kind == VcKind::Termination {
+            // Use termination-specific counterexample formatting
+            eprintln!(
+                "{}",
+                format_termination_counterexample(&failure.function_name, cx, cx)
+            );
+        } else {
+            eprintln!("{}", format_counterexample(cx));
+        }
+    }
+
+    if failure.vc_kind == VcKind::Termination {
+        eprintln!();
+        eprintln!("{}", format_missing_decreases_help(&failure.function_name));
     }
 
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
@@ -176,6 +189,52 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         ),
         _ => None,
     }
+}
+
+/// Format a help message for a recursive function missing a `#[decreases]` annotation.
+///
+/// Provides actionable guidance: what the annotation does, how to add it, and an example.
+pub fn format_missing_decreases_help(function_name: &str) -> String {
+    format!(
+        "recursive function `{}` requires a termination measure.\n\
+         Add #[decreases(expr)] where expr is a non-negative integer expression\n\
+         that strictly decreases at each recursive call.\n\
+         Example: #[decreases(n)] for a function that recurses with n-1",
+        function_name
+    )
+}
+
+/// Format a counterexample specifically for termination VC failures.
+///
+/// Shows the measure values at function entry vs. at the recursive call site,
+/// making it clear why the termination proof failed.
+pub fn format_termination_counterexample(
+    function_name: &str,
+    entry_values: &[(String, String)],
+    call_values: &[(String, String)],
+) -> String {
+    let mut result = format!("termination counterexample for `{}`:", function_name);
+
+    if !entry_values.is_empty() {
+        result.push_str("\n  at function entry: ");
+        let entries: Vec<String> = entry_values
+            .iter()
+            .map(|(name, value)| format!("{} = {}", name, value))
+            .collect();
+        result.push_str(&entries.join(", "));
+    }
+
+    if !call_values.is_empty() {
+        result.push_str("\n  at recursive call: ");
+        let calls: Vec<String> = call_values
+            .iter()
+            .map(|(name, value)| format!("{} = {}", name, value))
+            .collect();
+        result.push_str(&calls.join(", "));
+        result.push_str(" (not decreasing)");
+    }
+
+    result
 }
 
 /// Format counterexample assignments for display.
@@ -937,5 +996,92 @@ mod tests {
         assert!(suggestion.is_some());
         let text = suggestion.unwrap();
         assert!(text.contains("decreases"));
+    }
+
+    // --- format_missing_decreases_help tests ---
+
+    #[test]
+    fn test_format_missing_decreases_help_contains_function_name() {
+        let help = format_missing_decreases_help("factorial");
+        assert!(
+            help.contains("factorial"),
+            "Help text should contain function name"
+        );
+    }
+
+    #[test]
+    fn test_format_missing_decreases_help_contains_decreases_suggestion() {
+        let help = format_missing_decreases_help("fibonacci");
+        assert!(
+            help.contains("#[decreases("),
+            "Help text should suggest #[decreases] annotation"
+        );
+        assert!(
+            help.contains("termination measure"),
+            "Help text should explain what's needed"
+        );
+    }
+
+    #[test]
+    fn test_format_missing_decreases_help_contains_example() {
+        let help = format_missing_decreases_help("my_func");
+        assert!(
+            help.contains("Example"),
+            "Help text should include an example"
+        );
+        assert!(
+            help.contains("#[decreases(n)]"),
+            "Help text should show a concrete example"
+        );
+    }
+
+    // --- format_termination_counterexample tests ---
+
+    #[test]
+    fn test_format_termination_counterexample_shows_entry_and_call() {
+        let result = format_termination_counterexample(
+            "factorial",
+            &[("n".to_string(), "5".to_string())],
+            &[("n".to_string(), "5".to_string())],
+        );
+        assert!(result.contains("factorial"), "Should contain function name");
+        assert!(
+            result.contains("at function entry"),
+            "Should show entry values"
+        );
+        assert!(
+            result.contains("at recursive call"),
+            "Should show call values"
+        );
+        assert!(
+            result.contains("not decreasing"),
+            "Should indicate non-decreasing"
+        );
+    }
+
+    #[test]
+    fn test_format_termination_counterexample_multiple_values() {
+        let result = format_termination_counterexample(
+            "mutual_func",
+            &[
+                ("x".to_string(), "10".to_string()),
+                ("y".to_string(), "3".to_string()),
+            ],
+            &[
+                ("x".to_string(), "10".to_string()),
+                ("y".to_string(), "3".to_string()),
+            ],
+        );
+        assert!(result.contains("x = 10"));
+        assert!(result.contains("y = 3"));
+    }
+
+    #[test]
+    fn test_format_termination_counterexample_empty_values() {
+        let result = format_termination_counterexample("empty_func", &[], &[]);
+        assert!(result.contains("empty_func"));
+        // Should not crash with empty values
+        assert!(!result.contains("at function entry"));
+        assert!(!result.contains("at recursive call"));
     }
 }
