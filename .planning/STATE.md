@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-12T19:18:43Z
+**Last updated:** 2026-02-12T19:33:30Z
 
 ## Project Reference
 
@@ -13,18 +13,18 @@
 ## Current Position
 
 **Phase:** 8 - Traits and Trait Objects
-**Plan:** 1 of 3 complete
+**Plan:** 2 of 3 complete
 **Status:** In Progress
-**Progress:** [███░░░░░░░] 33%
+**Progress:** [██████████] 96%
 
 ### Active Work
-- Phase 8-01 COMPLETE: Trait IR and analysis infrastructure
-- TraitDef, TraitMethod, TraitImpl, Ty::TraitObject types added
-- VcKind::BehavioralSubtyping integrated
-- TraitDatabase and analysis utilities implemented
+- Phase 8-02 COMPLETE: Behavioral subtyping VCs and trait object encoding
+- Behavioral subtyping VC generation with LSP verification
+- Sealed trait sum type encoding (DeclareDatatype)
+- Trait method call recognition in spec parser
 
 ### Next Steps
-1. Continue Phase 8: Plan 02 (Behavioral Subtyping VCs)
+1. Continue Phase 8: Plan 03 (End-to-End Trait Verification)
 2. Continue v0.2 Advanced Verification milestone
 
 ## Performance Metrics
@@ -88,6 +88,13 @@
 - Files modified: 7 (1 created, 6 modified)
 - New LOC: ~744 (trait_analysis.rs 453 + IR extensions 291)
 
+**Phase 8-02 (2026-02-12):**
+- Duration: 10 min
+- Tasks: 2 (TDD)
+- New tests: 19 (12 behavioral_subtyping + 3 encode_sort + 2 spec_parser + 2 vcgen) (total: 1,891 workspace)
+- Files modified: 5 (1 created, 4 modified)
+- New LOC: ~764 (behavioral_subtyping.rs 562 + encode_sort/spec_parser/vcgen extensions 202)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -124,6 +131,9 @@
 | Ty::TraitObject as Sort::Uninterpreted for open-world | Default open-world encoding; sealed traits switch to Sort::Datatype in closed-world analysis | Phase 8 |
 | Sealed trait heuristics (visibility + super-trait) | Detects pub(crate), private, and sealed super-trait patterns without MIR visibility analysis | Phase 8 |
 | Behavioral subtyping diagnostics explain LSP | Precondition WEAKER/postcondition STRONGER guidance for trait contract refinement | Phase 8 |
+| Simplified behavioral subtyping VCs (symbolic predicates) | Initial implementation uses symbolic predicates (trait_requires_method, trait_ensures_method) rather than full spec parsing; enables VC structure validation | Phase 8 |
+| Sealed trait sum types with Uninterpreted impl fields | DeclareDatatype variants use Sort::Uninterpreted for impl types; refinable to Sort::Datatype for structural typing | Phase 8 |
+| Trait method call recognition via pattern matching | TraitName::method pattern parsing with TraitDatabase validation; extends to MIR call sites in future | Phase 8 |
 
 ### In-Progress Todos
 
@@ -199,16 +209,17 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - Phase 8-01 (Trait IR and analysis infrastructure)
-- Completed: TraitDef, TraitMethod, TraitImpl, Ty::TraitObject IR types
-- Completed: VcKind::BehavioralSubtyping with full driver integration
-- Completed: TraitDatabase, sealed detection, analysis utilities
-- Status: 29 new tests (9 IR/VC + 20 trait_analysis), 1,872 total workspace tests passing, 0 warnings
+**Last session:** 2026-02-12 - Phase 8-02 (Behavioral Subtyping VCs and Trait Object Encoding)
+- Completed: Behavioral subtyping VC generation with SMT encoding
+- Completed: Sealed trait sum type encoding (DeclareDatatype)
+- Completed: Trait method call recognition infrastructure
+- Completed: Basic trait object parameter support in VCGen
+- Status: 19 new tests (12 behavioral_subtyping + 7 infrastructure), 1,891 total workspace tests passing, 0 warnings
 
-**Stopped at:** Phase 8-01 COMPLETE (1 of 3)
+**Stopped at:** Phase 8-02 COMPLETE (2 of 3)
 
 **Next session expectations:**
-- Continue Phase 8: Plan 02 (Behavioral Subtyping VCs)
+- Continue Phase 8: Plan 03 (End-to-End Trait Verification)
 - Continue v0.2 Advanced Verification milestone
 
 ---
