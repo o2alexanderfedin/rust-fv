@@ -81,9 +81,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md -- Infrastructure: IR trait types (TraitDef, TraitMethod, TraitImpl, Ty::TraitObject), trait_analysis module, VcKind::BehavioralSubtyping
-- [ ] 08-02-PLAN.md -- Core: behavioral_subtyping.rs module, VCGen dyn Trait dispatch, sealed trait sum type encoding
-- [ ] 08-03-PLAN.md -- Integration: trait diagnostics, end-to-end Z3 verification tests
+- [x] 08-01-PLAN.md -- Infrastructure: IR trait types (TraitDef, TraitMethod, TraitImpl, Ty::TraitObject), trait_analysis module, VcKind::BehavioralSubtyping
+- [x] 08-02-PLAN.md -- Core: behavioral_subtyping.rs module, VCGen dyn Trait dispatch, sealed trait sum type encoding
+- [x] 08-03-PLAN.md -- Integration: trait diagnostics, end-to-end Z3 verification tests
 
 **Success Criteria:**
 1. Developer defines trait with `#[requires]`/`#[ensures]` annotations on trait methods
@@ -173,7 +173,7 @@ Plans:
 | 5. Performance and Polish | v0.1 | 3/3 | Complete | 2026-02-11 |
 | 6. Recursive Functions | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 7. Closures | v0.2 | 3/3 | Complete | 2026-02-12 |
-| 8. Trait Objects | v0.2 | 0/3 | Planned | - |
+| 8. Trait Objects | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 9. Lifetime Reasoning | v0.2 | 0/? | Pending | - |
 | 10. Unsafe Code Detection | v0.2 | 0/? | Pending | - |
 | 11. Floating-Point Verification | v0.2 | 0/? | Pending | - |
@@ -181,4 +181,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-12 (Phase 8 planned: 3 plans in 3 waves)*
+*Last updated: 2026-02-12 (Phase 8 complete: 3/3 plans)*
