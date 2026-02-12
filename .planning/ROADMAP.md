@@ -78,6 +78,13 @@ Plans:
 
 **Requirements:** TRT-01, TRT-02, TRT-03, TRT-04, TRT-05
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md -- Infrastructure: IR trait types (TraitDef, TraitMethod, TraitImpl, Ty::TraitObject), trait_analysis module, VcKind::BehavioralSubtyping
+- [ ] 08-02-PLAN.md -- Core: behavioral_subtyping.rs module, VCGen dyn Trait dispatch, sealed trait sum type encoding
+- [ ] 08-03-PLAN.md -- Integration: trait diagnostics, end-to-end Z3 verification tests
+
 **Success Criteria:**
 1. Developer defines trait with `#[requires]`/`#[ensures]` annotations on trait methods
 2. Developer verifies each `impl Trait for Type` satisfies trait-level contracts (behavioral subtyping)
@@ -166,7 +173,7 @@ Plans:
 | 5. Performance and Polish | v0.1 | 3/3 | Complete | 2026-02-11 |
 | 6. Recursive Functions | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 7. Closures | v0.2 | 3/3 | Complete | 2026-02-12 |
-| 8. Trait Objects | v0.2 | 0/? | Pending | - |
+| 8. Trait Objects | v0.2 | 0/3 | Planned | - |
 | 9. Lifetime Reasoning | v0.2 | 0/? | Pending | - |
 | 10. Unsafe Code Detection | v0.2 | 0/? | Pending | - |
 | 11. Floating-Point Verification | v0.2 | 0/? | Pending | - |
@@ -174,4 +181,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-12 (Phase 7 complete: 3/3 plans, 1,843 tests)*
+*Last updated: 2026-02-12 (Phase 8 planned: 3 plans in 3 waves)*
