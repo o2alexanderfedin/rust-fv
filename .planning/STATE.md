@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden
-**Current focus:** Phase 4 - Differentiation
+**Current focus:** Phase 5 - Performance and Polish
 
 ## Current Position
 
-Phase: 4 of 5 (Differentiation) -- COMPLETE
-Plan: 4 of 4 in current phase -- all differentiation features complete
-Status: Phase 4 complete -- 04-01, 04-02, 04-03, and 04-04 complete
-Last activity: 2026-02-11 -- 04-03 prophecy variables for mutable borrow reasoning
+Phase: 5 of 5 (Performance and Polish) -- IN PROGRESS
+Plan: 3 of 5 in current phase
+Status: 05-01 (simplification), 05-02 (benchmarks), 05-03 (diagnostics) complete
+Last activity: 2026-02-11 -- 05-03 enhanced diagnostics and JSON output
 
-Progress: [████████████████████] 100% (Phase 4: 4/4 plans complete)
+Progress: [████████████████████] 60% (Phase 5: 3/5 plans complete)
 
 ## What Exists (v0.1.0)
 
@@ -38,6 +38,9 @@ Progress: [████████████████████] 100% (P
 - **Assertion and panic detection (02-03)**: AssertKind enum for 9 panic variants, specific error messages per kind
 - **Full spec parser (02-05)**: syn-based expression parser with old() operator, field access, backward-compatible fallback
 - **cargo verify subcommand (02-05)**: Colored per-function output (OK/FAIL/TIMEOUT), --help, --timeout, exit codes
+- **Formula simplification (05-01)**: Simplify module with 8 algebraic rules, recursive term rewriting, ~30% SMT size reduction
+- **Enhanced diagnostics (05-03)**: VcKind classification (10 categories), ariadne-based error reporting, fix suggestions, counterexample formatting
+- **JSON output (05-03)**: Structured JSON output via --output-format json for IDE/rust-analyzer integration
 
 ## What Must Be Fixed First
 
@@ -48,9 +51,9 @@ Progress: [████████████████████] 100% (P
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: ~14.5 min
-- Total execution time: ~203 min
+- Total plans completed: 17
+- Average duration: ~13.2 min
+- Total execution time: ~225 min
 
 **By Phase:**
 
@@ -60,9 +63,10 @@ Progress: [████████████████████] 100% (P
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 | 03-modular-verification | 2/2 | ~21 min | ~11 min |
 | 04-differentiation | 4/4 | ~83 min | ~21 min |
+| 05-performance-and-polish | 3/5 | ~22 min | ~7 min |
 
 *Updated after each plan completion*
-| Phase 04 P03 | 16 | 2 tasks | 18 files |
+| Phase 05 P03 | 12 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -133,6 +137,8 @@ Recent decisions affecting current work:
 - [04-03]: ProphecyInfo metadata struct for &mut param tracking
 - [04-03]: Prophecy variables in base declarations alongside regular variables
 - [04-03]: Initial value capture via SMT assertion (documented encoding limitation with direct param assignment)
+- [Phase 05-01]: AST-level simplification over Z3 built-in API (backend-agnostic, zero overhead)
+- [Phase 05-01]: A/B benchmarks for both regression tests and synthetic stress tests (measure real-world + scalability)
 
 ### Pending Todos
 
