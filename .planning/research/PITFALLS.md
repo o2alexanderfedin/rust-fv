@@ -1,673 +1,973 @@
-# Domain Pitfalls
+# Domain Pitfalls: Advanced Verification Features
 
-**Domain:** Rust Formal Verification (SMT-based)
-**Researched:** 2026-02-10
-**Confidence:** HIGH
+**Domain:** Adding recursive functions, closures, trait objects, unsafe code, lifetime reasoning, floating-point, and concurrency verification to existing SMT-based Rust verifier
+**Researched:** 2026-02-11
+**Confidence:** MEDIUM-HIGH
+
+## Executive Summary
+
+This document catalogs pitfalls specific to **adding** advanced verification features to an existing SMT-based formal verification tool for Rust. Unlike general domain pitfalls (see existing PITFALLS.md), these focus on integration challenges and feature-specific mistakes when extending from basic verification (path-sensitive VCGen, loop invariants, ownership) to advanced capabilities.
+
+**Critical insight:** Most failures come from **underestimating encoding complexity**, not implementation difficulty. Features that seem "just add support for X" require careful SMT encoding, trigger selection, and soundness proofs.
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites or major issues.
-
-### Pitfall 1: Soundness Bugs in SMT Encoding
+### Pitfall 1: Recursive Function Termination Without Measure Functions
 
 **What goes wrong:**
-Incorrect translation from Rust semantics to SMT formulas leads to the verifier accepting unsound programs (proving correctness when bugs exist) or rejecting sound programs (false positives). This is the most severe failure mode - the tool becomes untrustworthy.
+Verifier accepts recursive functions without termination proofs. SMT solver with recursive function axioms returns `sat` for unsatisfiable queries (soundness bug). Example: `fn loop_forever() { loop_forever() }` verifies successfully.
 
 **Why it happens:**
-- Subtle semantic mismatches between Rust operations and SMT theories (e.g., overflow behavior, type casts, pointer arithmetic)
-- Incomplete handling of type system features (e.g., treating aggregate types as uninterpreted sorts loses field structure)
-- SMT solver abstractions that are too coarse (e.g., abstracting unsupported types as 256-bit integers)
-- Missing edge cases in encoding (e.g., object size identifiers not properly quoted in SMT2 format - real bug from CBMC)
+- SMT-LIB supports recursive function definitions via axioms
+- Without termination checking, axioms create circular reasoning: `f(x) = ... f(x) ...`
+- SMT solver may assume function terminates when it doesn't
+- Verus/F*/Dafny all require explicit decrease measures, but easy to forget in implementation
+
+**Root cause:** First-order logic has no built-in notion of computation or termination. Encoding recursive functions as universally quantified formulas without well-founded measure allows non-terminating functions to "verify."
 
 **Consequences:**
-- False negatives: Verifier claims code is safe when it has bugs (catastrophic for safety-critical use)
-- False positives: Verifier rejects correct code, forcing unnecessary refactoring
-- Loss of user trust in the tool
-- Potential need for complete rewrite of encoding layer
+- **Soundness catastrophe**: Non-terminating function's postcondition vacuously verified
+- User writes `#[ensures(false)] fn diverge() { diverge() }` and it verifies
+- Downstream code assumes postcondition holds, builds on unsound foundation
+- Whole verification result becomes meaningless
 
 **Prevention:**
-- Formalize encoding correctness: Use proof assistant (Coq/Lean) to prove SMT encoding preserves Rust semantics
-- Implement bi-directional testing: Generate Rust code from SMT models, verify they match original semantics
-- Use differential testing: Compare results with other verifiers (Kani, Prusti, Verus) on same code
-- Build comprehensive test suite covering all type/operation combinations
-- Document encoding decisions explicitly with soundness arguments
-- Start with decidable, well-understood theories (bitvectors, arrays) before extending
+1. **Mandatory decreasing measures**: Require `#[decreases(expr)]` annotation on every recursive function
+2. **Well-founded relation checking**: Verify measure decreases on recursive call by well-founded relation (e.g., `<` on natural numbers)
+3. **Syntactic termination analysis first**: Before SMT encoding, check for obvious non-termination (direct recursion without decreasing arg)
+4. **SMT encoding strategy**:
+   - Use fuel-based unfolding (limit recursion depth) for bounded verification
+   - For unbounded: generate VC that measure decreases: `old(measure) > new(measure) && new(measure) >= 0`
+5. **Error on missing measure**: Don't default to "assume terminates" - fail loudly
 
 **Warning signs:**
-- Verifier accepts code that panics at runtime
-- Verifier rejects obviously correct code
-- Different results when semantically equivalent code is rewritten
-- SMT solver returns "unknown" frequently (suggests encoding issues)
-- Test failures when expanding type coverage
+- Recursive function without `#[decreases]` attribute verifies
+- Obvious infinite loop passes verification
+- Verification time suspiciously fast for recursive code
+- Adding contradictory postcondition to recursive function still verifies
 
-**Phase to address:**
-Phase 2 (Type System Enhancement) - when adding aggregate types, mutable borrows, this risk peaks. Requires:
-- Formal encoding specification document
-- Soundness test suite (wrong programs should be rejected)
-- Completeness test suite (correct programs should be accepted)
-- Cross-validation against existing tools
+**Example:**
+```rust
+// WRONG - verifies but diverges
+#[ensures(result > 0)]
+fn bad_factorial(n: i32) -> i32 {
+    if n <= 0 { 1 } else { n * bad_factorial(n) }  // No decrease!
+}
+
+// CORRECT - requires decreasing measure
+#[requires(n >= 0)]
+#[decreases(n)]  // Measure must decrease
+#[ensures(result > 0)]
+fn factorial(n: i32) -> i32 {
+    if n == 0 { 1 } else { n * factorial(n - 1) }  // n-1 < n
+}
+```
+
+**Phase to address:** Phase N+1 (Recursive Functions)
+- Research spike: Study F* and Verus termination checking (both proven sound)
+- Implement syntactic decrease checker before SMT encoding
+- Test with mutual recursion, nested recursion, structural recursion
+- Defer higher-order recursion (functions as arguments) to later phase
+
+**Confidence:** HIGH - Well-documented in F*, Dafny, Verus. Multiple sources confirm this is a soundness hole if omitted.
+
+**Sources:**
+- [Well-founded Relations and Termination (F* Tutorial)](https://fstar-lang.org/tutorial/book/part2/part2_well_founded.html)
+- [Proofs of Termination (F* Tutorial)](https://fstar-lang.org/tutorial/book/part1/part1_termination.html)
+- [Model Finding for Recursive Functions in SMT](http://homepage.divms.uiowa.edu/~ajreynol/ijcar16a.pdf)
 
 ---
 
-### Pitfall 2: MIR API Instability Across Nightly Versions
+### Pitfall 2: Closure Capture Semantics Mismodeling
 
 **What goes wrong:**
-Rust's MIR (Mid-level Intermediate Representation) is an unstable compiler internal with frequent breaking changes. Code working on nightly-2026-01 breaks on nightly-2026-02. This creates maintenance burden and version compatibility hell.
+Verifier treats all closures as `Fn` (shared borrow), misses mutations through `FnMut` captures or move semantics with `FnOnce`. Result: aliasing bugs accepted as safe, or correct code rejected.
 
 **Why it happens:**
-- MIR is explicitly unstable with "no attempt to make anything work besides what the rustc test suite needs"
-- MIR optimization passes evolve rapidly (15.28% of rustc bugs are MIR optimization issues)
-- Stable MIR project exists but incomplete (as of 2026)
-- New MIR passes/transformations added regularly without backwards compatibility
+- Rust has three closure traits: `Fn`, `FnMut`, `FnOnce` with different capture semantics
+- `FnMut` captures by mutable reference - changes observable outside closure
+- `FnOnce` consumes captured values - can only be called once
+- Naive encoding: treat closure as pure function, lose track of capture mode
+- MIR desugars closures to structs + trait impl, but fields hidden in MIR representation
+
+**Root cause:** Closures are first-class values with environment capture, not simple functions. Encoding must track:
+1. Which variables captured and by what mode (move/borrow/mut borrow)
+2. Lifetime of captured references
+3. FnOnce exclusivity (can't call twice)
 
 **Consequences:**
-- Tool breaks on new nightly versions, requiring constant updates
-- Users stuck on specific rustc version, can't use latest language features
-- CI pipeline fragile - nightly updates break builds
-- Difficult to reproduce verification results across machines with different rustc versions
+- **False negative**: `FnMut` closure mutates captured var, verifier doesn't track mutation, proves wrong postcondition
+- **False positive**: `FnOnce` closure used correctly (called once), but verifier requires `Fn` contract, rejects correct code
+- Cannot verify higher-order functions taking closures (`map`, `filter`, etc.)
 
 **Prevention:**
-- Pin specific nightly version in rust-toolchain.toml
-- Implement rustc version detection and compatibility checks at startup
-- Create abstraction layer over MIR types to isolate breaking changes
-- Track stable MIR project progress, migrate when available
-- Document supported rustc versions explicitly
-- Add CI matrix testing multiple nightly versions (e.g., last 3 releases)
-- Consider alternative: HIR-level analysis if sufficient (less unstable)
+1. **Detect closure trait bound in MIR**: Identify if parameter is `Fn`, `FnMut`, or `FnOnce`
+2. **Capture environment encoding**:
+   - `Fn`: Immutable borrows - use shared reference encoding (already have)
+   - `FnMut`: Mutable borrows - use prophecy variables for final state (Phase 4)
+   - `FnOnce`: Move semantics - mark captured values as consumed
+3. **Track closure identity**: Closure is struct with fields (captured vars), not just function
+4. **Encode trait bounds as preconditions**:
+   - `F: Fn(i32) -> bool` → closure body doesn't mutate captures
+   - `F: FnMut(i32) -> bool` → closure may mutate, requires prophecy for final capture values
+   - `F: FnOnce(i32) -> bool` → closure called at most once
+5. **Start simple**: Phase N only `Fn` (immutable captures), defer `FnMut`/`FnOnce` to Phase N+1
 
 **Warning signs:**
-- Compilation errors in mir_converter.rs on rustc update
-- New MIR terminators/rvalues/operands appear that aren't handled
-- MIR structure changes (e.g., new basic block types, changed terminator variants)
-- rustc-driver API changes requiring code updates
+- Higher-order function using closure parameter fails verification
+- `FnMut` closure compiles but verification rejects
+- Closure captures mutable reference, verification doesn't reflect mutation
+- Same closure body verifies differently based on call site trait bound
 
-**Phase to address:**
-Immediate (Phase 1 completion) - establish version compatibility strategy:
-- Document compatibility matrix
-- Add rustc version tests
-- Isolate MIR dependencies in mir_converter module
-- Prepare migration path to stable APIs when available
+**Example:**
+```rust
+// FnMut closure mutates capture
+#[ensures(*counter == old(*counter) + arr.len())]
+fn count_positive(arr: &[i32], counter: &mut i32) {
+    arr.iter().for_each(|&x| {  // FnMut closure
+        if x > 0 { *counter += 1; }  // Mutates capture
+    });
+}
+
+// VCGen must track:
+// 1. `counter` captured by mutable reference
+// 2. Closure body increments `*counter`
+// 3. Final value of `*counter` after all iterations
+```
+
+**Encoding strategy:**
+```smt2
+; Closure as struct with captured environment
+(declare-datatype Closure (
+  (mk-closure (captured-counter (Ref Int)))
+))
+
+; FnMut call updates captured state
+(assert (= counter-final
+           (+ counter-initial (count-if arr is-positive))))
+
+; For FnOnce: track that closure consumed
+(assert (=> (closure-called c) (not (closure-callable c))))
+```
+
+**Phase to address:** Phase N+2 (Closure Verification)
+- Phase N+1: Higher-order functions with `Fn` closures (read-only)
+- Phase N+2: Add `FnMut` with prophecy variables for captures
+- Defer `FnOnce` consumption tracking if too complex
+
+**Confidence:** MEDIUM - Creusot and Verus handle closures, but encoding is non-trivial. No detailed SMT encoding documentation found; requires source code study.
+
+**Sources:**
+- [FnMut in std::ops - Rust](https://doc.rust-lang.org/std/ops/trait.FnMut.html)
+- [How Rust Handles Closures: Fn, FnMut, and FnOnce](https://leapcell.medium.com/how-rust-handles-closures-fn-fnmut-and-fnonce-5550724859ed)
 
 ---
 
-### Pitfall 3: Loop Invariant Inference Failure
+### Pitfall 3: Trait Object Vtable Open-World vs Closed-World Assumptions
 
 **What goes wrong:**
-Loop invariants are notoriously difficult to infer automatically. When automation fails, users must write invariants manually. If manual invariants are wrong or too weak, verification fails. Loop invariants are "the most challenging problem in program verification."
+Verifier assumes closed-world (all trait implementations known at verification time), but Rust allows open-world (new impls in downstream crates). Result: verified code breaks when new trait impl added.
 
 **Why it happens:**
-- Obvious properties frequently overlooked in manual specification
-- Invariants must be inductive (maintain through loop iteration) - non-obvious requirement
-- Invariants must be strong enough to prove postcondition but weak enough to maintain
-- SMT solvers can't reason about unbounded loops without invariants
-- Automated invariant synthesis struggles with complex loop patterns
-- LLMs show "limited ability to leverage verifier-provided feedback when repairing incorrect invariants"
+- Trait objects use dynamic dispatch via vtable
+- Verifier must model all possible vtable entries (trait method implementations)
+- **Closed-world**: Assume only trait impls visible at verification time exist
+- **Open-world**: Account for unknown future trait impls
+- Closed-world is simpler but unsound for public traits
+
+**Root cause:** Trait objects enable polymorphism, but verifier must decide: verify against all possible implementations (sound but expensive) or only known implementations (fast but unsound if trait is public).
 
 **Consequences:**
-- Verification fails on loops, even trivial ones
-- Users spend hours debugging invariant formulations
-- Proof burden explodes (loop verification is most time-consuming part)
-- Tool abandoned as "too hard to use"
-- Targeting 80-90% automation becomes unachievable
+- **Soundness bug**: Function verified against `dyn Trait`, assumes all impls satisfy property, but downstream crate adds impl violating property
+- **Incompleteness**: Open-world verification rejects correct code because it can't prove property for all future impls
+- **Maintenance hell**: Adding new trait impl invalidates previous verification results
 
 **Prevention:**
-- Implement multi-strategy invariant inference:
-  - Template-based (common patterns: `0 <= i < n`, array bounds)
-  - Abstract interpretation (octagon domain, intervals)
-  - SMT-based CEGIS (counterexample-guided inductive synthesis)
-  - Reinforcement learning enhanced synthesis (recent research direction)
-- Provide high-quality error messages when invariant checking fails
-- Include invariant debugging tools (show which clause fails: init, inductive, or post)
-- Create library of common invariants for standard patterns
-- Support incremental invariant strengthening (tool suggests additions)
-- Don't make loops mandatory for Phase 2 - start with simple bounded loops
+1. **Default to open-world for public traits**: Require trait bounds to be provable from trait definition alone
+2. **Closed-world opt-in**: `#[sealed]` or `#[verifier::closed]` attribute for traits verified in closed-world
+3. **Encode trait methods as assumptions**: For `fn f(x: &dyn Trait)`, assume only trait method contracts, not implementation details
+4. **Vtable modeling**:
+   - Closed-world: Enumerate all known impls, VC per impl
+   - Open-world: Treat vtable method as uninterpreted function satisfying trait contract
+5. **Marker traits**: Track if trait is implemented via marker (e.g., `Send`, `Sync`) - these are closed-world by design
 
 **Warning signs:**
-- Users frequently report "verification timeout on loops"
-- Manual invariants require 5+ iterations to get right
-- Invariants become longer than the loop body
-- Verification succeeds/fails unpredictably based on minor loop changes
+- Verification succeeds in library crate, fails when new downstream crate added
+- Trait object method call assumes specific implementation behavior
+- Different verification results for same code when trait impl count changes
+- Public trait verified in closed-world mode
 
-**Phase to address:**
-Phase 2 (Loop Invariants) - this will be the hardest feature:
-- Research phase: Survey 3+ inference approaches before committing
-- Prototype with simple loops (for, while with bounds)
-- Build debugging/explanation tools in parallel
-- Defer complex invariants (nested loops, complex data structures) to later phases
+**Example:**
+```rust
+pub trait Shape {
+    #[ensures(result >= 0.0)]
+    fn area(&self) -> f64;
+}
+
+// Closed-world: verify only against Circle, Rectangle
+impl Shape for Circle { fn area(&self) -> f64 { PI * r * r } }
+impl Shape for Rectangle { fn area(&self) -> f64 { w * h } }
+
+#[requires(shapes.iter().all(|s| is_valid(s)))]
+#[ensures(result >= 0.0)]  // Verified in closed-world
+fn total_area(shapes: &[Box<dyn Shape>]) -> f64 {
+    shapes.iter().map(|s| s.area()).sum()
+}
+
+// BREAKS when downstream crate adds:
+impl Shape for Triangle {
+    fn area(&self) -> f64 { -1.0 }  // BUG: violates contract!
+}
+```
+
+**Encoding strategy:**
+```smt2
+; Open-world: vtable method is uninterpreted function
+(declare-fun Shape.area (ShapeVTable ShapeObject) Real)
+
+; Trait contract as axiom (must hold for all impls)
+(assert (forall ((vtbl ShapeVTable) (obj ShapeObject))
+  (>= (Shape.area vtbl obj) 0.0)))
+
+; Function verification uses only trait contract
+(assert (= total (sum (map (lambda (s) (Shape.area (vtbl s) s)) shapes))))
+(assert (>= total 0.0))  ; Provable from trait contract
+```
+
+**Phase to address:** Phase N+3 (Trait Object Verification)
+- Start with closed-world for sealed traits only
+- Document limitation: public traits not yet supported
+- Phase N+4: Add open-world verification with trait contract enforcement
+
+**Confidence:** MEDIUM-HIGH - Open/closed-world is well-studied in verification. Rust-specific vtable handling less documented.
+
+**Sources:**
+- [Closed-world assumption - Wikipedia](https://en.wikipedia.org/wiki/Closed-world_assumption)
+- [Verifying Dynamic Trait Objects in Rust](https://cs.wellesley.edu/~avh/dyn-trait-icse-seip-2022-preprint.pdf)
+- [UNSOUND 2026 Workshop](https://2026.ecoop.org/home/unsound-2026)
 
 ---
 
-### Pitfall 4: Bitvector Overflow Semantics Mismatch
+### Pitfall 4: Unsafe Code Verification Soundness Boundaries
 
 **What goes wrong:**
-Rust has specific overflow semantics (wrapping in release, panic in debug, checked operations). SMT bitvector operations have different semantics. Naive encoding leads to verification accepting code that panics or wraps unexpectedly.
+Verifier treats `unsafe` blocks same as safe code, or axiomatizes all unsafe operations, creating soundness holes. Verified safe code calls unverified unsafe code, bugs slip through.
 
 **Why it happens:**
-- Rust overflow behavior mode-dependent (debug vs release)
-- SMT bitvector arithmetic is modular (wraps) by default
-- Overflow predicates exist (`bvuaddo`, `bvsaddo`, etc.) but must be added explicitly
-- Easy to forget overflow checks in every arithmetic operation
-- Carry bit handling requires explicit zero-extension
-- Signed/unsigned distinction must be preserved through encoding
+- Unsafe code can violate Rust's safety invariants (aliasing, lifetime, initialization)
+- Verifier must decide: verify unsafe's implementation or trust its safety contract?
+- If verify: need model of raw pointers, uninitialized memory, FFI - extremely complex
+- If trust: unsafe becomes axiom, bugs in unsafe propagate to safe code
+- Existing tools (Kani, Verus, Prusti) all struggle with unsafe verification
+
+**Root cause:** Safe Rust's soundness depends on unsafe code upholding safety invariants. Verifier must check unsafe doesn't violate invariants, but unsafe code uses operations verification doesn't model (raw pointer arithmetic, transmute, inline assembly).
 
 **Consequences:**
-- Verifier accepts code that panics in debug mode
-- Verifier accepts code with unintended wrapping behavior
-- Security vulnerabilities if overflow leads to buffer overrun
-- Integer overflow bugs are common source of verification unsoundness
+- **Unsound verification**: Unsafe code with bug (e.g., aliasing violation) gets axiomatized, safe code verified against wrong assumptions
+- **False sense of security**: Codebase "verified" but crashes due to unsafe code bug
+- **Incomplete coverage**: Can't verify code using common unsafe patterns (intrinsics, FFI)
 
 **Prevention:**
-- Use SMT-LIB overflow predicates consistently (`bvumul_noovfl`, `bvsmul_noovfl`, etc.)
-- For addition: zero-extend arguments by one bit, check MSB is 0 in result
-- Generate separate VCs for overflow conditions
-- Respect Rust's overflow mode:
-  - `cfg!(debug_assertions)` → add overflow checks
-  - Release mode → verify wrapping semantics match intent
-- Test encoding with known overflow cases (e.g., binary search bug: `mid = (lo + hi) / 2`)
-- Add property-based tests: Rust operation result should match SMT model value
+1. **Separate unsafe analysis pipeline**: Don't mix safe and unsafe verification
+2. **Conservative unsafe contracts**:
+   - Require explicit `#[unsafe_requires]` and `#[unsafe_ensures]` annotations
+   - Unsafe preconditions become axioms (trusted), not verified
+   - Document what verification assumes about unsafe code
+3. **Restrict verifiable unsafe subset**:
+   - Allow: raw pointer dereference with bounds check, `UnsafeCell` access
+   - Disallow (for now): transmute, union field access, inline asm, FFI
+4. **Safety encapsulation checking**: Verify unsafe code doesn't leak unsafety to safe interface
+   ```rust
+   // Verify: even if unsafe code bugs, safe interface can't trigger UB
+   pub fn safe_wrapper(x: &[i32]) -> i32 {
+       unsafe { unchecked_index(x, 0) }  // Must prove x.len() > 0
+   }
+   ```
+5. **Explicit verification boundary**: Mark unsafe functions as `#[verifier::trusted]` or `#[verifier::verify_unsafe]`
 
 **Warning signs:**
-- Code verified but panics in debug mode at runtime
-- Arithmetic on large values produces wrong verification results
-- Difference in verification results between i32/u32 and i64/u64
+- Unsafe code verifies without additional annotations
+- Raw pointer operations accepted without bounds checks
+- Transmute operations in verified code
+- No distinction between safe and unsafe verification results
 
-**Phase to address:**
-Phase 1 (completion) - already using bitvector theory, verify overflow handling:
-- Audit all arithmetic encoding in encode_term.rs
-- Add overflow test cases (addition, multiplication, subtraction of edge values)
-- Document overflow semantics in encoding specification
+**Example:**
+```rust
+// WRONG - unsafe axiomatized
+#[ensures(result < arr.len())]
+fn find_first(arr: &[i32], target: i32) -> usize {
+    unsafe {
+        // BUG: out-of-bounds access if target not found
+        unchecked_first(arr.as_ptr(), arr.len(), target)
+    }
+}
+
+// CORRECT - unsafe requires proof
+#[requires(len > 0)]
+#[requires(exists(|i: usize| i < len && *ptr.add(i) == target))]
+#[unsafe_ensures(result < len)]
+#[unsafe_ensures(*ptr.add(result) == target)]
+unsafe fn unchecked_first(ptr: *const i32, len: usize, target: i32) -> usize {
+    // Verification assumes precondition (not verified)
+    for i in 0..len {
+        if *ptr.add(i) == target { return i; }
+    }
+    unreachable!()
+}
+```
+
+**Encoding strategy:**
+```rust
+// In VCGen
+match function.safety {
+    Safety::Safe => {
+        // Normal verification: check all operations
+        generate_full_vcs(function)
+    }
+    Safety::Unsafe => {
+        if has_attr(function, "verifier::trusted") {
+            // Axiomatize: assume contracts without proof
+            axiomatize_function(function)
+        } else {
+            // Verify with unsafe operations allowed
+            generate_unsafe_vcs(function)
+        }
+    }
+}
+```
+
+**Phase to address:** Phase N+4 (Unsafe Verification)
+- Phase N+3: Mark unsafe as `#[verifier::trusted]`, document limitation
+- Phase N+4: Add verification for restricted unsafe subset (raw pointers with bounds)
+- Defer full unsafe verification (transmute, unions, FFI) to research phase
+
+**Confidence:** HIGH - Multiple sources confirm unsafe verification is hard, existing tools have limitations. Conservative approach (axiomatize with explicit trust) is safest.
+
+**Sources:**
+- [Modular Formal Verification of Rust Programs with Unsafe Blocks](https://arxiv.org/abs/2212.12976)
+- [RefinedRust: A Type System for High-Assurance Verification](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+- [Verify the Safety of the Rust Standard Library](https://aws.amazon.com/blogs/opensource/verify-the-safety-of-the-rust-standard-library/)
+- [Annotating and Auditing the Safety Properties of Unsafe Rust](https://arxiv.org/pdf/2504.21312)
 
 ---
 
-### Pitfall 5: SSA Violation Causing Variable Shadowing Bugs
+### Pitfall 5: Non-Lexical Lifetimes (NLL) Complexity in Encoding
 
 **What goes wrong:**
-Multiple assignments to the same variable overwrite each other in SMT encoding instead of creating new SSA versions. This causes verification to use wrong values from incorrect control flow paths, leading to false positives or false negatives.
+Verifier uses lexical scope for lifetime reasoning, rejects code accepted by NLL borrow checker. Users get "verification failed" on code that compiles fine.
 
 **Why it happens:**
-- VCGen assumes linear execution, walks blocks in order
-- SSA counter declared but unused (known bug in CONCERNS.md)
-- MIR CFG has arbitrary loops/branches, but encoding assumes straight-line code
-- Assignment collection walks all blocks, doesn't track which path reaches which statement
+- Rust's borrow checker uses NLL (non-lexical lifetimes) since 2018
+- NLL tracks lifetime based on control flow graph, not lexical scope
+- Lifetime ends at last use, not end of scope
+- Verifier using lexical lifetime encoding is stricter than Rust compiler
+- Polonius (next-gen borrow checker) even more permissive, divergence grows
+
+**Root cause:** Encoding lifetimes precisely requires control-flow-sensitive analysis. Lexical scoping is simpler but rejects valid code. Verifier's lifetime model must match Rust's actual borrow checking.
 
 **Consequences:**
-- False negatives: Bug in one branch hidden by value from other branch
-- False positives: Correct code rejected because unrelated assignment creates conflict
-- Non-deterministic results based on basic block ordering
-- Verification results invalid for functions with control flow
+- **Usability failure**: Correct Rust code fails verification
+- **User confusion**: "Code compiles but doesn't verify - is verifier broken?"
+- **Workaround hell**: Users restructure code to fit lexical lifetime model
+- **Future incompatibility**: Polonius adoption will increase divergence
 
 **Prevention:**
-- Implement true SSA renaming:
-  - Each assignment creates new variable: `x_0`, `x_1`, `x_2`
-  - Track current SSA version per variable per basic block
-  - Insert phi functions at control flow merge points
-- Use path-sensitive analysis:
-  - Generate separate VCs for each path through CFG
-  - Track assignments per path, not globally
-- Add tests specifically for multi-path scenarios:
-  - If-then-else with assignments to same variable in both branches
-  - Loops with counters
-  - Early returns
+1. **Use NLL-based lifetime reasoning**: Track lifetime based on last use in CFG, not lexical scope
+2. **Reborrow chain tracking**: Model reborrowing (borrow from borrow) correctly
+   ```rust
+   let r1 = &mut x;
+   let r2 = &mut *r1;  // Reborrow: r1 suspended while r2 active
+   *r2 = 5;
+   *r1 = 6;  // r1 resumed after r2 ends
+   ```
+3. **Leverage MIR lifetime information**: MIR includes region inference results, use them
+4. **Two-phase borrows**: Model two-phase borrows (mutable borrow activated on use, not creation)
+5. **Test against borrow checker**: Verification should accept same code as `rustc --emit=mir`
 
 **Warning signs:**
-- Verification result changes when reordering statements
-- Different results for semantically equivalent control flow (if/else vs match)
-- Users report "verified function still has bugs"
-- VCs reference wrong variable versions
+- Code compiles with `rustc` but fails verification
+- Reordering statements (without semantic change) affects verification
+- Manual lifetime annotations change verification outcome
+- Error message: "borrow outlives use" on code that compiles
 
-**Phase to address:**
-Immediate (Phase 1 fix) - this is a known critical bug:
-- Implement SSA variable renaming in vcgen.rs
-- Add phi-function insertion at block joins
-- Test with multi-path control flow examples
+**Example:**
+```rust
+// NLL accepts this
+fn use_then_reassign(v: &mut Vec<i32>) {
+    let r = &v[0];           // Borrow starts
+    println!("{}", r);       // Last use of r
+    v.push(1);               // Mutable use of v - OK! r lifetime ended
+}
+
+// Lexical lifetimes reject: r's scope includes v.push(), conflict detected
+
+// Verification encoding must track:
+// 1. r's lifetime ends at println
+// 2. v becomes available for mutation after last use of r
+```
+
+**Encoding strategy:**
+```rust
+// In VCGen: track lifetime based on use, not scope
+struct LifetimeTracker {
+    /// Maps borrow to last use point in CFG
+    last_use: HashMap<Local, BasicBlockId>,
+    /// Active borrows at each program point
+    active_at: HashMap<BasicBlockId, HashSet<Local>>,
+}
+
+impl LifetimeTracker {
+    fn borrow_ends(&self, borrow: Local, point: BasicBlockId) -> bool {
+        self.last_use[&borrow] <= point
+    }
+
+    fn is_mutable_available(&self, var: Local, point: BasicBlockId) -> bool {
+        // Check no active borrows of var at this point
+        !self.active_at[&point].iter().any(|b| borrows(b, var))
+    }
+}
+```
+
+**Phase to address:** Phase N+5 (Lifetime Reasoning)
+- Phase N+4: Use lexical lifetimes, document limitation
+- Phase N+5: Implement NLL-based lifetime tracking
+- Research spike: Study Polonius if adoption imminent
+
+**Confidence:** MEDIUM - NLL is well-documented, but integrating into verifier non-trivial. Reborrow chains and two-phase borrows add complexity.
+
+**Sources:**
+- [Non-Lexical Lifetimes RFC](https://github.com/rust-lang/rfcs/blob/master/text/2094-nll.md)
+- [How to Understand Non-Lexical Lifetimes in Rust](https://oneuptime.com/blog/post/2026-01-25-non-lexical-lifetimes-rust/view)
+- [Polonius Working Group](https://rust-lang.github.io/compiler-team/working-groups/polonius/)
 
 ---
 
-### Pitfall 6: Procedural Macro Hygiene Violations
+### Pitfall 6: Floating-Point NaN Propagation Breaks Postcondition Reasoning
 
 **What goes wrong:**
-Procedural macros for specifications are "entirely unhygienic" - they don't respect Rust's namespace rules. Generated code can accidentally capture or shadow user variables, or fail to find standard library items.
+Verifier proves `result > 0.0` for floating-point function, but runtime produces `NaN`. Postcondition unsound because verifier didn't model NaN propagation.
 
 **Why it happens:**
-- Proc macros operate on token streams with manual span manipulation
-- No automatic name resolution - macro must fully qualify all names
-- `quote!` macros generate code in macro's context, not call site context
-- Span information underspecified and underdocumented
-- Easy to forget `::std::` prefix on stdlib types
+- IEEE 754 floating-point has special values: `NaN`, `Inf`, `-Inf`, `-0.0`
+- Operations on `NaN` produce `NaN` (propagate), not follow normal arithmetic rules
+- `NaN != NaN` (reflexivity violation), `NaN < x` is false for all x
+- SMT-LIB FloatingPoint theory models IEEE 754, but easy to forget NaN handling
+- Verifier may encode `x + y > 0` without checking if inputs are NaN
+
+**Root cause:** Floating-point arithmetic is not real arithmetic. SMT encoding must account for NaN, infinity, rounding modes, subnormals. Forgetting NaN produces unsound postconditions.
 
 **Consequences:**
-- Specification code compiles but has wrong semantics (captures wrong variable)
-- Mysterious errors when user code shadows standard names
-- Different behavior in different modules based on imports
-- Tooling (IDE, rust-analyzer) shows wrong information due to span issues
+- **Soundness bug**: Verifier proves `result >= 0.0`, runtime gets `NaN` (not >= 0)
+- **Unexpected behavior**: Comparisons with NaN return false, break control flow assumptions
+- **Difficult debugging**: NaN propagates silently, bug appears far from source
 
 **Prevention:**
-- Always fully qualify paths in macro-generated code: `::std::result::Result`, not `Result`
-- Use `quote_spanned!` to preserve user code spans for error messages
-- Test macros in modules with unusual imports/shadowing
-- Document macro hygiene requirements explicitly
-- Consider structured attributes (when stabilized) instead of doc attributes
-- Add round-trip tests: expand macro → parse → verify structure matches expected
+1. **Explicit NaN checks in VCs**: For every float operation, generate VC checking operands not NaN
+   ```smt2
+   ; Addition VC with NaN check
+   (assert (not (isNaN x)))
+   (assert (not (isNaN y)))
+   (assert (= result (fp.add RNE x y)))
+   (assert (fp.gt result 0.0))  ; Safe to check since result not NaN
+   ```
+
+2. **Require NaN handling in contracts**:
+   ```rust
+   #[requires(!x.is_nan() && !y.is_nan())]
+   #[ensures(!result.is_nan() && result >= 0.0)]
+   fn safe_add(x: f64, y: f64) -> f64 { x + y }
+   ```
+
+3. **Use SMT-LIB FloatingPoint theory predicates**:
+   - `isNaN`, `isInfinite`, `isZero`, `isSubnormal`, `isNormal`
+   - Rounding modes: `RNE` (round to nearest even), `RNA`, `RTP`, `RTN`, `RTZ`
+
+4. **Document NaN semantics**:
+   - "All floating-point preconditions must exclude NaN unless explicitly handled"
+   - "Postconditions using comparisons (>, <, ==) invalid for NaN inputs"
+
+5. **Test with NaN inputs**: Property-based testing with NaN, Inf, -0.0 edge cases
 
 **Warning signs:**
-- Compilation errors about missing items that clearly exist
-- Different behavior when `use std::*` is present vs absent
-- IDE shows errors but code compiles, or vice versa
-- Error messages point to wrong source locations
+- Float postcondition uses `result > 0.0` without NaN precondition
+- Verification assumes `x == x` for floats (false for NaN)
+- No `isNaN` checks in generated VCs for float operations
+- Runtime panic on NaN where verification claimed safety
 
-**Phase to address:**
-Phase 2 (Specification Enhancement) - when extending spec language:
-- Audit existing macros for hygiene issues
-- Add hygiene test suite (macros in strange contexts)
-- Document qualification requirements
-- Consider migration to `#[register_tool]` custom attributes
+**Example:**
+```rust
+// WRONG - doesn't handle NaN
+#[ensures(result >= 0.0)]
+fn unsafe_sqrt(x: f64) -> f64 {
+    x.sqrt()  // Returns NaN for negative x, violates postcondition
+}
+
+// CORRECT - explicit NaN handling
+#[requires(!x.is_nan())]
+#[requires(x >= 0.0)]
+#[ensures(!result.is_nan())]
+#[ensures(result * result <= x && x <= (result + f64::EPSILON) * (result + f64::EPSILON))]
+fn safe_sqrt(x: f64) -> f64 {
+    x.sqrt()
+}
+```
+
+**Encoding strategy:**
+```smt2
+; SMT-LIB FloatingPoint encoding
+(declare-const x (_ FloatingPoint 11 53))  ; f64
+(declare-const result (_ FloatingPoint 11 53))
+
+; Precondition: not NaN and >= 0
+(assert (not (fp.isNaN x)))
+(assert (fp.geq x (_ +zero 11 53)))
+
+; Operation
+(assert (= result (fp.sqrt RNE x)))
+
+; Postcondition: not NaN and approximate square
+(assert (not (fp.isNaN result)))
+(assert (fp.leq (fp.mul RNE result result) x))
+```
+
+**Phase to address:** Phase N+6 (Floating-Point Verification)
+- Use SMT-LIB FloatingPoint theory (already in codebase)
+- Require NaN preconditions on all float operations
+- Test with IEEE 754 edge cases (NaN, Inf, -0.0, subnormals)
+
+**Confidence:** HIGH - SMT-LIB FloatingPoint theory well-specified, NaN handling documented in IEEE 754 standard.
+
+**Sources:**
+- [SMT-LIB FloatingPoint Theory](https://smt-lib.org/theories-FloatingPoint.shtml)
+- [NaN Propagation (IEEE 754 Issues)](https://grouper.ieee.org/groups/msc/ANSI_IEEE-Std-754-2019/background/nan-propagation.pdf)
+- [Correct Approximation of IEEE 754 Floating-Point Arithmetic](https://link.springer.com/article/10.1007/s10601-021-09322-9)
+- [Parallel Floating Point Exception Tracking and NaN Propagation](https://www.agner.org/optimize/nan_propagation.pdf)
 
 ---
 
-### Pitfall 7: SMT Solver Performance Cliffs
+### Pitfall 7: Concurrency State Explosion with Weak Memory Models
 
 **What goes wrong:**
-Minor changes to SMT encoding cause exponential performance degradation. Queries that solved in milliseconds now timeout after minutes. This unpredictability makes verification unreliable.
+Verifier tries to check all possible interleavings for concurrent code, SMT solver runs out of memory or times out. Or verifier assumes sequential consistency, misses relaxed atomics bugs.
 
 **Why it happens:**
-- SMT solvers rely on heuristics (branching, simplification, lemma generation)
-- Performance "very sensitive to problem encoding"
-- Quantifier instantiation heuristics are non-deterministic
-- Once formulas grow large/complex, solving time can "explode exponentially"
-- Theory combination interactions (arrays + integers + bitvectors) compound complexity
-- Syntactic changes to logically equivalent formulas affect solver strategy
+- Rust allows relaxed memory ordering (`Ordering::Relaxed`) for atomics
+- Relaxed atomics permit reordering, weak memory model has more behaviors than sequential consistency
+- Encoding all possible orderings causes exponential VC growth
+- SMT solvers struggle with existential quantification over interleavings
+
+**Root cause:** Concurrent verification is hard. Weak memory models make it harder. State explosion: N threads with M states each → M^N possible interleavings.
 
 **Consequences:**
-- Verification timeouts on realistic code
-- Non-deterministic verification (sometimes passes, sometimes times out)
-- Users can't predict what code will verify
-- Tool perceived as "too slow for real use"
+- **Incompleteness**: Verifier times out on realistic concurrent code
+- **False negatives**: Weak memory model bugs (load buffering, store buffering) missed by sequential consistency model
+- **Scalability failure**: Can only verify 2-3 threads, not production concurrency
 
 **Prevention:**
-- Minimize quantifiers: Use quantifier-free fragments when possible
-- Simplify formulas before sending to solver:
-  - Constant folding
-  - Dead code elimination
-  - Common subexpression elimination
-- Generate minimal SMT scripts (only necessary context per VC)
-- Use incremental solving with push/pop instead of separate processes
-- Profile SMT queries, identify patterns that cause slowdown
-- Add timeout budget per VC, report which VCs timeout
-- Consider multiple solvers: try Z3, fallback to CVC5 on timeout
-- Use SMT solver diagnostics (`-v` flag) to understand bottlenecks
+1. **Don't tackle weak memory models in early phases**: Start with sequential consistency only
+2. **Use bounded model checking**: Limit interleaving depth (e.g., check up to 10 context switches)
+3. **Partial order reduction**: Prune equivalent interleavings using independence relations
+4. **Stateless model checking**: Explore interleavings lazily, not all upfront
+5. **For weak memory models**:
+   - Use C11/C20 memory model formalization (Dartagnan, GenMC)
+   - CAT (Concurrency Abstract Model) for memory model specification
+   - Relation analysis to reduce encoding size
+6. **Defer to specialized tools**: Link with existing concurrency verifiers (CBMC, GenMC) rather than re-implementing
 
 **Warning signs:**
-- Verification time unpredictable (same code takes different time)
-- Small code changes cause huge performance swings
-- Solver returns "unknown" frequently
-- Generated SMT scripts grow to multi-megabyte size
-- Profiling shows solver taking >90% of verification time
+- Verification timeout on simple concurrent code (2 threads, 10 LOC each)
+- Memory usage explodes (>10GB) for concurrent VCs
+- Relaxed atomics in code but verifier doesn't model weak memory
+- Bug appears in runtime with specific thread interleaving but verification passed
 
-**Phase to address:**
-Phase 3 (Performance Optimization):
-- Benchmark suite with performance regression tests
-- SMT query profiler/analyzer tool
-- Formula simplification passes before solver submission
-- Multiple solver backend support
+**Example:**
+```rust
+// Relaxed atomics - weak memory behavior
+static X: AtomicBool = AtomicBool::new(false);
+static Y: AtomicBool = AtomicBool::new(false);
 
----
+// Thread 1
+fn thread1() {
+    X.store(true, Ordering::Relaxed);
+    let y = Y.load(Ordering::Relaxed);
+    // Can observe y == false even if thread2 ran first
+}
 
-### Pitfall 8: Inadequate Testing of the Verifier Itself
+// Thread 2
+fn thread2() {
+    Y.store(true, Ordering::Relaxed);
+    let x = X.load(Ordering::Relaxed);
+    // Can observe x == false even if thread1 ran first
+}
 
-**What goes wrong:**
-Verification tools have bugs like any software. Without rigorous testing of the verifier, soundness bugs ship to users. "Who verifies the verifier?"
+// Weak memory allows both threads to read false (load buffering)
+// Sequential consistency forbids this
+```
 
-**Why it happens:**
-- Metamorphic testing for verifiers is non-obvious
-- Generating test cases requires understanding both Rust semantics and SMT
-- Focus on positive tests (correct code verifies) neglects negative tests (wrong code rejected)
-- Incomplete coverage of language features
-- Edge cases in MIR translation not tested
+**Encoding strategy (bounded, sequential consistency only):**
+```rust
+// Bounded verification: limit interleaving depth
+struct ConcurrencyVCGen {
+    max_context_switches: usize,  // e.g., 10
+    max_threads: usize,            // e.g., 3
+}
 
-**Consequences:**
-- Soundness bugs: Tool accepts unsafe code (critical failure)
-- Completeness bugs: Tool rejects safe code (usability failure)
-- User discovers bugs in production, loses trust
-- Difficult to add features without breaking existing verification
+impl ConcurrencyVCGen {
+    fn generate_vcs(&self, threads: &[Thread]) -> Vec<VC> {
+        if threads.len() > self.max_threads {
+            return vec![VC::Skip("Too many threads for bounded verification")];
+        }
 
-**Prevention:**
-- Implement comprehensive test strategy:
-  - **Soundness tests**: Programs known to have bugs should be rejected (use mutation testing)
-  - **Completeness tests**: Correct programs should verify (curated examples)
-  - **Differential testing**: Compare results with Kani, Prusti, Verus on same code
-  - **Metamorphic testing**: Transform verified program, verify transformation preserves verification
-- Add interrogation testing (from recent research):
-  - Generate program pairs with known relationships
-  - Verify tool respects those relationships
-- Test coverage for all MIR constructs:
-  - Every terminator type
-  - Every rvalue kind
-  - Every operand type
-- Fuzzing: Generate random MIR, verify tool doesn't crash
-- Regression tests from user bug reports
+        // Generate VCs for bounded interleavings only
+        self.bounded_interleavings(threads, self.max_context_switches)
+    }
+}
+```
 
-**Warning signs:**
-- Users report bugs not caught by tests
-- New features break existing verification
-- Can't explain why certain code verifies or doesn't
-- Test suite has low coverage (<80% of vcgen/encoder code)
+**Phase to address:** Phase N+7 (Concurrency Verification) - ADVANCED/RESEARCH
+- Phase N+6: Sequential code only
+- Phase N+7: Sequential consistency (SC) atomics, bounded verification
+- Research phase: Weak memory models (defer to specialized tools or future work)
 
-**Phase to address:**
-Immediate (Phase 1):
-- Add soundness test suite (wrong programs)
-- Add completeness test suite (right programs)
-- Implement metamorphic testing framework
-Ongoing: Add tests for every feature in every phase
+**Confidence:** MEDIUM-HIGH - Concurrency verification well-studied, but Rust-specific weak memory model verification is cutting-edge research (RustBelt Relaxed 2024-2026).
+
+**Sources:**
+- [RustBelt Meets Relaxed Memory](https://plv.mpi-sws.org/rustbelt/rbrlx/paper.pdf)
+- [An Approach for Modularly Verifying Rust's Atomic Reference Counting](https://arxiv.org/pdf/2505.00449)
+- [BMC for Weak Memory Models: Relation Analysis for Compact SMT Encodings](https://link.springer.com/chapter/10.1007/978-3-030-25540-4_19)
+- [Static Analysis of Memory Models for SMT Encodings](https://dl.acm.org/doi/10.1145/3622855)
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 9: Aggregate Type Encoding Loses Structure
+### Pitfall 8: Recursive Function Stack Overflow in VCGen
 
 **What goes wrong:**
-Encoding structs/tuples/enums as uninterpreted sorts means verifier can't reason about field access, pattern matching, or structural properties.
+VCGen naively inlines recursive calls, stack overflow when generating VC for deep recursion.
 
 **Prevention:**
-Use SMT datatypes with proper constructors/selectors. This is planned work for Phase 2.
+Use fuel-based unfolding or function summary encoding. Limit inlining depth (e.g., max 5 recursive calls).
 
 **Warning signs:**
-- Can't verify code accessing struct fields
-- Enum pattern matching fails verification
-- Tuple destructuring loses type information
+- Stack overflow during VC generation
+- VCGen time exponential in recursion depth
+- Can't verify recursive functions with depth > 10
 
 ---
 
-### Pitfall 10: Inter-procedural Verification Scaling
+### Pitfall 9: Quantifier Instantiation Matching Loops
 
 **What goes wrong:**
-Inlining all function calls causes exponential blowup. Without function summaries, verification limited to small functions.
+Quantifier trigger causes instantiation that creates new term matching same trigger, infinite loop.
 
 **Prevention:**
-- Implement modular verification with function contracts
-- Use summary repair for incremental verification
-- Cache verification results per function
-- Maintain under-approximations (traces) and over-approximations (summaries)
+- Conservative trigger selection (Phase 4 approach)
+- Z3 `:qid` and `:no-pattern` annotations
+- Test with Z3 `-v` flag to detect matching loops
 
 **Warning signs:**
-- Verification timeout increases super-linearly with code size
-- Functions with many calls verify much slower
-- Re-verifying unchanged functions takes same time as first verification
+- Z3 never returns (timeout on simple VC)
+- Z3 verbose output shows millions of instantiations
+- Memory usage grows unbounded
+
+**Source:** [Programming Z3: Quantifiers](https://theory.stanford.edu/~nikolaj/programmingz3.html)
 
 ---
 
-### Pitfall 11: Float Encoding as Uninterpreted
+### Pitfall 10: Closure Environment Size Explosion
 
 **What goes wrong:**
-Floating-point operations encoded as uninterpreted constants block verification of any code using floats.
+Closure captures many variables, environment struct becomes huge datatype, SMT solver slow.
 
 **Prevention:**
-Use SMT-LIB FloatingPoint theory (`(_ FloatingPoint e s)`). Infrastructure exists in smtlib crate.
+- Only encode captured variables actually used in closure body
+- Share environment representation across closures with same captures
+- Warn on closures capturing >10 variables
 
 **Warning signs:**
-- All functions with float parameters fail verification
-- Float operations produce placeholder values
+- Verification slow on functions with closures
+- SMT datatype has 20+ fields
+- Closure works in code but times out in verification
 
 ---
 
-### Pitfall 12: Reference and Borrow Tracking
+### Pitfall 11: Trait Object Devirtualization Failure
 
 **What goes wrong:**
-Treating references as transparent loses Rust's aliasing guarantees. Can't verify mutation safety or borrow checker reasoning.
+Trait object method call encoded as uninterpreted function, can't prove simple properties.
 
 **Prevention:**
-- Implement prophecy variables for mutable borrows
-- Track lifetime relationships in encoding
-- Use separation logic or fractional permissions
+- Devirtualize when possible (single impl known at verification time)
+- Encode trait contract as axiom, use in reasoning
+- For sealed traits, enumerate all impls
 
 **Warning signs:**
-- Can't verify code with `&mut` parameters
-- Aliasing-related bugs not caught
-- Borrow checker errors not reflected in verification
+- Trait method postcondition not usable at call site
+- Must manually assume trait contract after call
+- Different results for trait object vs concrete type
+
+---
+
+### Pitfall 12: Unsafe Pointer Arithmetic Overflow
+
+**What goes wrong:**
+Pointer arithmetic in unsafe code overflows, creates out-of-bounds pointer, UB not detected.
+
+**Prevention:**
+- Model pointers as (base, offset) pair
+- Check `0 <= offset < allocation_size` on every pointer operation
+- Require bounds as `#[unsafe_requires]` on raw pointer functions
+
+**Warning signs:**
+- Unsafe code with pointer arithmetic verifies without bounds checks
+- Out-of-bounds access at runtime after verification
+- `ptr.add(n)` operations without proof that `n` in bounds
 
 ---
 
 ## Minor Pitfalls
 
-### Pitfall 13: Error Message Quality
+### Pitfall 13: Lifetime Elision in Contracts
 
 **What goes wrong:**
-Poor error messages when verification fails leave users unable to fix code.
+Contract uses lifetime elision rules differently than Rust compiler, verification rejects.
 
 **Prevention:**
-- Show which VC failed with source location
-- Explain what property was being checked
-- Provide counterexample from SMT model
-- Suggest common fixes
+Explicitly write all lifetime parameters in contracts, don't rely on elision.
 
 ---
 
-### Pitfall 14: Process Spawning Overhead
+### Pitfall 14: Float Rounding Mode Ignored
 
 **What goes wrong:**
-Spawning Z3 process per VC causes slow verification even for small functions.
+Float operations use default rounding (RNE), code requires different mode (RTP/RTN).
 
 **Prevention:**
-Use Z3 API in-process or server mode for incremental solving.
+Encode rounding mode as parameter, check against actual mode used.
 
 ---
 
-### Pitfall 15: Monolithic SMT Scripts
+### Pitfall 15: Weak Memory Model Litmus Test Coverage
 
 **What goes wrong:**
-Large functions generate multi-MB SMT scripts that solver struggles with.
+Verifier claims to support weak memory but fails standard litmus tests (SB, MP, LB).
 
 **Prevention:**
-Generate minimal scripts with only necessary context per VC.
-
----
-
-## Technical Debt Patterns
-
-Shortcuts that seem reasonable but create long-term problems.
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Uninterpreted aggregate types | Fast implementation, no encoding complexity | Can't verify real data structures, blocks adoption | MVP/Phase 1 only - must fix in Phase 2 |
-| Linear block walking | Simple VCGen implementation | SSA violations, incorrect results | Never - fix immediately |
-| Doc attribute contracts | No rustc changes needed | Fragile parsing, hygiene issues | Until `#[register_tool]` stabilizes |
-| Per-VC process spawning | Simple implementation, no state management | 10-100x slower than needed | Phase 1-2, fix in Phase 3 perf work |
-| No loop invariants | Avoid hardest verification problem | Can't verify real code with loops | Phase 1 only |
-| Single solver (Z3) | Simple architecture, no abstraction needed | Vendor lock-in, no fallback | Acceptable with detection/error handling |
-| Regex-based SMT parsing | No dependency on SMT-LIB parser library | Fragile to Z3 output changes | Acceptable with version pinning + tests |
+Test against C11/C20 litmus test suite before claiming weak memory support.
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services.
-
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Z3 solver | Assuming Z3 always available, no version check | Auto-detect with fallback, version compatibility check, clear error |
-| rustc driver | Using unstable APIs without version guard | Pin rustc version, test compatibility matrix, isolate in one module |
-| Proc macros | Expecting hygiene, using relative paths | Fully qualify all names, use quote_spanned!, test in strange contexts |
-| SMT-LIB format | Trusting solver output format never changes | Pin solver version, parse defensively, test with malformed output |
-| MIR conversion | Assuming all MIR constructs handled | Explicit match on all variants, panic on unknown, exhaustive tests |
+| Feature | Naive Approach (WRONG) | Correct Approach |
+|---------|------------------------|------------------|
+| Recursive functions | Inline all calls | Fuel-based unfolding + termination measure |
+| Closures | Treat as pure functions | Encode environment capture + trait bounds |
+| Trait objects | Assume single impl | Open-world encoding or closed-world opt-in |
+| Unsafe code | Verify same as safe code | Separate analysis + trusted axioms |
+| NLL lifetimes | Use lexical scope | Control-flow-sensitive lifetime tracking |
+| Floating-point | Ignore NaN/Inf | Explicit IEEE 754 special value handling |
+| Concurrency | Encode all interleavings | Bounded verification + partial order reduction |
 
 ---
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Inlining all function calls | Exponential VC size growth | Function summaries, modular verification | >3 levels of calls, recursive functions |
-| Per-VC process spawn | Linear slowdown with function size | In-process Z3 API, incremental solving | >20 VCs per function (~50ms each) |
-| Global variable namespace | String operation overhead, solver confusion | Numeric indices with encoding table | >500 variables, deep projections |
-| Monolithic SMT scripts | Solver timeout, memory exhaustion | Minimal context per VC, script composition | >1000 LOC functions, complex VCs |
-| Walking all blocks per VC | O(N*M) where N=statements, M=VCs | Cache assignments per block | >100 basic blocks |
-| No VC caching | Re-verify unchanged functions | Result cache keyed by function signature | Large codebases, incremental compilation |
-
----
-
-## Security Mistakes
-
-Domain-specific security issues beyond general web security.
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Unsanitized solver arguments | Command injection if extra_args exposed | Whitelist allowed arguments, validate inputs |
-| Trusting unverified code paths | False sense of security if coverage incomplete | Track which code produced VCs, require 100% coverage |
-| Missing overflow checks | Accept code with integer overflow vulnerabilities | Add overflow VCs for all arithmetic, test with edge values |
-| Soundness bugs in encoding | Accept unsafe programs as safe (catastrophic) | Formal encoding proof, differential testing, soundness test suite |
-| Incomplete unsafe handling | Unsafe code verified same as safe code | Separate unsafe analysis path (Phase 3 feature) |
-
----
-
-## "Looks Done But Isn't" Checklist
-
-Things that appear complete but are missing critical pieces.
-
-- [ ] **Aggregate type encoding:** Type defined but uninterpreted - verify field access actually works
-- [ ] **Loop support:** MIR has loops but no invariants - verify unbounded loops actually terminate verification
-- [ ] **Reference handling:** Reference types exist but transparent - verify mutable borrow actually tracked
-- [ ] **Overflow checking:** Bitvector ops exist but no overflow VCs - verify arithmetic edge cases have checks
-- [ ] **Error messages:** Verification reports "failed" - verify user can understand why and fix
-- [ ] **Function calls:** Can see call in MIR - verify inter-procedural verification works, not just inlining
-- [ ] **Specification parser:** Parses simple specs - verify complex expressions, quantifiers, function calls
-- [ ] **MIR coverage:** Handles basic terminators - verify all terminator/rvalue/operand types implemented
-- [ ] **Testing:** E2E tests pass - verify soundness tests (wrong programs rejected) exist
-- [ ] **Z3 integration:** Can call Z3 - verify timeout handling, error cases, version compatibility
-
----
-
-## Recovery Strategies
-
-When pitfalls occur despite prevention, how to recover.
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Soundness bug in encoding | HIGH | 1. Add to soundness test suite (prevent recurrence)<br>2. Audit similar encodings<br>3. Consider formal proof of encoding<br>4. Public disclosure if affects users |
-| MIR API breakage | LOW-MEDIUM | 1. Update mir_converter.rs for new API<br>2. Add compatibility shim if possible<br>3. Update supported version docs<br>4. Add regression test for this MIR construct |
-| SSA violation | MEDIUM | 1. Implement full SSA renaming (not quick fix)<br>2. Add phi functions at joins<br>3. Re-verify all existing test cases |
-| SMT performance cliff | LOW-MEDIUM | 1. Profile to identify problematic formula<br>2. Try formula simplification<br>3. Try alternative solver (CVC5)<br>4. Increase timeout<br>5. Report to user with actionable feedback |
-| Loop invariant inference fail | LOW | 1. Explain which invariant clause failed (init/inductive/post)<br>2. Suggest invariant strengthening<br>3. Provide template for manual invariant<br>4. Document pattern for future auto-inference |
-| Proc macro hygiene issue | LOW | 1. Add fully qualified paths<br>2. Fix span information<br>3. Add test case reproducing issue |
-| Aggregate encoding incomplete | HIGH | 1. Requires SMT datatype implementation<br>2. Not patchable - must complete Phase 2 work |
-| Bitvector overflow mismatch | MEDIUM | 1. Add missing overflow predicates<br>2. Test with known overflow cases<br>3. Audit all arithmetic encodings |
-
----
-
-## Pitfall-to-Phase Mapping
-
-How roadmap phases should address these pitfalls.
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Soundness bugs (encoding) | Phase 1-2 (ongoing) | Soundness test suite with mutation testing, differential testing vs Kani/Prusti |
-| MIR API instability | Phase 1 (immediate) | Compatibility matrix tests, CI against multiple nightlies |
-| Loop invariant failure | Phase 2 (Loop Support) | Test suite with common loop patterns, invariant debugger shows failures |
-| Bitvector overflow | Phase 1 (immediate) | Test with INT_MAX, INT_MIN, overflow edge cases |
-| SSA violations | Phase 1 (immediate fix) | Multi-path control flow tests, phi function insertion verified |
-| Proc macro hygiene | Phase 2 (Spec Enhancement) | Macro expansion tests in unusual contexts, hygiene test suite |
-| SMT performance cliffs | Phase 3 (Performance) | Performance regression tests, timeout budgets, profiler |
-| Inadequate verifier testing | Ongoing (all phases) | Metamorphic tests, interrogation tests, coverage >90% |
-| Aggregate encoding | Phase 2 (Type System) | Struct/enum/tuple field access verification, SMT datatype tests |
-| Inter-procedural scaling | Phase 2 (Function Summaries) | Benchmark call-heavy code, verify summary caching works |
-| Float encoding | Phase 2 (Type System) | IEEE 754 test cases, float operation verification |
-| Reference/borrow tracking | Phase 2 (Mutable Borrows) | Aliasing tests, prophecy variable tests, lifetime tracking |
+| Feature | Scalability Issue | Mitigation |
+|---------|-------------------|------------|
+| Recursive functions | Exponential VC size from inlining | Fuel limit + function summaries |
+| Closures | Large environment datatypes | Only encode used captures |
+| Trait objects | VC per implementation | Devirtualization when possible |
+| Concurrency | M^N interleaving explosion | Bounded model checking, limit threads/context switches |
+| Quantifiers | Matching loop non-termination | Conservative triggers + `:qid` annotations |
+| Floating-point | IEEE 754 theory slower than bitvectors | Axiomatize common operations (sqrt, abs) |
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Phase 1 completion | SSA violations, bitvector overflow, MIR instability | Fix immediately before Phase 2, blocking issues |
-| Phase 2: Aggregate Types | Soundness bugs in datatype encoding, SMT performance | Formal encoding spec, extensive testing, start with simple types |
-| Phase 2: Loop Invariants | Inference failure, proof burden explosion | Multi-strategy inference, excellent error messages, defer complex cases |
-| Phase 2: Mutable Borrows | Unsound prophecy encoding, borrow tracking complexity | Study Prusti/Verus approaches, formal model first |
-| Phase 2: Function Summaries | Summary imprecision, inter-procedural unsoundness | Start with simple contracts, validate against inlining |
-| Phase 3: Performance | Premature optimization, complexity explosion | Benchmark first, profile-guided optimization only |
-| Phase 3: Unsafe Support | Soundness gaps in raw pointer reasoning | Separate unsafe from safe analysis, conservative approximations |
+| Phase Feature | Critical Pitfall | Must Address Before Release |
+|---------------|------------------|---------------------------|
+| Recursive functions | Non-termination accepted | Termination measure checker |
+| Closures | Capture semantics wrong | FnMut/FnOnce encoding |
+| Trait objects | Open-world unsoundness | Closed-world validation |
+| Unsafe code | Axiomatized without bounds | Explicit trust annotation |
+| Lifetimes | NLL divergence | Control-flow lifetime tracking |
+| Floating-point | NaN propagation | IEEE 754 edge case tests |
+| Concurrency | Weak memory bugs missed | Sequential consistency first, defer relaxed |
 
 ---
 
 ## Research-Specific Warnings
 
-Based on surveying the formal verification research literature:
+Based on 2024-2026 verification research:
 
-**Loop Invariants:**
-- LLMs cannot yet reliably infer or repair invariants (2025 research shows limited feedback utilization)
-- Reinforcement learning shows promise but still research-stage
-- Template-based approaches work for common patterns but don't generalize
-- Expect this to be the bottleneck for automation percentage
+**Recursive Functions:**
+- Termination checking is decidable for structural recursion, undecidable in general
+- Measure functions must be well-founded (common: lexicographic tuples, natural numbers)
+- Mutual recursion requires joint decrease measure
+- Higher-order recursion (functions as arguments) extremely complex, defer
 
-**Rust-Specific:**
-- Iterator verification is a known open problem (non-deterministic, infinite, higher-order, effectful)
-- Unsafe Rust still challenging for all tools (Kani/Verus can verify it but with limitations)
-- Standard library verification blocked by specification gap, not just tool capability
-- Polonius (improved borrow checker) still in development - may invalidate borrow reasoning
+**Closures:**
+- Rust closure desugaring to structs + traits not formally specified
+- MIR representation of closures changes across rustc versions
+- FnOnce consumption tracking requires linear types or ownership encoding
+- Closure verification in Prusti/Verus is limited (manual encoding often needed)
 
-**SMT Solver:**
-- Quantifier handling is the weak point - use quantifier-free encodings when possible
-- Z3 and CVC5 comparable but complement each other (try both on timeout)
-- Bitvector theory well-supported, but theory combination (bitvectors + arrays + arithmetic) can be slow
-- Floating-point theory exists but performance varies
+**Trait Objects:**
+- Vtable soundness bugs exist (malicious actors can exploit)
+- Serializing trait objects (serde_traitobject) has known soundness holes
+- Fat pointer (vtable + data) representation complicates encoding
+- No verification tool fully supports open-world trait objects (2026)
 
-**Concurrency (Future):**
-- Concurrent verification is "key challenge" even with Rust's safety
-- VerusSync (permission-based toolkit) is promising but very recent
-- Deadlock analysis remains open problem (both thread deadlocks and Rc/borrow cycles)
+**Unsafe Code:**
+- Standard library has 57 soundness issues filed in last 3 years (2024-2026)
+- 20 CVEs in Rust stdlib, 28% discovered in 2024
+- RefinedRust (2024) is most advanced unsafe verifier, still research-level
+- Unsafe verification requires modeling: raw pointers, uninitialized memory, FFI, inline asm
+
+**Lifetimes:**
+- Polonius (next-gen borrow checker) still experimental (2026)
+- Reborrow chains not fully specified in Rust reference
+- Two-phase borrows edge cases not well-documented
+- Region inference results in MIR sometimes imprecise
+
+**Floating-Point:**
+- SMT-LIB FloatingPoint theory exists but performance varies across solvers
+- Fused multiply-add (FMA) and transcendental functions (sin, log) not in SMT-LIB standard
+- NaN payload propagation not standardized until IEEE 754-2019
+- Subnormals and signed zero add verification complexity
+
+**Concurrency:**
+- Weak memory models (C11, ARMv8, x86-TSO) formalization still evolving
+- Dartagnan (weak memory model checker) requires CAT specification - learning curve
+- Relaxed atomics verification tools (GenMC, CBMC) separate from general verifiers
+- VerusSync (permission-based concurrency) very recent (2025), not battle-tested
+- Deadlock detection (both thread and Rc/borrow cycles) remains open problem
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Non-terminating recursion verified | HIGH | 1. Add termination measure checker<br>2. Re-verify all recursive functions<br>3. Add soundness tests (diverging functions should fail) |
+| Closure capture semantics wrong | MEDIUM-HIGH | 1. Study MIR closure desugaring<br>2. Implement environment encoding<br>3. Add Fn/FnMut/FnOnce distinction |
+| Open-world trait unsoundness | MEDIUM | 1. Add `#[sealed]` check<br>2. Reject public traits or require explicit open-world mode |
+| Unsafe code axiomatized | LOW-MEDIUM | 1. Add `#[verifier::trusted]` attribute<br>2. Document unsafe assumptions<br>3. Plan separate unsafe analysis |
+| NLL divergence | MEDIUM | 1. Implement control-flow lifetime tracking<br>2. Test against rustc borrow checker results |
+| NaN not handled | LOW | 1. Add `isNaN` checks to float VCs<br>2. Require NaN preconditions<br>3. Test with IEEE 754 edge cases |
+| Concurrency state explosion | HIGH | 1. Limit scope (sequential consistency only, bounded verification)<br>2. Document limitation<br>3. Defer weak memory to future/specialized tool |
+
+---
+
+## Success Criteria Checklist
+
+Before claiming support for advanced feature:
+
+- [ ] **Recursive functions:**
+  - [ ] Termination measure required and checked
+  - [ ] Non-terminating function fails verification
+  - [ ] Mutual recursion supported
+  - [ ] Tested with structural and numeric measures
+
+- [ ] **Closures:**
+  - [ ] Fn/FnMut/FnOnce distinction encoded
+  - [ ] Environment capture tracked
+  - [ ] Higher-order functions verified
+  - [ ] Tested with mutable captures
+
+- [ ] **Trait objects:**
+  - [ ] Open vs closed-world decision documented
+  - [ ] Sealed traits verified correctly
+  - [ ] Vtable modeling prevents soundness bugs
+  - [ ] Tested with multiple implementations
+
+- [ ] **Unsafe code:**
+  - [ ] Separate unsafe analysis pipeline
+  - [ ] Trusted axioms explicitly marked
+  - [ ] Safety encapsulation checked
+  - [ ] Tested with raw pointer operations
+
+- [ ] **Lifetimes:**
+  - [ ] NLL-based lifetime tracking
+  - [ ] Reborrow chains handled
+  - [ ] Two-phase borrows supported
+  - [ ] Tested against rustc borrow checker
+
+- [ ] **Floating-point:**
+  - [ ] NaN/Inf handling in all operations
+  - [ ] Rounding modes encoded
+  - [ ] IEEE 754 edge cases tested
+  - [ ] SMT-LIB FloatingPoint theory used
+
+- [ ] **Concurrency:**
+  - [ ] Memory model specified (SC vs weak)
+  - [ ] Bounded verification if state explosion
+  - [ ] Litmus tests pass
+  - [ ] Thread/interleaving limits documented
 
 ---
 
 ## Sources
 
-**Rust Formal Verification:**
-- [Towards Practical Formal Verification for a General-Purpose OS in Rust](https://asterinas.github.io/2025/02/13/towards-practical-formal-verification-for-a-general-purpose-os-in-rust.html) - Concurrency challenges, Verus limitations
-- [What Rust Got Wrong on Formal Verification](https://gavinhoward.com/2024/05/what-rust-got-wrong-on-formal-verification/) - Design critique
-- [Rust Formal Methods Interest Group](https://rust-formal-methods.github.io/) - Ecosystem overview
-- [The Prusti Project: Formal Verification for Rust](https://pm.inf.ethz.ch/publications/AstrauskasBilyFialaGrannanMathejaMuellerPoliSummers22.pdf) - Lessons learned from Prusti
-- [Verus: A Practical Foundation for Systems Verification](https://www.cs.utexas.edu/~hleblanc/pdfs/verus.pdf) - Iterator verification challenges, linear ghost types
-- [Verify the Safety of the Rust Standard Library](https://aws.amazon.com/blogs/opensource/verify-the-safety-of-the-rust-standard-library/) - Specification gap challenges
+**Recursive Functions & Termination:**
+- [Well-founded Relations and Termination (F* Tutorial)](https://fstar-lang.org/tutorial/book/part2/part2_well_founded.html)
+- [Proofs of Termination (F* Tutorial)](https://fstar-lang.org/tutorial/book/part1/part1_termination.html)
+- [Model Finding for Recursive Functions in SMT](http://homepage.divms.uiowa.edu/~ajreynol/ijcar16a.pdf)
+- [SMT-Based Model Checking for Recursive Programs](https://link.springer.com/chapter/10.1007/978-3-319-08867-9_2)
+- [Formal Verification of Termination Criteria for First-Order Recursive Functions](https://shemesh.larc.nasa.gov/fm/papers/itp2021.pdf)
 
-**SMT Solvers:**
-- [Programming Z3](https://theory.stanford.edu/~nikolaj/programmingz3.html) - Z3 usage patterns
-- [Using BitVector Theory to find the overflow bug in Binary Search](https://verificationglasses.wordpress.com/2020/12/17/bitvector-overflow/) - Bitvector overflow detection
-- [Check for overflow on bitvector operations](https://github.com/Z3Prover/z3/discussions/5138) - Z3 overflow predicates
-- [SMTChecker and Formal Verification - Solidity](https://docs.soliditylang.org/en/latest/smtchecker.html) - SMT encoding soundness/completeness
-- [A soundness bug in SMT encoding of pointer objects](https://github.com/diffblue/cbmc/issues/5952) - Real soundness bug example
+**Closures:**
+- [FnMut in std::ops - Rust](https://doc.rust-lang.org/std/ops/trait.FnMut.html)
+- [FnOnce in std::ops - Rust](https://doc.rust-lang.org/std/ops/trait.FnOnce.html)
+- [How Rust Handles Closures: Fn, FnMut, and FnOnce](https://leapcell.medium.com/how-rust-handles-closures-fn-fnmut-and-fnonce-5550724859ed)
+- [Closures - The Rust Programming Language](https://doc.rust-lang.org/book/ch13-01-closures.html)
 
-**MIR and Rust Compiler:**
-- [The MIR (Mid-level IR) - Rust Compiler Development Guide](https://rustc-dev-guide.rust-lang.org/mir/index.html) - MIR documentation
-- [An Empirical Study of Rust-Specific Bugs in the rustc Compiler](https://arxiv.org/html/2503.23985v1) - MIR optimization bugs (15.28%)
-- [Rust in 2026 - Rust Project Goals](https://rust-lang.github.io/rust-project-goals/2026/flagships.html) - Stable MIR progress
+**Trait Objects:**
+- [Verifying Dynamic Trait Objects in Rust](https://cs.wellesley.edu/~avh/dyn-trait-icse-seip-2022-preprint.pdf)
+- [UNSOUND 2026 Workshop](https://2026.ecoop.org/home/unsound-2026)
+- [The Trait Object Vtable Lookup](https://medium.com/@theopinionatedev/the-trait-object-vtable-lookup-no-one-talks-about-9135c6e3c9fe)
+- [Rust Deep Dive: Borked Vtables and Barking Cats](https://geo-ant.github.io/blog/2023/rust-dyn-trait-objects-fat-pointers/)
 
-**Loop Invariants:**
-- [Loop Invariant Inference through SMT Solving Enhanced Reinforcement Learning](https://dl.acm.org/doi/10.1145/3597926.3598047) - RL-based synthesis
-- [LLM For Loop Invariant Generation and Fixing: How Far Are We?](https://arxiv.org/html/2511.06552) - LLM limitations
-- [Loop Invariant Generation: A Hybrid Framework of Reasoning optimised LLMs and SMT Solvers](https://arxiv.org/html/2508.00419) - Hybrid approaches
+**Unsafe Code:**
+- [Modular Formal Verification of Rust Programs with Unsafe Blocks](https://arxiv.org/abs/2212.12976)
+- [RefinedRust: A Type System for High-Assurance Verification](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+- [Verify the Safety of the Rust Standard Library](https://aws.amazon.com/blogs/opensource/verify-the-safety-of-the-rust-standard-library/)
+- [Annotating and Auditing the Safety Properties of Unsafe Rust](https://arxiv.org/pdf/2504.21312)
+- [RustHornBelt: A Semantic Foundation for Functional Verification of Unsafe Rust](https://people.mpi-sws.org/~dreyer/papers/rusthornbelt/paper.pdf)
 
-**Ownership and Borrow Checking:**
-- [Place Capability Graphs: A General-Purpose Model of Rust's Ownership and Borrowing Guarantees](https://arxiv.org/html/2503.21691v5) - Flow-sensitivity challenges
-- [Tracking issue for procedural macros and "hygiene 2.0"](https://github.com/rust-lang/rust/issues/54727) - Hygiene issues
+**Lifetimes & NLL:**
+- [Non-Lexical Lifetimes RFC](https://github.com/rust-lang/rfcs/blob/master/text/2094-nll.md)
+- [How to Understand Non-Lexical Lifetimes in Rust](https://oneuptime.com/blog/post/2026-01-25-non-lexical-lifetimes-rust/view)
+- [Polonius Working Group](https://rust-lang.github.io/compiler-team/working-groups/polonius/)
+- [Non-Lexical Lifetimes: Introduction](https://smallcultfollowing.com/babysteps/blog/2016/04/27/non-lexical-lifetimes-introduction/)
 
-**Formal Verification Practice:**
-- [On the Impact of Formal Verification on Software Development](https://ranjitjhala.github.io/static/oopsla25-formal.pdf) - Proof burden (10x code expansion)
-- [Lessons from Formally Verified Deployed Software Systems](https://arxiv.org/html/2301.02206v3) - Real-world experience
+**Floating-Point:**
+- [SMT-LIB FloatingPoint Theory](https://smt-lib.org/theories-FloatingPoint.shtml)
+- [NaN Payload Propagation (IEEE 754)](https://grouper.ieee.org/groups/msc/ANSI_IEEE-Std-754-2019/background/nan-propagation.pdf)
+- [Parallel Floating Point Exception Tracking and NaN Propagation](https://www.agner.org/optimize/nan_propagation.pdf)
+- [Correct Approximation of IEEE 754 Floating-Point Arithmetic](https://link.springer.com/article/10.1007/s10601-021-09322-9)
+- [An SMT-LIB Theory of Binary Floating-Point Arithmetic](http://www.ccs.neu.edu/home/wahl/Publications/rw10.pdf)
+- [Alive-FP: Automated Verification of Floating Point Based Peephole Optimizations](https://people.cs.rutgers.edu/~sn349/papers/alive-fp-sas16.pdf)
 
-**Testing Verification Tools:**
-- [ARGUZZ: Testing zkVMs for Soundness and Completeness Bugs](https://www.arxiv.org/pdf/2509.10819) - Metamorphic testing approach
-- [Interrogation Testing of Program Analyzers for Soundness and Precision Issues](https://repositum.tuwien.at/bitstreams/20.500.12708/204589/1/Kaindlstorfer-2024-Interrogation%20Testing%20of%20Program%20Analyzers%20for%20Soundne...-vor.pdf) - Interrogation testing methodology
+**Concurrency & Weak Memory:**
+- [RustBelt Meets Relaxed Memory](https://plv.mpi-sws.org/rustbelt/rbrlx/paper.pdf)
+- [Miri: Practical Undefined Behavior Detection for Rust (POPL 2026)](https://research.ralfj.de/papers/2026-popl-miri.pdf)
+- [An Approach for Modularly Verifying Rust's Atomic Reference Counting](https://arxiv.org/pdf/2505.00449)
+- [BMC for Weak Memory Models: Relation Analysis for Compact SMT Encodings](https://link.springer.com/chapter/10.1007/978-3-030-25540-4_19)
+- [Static Analysis of Memory Models for SMT Encodings](https://dl.acm.org/doi/10.1145/3622855)
+- [Atomics - The Rustonomicon](https://doc.rust-lang.org/nomicon/atomics.html)
 
-**Inter-procedural Verification:**
-- [SMT-Based Model Checking for Recursive Programs](https://link.springer.com/chapter/10.1007/978-3-319-08867-9_2) - Summary-based approaches
-- [SMT-based verification of program changes through summary repair](https://link.springer.com/article/10.1007/s10703-023-00423-0) - Incremental verification
-
-**Aggregate Types:**
-- [Efficient Verification of Programs with Complex Data Structures](https://publikationen.bibliothek.kit.edu/1000084545/15671070) - SMT encoding strategies
-- [SMT-Based Bounded Model Checking for Embedded ANSI-C Software](https://ssvlab.github.io/lucasccordeiro/papers/tse2012.pdf) - Structure encoding as arrays
+**SMT & Quantifiers:**
+- [Programming Z3: Quantifiers](https://theory.stanford.edu/~nikolaj/programmingz3.html)
+- [The Axiom Profiler: Understanding and Debugging SMT Quantifier Instantiations](https://link.springer.com/chapter/10.1007/978-3-030-17462-0_6)
+- [Tunable Automation in Automated Program Verification](https://arxiv.org/html/2512.03926)
 
 ---
 
-*Pitfalls research for: Rust Formal Verification (SMT-based)*
-*Researched: 2026-02-10*
-*Confidence: HIGH - based on official docs, research papers, real tool experience (Verus, Prusti, Kani)*
+**Researched:** 2026-02-11
+**Confidence:** MEDIUM-HIGH - Based on research papers, official docs, and existing tool limitations. Recursive functions, unsafe code, and concurrency are research-level; closures and lifetimes are moderately well-documented; floating-point is well-specified.
+
+**Note:** This document focuses on **adding** these features to an existing verifier. It complements the general PITFALLS.md with feature-specific integration challenges.

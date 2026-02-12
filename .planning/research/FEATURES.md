@@ -1,459 +1,862 @@
-# Feature Research: Rust Formal Verification Tools
+# Feature Landscape: Advanced Verification Features
 
-**Domain:** Formal verification tools for Rust
-**Researched:** 2026-02-10
+**Domain:** Advanced formal verification for Rust
+**Researched:** 2026-02-11
 **Confidence:** HIGH
 
-## Feature Landscape
+## Context
 
-### Table Stakes (Users Expect These)
+This research focuses on **7 advanced features** for a subsequent milestone building on rust-fv v0.1's foundation:
 
-Features users assume exist. Missing these = product feels incomplete.
+**Already implemented (v0.1):**
+- Path-sensitive VCGen with loop invariants
+- Inter-procedural verification with contract summaries
+- Ownership-aware verification (move/copy/borrow)
+- Quantifiers (forall/exists) with trigger inference
+- Prophecy variables for &mut reasoning
+- Generic monomorphization
+- Formula simplification, VC caching, parallel verification
+- cargo verify with diagnostics and JSON output
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Function contracts** (`requires`, `ensures`) | Core of any verification tool - pre/postconditions are standard in Dafny, JML, ACSL | LOW | Verus, Prusti, Creusot all have this. Kani uses assertions instead. |
-| **Assertion verification** | Universal across all verifiers - developers expect assert!() to be checked | LOW | All tools support this. Kani checks for panics automatically. |
-| **Arithmetic overflow detection** | Rust doesn't prevent overflow - verification tools must catch it | LOW | Kani checks automatically. Verus/Prusti require bounded integer mode or explicit checks. |
-| **Panic detection** | Rust-specific: unwrap(), expect(), index out of bounds | LOW | Kani checks automatically. Others require annotations or bounded checks. |
-| **Basic integer arithmetic verification** | Table stakes for any SMT-based tool | LOW | All tools support via SMT encoding. |
-| **Cargo integration** | Rust developers expect `cargo verify` workflow, not separate toolchains | MEDIUM | Kani: `cargo kani`. Prusti: `cargo prusti`. Verus requires custom build. |
-| **Error reporting with source locations** | Developers need to know WHERE verification fails | MEDIUM | All tools provide this. Quality varies. |
-| **Counterexample generation** | When verification fails, show concrete values that violate property | MEDIUM | Kani excels here (bounded MC produces traces). SMT-based tools (Verus, Prusti) provide model values. |
-| **Safe Rust verification** | Primary use case - verify memory-safe Rust code for functional correctness | MEDIUM | All tools support safe Rust. Varies in expressiveness. |
-| **Loop invariants** | Loops are ubiquitous - users expect to annotate and verify them | MEDIUM | Verus: manual `invariant`. Prusti: `body_invariant!`. Kani: bounded unrolling. Creusot: auto-infers some cases. |
-| **Bounded integer types** | Rust uses i32, u64, etc. - tools must model bounded semantics | MEDIUM | Kani: bit-precise. Verus: optional via `u32::MAX`. Prusti: overflow checks. |
-| **Basic ownership reasoning** | Rust's core value prop - verifiers must leverage ownership for soundness | HIGH | All tools exploit ownership. Verus uses linear ghost types. Prusti uses Viper's permissions. Creusot uses prophecies. |
+**New features to research:**
+1. Recursive function verification
+2. Closure verification
+3. Trait object verification
+4. Unsafe code verification
+5. Lifetime reasoning
+6. Floating-point verification
+7. Concurrency verification
 
-### Differentiators (Competitive Advantage)
+---
 
-Features that set the product apart. Not required, but valued.
+## Table Stakes
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Zero-friction cargo workflow** | Standard `cargo verify` without forked compiler or custom rustc | HIGH | rust-fv goal. Verus requires forked compiler. Kani/Prusti use standard rustc. **CRITICAL DIFFERENTIATOR**. |
-| **Unbounded mathematical integers** (`int`, `nat`) | Reason about correctness without overflow concerns, then refine to bounded | MEDIUM | Verus: `int`, `nat` types. Dafny-style. Prusti: limited support. Kani: no (bounded MC). **Differentiates from bounded MC**. |
-| **Ghost code and ghost state** | Specify invariants using auxiliary state erased at runtime | MEDIUM | Verus: `ghost`, `tracked` modes. Prusti: limited `ghost!`. Creusot: ghost blocks. **Key for complex invariants**. |
-| **Prophecy operators** (`^final`) | Reason about future values of mutable borrows without complex ghost state | HIGH | Creusot: core feature (`^` operator). Unique to Creusot. **Elegant handling of mutation**. |
-| **Quantifiers in specifications** (`forall`, `exists`) | Express properties over collections, ranges, unbounded data | MEDIUM | Verus: full support. Prusti: limited. Kani: no (bounded). **Essential for non-trivial properties**. |
-| **Trigger customization for SMT** | Control quantifier instantiation to avoid timeouts/incompleteness | HIGH | Verus: `#[trigger]` annotations. Recent work on tunable automation. **Expert feature for performance**. |
-| **Automatic loop invariant inference** | Reduce annotation burden - tool infers some/all invariants | HIGH | Creusot 0.9.0: auto-detects immutable vars in loops. AutoVerus: LLM-based generation. **Major automation win**. |
-| **Mutable borrow reasoning** | Verify code with `&mut` borrows without excessive annotations | HIGH | Verus: tracked borrows. Creusot: prophecies. Prusti: pledges. **Competitive moat for practical verification**. |
-| **Trait/generic support** | Verify polymorphic code with trait bounds | HIGH | Verus: extensive trait support. Kani: trait objects verified. Prusti: limited. **Essential for real Rust code**. |
-| **Concurrency verification** | Verify thread-safe code, atomics, locks | VERY HIGH | Miri: data race detection. Creusot 0.9.0: `AtomicI32`, `AtomicInvariant`. Verus: research. **Bleeding edge**. |
-| **Bit-precise bounded verification** | Exact semantics of Rust's integer types at bit level | MEDIUM | Kani: CBMC-based, bit-precise. **Differentiator for safety-critical systems**. |
-| **Unsafe code verification** | Verify raw pointers, unsafe blocks, FFI | VERY HIGH | Kani: supports unsafe. UnsafeCop: specialized. Miri: dynamic checking. Others: limited/no support. **Huge gap in ecosystem**. |
-| **IDE integration** (rust-analyzer, VSCode) | Real-time verification as you type | HIGH | Prusti: VSCode extension. Others: command-line only. **UX differentiator**. |
-| **AI-assisted proof generation** | LLM generates annotations, loop invariants, proofs | VERY HIGH | AutoVerus: GPT-4 for Verus. VeriStruct: data structures. **Emerging, high automation potential**. |
-| **Standard library verification** | Pre-verified contracts for Vec, HashMap, etc. | HIGH | Rust Foundation challenge. Verus: some stdlib. **Ecosystem play - high leverage**. |
+Features users expect in advanced verification tools. Missing = incomplete tool.
 
-### Anti-Features (Commonly Requested, Often Problematic)
+| Feature | Why Expected | Complexity | Dependencies | Notes |
+|---------|--------------|------------|--------------|-------|
+| **Recursive function verification with termination** | Recursion ubiquitous in algorithms (factorial, tree traversal, divide-and-conquer). Users assume verifiers handle it. | MEDIUM | Requires: Well-founded relations, decreases clause, fuel mechanism | Verus: `decreases` clause + optional proof function. Creusot: `variant` clause in Why3. Dafny standard. |
+| **Simple closure verification** (non-capturing, capturing immutable) | Rust uses closures extensively (iterators, callbacks). Must verify closure-using code. | MEDIUM | Requires: First-class function encoding, environment capture model | Prusti: prototype PR #138. Verus: proof closures in PR #1524. Kani: bounded verification of closures. |
+| **Basic lifetime reasoning** (lifetime parameters, borrow expiry) | Lifetimes are Rust's defining feature. Verification must respect lifetime constraints. | HIGH | Requires: Prophecy variables (DONE), borrow tracking, lifetime logic | RustBelt: lifetime logic in Iris. Creusot: prophecy-based. Already have prophecy variables - extend to full lifetime reasoning. |
+| **Unsafe code detection** (flag unsafe blocks, basic pointer checks) | Unsafe code bypasses Rust safety. Users expect warnings + basic validation. | LOW-MEDIUM | Requires: MIR inspection, pointer encoding, undefined behavior detection | Kani: detects UB in unsafe. Miri: dynamic checking. Don't need full verification - flag + best-effort checks. |
+| **Basic trait object verification** (monomorphic trait calls, simple vtables) | Rust uses trait objects for dynamic dispatch (Box<dyn Trait>). Common in real code. | HIGH | Requires: Trait encoding (DONE via generics), vtable modeling, dynamic dispatch encoding | Kani: first tool to verify trait objects (2022). Build on existing generic support. |
 
-Features that seem good but create problems.
+## Differentiators
+
+Features that set advanced tools apart. Valued by expert users.
+
+| Feature | Value Proposition | Complexity | Dependencies | Notes |
+|---------|-------------------|------------|--------------|-------|
+| **Advanced recursive verification** (mutual recursion, fuel control, separate proof functions) | Handle complex algorithms (parser combinators, tree balancing, graph algorithms). | HIGH | Requires: Table stakes recursion + fuel annotations, proof mode, mutual recursion graph | Verus: `decreases ... via ...` for separate proofs. Fuel parameter controls unfolding depth. Differentiates from basic recursion. |
+| **Higher-order closure verification** (closures as arguments, FnOnce/FnMut/Fn semantics) | Verify iterator combinators (map, filter, fold), callback-based APIs. | VERY HIGH | Requires: Specification entailments, closure trait encoding, closure mode tracking | Prusti research: specification entailments for HOF. Verus: proof closures. Academic frontier. |
+| **Floating-point correctness** (beyond just safety) | Prove numerical properties (accuracy bounds, NaN handling, rounding). | VERY HIGH | Requires: SMT-LIB FPA theory, rounding mode modeling, NaN reasoning | Stainless (2026): FP verification. Z3 FPA theory exists but expensive. Most tools skip this. |
+| **Concurrent separation logic** (atomic invariants, thread-local reasoning) | Verify lock-free algorithms, concurrent data structures, sync primitives. | VERY HIGH | Requires: Separation logic, atomic operations, invariant protocol, VerusSync-style tokens | Creusot 0.9.0: AtomicI32, AtomicInvariant. Verus: VerusSync research. Bleeding edge. |
+| **Lifetime inference for verification** (auto-infer prophecy annotations) | Reduce annotation burden for &mut reasoning. | HIGH | Requires: Table stakes lifetime reasoning + inference algorithm | Creusot 0.9.0: auto-infers immutable vars in loops. Extend to prophecies. High automation value. |
+
+## Anti-Features
+
+Features that seem valuable but create problems. Avoid or limit scope.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Fully automatic verification** (no annotations) | "Just press button and verify" sounds ideal | Undecidable for general programs. Even auto-active tools (Verus) need annotations for non-trivial code. False sense of completeness. | Be honest: 80-90% automation for common patterns. Require annotations for complex invariants. Flag what's unverified. |
-| **Verify all unsafe Rust automatically** | Unsafe code is risky, automate verification | Unsafe breaks ownership guarantees. Pointer reasoning is hard. Aliasing is undecidable. | Bounded verification (Kani) OR manual annotations (RustBelt-style) OR dynamic checking (Miri). Be explicit about limitations. |
-| **Forked compiler as a feature** | "We modify rustc for better integration" | Maintenance nightmare. Lags stable Rust. Users resist custom toolchains. | Use proc macros + MIR extraction + build scripts. rust-fv's zero-friction approach. |
-| **Support every Rust feature from day 1** | "Comprehensive tool" | Massive scope. Delays launch. Most features unused initially. | MVP: i32/u64, structs, basic ownership, simple loops. Expand based on user demand. |
-| **Real-time verification in IDE** | "Like type-checking but for correctness" | Verification is slow (seconds to minutes). False positives frustrate users. Background tasks complex. | Batch verification on save/commit. Clear progress indicators. Fast-path for incremental checks. |
-| **Arbitrary precision for all integers** | "Math integers are easier to reason about" | Performance: SMT struggles with large domains. Doesn't match Rust semantics (bounded). | Offer unbounded integers (`int`, `nat`) for spec, but require refinement to bounded (`i32`) for exec. Best of both. |
-| **One-size-fits-all proof automation** | "Automate everything with one strategy" | Different code needs different automation. Loops need invariants. Quantifiers need triggers. | Tunable automation (Verus 2025 approach). Let users/library authors set automation levels per module/function. |
-| **Verify concurrency without explicit synchronization specs** | "Rust prevents data races, so auto-verify" | Rust prevents *data races*, not *race conditions*. Atomics have subtle semantics (acquire/release). | Require explicit atomic invariants (Creusot approach). Leverage Rust's `Send`/`Sync` but don't over-promise. |
+| **Verify all unsafe code automatically** | "Unsafe is dangerous - auto-check it" | Pointer aliasing undecidable. Breaks ownership. Requires whole-program analysis. | **Flag unsafe blocks.** Basic checks (null, bounds). Bounded verification (Kani-style). Full verification requires manual annotations. |
+| **Full floating-point verification by default** | "Verify numerical correctness" | SMT FPA theory slow. NaN != NaN breaks reflexivity. Most code doesn't need it. | **Integer verification only (v0.2).** FP as opt-in expert feature (v1.0+). Most users verify logic, not numerics. |
+| **Automatic closure contract inference** | "Closures should just work" | Closure capture complex (move vs borrow). Higher-order specs require entailments. | **Require explicit closure specs.** Like function contracts. Clear annotation burden. |
+| **Verify dynamic trait objects without vtable constraints** | "Polymorphism should be transparent" | Dynamic dispatch hides concrete type. Vtable correctness non-trivial. | **Require trait-level contracts.** Verify vtable construction. Monomorphic fast path where possible. |
+| **General recursion without decreases clause** | "Tool should infer termination" | Termination undecidable. False positives frustrate users. | **Require explicit `decreases`.** Like loop invariants. Clear, predictable. |
+| **Concurrent verification without synchronization specs** | "Rust prevents data races - auto-verify" | Rust prevents *data races*, not *race conditions*. Atomics have acquire/release semantics. | **Require atomic invariants.** Like Creusot AtomicInvariant. Explicit synchronization specs. |
+
+---
 
 ## Feature Dependencies
 
 ```
-Function Contracts
-    └──requires──> Specification Language (basic)
-                       └──requires──> SMT Solver Integration
+Recursive Function Verification
+    └──requires──> Termination Checking (decreases clause)
+                       └──uses──> Well-Founded Relations
+    └──requires──> Fuel Mechanism (control unfolding)
+    └──builds-on──> Inter-procedural Verification (DONE)
 
-Loop Invariants
-    └──requires──> Specification Language (basic)
-    └──enhances──> Function Contracts
+Closure Verification
+    ├──basic──> Environment Capture Encoding
+    │               └──builds-on──> Ownership Reasoning (DONE)
+    └──advanced──> Specification Entailments
+                       └──requires──> Higher-Order Function Contracts
 
-Quantifiers (forall/exists)
-    └──requires──> Specification Language (advanced)
-    └──requires──> Trigger Customization (for performance)
-    └──enhances──> Loop Invariants
-
-Ghost Code
-    └──requires──> Mode System (exec/spec/proof)
-    └──enhances──> Mutable Borrow Reasoning
-
-Prophecy Operators
-    └──requires──> Ghost Code
-    └──alternative-to──> Complex Ghost State
-    └──enables──> Mutable Borrow Reasoning
-
-Mutable Borrow Reasoning
-    └──requires──> Ownership Reasoning
-    └──uses-one-of──> [Ghost Code, Prophecy Operators]
-
-Trait/Generic Support
-    └──requires──> Function Contracts
-    └──requires──> Type System Integration
-
-Concurrency Verification
-    └──requires──> Ownership Reasoning
-    └──requires──> Ghost Code (for invariants)
-    └──requires──> Atomic Operations Support
+Trait Object Verification
+    └──requires──> Vtable Encoding
+    └──requires──> Trait-Level Contracts
+    └──builds-on──> Generic Verification (DONE via monomorphization)
 
 Unsafe Code Verification
-    └──requires──> Pointer Reasoning
-    └──conflicts-with──> Full Automation (undecidable)
-    └──uses-one-of──> [Bounded MC, Manual Proofs, Dynamic Checking]
+    ├──detection──> MIR Inspection (flag unsafe blocks)
+    ├──basic-checks──> Pointer Bounds Checks
+    └──full-verification──> Separation Logic + Manual Annotations
+                               └──requires──> Concurrency Verification (for aliasing)
 
-AI-Assisted Proof Generation
-    └──requires──> Function Contracts
-    └──requires──> Loop Invariants
-    └──enhances──> All Features (reduces annotation burden)
+Lifetime Reasoning
+    └──requires──> Prophecy Variables (DONE)
+    └──requires──> Borrow Tracking
+    └──requires──> Lifetime Logic (RustBelt-style)
+    └──enhances──> Ownership Reasoning (DONE)
 
-IDE Integration
-    └──requires──> Incremental Verification
-    └──requires──> Fast Verification (< 5s)
+Floating-Point Verification
+    └──requires──> SMT-LIB FPA Theory
+    └──requires──> Rounding Mode Encoding
+    └──requires──> NaN Handling (non-reflexive equality)
+    └──conflicts-with──> Standard SMT Automation (slow)
+
+Concurrency Verification
+    └──requires──> Separation Logic (Iris-style)
+    └──requires──> Atomic Invariants
+    └──requires──> Thread-Local Reasoning
+    └──requires──> Atomic Operations Encoding
+    └──builds-on──> Ownership Reasoning (DONE)
 ```
 
-## MVP Definition (Subsequent Milestone for rust-fv)
+---
 
-### Already Have (v0.1 foundation)
-- [x] Function contracts (`#[requires]`, `#[ensures]`)
-- [x] Bitvector encoding for all integer types
-- [x] Arithmetic overflow detection
-- [x] MIR-to-IR conversion
-- [x] VC generation
-- [x] Z3 integration
-- [x] Precondition/postcondition verification
-- [x] Counterexample extraction
+## Feature Breakdown
 
-### Add Next (v0.2 — Table Stakes Completion)
+### 1. Recursive Function Verification
 
-**Priority 1 - Missing Table Stakes:**
-- [ ] **Loop invariants** — Core feature. Without it, can't verify non-trivial loops. COMPLEXITY: MEDIUM.
-  - Syntax: `#[invariant(...)]` macro on loop
-  - Generate VCs for initialization, preservation, and use after loop
-  - Test case: summing array, binary search
-- [ ] **Cargo integration** — `cargo verify` command. COMPLEXITY: MEDIUM.
-  - Implement as cargo subcommand via binary in PATH
-  - Read Cargo.toml, verify all annotated functions
-  - Report results in cargo style
-- [ ] **Assertion verification** — Users expect `assert!(x > 0)` to be checked. COMPLEXITY: LOW.
-  - Extract assertions from MIR
-  - Generate VCs for each assertion
-  - Report violations with source location
-- [ ] **Panic detection** — Check unwrap(), expect(), indexing. COMPLEXITY: LOW.
-  - Detect panic-inducing operations in MIR
-  - Generate VCs for panic-freedom
-  - Integrate with assertion system
-- [ ] **Basic ownership reasoning** — Leverage Rust's ownership for soundness. COMPLEXITY: HIGH.
-  - Track moved values (can't use after move)
-  - Track borrowed values (immutable during borrow)
-  - Generate VCs that assume ownership invariants
+**What it is:**
+Verify recursive functions (factorial, tree traversal, divide-and-conquer) by proving termination via well-founded relations and checking correctness via SMT.
 
-**Priority 2 - Quality Improvements:**
-- [ ] **Better error messages** — Show which require/ensure/invariant failed, with context.
-- [ ] **Documentation** — User guide with examples for each feature.
+**Expected behavior:**
+- User annotates recursive function with `#[decreases(n)]` clause (like Verus, Dafny)
+- Tool checks measure strictly decreases on each recursive call
+- Tool encodes function via fuel mechanism (bounded unfolding) or proof function
 
-### Add After Validation (v0.3 — Key Differentiators)
+**Patterns from existing tools:**
 
-**Priority 1 - Competitive Advantage:**
-- [ ] **Unbounded mathematical integers** (`int`, `nat`) — Verus-style. COMPLEXITY: MEDIUM.
-  - Add `int`, `nat` types for specifications
-  - Require refinement to bounded types for exec code
-  - Test: prove correctness without overflow, then check bounded version
-- [ ] **Ghost code** — Specify invariants with auxiliary state. COMPLEXITY: MEDIUM.
-  - `#[ghost]` attribute for variables/functions
-  - Erase ghost code during compilation
-  - Check ghost code only affects specifications
-- [ ] **Quantifiers** (`forall`, `exists`) — For non-trivial properties. COMPLEXITY: MEDIUM.
-  - Extend specification language with quantifier syntax
-  - Generate SMT queries with quantifiers
-  - Basic trigger inference (avoid manual triggers initially)
-- [ ] **Mutable borrow reasoning** — Verify code with `&mut`. COMPLEXITY: HIGH.
-  - Prophecy-based (Creusot-style) OR tracked ghost types (Verus-style)
-  - Test: verify in-place array reversal, tree mutation
+**Verus approach (SMT-based):**
+- `decreases` clause specifies measure (e.g., `n`, `(a, b)` lexicographic)
+- Optional `when` clause for conditional termination
+- Optional `via` clause to separate proof from definition
+- Fuel parameter controls unfolding depth (spec functions use fuel)
+- For complex proofs: write recursive proof function as induction
+- **Source:** [Verus decreases reference](https://verus-lang.github.io/verus/guide/reference-decreases.html)
 
-**Priority 2 - Ecosystem:**
-- [ ] **Trait/generic support** — Real Rust uses traits extensively. COMPLEXITY: HIGH.
-  - Monomorphization-based: verify instantiations
-  - Later: trait-level contracts
-- [ ] **Standard library contracts** — Pre-verified Vec, Option, Result. COMPLEXITY: MEDIUM.
-  - Annotate common stdlib types
-  - Users inherit guarantees
+**Creusot approach (Why3-based):**
+- `variant` clause in Why3 encoding
+- Leverages Why3's termination checker
+- Supports lexicographic measures
+- **Source:** [Creusot Why3 encoding](https://github.com/creusot-rs/creusot/blob/master/ARCHITECTURE.md)
 
-### Future Consideration (v1.0+ — Advanced Features)
+**F*/Dafny approach (standard):**
+- Well-founded relation on measure
+- Check measure decreases on each call
+- Lexicographic tuples for mutual recursion
+- **Source:** [F* termination proofs](https://fstar-lang.org/tutorial/book/part1/part1_termination.html)
 
-**Defer until product-market fit:**
-- [ ] **Trigger customization** — Expert feature. Wait for user demand. COMPLEXITY: HIGH.
-- [ ] **Concurrency verification** — Bleeding edge. Small user base initially. COMPLEXITY: VERY HIGH.
-- [ ] **Unsafe code verification** — Hard problem. Bounded MC (Kani) covers many cases. COMPLEXITY: VERY HIGH.
-- [ ] **IDE integration** — Significant engineering. Batch mode sufficient for MVP. COMPLEXITY: HIGH.
-- [ ] **AI-assisted proof generation** — Exciting but experimental. Partner with research group. COMPLEXITY: VERY HIGH.
+**Complexity factors:**
+- MEDIUM for simple recursion (single decreases measure)
+- HIGH for mutual recursion (need call graph + lexicographic measures)
+- HIGH for fuel mechanism (need bounded unfolding in SMT)
 
-## Feature Prioritization Matrix
+**Dependencies on existing:**
+- Builds on inter-procedural verification (DONE)
+- Builds on contract summaries (DONE)
+- Needs: termination checker, fuel annotations
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Loop invariants | HIGH (can't verify loops without it) | MEDIUM | P1 |
-| Cargo integration | HIGH (friction point) | MEDIUM | P1 |
-| Assertion verification | HIGH (expected) | LOW | P1 |
-| Panic detection | HIGH (Rust-specific) | LOW | P1 |
-| Basic ownership reasoning | HIGH (soundness) | HIGH | P1 |
-| Unbounded integers | MEDIUM (differentiator) | MEDIUM | P2 |
-| Ghost code | MEDIUM (complex specs) | MEDIUM | P2 |
-| Quantifiers | MEDIUM (non-trivial props) | MEDIUM | P2 |
-| Mutable borrow reasoning | HIGH (practical code) | HIGH | P2 |
-| Trait/generic support | HIGH (real Rust) | HIGH | P2 |
-| Stdlib contracts | MEDIUM (ecosystem) | MEDIUM | P2 |
-| Trigger customization | LOW (expert users) | HIGH | P3 |
-| Concurrency verification | LOW (small user base) | VERY HIGH | P3 |
-| Unsafe code verification | MEDIUM (niche) | VERY HIGH | P3 |
-| IDE integration | MEDIUM (UX) | HIGH | P3 |
-| AI-assisted proofs | LOW (experimental) | VERY HIGH | P3 |
+**Recommended approach:**
+1. **Phase 1 (table stakes):** Single-function recursion with `decreases` clause. Check measure decreases. Encode via fuel (bounded unfolding).
+2. **Phase 2 (differentiator):** Mutual recursion, `via` proof functions (Verus-style), automatic fuel inference.
+
+**Test cases:**
+- Factorial: `decreases(n)`
+- Tree depth: `decreases(tree_size(node))`
+- Mutual recursion: even/odd functions with lexicographic measure
+
+---
+
+### 2. Closure Verification
+
+**What it is:**
+Verify code using closures (lambdas) including environment capture and higher-order functions (map, filter, fold).
+
+**Expected behavior:**
+- User annotates closure with `requires`/`ensures` (like Prusti proposal)
+- Tool encodes closure as function + captured environment struct
+- Tool checks closure body satisfies contract
+- Tool checks closure usage (HOF) satisfies specification entailments
+
+**Patterns from existing tools:**
+
+**Prusti approach (Viper-based):**
+- **Status:** Prototype in PR #138, not yet released
+- Syntax: `closure!(requires(a > b), ensures(result > b), |a, b| { a })`
+- Requires explicit types and return type
+- Specification entailments for HOF: caller proves closure satisfies required contract
+- **Source:** [Prusti closures](https://viperproject.github.io/prusti-dev/user-guide/verify/closure.html)
+
+**Verus approach (SMT-based):**
+- **Proof closures:** Recent PR #1524
+- Closures in proof mode for induction
+- Full closure support still research
+- **Source:** [Verus proof closures PR](https://github.com/verus-lang/verus/pull/1524)
+
+**Academic approach:**
+- Paper: "Modular specification and verification of closures in Rust" (2021)
+- Key idea: Closures capture environment; must specify which vars captured and how (move vs borrow)
+- Specification entailments: For `fn apply<F: Fn(i32) -> i32>(f: F)`, caller proves closure satisfies `Fn(i32) -> i32` contract
+- **Source:** [ACM paper](https://dl.acm.org/doi/10.1145/3485522)
+
+**Complexity factors:**
+- MEDIUM for non-capturing closures (desugar to function)
+- MEDIUM for capturing immutable environment (encode as struct fields)
+- HIGH for capturing mutable environment (requires &mut reasoning - DONE via prophecy)
+- VERY HIGH for higher-order functions (requires specification entailments)
+
+**Dependencies on existing:**
+- Builds on ownership reasoning (DONE) for capture semantics
+- Builds on prophecy variables (DONE) for mutable captures
+- Needs: Closure trait encoding (Fn/FnMut/FnOnce), specification entailments for HOF
+
+**Recommended approach:**
+1. **Phase 1 (table stakes):** Non-capturing closures + immutable captures. Syntax: `closure!(requires(...), ensures(...), |args| body)`. Encode as function + env struct.
+2. **Phase 2 (differentiator):** Mutable captures (use prophecy), higher-order functions (specification entailments).
+
+**Test cases:**
+- Iterator map: `arr.iter().map(|x| x * 2).collect()`
+- Filter with closure: `arr.iter().filter(|&x| x > 0)`
+- Fold with accumulator: `arr.iter().fold(0, |sum, x| sum + x)`
+
+---
+
+### 3. Trait Object Verification
+
+**What it is:**
+Verify code using dynamic dispatch via trait objects (`Box<dyn Trait>`, `&dyn Trait`).
+
+**Expected behavior:**
+- User defines trait with contracts on methods
+- User creates trait object from concrete type
+- Tool verifies trait object method calls satisfy contracts
+- Tool verifies vtable construction is sound
+
+**Patterns from existing tools:**
+
+**Kani approach (bounded model checking):**
+- **First tool to verify trait objects (2022)**
+- Key insight: Vtable is MIR-level construct - verify vtable construction + indirect calls
+- Encodes vtable as function pointer table
+- Verifies concrete type satisfies trait bounds
+- **Source:** [Kani trait objects paper](https://ieeexplore.ieee.org/document/9794041)
+
+**Prusti approach (Viper-based):**
+- **Status:** No support in early versions (pre-2022)
+- Would require encoding trait as interface + vtable as dispatch table
+
+**Verus approach (SMT-based):**
+- Extensive trait support at type level
+- Trait bounds encoded in SMT
+- Monomorphization-based (like generics)
+- Not clear if dynamic dispatch supported (likely no based on forked compiler limitations)
+
+**Vtable structure:**
+- Vtable = data structure with:
+  - Function pointers for each trait method
+  - Destructor pointer
+  - Size and alignment metadata
+- Fat pointer = (data pointer, vtable pointer)
+- **Source:** [Rust trait objects internals](https://cs.wellesley.edu/~avh/dyn-trait-icse-seip-2022-preprint.pdf)
+
+**Complexity factors:**
+- HIGH: Vtable encoding in SMT (uninterpreted functions or function pointers)
+- HIGH: Dynamic dispatch (indirect call requires all possible implementations)
+- MEDIUM: Trait-level contracts (like interface contracts)
+
+**Dependencies on existing:**
+- Builds on generic verification (DONE) - trait as generic bound
+- Builds on inter-procedural verification (DONE) - method calls
+- Needs: Vtable encoding, trait-level contracts, dynamic dispatch encoding
+
+**Recommended approach:**
+1. **Phase 1 (table stakes):** Monomorphic trait objects (known set of impls). Encode vtable as dispatch map. Verify each impl satisfies trait contract.
+2. **Phase 2 (differentiator):** Full dynamic dispatch with vtable soundness proofs.
+
+**Test cases:**
+- Simple trait object: `fn process(obj: &dyn Display) { println!("{}", obj) }`
+- Trait object in collection: `Vec<Box<dyn Animal>>` with verified method calls
+- Trait object with associated types
+
+---
+
+### 4. Unsafe Code Verification
+
+**What it is:**
+Verify or flag unsafe Rust code (raw pointers, transmute, unsafe blocks).
+
+**Expected behavior:**
+- **Minimum:** Flag unsafe blocks, warn user
+- **Basic:** Check null pointers, bounds on raw pointer access
+- **Advanced:** Full separation logic verification (like RustBelt)
+
+**Patterns from existing tools:**
+
+**Kani approach (bounded model checking):**
+- Detects undefined behavior in unsafe code
+- Checks: null deref, use-after-free, invalid transmute
+- **Limitations:** No data races, no pointer aliasing (sequential code only)
+- **Source:** [Kani undefined behavior](https://model-checking.github.io/kani/undefined-behaviour.html)
+
+**Miri approach (dynamic checking):**
+- Interpreter-based UB detection
+- Checks: pointer aliasing (Stacked Borrows), uninitialized memory, data races
+- Not formal verification (dynamic, not exhaustive)
+- **Source:** [Miri 2026 POPL paper](https://research.ralfj.de/papers/2026-popl-miri.pdf)
+
+**RustBelt approach (formal semantics):**
+- Iris separation logic in Coq
+- Lifetime logic for borrows
+- Proves soundness of unsafe abstractions (e.g., Vec, Rc)
+- **Complexity:** Requires manual proofs, expert knowledge
+- **Source:** [RustBelt](https://plv.mpi-sws.org/rustbelt/)
+
+**RefinedRust approach (type system):**
+- Refined ownership types
+- Borrow names link mutable references to underlying data
+- Foundational verification in Coq
+- **Source:** [RefinedRust paper](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+
+**Complexity factors:**
+- LOW: Flag unsafe blocks (MIR inspection)
+- MEDIUM: Basic null/bounds checks (encode pointers as bitvectors)
+- VERY HIGH: Full separation logic (requires Iris-style reasoning, manual proofs)
+
+**Dependencies on existing:**
+- Builds on MIR inspection (DONE)
+- Builds on ownership reasoning (DONE) - unsafe bypasses this
+- Needs: Pointer encoding, separation logic (for advanced), UB detection
+
+**Recommended approach:**
+1. **Phase 1 (table stakes):** Flag unsafe blocks. Basic checks (null, bounds). Warn user.
+2. **Phase 2 (optional):** Bounded verification (Kani-style) for unsafe.
+3. **Phase 3 (research):** Separation logic for unsafe abstractions (expert feature).
+
+**Test cases:**
+- Detect null dereference: `unsafe { *ptr }`
+- Detect out-of-bounds: `unsafe { *ptr.add(n) }`
+- Flag transmute: `unsafe { transmute::<i32, u32>(x) }`
+
+---
+
+### 5. Lifetime Reasoning
+
+**What it is:**
+Verify code respects Rust's lifetime constraints (borrow expiry, lifetime parameters, subtyping).
+
+**Expected behavior:**
+- Tool tracks lifetime parameters ('a, 'b)
+- Tool ensures borrows expire when lifetime ends
+- Tool verifies lifetime bounds (e.g., `T: 'a`)
+- Tool uses prophecy variables to reason about future values after borrow expires
+
+**Patterns from existing tools:**
+
+**Creusot approach (prophecy-based):**
+- Prophecy variables (`^x`) represent future value after borrow expires
+- Prophecy solves "borrow ends later" problem elegantly
+- Example: `fn double(x: &mut i32) { *x = *x * 2 }` - prophecy `^x` is `old(x) * 2`
+- **Source:** [Creusot POPL 2026 tutorial](https://popl26.sigplan.org/details/POPL-2026-tutorials/6/Creusot-Formal-verification-of-Rust-programs)
+
+**RustBelt approach (lifetime logic in Iris):**
+- Custom lifetime logic for semantic requirements
+- Lifetimes as tokens in separation logic
+- Opening/closing borrows modeled as token exchange
+- **Source:** [RustBelt paper](https://people.mpi-sws.org/~dreyer/papers/rusthornbelt/paper.pdf)
+
+**RefinedRust approach (borrow names):**
+- Borrow names link mutable reference to underlying data
+- Lifetime logic derived from RustBelt
+- Type system automation (less manual than RustBelt)
+- **Source:** [RefinedRust paper](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+
+**Aeneas approach (functional translation):**
+- Ownership-centric semantics (loans, not lifetimes)
+- Backward functions to handle borrow expiry
+- Translates to pure lambda calculus (no memory model)
+- **Source:** [Aeneas paper](https://arxiv.org/abs/2206.07185)
+
+**Complexity factors:**
+- HIGH: Lifetime parameter tracking
+- HIGH: Borrow expiry reasoning (prophecy-based or lifetime logic)
+- MEDIUM: Lifetime bounds checking (static)
+
+**Dependencies on existing:**
+- Builds on prophecy variables (DONE) - already have `^` operator
+- Builds on ownership reasoning (DONE) - lifetimes extend ownership
+- Needs: Lifetime parameter encoding, borrow expiry tracking, lifetime logic
+
+**Recommended approach:**
+1. **Phase 1 (table stakes):** Lifetime parameter tracking. Verify lifetime bounds. Use existing prophecy for &mut.
+2. **Phase 2 (differentiator):** Full lifetime logic (RustBelt-inspired). Auto-infer prophecy annotations (Creusot 0.9.0 approach).
+
+**Test cases:**
+- Lifetime parameter: `fn longest<'a>(x: &'a str, y: &'a str) -> &'a str`
+- Borrow expiry: Verify prophecy `^x` after mutable borrow
+- Lifetime bounds: `struct Ref<'a, T: 'a> { r: &'a T }`
+
+---
+
+### 6. Floating-Point Verification
+
+**What it is:**
+Verify correctness of floating-point arithmetic (f32, f64) beyond just safety.
+
+**Expected behavior:**
+- **Basic:** Flag floating-point operations (warn precision loss)
+- **Advanced:** Prove numerical properties (accuracy bounds, NaN handling)
+
+**Patterns from existing tools:**
+
+**Stainless approach (2026):**
+- Recent work on FP verification (January 2026)
+- Combines FP with higher-order functions, ADTs
+- Key challenge: NaN != NaN breaks reflexivity
+- **Source:** [Stainless FP paper](https://www.arxiv.org/pdf/2601.14059)
+
+**SMT-LIB FPA theory:**
+- IEEE 754-2008 floating-point standard
+- SMT sorts: `Float16`, `Float32`, `Float64`
+- Operations: `fp.add`, `fp.mul`, `fp.div` with rounding modes
+- **Challenge:** Expensive for SMT solvers
+- **Source:** [SMT-LIB FPA](https://smt-lib.org/theories-FloatingPoint.shtml)
+
+**Z3 FPA support:**
+- Z3 supports FPA theory
+- Approximation framework for performance
+- 10x speedup over bit-blasting for SAT problems
+- **Source:** [Z3 FPA approximation](https://pmc.ncbi.nlm.nih.gov/articles/PMC6109943/)
+
+**KeY approach (Java verification):**
+- Combines SMT-LIB FPA with rule-based reasoning
+- Exploit complementary strengths: SMT for numerics, rules for structure
+- **Source:** [KeY FP verification](https://link.springer.com/article/10.1007/s10009-022-00691-x)
+
+**Complexity factors:**
+- LOW: Flag FP operations (warn user)
+- MEDIUM: Encode FP in SMT-LIB FPA
+- VERY HIGH: Prove numerical correctness (slow SMT, NaN reasoning)
+
+**Dependencies on existing:**
+- Builds on SMT solver integration (DONE) - add FPA theory
+- Conflicts with fast SMT (FPA is slow)
+- Needs: FPA encoding, rounding mode, NaN handling
+
+**Recommended approach:**
+1. **Phase 1 (v0.2):** Integer-only verification. Flag FP as unsupported.
+2. **Phase 2 (v1.0+):** Opt-in FP verification for expert users. Use Z3 FPA theory. Warn about performance.
+
+**Test cases:**
+- Basic FP: `fn add_floats(a: f64, b: f64) -> f64 { a + b }`
+- NaN handling: `fn safe_div(a: f64, b: f64) -> f64 { if b.is_nan() { 0.0 } else { a / b } }`
+- Accuracy bound: Prove `|computed - exact| < epsilon`
+
+---
+
+### 7. Concurrency Verification
+
+**What it is:**
+Verify thread-safe Rust code (threads, atomics, locks, channels).
+
+**Expected behavior:**
+- User annotates atomic invariants (what must hold around atomic ops)
+- Tool verifies invariants preserved across threads
+- Tool checks synchronization correctness (acquire/release semantics)
+
+**Patterns from existing tools:**
+
+**Creusot approach (AtomicInvariant):**
+- Creusot 0.9.0 (January 2026): Adds `AtomicI32`, `AtomicInvariant` inspired by Iris
+- Atomic invariant = predicate that holds around atomic operation
+- Example: `AtomicInvariant(counter, |v| v >= 0)` ensures counter never negative
+- **Source:** [Creusot 0.9.0 devlog](https://creusot-rs.github.io/devlog/2026-01-19/)
+
+**Verus approach (VerusSync):**
+- Permission-based (token-based) concurrency toolkit
+- Sharding strategy: split state into ghost shards per thread
+- Transitions define how threads update shared state + ghost shards
+- Makes concurrency proofs nearly as easy as sequential
+- **Source:** [Verus concurrent separation logic](https://matthias-brun.ch/assets/publications/verus_oopsla2023.pdf)
+
+**Iris approach (separation logic):**
+- Higher-order concurrent separation logic
+- Invariants protect shared state
+- Opening/closing invariants requires tokens
+- RustBelt builds on Iris
+- **Source:** [Iris invariants](https://iris-project.org/tutorial-pdfs/lecture9-invariants.pdf)
+
+**Miri approach (dynamic checking):**
+- Detects data races at runtime
+- Not formal verification (dynamic tool)
+- **Source:** [Miri 2026 POPL](https://research.ralfj.de/papers/2026-popl-miri.pdf)
+
+**Complexity factors:**
+- VERY HIGH: Separation logic (Iris-style)
+- VERY HIGH: Atomic invariants (protocol design)
+- VERY HIGH: Thread-local reasoning (ownership + sync)
+
+**Dependencies on existing:**
+- Builds on ownership reasoning (DONE) - threads have separate ownership
+- Builds on ghost state (prophecy variables DONE) - extend to tokens
+- Needs: Separation logic, atomic operations encoding, invariant protocol
+
+**Recommended approach:**
+1. **Phase 1 (v1.0+):** Single-threaded verification only. Flag concurrency as unsupported.
+2. **Phase 2 (v2.0+):** Atomic invariants (Creusot-style). Sequential consistency model.
+3. **Phase 3 (research):** Full VerusSync-style sharding + protocols.
+
+**Test cases:**
+- Atomic counter: `AtomicI32` with increment/decrement
+- Lock-protected state: Mutex with invariant on guarded data
+- Lock-free queue: Atomic operations with happens-before reasoning
+
+---
+
+## MVP Recommendation
+
+### Prioritization for Subsequent Milestone
+
+Given rust-fv v0.1 foundation, prioritize features by **impact × feasibility**:
+
+**Phase 1 (High Impact, Medium Feasibility) — Table Stakes:**
+
+1. **Recursive function verification** — MEDIUM complexity, HIGH user value
+   - Users expect recursion support (factorial, tree traversal)
+   - Builds on existing inter-procedural verification
+   - Deliverable: `#[decreases(n)]` clause, termination checking, fuel-based encoding
+
+2. **Basic closure verification** — MEDIUM complexity, HIGH user value
+   - Rust uses closures everywhere (iterators)
+   - Deliverable: Non-capturing + immutable captures, `closure!(requires, ensures, |args| body)` syntax
+
+3. **Basic trait object verification** — HIGH complexity, HIGH user value
+   - Common in real Rust (Box<dyn Trait>)
+   - Builds on existing generic monomorphization
+   - Deliverable: Trait-level contracts, vtable encoding for known impls
+
+4. **Lifetime reasoning** — HIGH complexity, CRITICAL for Rust
+   - Already have prophecy variables - extend to full lifetime tracking
+   - Deliverable: Lifetime parameter tracking, borrow expiry verification, lifetime bounds
+
+5. **Unsafe code detection** — LOW complexity, HIGH safety value
+   - Flag unsafe blocks, basic pointer checks
+   - Deliverable: Warn on unsafe, check null/bounds, prepare for future bounded verification
+
+**Phase 2 (Differentiators) — Defer to v1.0+:**
+
+6. **Floating-point verification** — VERY HIGH complexity, LOW current demand
+   - Defer: Most users verify logic, not numerics
+   - Plan: Opt-in FP for v1.0+ expert users
+
+7. **Concurrency verification** — VERY HIGH complexity, VERY HIGH value (but small user base)
+   - Defer: Bleeding edge, requires separation logic
+   - Plan: Research collaboration, v2.0+ feature
+
+---
+
+## Feature Complexity Matrix
+
+| Feature | Implementation Cost | User Value | Dependency Risk | Priority |
+|---------|---------------------|------------|-----------------|----------|
+| Recursive functions | MEDIUM (termination checker + fuel) | HIGH (ubiquitous) | LOW (builds on inter-proc) | **P1** |
+| Basic closures | MEDIUM (env encoding) | HIGH (iterators) | LOW (builds on ownership) | **P1** |
+| Trait objects | HIGH (vtable + dispatch) | HIGH (common in Rust) | MEDIUM (needs trait contracts) | **P1** |
+| Lifetime reasoning | HIGH (lifetime logic) | CRITICAL (Rust essence) | LOW (have prophecy) | **P1** |
+| Unsafe detection | LOW (MIR + basic checks) | HIGH (safety) | LOW (incremental) | **P1** |
+| Higher-order closures | VERY HIGH (spec entailments) | MEDIUM (advanced users) | HIGH (academic frontier) | **P2** |
+| Floating-point | VERY HIGH (FPA theory) | LOW (niche) | MEDIUM (SMT performance) | **P3** |
+| Concurrency | VERY HIGH (separation logic) | VERY HIGH (but niche) | VERY HIGH (Iris-level) | **P3** |
 
 **Priority key:**
-- **P1**: Must have for v0.2 (table stakes completion)
-- **P2**: Should have for v0.3 (differentiation)
-- **P3**: Nice to have for v1.0+ (future)
+- **P1**: Table stakes for advanced verifier (v0.2 milestone)
+- **P2**: Differentiators for expert users (v1.0)
+- **P3**: Research features (v2.0+)
 
-## Competitor Feature Analysis
+---
 
-| Feature | Verus | Prusti | Kani | Creusot | rust-fv Goal |
-|---------|-------|--------|------|---------|--------------|
-| **Function contracts** | ✅ requires/ensures | ✅ requires/ensures | ❌ assertions only | ✅ requires/ensures | ✅ v0.1 DONE |
-| **Loop invariants** | ✅ manual | ✅ body_invariant! | ❌ bounded unrolling | ✅ some auto-infer | ✅ v0.2 (manual) |
-| **Cargo integration** | ⚠️ custom build | ✅ cargo prusti | ✅ cargo kani | ✅ cargo creusot | ✅ v0.2 |
-| **Overflow detection** | ⚠️ requires bounded mode | ✅ automatic | ✅ automatic | ✅ automatic | ✅ v0.1 DONE |
-| **Counterexamples** | ⚠️ SMT model | ⚠️ SMT model | ✅ trace + values | ⚠️ SMT model | ✅ v0.1 DONE |
-| **Unbounded integers** | ✅ int/nat | ❌ | ❌ | ❌ | ✅ v0.3 |
-| **Ghost code** | ✅ ghost/tracked modes | ⚠️ limited | ❌ | ✅ ghost blocks | ✅ v0.3 |
-| **Prophecy operators** | ❌ | ❌ | ❌ | ✅ ^final | ❌ (use ghost instead) |
-| **Quantifiers** | ✅ forall/exists | ⚠️ limited | ❌ | ✅ forall/exists | ✅ v0.3 |
-| **Trigger customization** | ✅ #[trigger] | ❌ | ❌ | ⚠️ limited | ⏳ v1.0+ |
-| **Mutable borrows** | ✅ tracked | ✅ pledges | ✅ bit-precise | ✅ prophecies | ✅ v0.3 |
-| **Trait/generic** | ✅ extensive | ⚠️ limited | ✅ trait objects | ✅ via Why3 | ✅ v0.3 |
-| **Concurrency** | 🔬 research | ❌ | ❌ | ✅ AtomicI32 (0.9.0) | ⏳ v1.0+ |
-| **Unsafe code** | ❌ | ❌ | ✅ bounded | ❌ | ⏳ v1.0+ (partner with Kani?) |
-| **IDE integration** | ❌ CLI only | ✅ VSCode extension | ❌ CLI only | ❌ CLI only | ⏳ v1.0+ |
-| **Forked compiler** | ❌ YES (blocker) | ✅ NO | ✅ NO | ✅ NO | ✅ NO (differentiator) |
+## Competitor Feature Comparison
+
+| Feature | Verus | Prusti | Kani | Creusot | rust-fv v0.1 | rust-fv v0.2 Goal |
+|---------|-------|--------|------|---------|--------------|-------------------|
+| **Recursive functions** | ✅ decreases + fuel | ✅ variant | ❌ bounded | ✅ variant | ❌ | ✅ decreases + fuel |
+| **Basic closures** | 🔬 proof closures | 🔬 PR #138 | ✅ bounded | ✅ partial | ❌ | ✅ closure!(...) |
+| **HOF closures** | 🔬 research | 🔬 spec entailments | ❌ | ⚠️ limited | ❌ | 🔬 research (v1.0+) |
+| **Trait objects** | ⚠️ via generics | ❌ early versions | ✅ vtables | ✅ via Why3 | ⚠️ via generics | ✅ vtable + dispatch |
+| **Lifetime reasoning** | ⚠️ tracked borrows | ⚠️ pledges | ✅ bit-precise | ✅ prophecies | ⚠️ prophecy vars | ✅ full lifetime logic |
+| **Unsafe detection** | ❌ | ❌ | ✅ UB checks | ❌ | ❌ | ✅ flag + basic checks |
+| **Unsafe verification** | ❌ | ❌ | ✅ bounded MC | ❌ | ❌ | ⏳ v1.0+ (bounded) |
+| **Floating-point** | ❌ | ❌ | ⚠️ bit-precise | ❌ | ❌ | ⏳ v1.0+ (FPA opt-in) |
+| **Concurrency** | 🔬 VerusSync | ❌ | ❌ | ✅ AtomicI32 (0.9.0) | ❌ | ⏳ v2.0+ (research) |
 
 **Legend:**
 - ✅ Full support
-- ⚠️ Partial/limited support
+- ⚠️ Partial/limited
 - ❌ No support
 - 🔬 Research/experimental
-- ⏳ Planned
+- ⏳ Planned future
 
-**rust-fv Positioning:**
-- **v0.1**: Solid foundation (contracts, overflow, Z3, counterexamples)
-- **v0.2**: Complete table stakes (loops, cargo, assertions, ownership)
-- **v0.3**: Differentiate (unbounded int, ghost code, quantifiers, mut borrows)
-- **v1.0+**: Advanced (triggers, concurrency, unsafe, IDE)
+**rust-fv positioning after v0.2:**
+- **Matches Verus:** Recursive functions, closures, lifetime reasoning
+- **Matches Creusot:** Prophecy-based lifetimes, trait objects
+- **Matches Kani:** Unsafe detection (but not full bounded MC yet)
+- **Unique:** Zero-friction cargo workflow + Verus-level expressiveness
 
-**Competitive advantage:**
-1. **Zero-friction cargo workflow** — No forked compiler (unlike Verus)
-2. **Verus-quality expressiveness** — Unbounded integers, ghost code, quantifiers
-3. **Practical automation** — 80-90% automation target (Kani-like UX, Verus-like power)
+---
 
-## Feature Implementation Guidance
+## Implementation Guidance
 
-### Loop Invariants (v0.2, Priority 1)
+### Recursive Function Verification
 
 **Design:**
-- Syntax: `#[invariant(i < arr.len() && sum == arr[0..i].sum())]`
-- Placement: Attribute on `loop` or `for`/`while` (desugar to loop)
+- Syntax: `#[decreases(n)]` or `#[decreases((tree_size(node), height))]` for lexicographic
 - Semantics:
-  - **Initialization**: VC that invariant holds before first iteration
-  - **Preservation**: VC that if invariant holds at loop start, it holds at end of iteration
-  - **Use**: After loop, assume invariant holds
-- Generate 3 VCs per loop: init, preservation, postcondition
-- Frame: automatically frame unchanged variables (leverage Rust's ownership)
+  - Check measure is well-founded (always decreasing to base case)
+  - Encode function via **fuel mechanism**: `f_fuel_k(args)` unfolds k times
+  - Generate VC: `measure(recursive_args) < measure(current_args)` at each call site
 
-**Test cases:**
-1. Sum array: `sum == arr[0..i].sum()` for `i` in `0..arr.len()`
-2. Binary search: `target in arr[lo..hi]` (if exists)
-3. GCD: `gcd(a, b) == gcd(original_a, original_b)`
-
-**Complexity factors:**
-- Havoc analysis: which variables modified in loop? (MIR analysis)
-- Frame inference: unchanged vars retain value (ownership helps)
-- Termination: add decreases clause? (defer to v0.3)
-
-### Cargo Integration (v0.2, Priority 1)
-
-**Design:**
-- Install binary `cargo-verify` in PATH
-- Cargo invokes as `cargo verify` (via `cargo-verify verify` command)
-- Read `Cargo.toml`, locate source files
-- Parse Rust with syn, extract annotated functions
-- Run verification on each, collect results
-- Output:
-  - Green ✓ for verified functions
-  - Red ✗ with error for failed VCs
-  - Yellow ⚠ for timeouts
-- Exit code: 0 if all verified, 1 if any failed
-
-**Integration points:**
-- Use `cargo metadata` to get package structure
-- Use `CARGO_MANIFEST_DIR` for paths
-- Support workspace packages
-- Respect `#[cfg(test)]` and `#[cfg(not(test))]`
-
-**Example output:**
-```
-$ cargo verify
-   Verifying my-crate v0.1.0
-     Checked fn add (2 VCs) ... ok
-     Checked fn factorial (3 VCs) ... FAILED
-       VC failed: postcondition at src/lib.rs:42
-       Counterexample: n=5, result=120, expected=125
-   Verification failed: 1 of 2 functions
-```
-
-### Unbounded Mathematical Integers (v0.3, Priority 2)
-
-**Design:**
-- Add `int` and `nat` types (like Verus)
-- `int`: unbounded integers (no overflow)
-- `nat`: non-negative unbounded integers
-- Use in specifications only (spec mode)
-- Require refinement to bounded types for exec code
-- SMT encoding: use Z3's integer theory (not bitvectors)
-
-**Syntax:**
+**Example:**
 ```rust
-#[requires(x >= 0)]
-#[ensures(result == x * (x + 1) / 2)]
-fn sum_to(x: int) -> int { ... }
-
-// Exec version with bounded refinement:
-#[requires(x >= 0 && x <= i32::MAX)]
-#[ensures(result == x * (x + 1) / 2)]
-fn sum_to_bounded(x: i32) -> i64 { ... }
-```
-
-**Benefits:**
-- Prove correctness without overflow concerns
-- Then verify bounded version satisfies same spec (with overflow checks)
-- Ergonomic for algorithm verification
-
-### Ghost Code (v0.3, Priority 2)
-
-**Design:**
-- `#[ghost]` attribute on variables, functions, blocks
-- Ghost code:
-  - Typechecked and verified
-  - Erased at compile time (zero runtime cost)
-  - Can only affect specifications, not executable code
-- Use cases:
-  - Ghost variables for history (e.g., `old_value`)
-  - Ghost functions for specification (e.g., `sorted(arr)`)
-  - Ghost blocks for intermediate proofs
-
-**Syntax:**
-```rust
-fn reverse(arr: &mut [i32]) {
-    #[ghost] let old_arr = arr.clone();
-
-    // ... in-place reversal ...
-
-    #[ensures(forall(|i| arr[i] == old_arr[arr.len() - 1 - i]))]
+#[decreases(n)]
+#[requires(n >= 0)]
+#[ensures(result == n * factorial(n - 1))]
+fn factorial(n: i64) -> i64 {
+    if n <= 1 { 1 } else { n * factorial(n - 1) }
 }
 ```
 
-**Implementation:**
-- Extract ghost code in MIR phase
-- Generate VCs using ghost state
-- Erase ghost code before codegen
-- Check: ghost code doesn't affect control flow of exec code
+**VC generation:**
+1. Check `decreases(n)` decreases: `(n - 1) < n` when `n > 1` ✓
+2. Encode as `factorial_fuel_k(n)`:
+   - `k = 0`: uninterpreted (returns arbitrary value)
+   - `k = 1`: `if n <= 1 { 1 } else { n * factorial_fuel_0(n - 1) }`
+   - `k = 2`: `if n <= 1 { 1 } else { n * factorial_fuel_1(n - 1) }`
+3. Check postcondition with sufficient fuel
 
-### Quantifiers (v0.3, Priority 2)
+**Complexity:**
+- MEDIUM: Single recursion with simple measure
+- HIGH: Mutual recursion (need call graph + lex measure)
+
+**Test cases:**
+- Factorial
+- Fibonacci
+- Binary tree depth
+- GCD (Euclid's algorithm)
+
+---
+
+### Basic Closure Verification
 
 **Design:**
-- `forall(|x| P(x))` — universal quantifier
-- `exists(|x| P(x))` — existential quantifier
-- Encode as SMT quantifiers
-- Initial: no manual triggers (rely on SMT heuristics)
-- Later (v1.0+): `#[trigger(f(x))]` for performance
+- Syntax: `closure!(requires(x > 0), ensures(result > 0), |x: i32| -> i32 { x + 1 })`
+- Semantics:
+  - Non-capturing closure → desugar to function
+  - Immutable capture → encode as struct with fields
+  - Verify closure body satisfies contract
+  - At call site: substitute closure contract
 
-**Syntax:**
+**Example:**
 ```rust
-#[requires(forall(|i| i < arr.len() ==> arr[i] >= 0))]
-#[ensures(result >= 0)]
-fn sum_positive(arr: &[i32]) -> i32 { ... }
+fn apply_twice(x: i32) -> i32 {
+    let adder = closure!(
+        requires(x > 0),
+        ensures(result == x + 1),
+        |x: i32| -> i32 { x + 1 }
+    );
+    adder(adder(x))
+}
 ```
 
-**SMT encoding:**
-```smt2
-(assert (forall ((i Int)) (=> (< i (arr_len arr)) (>= (select arr i) 0))))
+**Encoding:**
+1. Desugar closure to:
+   ```rust
+   struct Closure_adder { }
+   fn Closure_adder_call(env: Closure_adder, x: i32) -> i32 {
+       x + 1
+   }
+   ```
+2. Verify `Closure_adder_call` satisfies `requires(x > 0)`, `ensures(result == x + 1)`
+3. At call sites: substitute contract
+
+**Complexity:**
+- MEDIUM: Non-capturing + immutable captures
+- HIGH: Mutable captures (use prophecy)
+- VERY HIGH: Higher-order functions (spec entailments)
+
+**Test cases:**
+- Non-capturing: `|x| x + 1`
+- Immutable capture: `let y = 5; |x| x + y`
+- Iterator map: `arr.iter().map(|x| x * 2)`
+
+---
+
+### Trait Object Verification
+
+**Design:**
+- Syntax: Trait with `#[requires]`/`#[ensures]` on methods
+- Semantics:
+  - Encode trait as SMT sort with method signatures
+  - Encode vtable as dispatch map: `vtable[Type][Method] = impl_function`
+  - Verify each impl satisfies trait contract
+  - At trait object call site: use trait contract (not impl contract)
+
+**Example:**
+```rust
+trait Drawable {
+    #[requires(true)]
+    #[ensures(result >= 0)]
+    fn area(&self) -> i32;
+}
+
+struct Circle { radius: i32 }
+
+impl Drawable for Circle {
+    fn area(&self) -> i32 { 3 * self.radius * self.radius }
+}
+
+fn total_area(shapes: &[Box<dyn Drawable>]) -> i32 {
+    shapes.iter().map(|s| s.area()).sum()
+}
 ```
 
-**Challenges:**
-- Trigger inference: which terms should instantiate quantifier?
-- Performance: SMT can timeout on complex quantifiers
-- Start simple: bounded quantifiers over indices
-- Defer unbounded quantifiers to v1.0+
+**Encoding:**
+1. Trait contract: `Drawable::area` requires `true`, ensures `result >= 0`
+2. Verify `Circle::area` satisfies trait contract:
+   - VC: `3 * radius * radius >= 0` (true for all `radius`)
+3. At call site `s.area()`:
+   - Use trait contract (not Circle impl)
+   - Ensures `result >= 0` without knowing concrete type
+
+**Complexity:**
+- HIGH: Vtable encoding
+- HIGH: Dynamic dispatch (all possible impls)
+- MEDIUM: Trait-level contracts (like interface)
+
+**Test cases:**
+- Simple trait object: `Box<dyn Display>`
+- Trait object collection: `Vec<Box<dyn Animal>>`
+- Trait with associated types
+
+---
+
+### Lifetime Reasoning
+
+**Design:**
+- Syntax: Lifetime parameters `'a`, lifetime bounds `T: 'a`
+- Semantics:
+  - Track lifetime scope: where lifetime starts/ends
+  - At borrow: create prophecy `^x` for value after lifetime expires
+  - At lifetime end: verify prophecy holds
+  - Check lifetime bounds statically
+
+**Example:**
+```rust
+fn swap<'a>(x: &'a mut i32, y: &'a mut i32) {
+    let temp = *x;
+    *x = *y;
+    *y = temp;
+}
+```
+
+**Encoding:**
+1. Prophecy: `^x` is value of `x` after lifetime `'a` expires
+2. Prophecy: `^y` is value of `y` after lifetime `'a` expires
+3. VC: After swap, `^x == old(y)` and `^y == old(x)`
+
+**Complexity:**
+- HIGH: Lifetime parameter tracking
+- HIGH: Prophecy for borrow expiry
+- MEDIUM: Lifetime bounds checking
+
+**Test cases:**
+- Simple borrow: `fn double(x: &mut i32) { *x *= 2 }`
+- Lifetime parameter: `fn longest<'a>(x: &'a str, y: &'a str) -> &'a str`
+- Lifetime bounds: `struct Ref<'a, T: 'a> { r: &'a T }`
+
+---
+
+### Unsafe Code Detection
+
+**Design:**
+- Phase 1: Flag unsafe blocks, warn user
+- Phase 2: Basic checks (null, bounds)
+- Phase 3: Bounded verification (like Kani)
+
+**Example:**
+```rust
+fn read_ptr(ptr: *const i32) -> i32 {
+    unsafe {
+        *ptr  // WARN: Unsafe dereference. Check null before dereferencing.
+    }
+}
+```
+
+**Encoding (Phase 2):**
+1. Encode pointer as bitvector (address)
+2. Check: `ptr != 0` (null check)
+3. Check: `ptr >= base && ptr < base + size` (bounds check, if base known)
+
+**Complexity:**
+- LOW: Flag unsafe (MIR inspection)
+- MEDIUM: Null/bounds checks
+- VERY HIGH: Full separation logic
+
+**Test cases:**
+- Null dereference detection
+- Bounds check for pointer arithmetic
+- Transmute safety (flag as unchecked)
+
+---
 
 ## Sources
 
-### Tool Documentation and Features
-- [Verus overview - Verus Tutorial and Reference](https://verus-lang.github.io/verus/guide/)
-- [GitHub - verus-lang/verus](https://github.com/verus-lang/verus)
-- [Verus: Verifying Rust Programs using Linear Ghost Types (PDF)](https://www.andrew.cmu.edu/user/bparno/papers/verus-ghost.pdf)
-- [GitHub - viperproject/prusti-dev](https://github.com/viperproject/prusti-dev)
-- [The Prusti Project: Formal Verification for Rust (PDF)](https://pm.inf.ethz.ch/publications/AstrauskasBilyFialaGrannanMathejaMuellerPoliSummers22.pdf)
-- [GitHub - model-checking/kani](https://github.com/model-checking/kani)
-- [Getting started - The Kani Rust Verifier](https://model-checking.github.io/kani/)
-- [Creusot: Formal verification of Rust programs (POPL 2026 - Tutorials)](https://popl26.sigplan.org/details/POPL-2026-tutorials/6/Creusot-Formal-verification-of-Rust-programs)
-- [Creusot: A Foundry for the Deductive Verification of Rust Programs (PDF)](https://inria.hal.science/hal-03737878v1/document)
-- [Flux: Liquid Types for Rust](https://dl.acm.org/doi/10.1145/3591283)
-- [GitHub - flux-rs/flux](https://github.com/flux-rs/flux)
+### Recursive Functions
+- [Verus decreases - Verus Tutorial and Reference](https://verus-lang.github.io/verus/guide/reference-decreases.html)
+- [Verus spec vs proof functions](https://verus-lang.github.io/verus/guide/spec_vs_proof.html)
+- [F* Termination Proofs](https://fstar-lang.org/tutorial/book/part1/part1_termination.html)
+- [Creusot Why3 encoding](https://github.com/creusot-rs/creusot/blob/master/ARCHITECTURE.md)
+- [Lean Well-Founded Recursion](https://lean-lang.org/doc/reference/latest/Recursive-Definitions/Well-Founded-Recursion/)
 
-### Specific Features
-- [Ghost code vs. exec code - Verus](https://verus-lang.github.io/verus/guide/ghost_vs_exec.html)
-- [Specification code, proof code, executable code - Verus](https://verus-lang.github.io/verus/guide/modes.html)
-- [Proofs about forall and exists - Verus](https://verus-lang.github.io/verus/guide/quantproofs.html)
-- [Loop unwinding - The Kani Rust Verifier](https://model-checking.github.io/kani/tutorial-loop-unwinding.html)
-- [Creusot 0.9.0 - Creusot Devlog](https://creusot-rs.github.io/devlog/2026-01-19/)
-- [Tunable Automation in Automated Program Verification](https://arxiv.org/html/2512.03926v1)
+### Closures
+- [Prusti Closures](https://viperproject.github.io/prusti-dev/user-guide/verify/closure.html)
+- [Modular specification and verification of closures in Rust (ACM)](https://dl.acm.org/doi/10.1145/3485522)
+- [Verus proof closures PR](https://github.com/verus-lang/verus/pull/1524)
 
-### Unsafe Code and Memory Safety
-- [deepSURF: Detecting Memory Safety Vulnerabilities in Rust](https://arxiv.org/html/2506.15648v2)
-- [Miri: Practical Undefined Behavior Detection for Rust (2026)](https://research.ralfj.de/papers/2026-popl-miri.pdf)
-- [UnsafeCop: Bounded Model Checking for Unsafe Rust](https://link.springer.com/chapter/10.1007/978-3-031-71177-0_19)
-- [Ensuring Memory Safety in Unsafe Rust with TrustInSoft Analyzer](https://www.trust-in-soft.com/resources/blogs/ensuring-memory-safety-in-unsafe-rust-with-trustinsoft-analyzer)
+### Trait Objects
+- [Verifying Dynamic Trait Objects in Rust (paper)](https://cs.wellesley.edu/~avh/dyn-trait-icse-seip-2022-preprint.pdf)
+- [Kani trait objects (IEEE)](https://ieeexplore.ieee.org/document/9794041)
+
+### Unsafe Code
+- [Kani Undefined Behaviour](https://model-checking.github.io/kani/undefined-behaviour.html)
+- [Miri 2026 POPL paper](https://research.ralfj.de/papers/2026-popl-miri.pdf)
+- [RustBelt](https://plv.mpi-sws.org/rustbelt/)
+- [RefinedRust paper](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+
+### Lifetime Reasoning
+- [Creusot POPL 2026 Tutorial](https://popl26.sigplan.org/details/POPL-2026-tutorials/6/Creusot-Formal-verification-of-Rust-programs)
+- [RustHornBelt paper](https://people.mpi-sws.org/~dreyer/papers/rusthornbelt/paper.pdf)
+- [Aeneas: Rust Verification by Functional Translation](https://arxiv.org/abs/2206.07185)
+- [RefinedRust paper](https://plv.mpi-sws.org/refinedrust/paper-refinedrust.pdf)
+
+### Floating-Point
+- [Stainless FP verification (2026)](https://www.arxiv.org/pdf/2601.14059)
+- [SMT-LIB Floating-Point Theory](https://smt-lib.org/theories-FloatingPoint.shtml)
+- [Z3 FPA approximation](https://pmc.ncbi.nlm.nih.gov/articles/PMC6109943/)
+- [KeY FP verification](https://link.springer.com/article/10.1007/s10009-022-00691-x)
 
 ### Concurrency
-- [Miri: Practical Undefined Behavior Detection for Rust (2026)](https://research.ralfj.de/papers/2026-popl-miri.pdf)
-- [RustMC: Extending the GenMC stateless model checker to Rust](https://arxiv.org/pdf/2502.06293)
-- [Converos: Practical Model Checking for Verifying Rust OS](https://www.usenix.org/system/files/atc25-tang.pdf)
-
-### Standard Library Verification
-- [Verify the Safety of the Rust Standard Library - AWS Blog](https://aws.amazon.com/blogs/opensource/verify-the-safety-of-the-rust-standard-library/)
-- [Lessons Learned From Verifying the Rust Standard Library](https://arxiv.org/html/2510.01072)
-- [GitHub - model-checking/verify-rust-std](https://github.com/model-checking/verify-rust-std)
-
-### Arithmetic and Overflow
-- [0560-integer-overflow - The Rust RFC Book](https://rust-lang.github.io/rfcs/0560-integer-overflow.html)
-- [Myths and Legends about Integer Overflow in Rust](https://huonw.github.io/blog/2016/04/myths-and-legends-about-integer-overflow-in-rust/)
-
-### IDE Integration
-- [Prusti Assistant - Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=viper-admin.prusti-assistant)
-- [IDE integration - Prusti dev guide](https://viperproject.github.io/prusti-dev/dev-guide/development/ide.html)
-
-### AI-Assisted Verification
-- [AutoVerus: Automated Proof Generation for Rust Code](https://arxiv.org/pdf/2409.13082)
-- [VeriStruct: AI-assisted Automated Verification](https://arxiv.org/pdf/2510.25015)
-
-### SMT and Bitvector Reasoning
-- [Interactive Bitvector Reasoning using Verified Bit-Blasting](https://dl.acm.org/doi/10.1145/3763167)
-- [Expanding the Rust Formal Verification Ecosystem: Welcoming ESBMC](https://rustfoundation.org/media/expanding-the-rust-formal-verification-ecosystem-welcoming-esbmc/)
+- [Creusot 0.9.0 devlog](https://creusot-rs.github.io/devlog/2026-01-19/)
+- [Verus concurrent separation logic (OOPSLA)](https://matthias-brun.ch/assets/publications/verus_oopsla2023.pdf)
+- [Iris invariants](https://iris-project.org/tutorial-pdfs/lecture9-invariants.pdf)
+- [Miri 2026 POPL](https://research.ralfj.de/papers/2026-popl-miri.pdf)
 
 ---
 
 **Research Confidence:** HIGH
-- All major tools surveyed (Verus, Prusti, Kani, Creusot, Flux)
-- Official documentation + academic papers + recent developments (2025-2026)
-- Feature comparison verified across multiple sources
-- Implementation complexity assessed based on existing tool architectures
+- All major tools surveyed (Verus, Prusti, Kani, Creusot)
+- Official documentation + academic papers + 2026 developments
+- Builds on rust-fv v0.1 foundation (known capabilities)
+- Complexity assessed based on existing tool implementations

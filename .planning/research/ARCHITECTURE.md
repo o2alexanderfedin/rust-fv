@@ -1,714 +1,839 @@
-# Architecture Research
+# Architecture Patterns: Advanced Verification Features Integration
 
-**Domain:** Formal verification tools for Rust
-**Researched:** 2026-02-10
-**Confidence:** HIGH
+**Domain:** Formal verification tool enhancement
+**Researched:** 2026-02-11
+**Focus:** Integration of recursive functions, closures, traits, unsafe code, lifetimes, floating-point, and concurrency into existing 5-crate architecture
 
-## Standard Architecture
+## Executive Summary
 
-### System Overview
+The existing rust-fv architecture is well-positioned for advanced feature integration. The 5-crate separation (macros, smtlib, solver, analysis, driver) provides clean boundaries for extending verification capabilities. Key architectural patterns from existing tools (Creusot, Prusti, Verus) inform integration strategies:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Specification Layer                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Proc Macros  │  │  Pearlite    │  │  Attributes  │       │
-│  │ (#[requires])│  │ Spec Lang    │  │  (metadata)  │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-├─────────┴──────────────────┴──────────────────┴──────────────┤
-│                    Compiler Integration Layer                 │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │         rustc_driver Callbacks (after_analysis)      │    │
-│  │  ┌────────────┐  ┌──────────┐  ┌────────────────┐   │    │
-│  │  │ HIR Access │→ │ Extract  │→ │ MIR Extraction │   │    │
-│  │  │ (contracts)│  │ Metadata │  │   (semantics)  │   │    │
-│  │  └────────────┘  └──────────┘  └────────────────┘   │    │
-│  └──────────────────────────────────────────────────────┘    │
-├───────────────────────────────────────────────────────────────┤
-│                    Translation Layer                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │  MIR → IR    │→ │   IR (CFG)   │→ │  IR → VC     │       │
-│  │  Converter   │  │  Validation  │  │  Generator   │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-├───────────────────────────────────────────────────────────────┤
-│                    Encoding Layer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Type → Sort  │  │ Expr → Term  │  │ VC Builder   │       │
-│  │  Encoding    │  │  Encoding    │  │ (SMT Script) │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-├───────────────────────────────────────────────────────────────┤
-│                    SMT Backend Layer                          │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │  SMT-LIB Generator → Z3/CVC5 → Model Parser          │    │
-│  └──────────────────────────────────────────────────────┘    │
-└───────────────────────────────────────────────────────────────┘
-```
+- **Recursive functions**: Uninterpreted function encoding in smtlib/, termination analysis in analysis/
+- **Closures**: Defunctionalization in analysis/, first-order encoding in smtlib/
+- **Trait objects**: V-table modeling in IR, dynamic dispatch resolution in analysis/
+- **Unsafe code**: Memory model in analysis/, separation logic encoding in smtlib/
+- **Lifetimes**: Borrow graph analysis in analysis/, region encoding in IR
+- **Floating-point**: IEEE 754 FPA theory in smtlib/, rounding mode tracking in analysis/
+- **Concurrency**: Thread interleaving in analysis/, happens-before relations in smtlib/
 
-### Component Responsibilities
+## Existing Architecture Foundation
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **Specification Frontend** | Rust-native spec syntax via proc macros or embedded DSL | Proc macro attributes (rust-fv), embedded Pearlite language (Creusot) |
-| **Compiler Integration** | Hook into rustc pipeline after type/borrow checking | rustc_driver::Callbacks::after_analysis, access HIR+MIR+TyCtxt |
-| **Contract Extraction** | Parse specifications from attributes/syntax | Scan HIR attributes for doc-hidden markers or AST nodes |
-| **MIR Converter** | Translate rustc MIR to stable IR | Thin translation layer isolating rustc internal changes |
-| **Intermediate Representation** | Stable, testable program representation | Custom IR mirroring MIR structure (Function, BasicBlock, Statement) |
-| **Verification Condition Generator** | Transform IR into logical VCs to prove | Weakest precondition calculus or SSA-based encoding |
-| **Type/Expression Encoder** | Map Rust types/expressions to SMT sorts/terms | Bitvector encoding for integers, theory-specific mappings |
-| **SMT-LIB Builder** | Construct well-formed SMT-LIB scripts | Builder pattern for commands, sorts, terms with validation |
-| **Solver Interface** | Invoke SMT solver and parse results | Subprocess spawning with SMT-LIB stdin/stdout protocol |
-| **Model Parser** | Extract counterexamples from solver models | Parse SMT-LIB get-model responses into structured data |
+### Current Component Structure
 
-## Recommended Project Structure
+| Crate | Current Responsibility | Lines of Code | Key Types |
+|-------|----------------------|---------------|-----------|
+| **macros/** | Proc macros for annotations | ~500 | `#[requires]`, `#[ensures]`, `#[invariant]` |
+| **smtlib/** | SMT-LIB AST and formatting | ~2000 | `Term`, `Sort`, `Command`, `Script` |
+| **solver/** | Z3 backend abstraction | ~1500 | `SolverBackend` trait, `Z3Solver`, `Z3NativeSolver` |
+| **analysis/** | IR, VCGen, encoding | ~15000 | `Function`, `VcGen`, `ContractDatabase`, `CallGraph` |
+| **driver/** | Rustc integration, orchestration | ~4000 | `MirConverter`, diagnostics, caching |
 
-### Monorepo Crate Organization (Proven Pattern)
+### Current Data Flow
 
 ```
-crates/
-├── macros/              # Specification syntax (proc macros)
-│   ├── lib.rs          # #[requires], #[ensures], #[pure] macros
-│   └── tests/          # Macro expansion tests
-├── smtlib/             # SMT-LIB AST and formatting (solver-agnostic)
-│   ├── command.rs      # SMT-LIB commands (declare-const, assert, etc.)
-│   ├── sort.rs         # SMT-LIB sorts (Bool, BitVec, Array, etc.)
-│   ├── term.rs         # SMT-LIB terms (expressions)
-│   ├── script.rs       # Script builder (sequence of commands)
-│   └── formatter.rs    # Pretty-printing to SMT-LIB text
-├── solver/             # SMT solver interface
-│   ├── config.rs       # Solver configuration (path, timeout, etc.)
-│   ├── solver.rs       # Z3/CVC5 subprocess interface
-│   ├── parser.rs       # Parse sat/unsat/model responses
-│   ├── result.rs       # Solver result types
-│   └── error.rs        # Solver error types
-├── analysis/           # Core verification logic (stable Rust)
-│   ├── ir.rs           # Intermediate representation (decoupled from rustc)
-│   ├── vcgen.rs        # Verification condition generator
-│   ├── encode_sort.rs  # Type → SMT sort encoding
-│   ├── encode_term.rs  # Expression → SMT term encoding
-│   └── tests/          # Unit tests for VCGen (no rustc dependency)
-└── driver/             # Compiler integration (nightly-only)
-    ├── main.rs         # rustc_driver wrapper entry point
-    ├── callbacks.rs    # Callbacks::after_analysis implementation
-    └── mir_converter.rs # rustc MIR → stable IR conversion
+Source code with annotations
+    ↓
+[macros/] Parse annotations → HIR attributes
+    ↓
+[driver/] Extract MIR → Convert to IR
+    ↓
+[analysis/] Generate VCs → Encode to SMT
+    ↓
+[solver/] Check SAT → Parse results
+    ↓
+[driver/] Format diagnostics → Output
 ```
 
-### Structure Rationale
+### Existing Extension Points
 
-- **macros/:** Separate crate for proc macros (required by Rust). Provides ergonomic Rust-native syntax.
-- **smtlib/:** Solver-agnostic SMT-LIB builder. Enables testing encoding logic without solver invocation, supports multiple backends (Z3, CVC5, etc.).
-- **solver/:** Isolates external process communication. Strategy pattern allows swapping solver implementations.
-- **analysis/:** Pure verification logic with no rustc dependencies. Testable on stable Rust, enables unit testing without compiler overhead.
-- **driver/:** Thin integration layer. Isolates nightly rustc API surface, minimizes code affected by compiler changes.
+1. **IR types** (`analysis/src/ir.rs`): `Ty`, `Rvalue`, `Terminator` enums support new constructs
+2. **Encoding modules** (`analysis/src/encode_*.rs`): Modular encoding for types, terms, quantifiers
+3. **VCGen hooks** (`analysis/src/vcgen.rs`): Path traversal, terminator handling, VC generation
+4. **SMT theories** (`smtlib/src/*.rs`): Theory-specific term constructors
+5. **Contract database** (`analysis/src/contract_db.rs`): Function summaries for modular verification
 
-**Dependency Direction:** driver → analysis → smtlib, solver. Core logic (analysis) depends only on stable smtlib abstractions.
+## Integration Architecture by Feature
 
-## Architectural Patterns
+### 1. Recursive Functions
 
-### Pattern 1: Stable IR Decoupling
+#### Components to Add
 
-**What:** Maintain a custom IR that mirrors rustc MIR but is fully owned and stable.
+**New in analysis/:**
+- `termination.rs`: Termination analysis and well-foundedness checking
+- `recursion_encoding.rs`: Uninterpreted function declaration and axiomatization
 
-**When to use:** Always, for any rustc-integrated verification tool.
+**Modified:**
+- `ir.rs`: Add `RecursiveInfo` to `Function` (base cases, recursive calls, decreases clause)
+- `vcgen.rs`: Detect recursive calls, generate termination VCs
+- `contract_db.rs`: Store recursion contracts (decreases clauses)
 
-**Trade-offs:**
-- **Pro:** Isolates core verification logic from rustc internal changes. Enables unit testing on stable Rust. Simplifies debugging.
-- **Con:** Adds translation overhead (minimal). Requires maintaining mapping code.
+**New in smtlib/:**
+- `uninterpreted.rs`: Uninterpreted function declarations and fuel-based unrolling
+- Extend `Command` enum: `DeclareFun`, `DefineFunRec` (Z3-specific)
 
-**Example:**
+#### Data Flow
+
+```
+Recursive function with #[decreases(measure)]
+    ↓
+[analysis/termination.rs] Extract decreases clause, identify recursive calls
+    ↓
+[analysis/recursion_encoding.rs] Encode as uninterpreted function + axioms
+    ↓
+[smtlib/uninterpreted.rs] Generate (declare-fun f ...) + (assert (forall ...))
+    ↓
+[solver/] Z3 with recursive function theory
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `recursive_info: Option<RecursionInfo>` | None |
+| `vcgen.rs` | Check `termination_vc()` before `postcondition_vc()` | `termination.rs` |
+| `contract_db.rs` | Store `decreases` clause | `ir.rs` |
+| `smtlib/command.rs` | Add `DeclareFun(name, params, ret)` | None |
+
+#### Encoding Strategy
+
+**Approach: Uninterpreted functions with axiomatization** (HIGH confidence)
+
 ```rust
-// analysis/src/ir.rs (stable, no rustc dependency)
-pub struct Function {
-    pub name: String,
-    pub params: Vec<Local>,
-    pub basic_blocks: Vec<BasicBlock>,
+// For: fn factorial(n: u32) -> u32 #[decreases(n)]
+// Generate:
+(declare-fun factorial ((_ BitVec 32)) (_ BitVec 32))
+(assert (forall ((n (_ BitVec 32)))
+  (=> (= n #x00000000) (= (factorial n) #x00000001))))
+(assert (forall ((n (_ BitVec 32)))
+  (=> (bvugt n #x00000000)
+      (= (factorial n)
+         (bvmul n (factorial (bvsub n #x00000001)))))))
+// Termination VC:
+(assert (forall ((n (_ BitVec 32)))
+  (=> (bvugt n #x00000000)
+      (bvult (bvsub n #x00000001) n))))
+```
+
+**Alternative: Bounded unrolling** (for non-terminating cases)
+- Fuel parameter limits recursion depth
+- Used by F* and Dafny
+- Lower confidence for deep recursion
+
+---
+
+### 2. Closures and Higher-Order Functions
+
+#### Components to Add
+
+**New in analysis/:**
+- `closure_conversion.rs`: Defunctionalization and closure environment capture
+- `higher_order.rs`: Higher-order function encoding
+
+**Modified:**
+- `ir.rs`: Add `Ty::Closure(env_fields, params, ret)`, `Rvalue::ClosureCall`
+- `vcgen.rs`: Handle closure calls, environment encoding
+- `mir_converter.rs` (driver): Extract closure MIR, capture analysis
+
+**New in smtlib/:**
+- `datatype.rs`: Closure sum types (one variant per closure)
+
+#### Data Flow
+
+```
+Closure with captured environment
+    ↓
+[driver/mir_converter.rs] Extract closure MIR + upvars
+    ↓
+[analysis/closure_conversion.rs] Defunctionalize to first-order
+    ↓
+[analysis/encode_sort.rs] Encode closure type as datatype
+    ↓
+[smtlib/] Generate sum type + function per closure
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `Closure` variant to `Ty`, `Terminator::ClosureCall` | None |
+| `closure_conversion.rs` | Transform closures to datatypes + functions | `ir.rs` |
+| `smtlib/datatype.rs` | Generate `(declare-datatypes ...)` for closures | `command.rs` |
+| `vcgen.rs` | Encode closure calls via datatype matching | `encode_term.rs` |
+
+#### Encoding Strategy
+
+**Approach: Defunctionalization** (HIGH confidence, based on Creusot/Verus research)
+
+```rust
+// For: let f = |x| x + captured; f(5)
+// Transform to:
+(declare-datatype Closure
+  ((Closure_1 (captured Int))))
+(define-fun apply_Closure_1 ((closure Closure) (x Int)) Int
+  (+ x (captured (as closure Closure_1))))
+// At call site:
+(apply_Closure_1 (Closure_1 captured_val) 5)
+```
+
+**Alternative: Direct encoding** (for simple cases)
+- Inline closure body at call sites
+- No datatype overhead
+- Only works for non-escaping closures
+
+---
+
+### 3. Trait Objects and Dynamic Dispatch
+
+#### Components to Add
+
+**New in analysis/:**
+- `vtable.rs`: V-table modeling and dispatch resolution
+- `trait_encoding.rs`: Trait constraint encoding
+
+**Modified:**
+- `ir.rs`: Add `Ty::DynTrait(trait_name)`, `Rvalue::DynDispatch(vtable, method_index)`
+- `vcgen.rs`: Resolve dynamic dispatch to concrete types
+- `contract_db.rs`: Store trait method contracts
+
+**New in smtlib/:**
+- Extend datatypes for trait objects (fat pointer: data + vtable)
+
+#### Data Flow
+
+```
+Trait object call
+    ↓
+[driver/] Extract dyn trait type + available implementations
+    ↓
+[analysis/vtable.rs] Build v-table mapping, enumerate concrete types
+    ↓
+[analysis/trait_encoding.rs] Encode as sum type over implementors
+    ↓
+[vcgen.rs] Generate VC for each possible concrete type
+    ↓
+[smtlib/] Encode as ITE chain or quantified formula
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `DynTrait(name)` to `Ty`, `vtable_index` metadata | None |
+| `vtable.rs` | Map trait methods to implementor functions | `contract_db.rs` |
+| `trait_encoding.rs` | Generate sum type for `dyn Trait` | `encode_sort.rs` |
+| `vcgen.rs` | Split VCs per concrete type | `vtable.rs` |
+
+#### Encoding Strategy
+
+**Approach: Sum type over concrete implementations** (MEDIUM confidence)
+
+```rust
+// For: fn process(x: &dyn Display)
+// If Display is implemented by String, u32:
+(declare-datatype DynDisplay
+  ((DynDisplay_String (data String))
+   (DynDisplay_u32 (data (_ BitVec 32)))))
+// At call site:
+(assert (or
+  (and (is DynDisplay_String x) (display_String (data x)))
+  (and (is DynDisplay_u32 x) (display_u32 (data x)))))
+```
+
+**Challenges:**
+- Scalability: sum type grows with implementors
+- Open-world assumption: may need to assume unknown implementors
+- Research gap: No established SMT encoding for open trait objects (LOW confidence for open-world)
+
+---
+
+### 4. Unsafe Code
+
+#### Components to Add
+
+**New in analysis/:**
+- `memory_model.rs`: Heap model, pointer validity, aliasing
+- `unsafe_analysis.rs`: Safety obligations for unsafe blocks
+- `separation_logic.rs`: Optional: separation logic encoding
+
+**Modified:**
+- `ir.rs`: Add `Ty::RawPtr` handling, `Rvalue::PtrOffset`, `is_unsafe: bool` to blocks
+- `vcgen.rs`: Generate memory safety VCs (null checks, bounds, aliasing)
+- `ownership.rs`: Extend for raw pointer reasoning
+
+**New in smtlib/:**
+- `memory.rs`: Heap theory (array theory + validity predicates)
+
+#### Data Flow
+
+```
+Unsafe block with raw pointers
+    ↓
+[driver/] Mark unsafe regions in IR
+    ↓
+[analysis/unsafe_analysis.rs] Extract safety obligations
+    ↓
+[analysis/memory_model.rs] Model heap, generate validity VCs
+    ↓
+[smtlib/memory.rs] Encode heap as SMT array + validity predicates
+    ↓
+[solver/] Check memory safety VCs
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `is_unsafe: bool` to `BasicBlock`, pointer operations | None |
+| `memory_model.rs` | Heap representation, validity tracking | `encode_sort.rs` |
+| `vcgen.rs` | Generate `null_check_vc()`, `bounds_check_vc()`, `aliasing_vc()` | `memory_model.rs` |
+| `smtlib/memory.rs` | `(declare-const heap (Array Addr Val))` | `term.rs` |
+
+#### Encoding Strategy
+
+**Approach: Heap-as-array with validity predicates** (MEDIUM confidence, based on Verus)
+
+```rust
+// For: unsafe { *ptr = 42; }
+// Generate:
+(declare-const heap (Array (_ BitVec 64) (_ BitVec 32)))
+(declare-fun valid ((_ BitVec 64)) Bool)
+// VCs:
+(assert (not (= ptr #x0000000000000000))) ; null check
+(assert (valid ptr))                      ; validity check
+(assert (= (select heap ptr) old_value))  ; read VC
+(define heap_new (store heap ptr #x0000002a)) ; write
+```
+
+**Alternative: Separation logic** (HIGH complexity, HIGH confidence for correctness)
+- Used by Prusti/RustBelt
+- Requires significant SMT encoding machinery
+- Recommend Phase 2+ (defer for initial implementation)
+
+---
+
+### 5. Lifetime and Borrow Reasoning
+
+#### Components to Add
+
+**New in analysis/:**
+- `lifetime_analysis.rs`: Lifetime inference, borrow graph
+- `region_encoding.rs`: Lifetime regions in SMT
+
+**Modified:**
+- `ir.rs`: Add `Lifetime` metadata to `Ty::Ref`, `borrows: Vec<BorrowInfo>` to `Function`
+- `ownership.rs`: Extend with lifetime constraints
+- `encode_prophecy.rs`: Already handles mutable borrows; extend for lifetimes
+
+**New in smtlib/:**
+- Lifetime ordering relations (`(declare-fun outlives (Region Region) Bool)`)
+
+#### Data Flow
+
+```
+Function with lifetime annotations
+    ↓
+[driver/] Extract MIR lifetime regions
+    ↓
+[analysis/lifetime_analysis.rs] Build borrow graph, region constraints
+    ↓
+[analysis/region_encoding.rs] Encode region ordering as SMT
+    ↓
+[smtlib/] Generate outlives constraints
+    ↓
+[vcgen.rs] Verify borrow validity using lifetime constraints
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `lifetime: Option<Lifetime>` to `Ty::Ref` | None |
+| `lifetime_analysis.rs` | Extract borrow graph from MIR | `driver/mir_converter.rs` |
+| `ownership.rs` | Add `lifetime_constraint_vc()` | `lifetime_analysis.rs` |
+| `smtlib/term.rs` | Add `Outlives(lhs, rhs)` predicate | None |
+
+#### Encoding Strategy
+
+**Approach: Prophecy-based (existing) + region ordering** (HIGH confidence, extends existing)
+
+```rust
+// Existing prophecy encoding handles mutable borrows.
+// Add:
+(declare-sort Region)
+(declare-const 'a Region)
+(declare-const 'b Region)
+(declare-fun outlives (Region Region) Bool)
+(assert (outlives 'a 'b)) ; 'a: 'b constraint
+// Borrow validity:
+(assert (=> (valid_borrow x 'a) (alive_at 'a use_point)))
+```
+
+**Key insight:** Existing `encode_prophecy.rs` already handles final value reasoning. Lifetimes add temporal validity constraints on top.
+
+---
+
+### 6. Floating-Point Arithmetic
+
+#### Components to Add
+
+**New in smtlib/:**
+- `fpa_theory.rs`: IEEE 754 floating-point theory terms
+- Extend `Sort`: `Float32`, `Float64`
+- Extend `Term`: `FpLit`, `FpAdd`, `FpMul`, rounding modes
+
+**Modified:**
+- `analysis/encode_sort.rs`: Map `Ty::Float(FloatTy)` to FPA sorts
+- `analysis/encode_term.rs`: Encode FP operations with rounding modes
+- `analysis/vcgen.rs`: Generate FP overflow/underflow VCs
+
+**New in solver/:**
+- Verify Z3/CVC5 support for FPA theory
+
+#### Data Flow
+
+```
+Function with floating-point operations
+    ↓
+[driver/] Extract FP operations from MIR
+    ↓
+[analysis/encode_term.rs] Encode with rounding mode
+    ↓
+[smtlib/fpa_theory.rs] Generate FPA theory terms
+    ↓
+[solver/] Z3 with FPA theory
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `smtlib/sort.rs` | Add `Float32`, `Float64` to `Sort` enum | None |
+| `smtlib/term.rs` | Add `FpAdd`, `FpMul`, `RoundingMode` variants | None |
+| `encode_term.rs` | Encode `BinOp` for floats using FPA ops | `fpa_theory.rs` |
+| `vcgen.rs` | Generate NaN/Inf VCs | `encode_term.rs` |
+
+#### Encoding Strategy
+
+**Approach: SMT-LIB FPA theory** (HIGH confidence, standardized)
+
+```rust
+// For: let z = x + y; (f32)
+// Generate:
+(declare-const x Float32)
+(declare-const y Float32)
+(declare-const z Float32)
+(assert (= z (fp.add RNE x y))) ; RNE = round-to-nearest-even
+// VCs:
+(assert (not (fp.isNaN z)))
+(assert (not (fp.isInfinite z)))
+```
+
+**Challenges:**
+- Bit-blasting overhead: FPA theory is expensive in SMT solvers
+- Rounding mode tracking: requires flow-sensitive analysis
+- Z3 FPA support: Mature (MEDIUM confidence for performance)
+
+---
+
+### 7. Concurrency (Thread Safety & Data Races)
+
+#### Components to Add
+
+**New in analysis/:**
+- `concurrency.rs`: Thread interleaving, happens-before analysis
+- `sync_encoding.rs`: Mutex, RwLock, atomic operations encoding
+
+**Modified:**
+- `ir.rs`: Add `Terminator::Spawn(thread_id, closure)`, `Rvalue::AtomicOp`
+- `vcgen.rs`: Generate data race VCs, mutex invariant VCs
+
+**New in smtlib/:**
+- `concurrency.rs`: Happens-before relations, thread-local state
+
+#### Data Flow
+
+```
+Function with threads/atomics
+    ↓
+[driver/] Extract thread spawn, atomic operations
+    ↓
+[analysis/concurrency.rs] Build happens-before graph
+    ↓
+[analysis/sync_encoding.rs] Encode synchronization primitives
+    ↓
+[smtlib/concurrency.rs] Generate ordering constraints
+    ↓
+[vcgen.rs] Check data race freedom
+```
+
+#### Integration Points
+
+| Component | Integration | Dependencies |
+|-----------|-------------|--------------|
+| `ir.rs` | Add `Spawn`, `Join`, `AtomicLoad/Store` terminators/rvalues | None |
+| `concurrency.rs` | Happens-before analysis, thread interleaving | `ir.rs` |
+| `vcgen.rs` | Generate `data_race_vc()`, `lock_order_vc()` | `concurrency.rs` |
+| `smtlib/term.rs` | Add `HappensBefore(event1, event2)` | None |
+
+#### Encoding Strategy
+
+**Approach: Bounded thread interleaving** (MEDIUM confidence)
+
+```rust
+// For: spawn(|| { x = 1; }); spawn(|| { y = x; });
+// Generate:
+(declare-const x_thread1 Int)
+(declare-const x_thread2 Int)
+(declare-fun happens_before (Event Event) Bool)
+(assert (=> (happens_before write_x_thread1 read_x_thread2)
+            (= x_thread2 1)))
+// Data race VC:
+(assert (not (and (not (happens_before write_x_thread1 read_x_thread2))
+                  (not (happens_before read_x_thread2 write_x_thread1)))))
+```
+
+**Alternative: Rely-guarantee reasoning** (HIGH complexity, research-level)
+- Used by RustHornBelt for concurrency
+- Requires separation logic + thread-local invariants
+- Recommend Phase 3+ (advanced concurrency)
+
+**Pragmatic subset: `Send`/`Sync` verification only**
+- Verify trait bounds statically (existing type system)
+- Defer happens-before reasoning to later phase
+
+---
+
+## Cross-Cutting Architecture Patterns
+
+### 1. Modular Encoding Pattern
+
+**Applied to:** All features
+
+```
+ir.rs (new IR construct)
+    ↓
+encode_<feature>.rs (feature-specific encoding)
+    ↓
+smtlib/<theory>.rs (SMT theory terms)
+    ↓
+vcgen.rs (VC generation hooks)
+```
+
+**Example structure for closures:**
+```
+analysis/
+  closure_conversion.rs  -- Defunctionalization
+  encode_closure.rs      -- SMT encoding
+smtlib/
+  datatype.rs            -- Closure datatypes (extends existing)
+```
+
+### 2. Incremental VC Generation
+
+**Existing:** `vcgen.rs` generates VCs per-path
+**Extension:** Feature-specific VCs added to `VcKind` enum
+
+```rust
+pub enum VcKind {
+    // Existing
+    Precondition, Postcondition, Overflow, ...
+    // New
+    Termination,        // Recursive functions
+    ClosureWellFormed,  // Closures
+    DynamicDispatch,    // Trait objects
+    MemorySafety,       // Unsafe code
+    BorrowValidity,     // Lifetimes
+    FloatingPointNaN,   // Floating-point
+    DataRaceFreedom,    // Concurrency
+}
+```
+
+### 3. Progressive Enhancement
+
+**Strategy:** Each feature adds:
+1. New IR variants (opt-in via `Option<T>`)
+2. New encoding modules (separate files)
+3. New VCs (extend `VcKind`)
+4. New SMT theories (separate theory modules)
+
+**Backward compatibility:** Features with `None` metadata use existing codepaths.
+
+### 4. Contract Database Extension
+
+**Existing:** `FunctionSummary` stores requires/ensures
+**Extension:** Feature-specific metadata
+
+```rust
+pub struct FunctionSummary {
     pub contracts: Contracts,
-}
-
-// driver/src/mir_converter.rs (nightly-only, thin layer)
-pub fn convert_mir(tcx: TyCtxt<'_>, body: &mir::Body<'_>) -> ir::Function {
-    // Translate rustc types to stable IR types
-}
-```
-
-**Build order:** Define IR first, then build VCGen against IR, finally add MIR converter.
-
-### Pattern 2: Layered Pipeline with Clear Phase Boundaries
-
-**What:** Separate annotation extraction, IR conversion, VC generation, SMT encoding, and solving into distinct phases with well-defined interfaces.
-
-**When to use:** For any multi-stage verification system.
-
-**Trade-offs:**
-- **Pro:** Each phase is independently testable. Clear responsibility boundaries. Enables parallel development. Easier debugging (can inspect intermediate stages).
-- **Con:** More interfaces to maintain. Potential inefficiency from multiple passes (negligible in practice).
-
-**Example:**
-```rust
-// Phase 1: Extract contracts from HIR
-let contracts = extract_contracts(tcx, local_def_id);
-
-// Phase 2: Convert rustc MIR → stable IR
-let ir_func = convert_mir(tcx, mir, contracts);
-
-// Phase 3: Generate verification conditions
-let vcs = generate_vcs(&ir_func);
-
-// Phase 4: Encode to SMT-LIB
-for vc in vcs.conditions {
-    let script = vc.script; // Already encoded in phase 3
-
-    // Phase 5: Solve
-    let result = solver.check_sat(&script);
+    pub param_names: Vec<String>,
+    pub param_types: Vec<Ty>,
+    pub return_ty: Ty,
+    // NEW:
+    pub recursion_info: Option<RecursionInfo>,   // Recursive functions
+    pub closure_env: Option<ClosureEnv>,         // Closures
+    pub trait_bounds: Vec<TraitBound>,           // Trait constraints
+    pub unsafe_preconditions: Vec<SafetyObligation>, // Unsafe
+    pub lifetime_bounds: Vec<LifetimeBound>,     // Lifetimes
 }
 ```
 
-**Build order:** Bottom-up (SMT layer → IR → VCGen → MIR converter → driver callbacks).
+---
 
-### Pattern 3: Weakest Precondition VC Generation
+## Recommended Component Build Order
 
-**What:** Generate verification conditions by computing weakest preconditions through backward symbolic execution.
+Based on dependency analysis and incremental integration:
 
-**When to use:** For functional correctness properties (contracts, assertions). Standard in deductive verification tools (Dafny, Boogie, Why3, Prusti).
+### Phase 1: Foundations (Minimal Dependencies)
+1. **Floating-point** (smtlib/fpa_theory.rs → encode_term.rs)
+   - Self-contained, well-defined SMT theory
+   - No new IR constructs, only encoding changes
+   - Risk: Low, SMT-LIB FPA is standardized
 
-**Trade-offs:**
-- **Pro:** Sound and complete for sequential code. Well-understood theory. Produces compact VCs. Works naturally with postconditions.
-- **Con:** Requires SSA or careful handling of variable updates. Loop invariants must be supplied (cannot be inferred without additional techniques).
+2. **Recursive functions** (analysis/termination.rs → recursion_encoding.rs)
+   - Extends existing IR minimally (`recursive_info`)
+   - Uninterpreted functions well-supported in Z3
+   - Risk: Medium (termination proving hard, but encoding simple)
 
-**Example (conceptual):**
-```rust
-// Given: { P } S { Q }  (Hoare triple)
-// WP computes: P ⊢ wp(S, Q)
+### Phase 2: Higher-Order Features (Depends on IR extensions)
+3. **Closures** (analysis/closure_conversion.rs → encode_closure.rs)
+   - Requires datatype support (extend existing)
+   - Defunctionalization well-understood
+   - Risk: Medium (capture analysis complexity)
 
-// For postcondition: ensures result >= a && result >= b
-// WP of return: [result/return_var]postcondition
-// WP of assignment _0 = _1: postcondition[_1/_0]
-// WP of branch: ITE(cond, wp(then_branch, Q), wp(else_branch, Q))
+4. **Trait objects** (analysis/vtable.rs → trait_encoding.rs)
+   - Depends on closure encoding (similar sum type pattern)
+   - Closed-world assumption simplifies encoding
+   - Risk: Medium (scalability with many implementors)
 
-fn generate_contract_vcs(func: &Function) -> Vec<VC> {
-    for postcond in &func.contracts.ensures {
-        let mut vc = Script::new();
-        // Assume preconditions
-        for pre in &func.contracts.requires {
-            vc.assert(encode_spec(pre));
-        }
-        // Encode function semantics (simplified: all assignments as equalities)
-        for assignment in collect_assignments(func) {
-            vc.assert(assignment);
-        }
-        // Assert NOT postcondition (looking for counterexample)
-        vc.assert(Not(encode_spec(postcond)));
-        // UNSAT = postcondition always holds
-    }
-}
-```
+### Phase 3: Memory Reasoning (Depends on Phases 1-2)
+5. **Lifetimes** (analysis/lifetime_analysis.rs → region_encoding.rs)
+   - Extends existing prophecy encoding
+   - Adds ordering constraints to SMT
+   - Risk: Medium (borrow graph complexity)
 
-### Pattern 4: Bitvector-Precise Integer Encoding
+6. **Unsafe code** (analysis/memory_model.rs → unsafe_analysis.rs)
+   - Requires heap model (array theory)
+   - Depends on lifetime reasoning for pointer validity
+   - Risk: High (memory model soundness critical)
 
-**What:** Encode Rust integer types (i8, u32, etc.) as SMT bitvectors with exact bit widths, not mathematical integers.
+### Phase 4: Concurrency (Depends on all previous)
+7. **Concurrency** (analysis/concurrency.rs → sync_encoding.rs)
+   - Requires memory model + happens-before
+   - Most complex feature, highest research risk
+   - Risk: High (thread interleaving explosion)
 
-**When to use:** For verification requiring overflow/underflow detection and exact Rust semantics.
+---
 
-**Trade-offs:**
-- **Pro:** Precise Rust semantics. Catches overflow bugs. Enables verification of low-level code.
-- **Con:** Larger SMT queries than Int theory. Solver may be slower (modern SMT solvers handle bitvectors well).
+## Suggested Build Order (Summary)
 
-**Example:**
-```rust
-// Encode i32 as (_ BitVec 32), not Int
-fn encode_type(ty: &Ty) -> Sort {
-    match ty {
-        Ty::Int(IntTy::I32) => Sort::BitVec(32),
-        Ty::Uint(UintTy::U64) => Sort::BitVec(64),
-        _ => // ...
-    }
-}
+| Order | Feature | Rationale | Complexity | Risk |
+|-------|---------|-----------|------------|------|
+| 1 | Floating-point | Self-contained, standardized theory | Low | Low |
+| 2 | Recursive functions | Foundational, uninterpreted functions simple | Medium | Medium |
+| 3 | Closures | Enables higher-order verification | Medium | Medium |
+| 4 | Trait objects | Builds on closure patterns | Medium | Medium |
+| 5 | Lifetimes | Extends existing prophecy encoding | Medium | Medium |
+| 6 | Unsafe code | Critical for soundness, needs lifetime support | High | High |
+| 7 | Concurrency | Most complex, depends on memory model | High | High |
 
-// Generate overflow check for a + b
-fn overflow_check(op: BinOp, lhs: Term, rhs: Term, ty: &Ty) -> Term {
-    let width = ty.bit_width();
-    match (op, ty.is_signed()) {
-        (Add, true) => {
-            // No signed overflow: bvadd_overflow checks
-            And(vec![
-                Not(BvSAddOverflow(lhs, rhs)),
-                Not(BvSAddUnderflow(lhs, rhs)),
-            ])
-        }
-        // Similar for unsigned, other ops...
-    }
-}
-```
+---
 
-### Pattern 5: Linear Block-Walking VCGen (Current Limitation)
-
-**What:** Walk basic blocks sequentially, accumulating assignments as SMT assertions without proper SSA handling or control-flow merging.
-
-**When to use:** Only for initial prototype. Must upgrade to true SSA for production.
-
-**Trade-offs:**
-- **Pro:** Simple to implement. Works for straight-line code.
-- **Con:** Unsound for branches (missing phi nodes). Cannot handle loops. Limited to single-path functions.
-
-**Example (current rust-fv approach):**
-```rust
-// Current: Linear walk, no SSA
-fn collect_assignments_up_to(func: &Function, up_to_block: usize, up_to_stmt: usize) -> Vec<Command> {
-    let mut assertions = Vec::new();
-    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
-        if block_idx > up_to_block { break; }
-        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
-            if block_idx == up_to_block && stmt_idx >= up_to_stmt { break; }
-            if let Statement::Assign(place, rvalue) = stmt {
-                // Encode as: place = rvalue (overwrites previous values)
-                assertions.push(Assert(Eq(encode_place(place), encode_rvalue(rvalue))));
-            }
-        }
-    }
-    assertions
-}
-```
-
-**Replacement:** True SSA encoding (Pattern 6).
-
-### Pattern 6: SSA-Based VCGen (Recommended Upgrade)
-
-**What:** Convert IR to Static Single Assignment form, where each variable is assigned exactly once. At control-flow merge points, insert phi nodes.
-
-**When to use:** For sound verification of code with branches and loops.
-
-**Trade-offs:**
-- **Pro:** Sound handling of control flow. Standard compiler IR. Simplifies VC generation (each variable has unique value). Enables precise dataflow analysis.
-- **Con:** More complex than linear walking. Requires phi node insertion at merge points.
-
-**Example:**
-```rust
-// SSA transformation
-// Before:
-//   bb0: x = 1; if (cond) goto bb1 else bb2
-//   bb1: x = 2; goto bb3
-//   bb2: x = 3; goto bb3
-//   bb3: y = x; return
-
-// After SSA:
-//   bb0: x_0 = 1; if (cond) goto bb1 else bb2
-//   bb1: x_1 = 2; goto bb3
-//   bb2: x_2 = 3; goto bb3
-//   bb3: x_3 = phi(x_1, x_2); y = x_3; return
-
-// VC encoding:
-fn encode_ssa(func: &SSAFunction) -> Script {
-    let mut script = Script::new();
-    // Declare all SSA variables (each version is a distinct SMT constant)
-    for ssa_var in func.ssa_vars {
-        script.declare_const(ssa_var.name, encode_type(ssa_var.ty));
-    }
-    // Encode assignments (no overwrites, each is a fresh variable)
-    for assign in func.assignments {
-        script.assert(Eq(assign.lhs, encode_rvalue(assign.rhs)));
-    }
-    // Encode phi nodes as conditional assertions
-    for phi in func.phi_nodes {
-        // x_3 = phi(x_1 from bb1, x_2 from bb2)
-        script.assert(Ite(
-            came_from_bb1,
-            Eq(phi.result, phi.input1),
-            Eq(phi.result, phi.input2)
-        ));
-    }
-    script
-}
-```
-
-**Build order:** Add SSA conversion step between MIR→IR and VCGen. Replace linear walking with SSA-aware encoding.
-
-### Pattern 7: Modular Inter-Procedural Verification with Function Summaries
-
-**What:** Verify each function in isolation using its contract (requires/ensures) as a summary. When verifying a caller, assume callee's postcondition without re-verifying callee's body.
-
-**When to use:** For scaling to large codebases. Standard in modular verification (Prusti, Dafny, Viper).
-
-**Trade-offs:**
-- **Pro:** Scales to large programs (linear in codebase size, not exponential). Enables separate compilation. Reduces VC size dramatically.
-- **Con:** Requires user-supplied contracts for all callees. Cannot verify programs with missing specifications.
-
-**Example:**
-```rust
-// Caller verification: assume callee contract, don't inline body
-fn encode_function_call(call: &Call, func_contracts: &Contracts) -> Vec<Command> {
-    let mut cmds = vec![];
-
-    // Assert callee's precondition must hold
-    for pre in &func_contracts.requires {
-        cmds.push(Assert(encode_spec_with_args(pre, &call.args)));
-    }
-
-    // Havoc the return value (introduce fresh variable)
-    let fresh_ret = fresh_var();
-    cmds.push(DeclareConst(fresh_ret.clone(), encode_type(return_ty)));
-
-    // Assume callee's postcondition
-    for post in &func_contracts.ensures {
-        cmds.push(Assert(encode_spec_with_result(post, &fresh_ret, &call.args)));
-    }
-
-    // Bind call destination to fresh return value
-    cmds.push(Assert(Eq(call.destination, Const(fresh_ret))));
-
-    cmds
-}
-```
-
-**Build order:** After basic VCGen works, add contract lookup and modular encoding for Call terminators.
-
-### Pattern 8: Loop Invariant Framework (Placeholder for Inference)
-
-**What:** Require user-supplied loop invariants. Verify: (1) invariant holds on entry, (2) invariant preserved by iteration, (3) invariant + exit condition implies postcondition.
-
-**When to use:** As foundation for loop support. Inference can be added later.
-
-**Trade-offs:**
-- **Pro:** Sound and complete with correct invariants. Standard approach (Dafny, Prusti, Frama-C).
-- **Con:** User burden to write invariants. Manual effort.
-
-**Future extension:** Loop invariant inference via LLMs, abstract interpretation, or Houdini-style guess-and-check.
-
-**Example:**
-```rust
-// Encoding loop verification (manual invariants)
-#[invariant("i <= n")]
-#[invariant("sum == i * (i - 1) / 2")]
-while i < n {
-    sum += i;
-    i += 1;
-}
-
-// VC generation (simplified):
-// 1. Base case: precondition ⊢ invariant[0/i]
-// 2. Inductive case: invariant ∧ i < n ⊢ wp(body, invariant)
-// 3. Exit case: invariant ∧ ¬(i < n) ⊢ postcondition
-```
-
-## Data Flow
-
-### Verification Pipeline Flow
+## Data Flow Changes (Integrated View)
 
 ```
-User Code (Rust + Specifications)
+[EXISTING]
+Source → macros/ → driver/MIR → analysis/IR → vcgen → smtlib/ → solver/
+
+[WITH ADVANCED FEATURES]
+Source with #[decreases], closures, dyn Trait, unsafe, 'a lifetimes, f32, spawn
     ↓
-[Rustc Frontend: Parse → HIR → Type Check → Borrow Check]
+[macros/] Parse all annotations (termination, safety obligations)
     ↓
-[Rustc MIR Generation] ──────────────┐
-    ↓                                 │
-[driver: after_analysis hook]        │
-    ↓                                 │
-┌────────────────────────────────────┴───────────────────┐
-│ Extract Contracts from HIR Attributes                  │
-│ (Scan for #[doc = "rust_fv::requires::..."])           │
-└────────────────────────────────────┬───────────────────┘
-    ↓                                 │
-┌────────────────────────────────────┴───────────────────┐
-│ Convert rustc MIR → Stable IR                          │
-│ (Translate types, statements, terminators)             │
-└────────────────────────────────────┬───────────────────┘
+[driver/mir_converter.rs] Extract:
+  - Recursive call sites + decreases clauses
+  - Closure upvars + capture modes
+  - Trait object vtables + implementors
+  - Unsafe blocks + pointer operations
+  - Lifetime regions + borrow graph
+  - Floating-point rounding modes
+  - Thread spawns + atomic operations
     ↓
-┌────────────────────────────────────────────────────────┐
-│ Generate Verification Conditions (VCGen)               │
-│ - Walk basic blocks (currently linear, upgrade to SSA) │
-│ - Encode assignments as SMT assertions                 │
-│ - Generate overflow/div-by-zero checks                 │
-│ - Generate contract verification queries               │
-└────────────────────────────────────┬───────────────────┘
+[analysis/] Feature-specific analysis:
+  - termination.rs: Check well-foundedness
+  - closure_conversion.rs: Defunctionalize
+  - vtable.rs: Build dispatch table
+  - unsafe_analysis.rs: Extract safety obligations
+  - lifetime_analysis.rs: Borrow graph + outlives
+  - (FP: direct encoding, no analysis)
+  - concurrency.rs: Happens-before graph
     ↓
-┌────────────────────────────────────────────────────────┐
-│ Encode to SMT-LIB (smtlib crate)                       │
-│ - Map types → sorts (Ty::Int(i32) → BitVec(32))        │
-│ - Map expressions → terms (Rvalue → Term)              │
-│ - Build Script (sequence of commands)                  │
-└────────────────────────────────────┬───────────────────┘
+[analysis/encode_*.rs] Feature-specific encodings:
+  - recursion_encoding.rs → uninterpreted functions
+  - encode_closure.rs → datatypes
+  - trait_encoding.rs → sum types
+  - memory_model.rs → heap arrays
+  - region_encoding.rs → outlives constraints
+  - encode_term.rs (FP) → FPA theory terms
+  - sync_encoding.rs → happens-before predicates
     ↓
-┌────────────────────────────────────────────────────────┐
-│ Format to SMT-LIB2 Text                                │
-│ (declare-const x (_ BitVec 32))                        │
-│ (assert (= x (bvadd y #x00000001)))                    │
-└────────────────────────────────────┬───────────────────┘
+[vcgen.rs] Generate VCs (extended VcKind):
+  - Termination VCs
+  - Closure well-formedness VCs
+  - Dynamic dispatch VCs
+  - Memory safety VCs
+  - Borrow validity VCs
+  - FP NaN/Inf VCs
+  - Data race VCs
     ↓
-┌────────────────────────────────────────────────────────┐
-│ Invoke Z3 Solver (subprocess)                          │
-│ - Spawn: z3 -in -t:5000                                │
-│ - Write SMT-LIB to stdin                               │
-│ - Read stdout: sat/unsat/timeout/unknown               │
-│ - Parse model if sat                                   │
-└────────────────────────────────────┬───────────────────┘
+[smtlib/] Extended theories:
+  - uninterpreted.rs (recursive)
+  - datatype.rs (closures, traits)
+  - memory.rs (heap)
+  - (lifetime ordering inline)
+  - fpa_theory.rs (floats)
+  - concurrency.rs (threads)
     ↓
-┌────────────────────────────────────────────────────────┐
-│ Report Results                                         │
-│ - UNSAT → Verified                                     │
-│ - SAT → Failed (extract counterexample from model)     │
-│ - Unknown → Timeout/solver limit                       │
-└────────────────────────────────────────────────────────┘
+[solver/] Z3 with theories: BV + Arrays + Datatypes + UF + FPA + (partial: Concurrency)
+    ↓
+[driver/] Extended diagnostics per VcKind
 ```
 
-### Key Data Transformations
+---
 
-1. **HIR Attributes → Contracts:** String matching on doc attributes to extract spec expressions.
-2. **Rustc MIR → IR:** Type-preserving structural translation (isolates rustc changes).
-3. **IR → VCs:** Symbolic execution or WP calculus to produce logical formulas.
-4. **VCs → SMT-LIB:** Syntax translation (IR types/exprs to SMT sorts/terms).
-5. **SMT-LIB → Z3 → Model:** Solver invocation and result parsing.
+## New Components Summary
 
-## Scaling Considerations
+| Crate | New Modules | Estimated LOC | Dependencies |
+|-------|-------------|---------------|--------------|
+| **analysis/** | `termination.rs`, `recursion_encoding.rs`, `closure_conversion.rs`, `higher_order.rs`, `vtable.rs`, `trait_encoding.rs`, `memory_model.rs`, `unsafe_analysis.rs`, `separation_logic.rs` (opt), `lifetime_analysis.rs`, `region_encoding.rs`, `concurrency.rs`, `sync_encoding.rs` | +8000 | `ir.rs`, `encode_*.rs` |
+| **smtlib/** | `uninterpreted.rs`, `datatype.rs` (extend), `memory.rs`, `fpa_theory.rs`, `concurrency.rs` | +2000 | `term.rs`, `command.rs` |
+| **driver/** | (Minimal) MIR extraction extensions in `mir_converter.rs` | +500 | `rustc` internals |
+| **macros/** | (Minimal) `#[decreases]`, `#[trusted]` macros | +200 | `syn`, `quote` |
+| **solver/** | (Minimal) Z3 FPA feature flags | +100 | `z3` crate |
+| **Total** | | **~10800 LOC** | |
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| **Single-function verification (current)** | Current architecture sufficient. Linear VCGen works for straight-line code. |
-| **Multi-function with contracts** | Add modular verification (Pattern 7). Verify functions independently using summaries. |
-| **Loops and recursion** | Require SSA (Pattern 6) + invariants (Pattern 8). User-supplied invariants initially. |
-| **Large codebase (1000+ functions)** | Add VC caching (reuse results for unchanged functions). Parallelize verification (independent VCs can run concurrently). Consider incremental verification. |
-| **Complex types (structs, enums, arrays)** | Add SMT datatype encoding (structs → SMT records/datatypes). Use array theory for slices/arrays. May require quantifiers. |
-| **Unsafe code / pointer reasoning** | Add separation logic encoding (Prusti/Creusot use Viper IDF logic). Model heap explicitly. Prophecy variables for mutable borrows (Pattern 9). |
+---
 
-### Scaling Priorities
+## Modified Components Summary
 
-1. **First bottleneck (current):** Lack of SSA encoding causes unsoundness for branches. **Fix:** Implement Pattern 6 (SSA VCGen) in Phase 2.
-2. **Second bottleneck:** Missing loop invariants prevents loop verification. **Fix:** Add invariant syntax + verification (Pattern 8) in Phase 3.
-3. **Third bottleneck:** Solver timeout on complex queries. **Fix:** Optimize VC generation (reduce assertions), add timeouts, use incremental solving (SMT push/pop).
+| File | Modifications | Estimated LOC | Reason |
+|------|---------------|---------------|--------|
+| `analysis/ir.rs` | Add `Ty::Closure`, `Ty::DynTrait`, `Lifetime`, `RecursiveInfo`, `is_unsafe`, `Terminator::Spawn`, `Rvalue::AtomicOp` | +500 | Support new constructs |
+| `analysis/vcgen.rs` | Add feature-specific VC generation hooks | +800 | VC generation entry points |
+| `analysis/contract_db.rs` | Extend `FunctionSummary` with feature metadata | +200 | Modular verification metadata |
+| `analysis/ownership.rs` | Add lifetime constraint generation | +300 | Lifetime reasoning |
+| `analysis/encode_term.rs` | Add FP encoding, closure encoding | +400 | SMT encoding |
+| `driver/mir_converter.rs` | Extract closure upvars, lifetimes, unsafe blocks | +600 | MIR extraction |
+| `smtlib/term.rs` | Add FPA terms, happens-before, outlives | +300 | SMT theory support |
+| `smtlib/command.rs` | Add `DeclareFun`, `DefineFunRec` | +100 | Recursive functions |
+| `driver/diagnostics.rs` | Add error messages for new VcKinds | +200 | User experience |
+| **Total** | | **~3400 LOC** | |
 
-## Anti-Patterns
+---
 
-### Anti-Pattern 1: Tight Coupling to Rustc Internals
+## Architectural Principles (From Existing Codebase)
 
-**What people do:** Write verification logic directly against rustc types (TyCtxt, mir::Body, etc.) throughout the codebase.
+The existing codebase demonstrates these principles, which guide integration:
 
-**Why it's wrong:** Rustc internals are unstable and change frequently. Every compiler update breaks the tool. Impossible to unit test without full compiler. Debugging requires nightly toolchain.
+1. **Separation of Concerns**: IR decoupled from rustc MIR (enables testability)
+   - **Apply to:** All features use internal IR, not rustc types
 
-**Do this instead:** Maintain a stable IR (Pattern 1). Isolate rustc coupling to a thin MIR converter layer. Write core verification logic (VCGen, encoding) against stable IR. This is how Prusti, Creusot, and Kani work.
+2. **Modular Encoding**: `encode_term.rs`, `encode_sort.rs`, `encode_quantifier.rs`
+   - **Apply to:** Each feature gets its own `encode_<feature>.rs`
 
-### Anti-Pattern 2: Inline-All Inter-Procedural Verification
+3. **Extensible Enums**: `Ty`, `Rvalue`, `Terminator` designed for extension
+   - **Apply to:** Add variants, not wrapper types
 
-**What people do:** Inline function bodies at every call site to verify the entire program as one monolithic query.
+4. **Testability**: Every encoding module has unit tests
+   - **Apply to:** Each new module includes:
+     - Unit tests (encoding correctness)
+     - Integration tests (VCGen end-to-end)
+     - SMT-level tests (solver behavior)
 
-**Why it's wrong:** Exponential blow-up in VC size. Even small programs become unsolvable. Doesn't scale past toy examples. Re-verifies library functions repeatedly.
+5. **Contract-Based Modularity**: `ContractDatabase` + `CallGraph` for interprocedural
+   - **Apply to:** Extend `FunctionSummary` for feature metadata
 
-**Do this instead:** Use modular verification (Pattern 7). Verify each function once against its contract. At call sites, assume callee postcondition. This is the standard approach in all production verifiers.
+6. **Path-Condition Encoding**: VCGen uses path conditions, not SSA phi-nodes
+   - **Apply to:** Closures, trait objects use path-based encoding
 
-### Anti-Pattern 3: Mathematical Integers for Rust Integer Types
+---
 
-**What people do:** Encode i32 as SMT Int (mathematical integers, unbounded).
+## Confidence Assessment
 
-**Why it's wrong:** Misses overflow bugs (primary source of Rust verification interest). Unsound: SMT says verified, but code panics in production. Rust semantics use wrapping/checked arithmetic, not mathematical integers.
+| Feature | Architecture Confidence | SMT Encoding Confidence | Integration Risk |
+|---------|------------------------|------------------------|------------------|
+| Recursive functions | HIGH (uninterpreted functions standard) | MEDIUM (termination proving hard) | LOW |
+| Closures | HIGH (defunctionalization well-known) | HIGH (datatype encoding proven) | MEDIUM |
+| Trait objects | MEDIUM (sum type scalability unclear) | MEDIUM (open-world assumption hard) | MEDIUM |
+| Unsafe code | MEDIUM (heap models researched) | LOW (separation logic complex) | HIGH |
+| Lifetimes | HIGH (extends existing prophecy) | MEDIUM (borrow graph extraction) | MEDIUM |
+| Floating-point | HIGH (SMT-LIB FPA standardized) | HIGH (Z3 support mature) | LOW |
+| Concurrency | LOW (thread interleaving explosion) | LOW (SMT scalability unclear) | HIGH |
 
-**Do this instead:** Use bitvector encoding (Pattern 4). i32 → BitVec(32). Generate overflow checks explicitly. Accept slightly larger SMT queries for correctness.
+---
 
-### Anti-Pattern 4: No Separation Between Encoding and Solving
+## Open Questions & Research Gaps
 
-**What people do:** Mix SMT encoding logic with Z3 API calls. Directly call solver.assert() during IR traversal.
+1. **Trait objects: Open-world assumption**
+   - How to soundly verify `dyn Trait` when new implementors may exist?
+   - Resolution: Require closed-world annotation or assume bounded implementors
 
-**Why it's wrong:** Tightly couples to one solver (can't swap Z3 for CVC5/Vampire). Impossible to inspect/debug generated queries. Can't reuse encoding for different purposes (e.g., test generation). Hard to unit test encoding separately from solving.
+2. **Unsafe code: Separation logic integration**
+   - Full separation logic (Prusti-style) vs. simpler heap model (Verus-style)?
+   - Resolution: Start with heap-as-array, defer separation logic to Phase 2
 
-**Do this instead:** Build SMT-LIB AST first (smtlib crate), then format and send to solver. Clear separation: IR → SMT-LIB AST → Text → Solver. Enables testing encoding logic without solver, supports multiple backends, allows query inspection/logging.
+3. **Concurrency: Thread interleaving bounds**
+   - How many interleavings to explore before giving up?
+   - Resolution: Bounded model checking with configurable bound
 
-### Anti-Pattern 5: Ignoring Control Flow in VCGen
+4. **Recursive functions: Fuel vs. uninterpreted functions**
+   - When to use bounded unrolling (fuel) vs. full axiomatization?
+   - Resolution: Uninterpreted by default, fuel as fallback for non-terminating
 
-**What people do:** Encode all basic blocks as a flat sequence of assertions, ignoring branches and merges.
+5. **Closures: Higher-order contracts**
+   - How to specify contracts on closure parameters?
+   - Resolution: Require explicit closure contracts at call sites
 
-**Why it's wrong:** Unsound. Assumes all paths execute, even mutually exclusive branches. Generates contradictory assertions. May report spurious failures or false verification.
-
-**Do this instead:** Use SSA with phi nodes (Pattern 6) or path-sensitive encoding. Track which path is taken. At merges, use ITE or phi nodes. Current rust-fv has this issue (linear walking) — must fix in Phase 2.
-
-## Extension Points for Advanced Features
-
-### 1. Loop Invariants (Phase 3)
-
-**Current limitation:** No loop support (VCGen doesn't handle back edges).
-
-**Extension architecture:**
-- Add `#[invariant("...")]` attribute to proc macros.
-- Parse invariants in contract extraction.
-- Detect loops in IR (basic block with back edge).
-- Generate three VCs per loop: base case, inductive case, exit case.
-- Optional: Add invariant inference plugin (LLM-based, à la BALI system).
-
-**Component changes:**
-- `macros/`: Add `invariant!()` macro.
-- `ir.rs`: Add `Loop { header, invariants, body }` node.
-- `vcgen.rs`: Add `generate_loop_vcs()` function.
-
-### 2. Mutable Borrow Reasoning with Prophecy Variables (Phase 4)
-
-**Current limitation:** Borrows are treated transparently (borrow = value). Doesn't model borrow lifetime or "final value after borrow expires."
-
-**Extension architecture (following Creusot pattern):**
-- Introduce prophecy variables to represent "final value" of borrowed location.
-- Current syntax: `*x` (current value). Final syntax: `^x` (final value after borrow).
-- Generate prophesy declarations at borrow points.
-- Connect prophecy to actual value when borrow expires.
-
-**Component changes:**
-- `ir.rs`: Add `Prophecy` operand variant.
-- `encode_term.rs`: Add prophecy encoding (fresh uninterpreted constant).
-- `vcgen.rs`: Add borrow/prophecy lifecycle tracking.
-
-### 3. Aggregate Type Support (Phase 2-3)
-
-**Current limitation:** Structs/tuples are uninterpreted. Cannot access fields in verification.
-
-**Extension architecture:**
-- Encode structs as SMT datatypes or records.
-- Encode field access as SMT selector function.
-- Encode struct construction as SMT constructor.
-
-**Example:**
-```rust
-// Rust: struct Point { x: i32, y: i32 }
-// SMT: (declare-datatype Point ((mk-Point (x (_ BitVec 32)) (y (_ BitVec 32)))))
-// Rust: p.x
-// SMT: (x p)
-```
-
-**Component changes:**
-- `encode_sort.rs`: Add datatype generation for Ty::Struct.
-- `encode_term.rs`: Add selector/constructor encoding for field access/construction.
-- `ir.rs`: Preserve field metadata in Place projections.
-
-### 4. Inter-Procedural Verification (Phase 4)
-
-**Current limitation:** Only single-function verification. Calls are uninterpreted.
-
-**Extension architecture:**
-- Implement modular verification (Pattern 7).
-- At call sites, encode as: assert precondition, havoc return, assume postcondition.
-- Require contracts on all verified callees.
-
-**Component changes:**
-- `vcgen.rs`: Add `encode_call()` function implementing modular encoding.
-- `callbacks.rs`: Build function signature → contract map.
-- `ir.rs`: Include callee contract in Call terminator.
-
-### 5. Enhanced Spec Parsing (Phase 2)
-
-**Current limitation:** Simple hand-rolled parser (split on operators). No quantifiers, no complex expressions.
-
-**Extension architecture:**
-- Embed Rust expression parser (use syn crate).
-- Extend with logical operators (forall, exists, ==>, old()).
-- Type-check specs against function signature.
-
-**Component changes:**
-- `macros/`: Parse proc macro input as syn::Expr.
-- `vcgen.rs`: Replace `parse_simple_spec()` with full expression evaluator.
-- Add `spec_typeck.rs`: Type-check specs using Rust type rules.
-
-## Integration Points
-
-### External Dependencies
-
-| Dependency | Integration Pattern | Notes |
-|------------|---------------------|-------|
-| **rustc_driver** | Callbacks::after_analysis hook | Nightly-only. Provides TyCtxt, HIR, MIR access. Update driver crate when rustc internals change. |
-| **Z3 Solver** | Subprocess via stdin/stdout SMT-LIB protocol | Auto-detect z3 binary in PATH. Fallback to manual configuration. Timeout via `-t:N` flag. |
-| **Proc Macros** | Attribute macros stored in doc attributes | Workaround: macros can't pass data to driver directly. Encode specs in `#[doc = "rust_fv::..."]`. |
-| **Cargo** | Custom cargo command or RUSTC_WRAPPER | Invoke as `cargo rust-fv` (requires cargo plugin) or `RUSTC_WRAPPER=rust-fv-driver cargo check`. |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| **driver ↔ analysis** | Stable IR types (ir::Function) | One-way: driver converts MIR → IR, passes to analysis. Analysis never touches rustc types. |
-| **analysis ↔ smtlib** | SMT-LIB AST (Command, Term, Sort) | VCGen builds Scripts, solver formats to text. No reverse dependency. |
-| **smtlib ↔ solver** | Text (SMT-LIB2 standard) | Process boundary. Solver is external binary. Parser handles responses. |
-| **macros ↔ driver** | Hidden doc attributes | Macros write specs to HIR attributes. Driver scans attributes at analysis time. |
-
-## Proven Patterns from Existing Tools
-
-### Prusti Architecture (ETH Zurich)
-
-- **Compiler integration:** rustc_driver callbacks, uses unoptimized MIR (borrow checker runs on it).
-- **Backend:** Translates to Viper intermediate verification language (Implicit Dynamic Frames separation logic).
-- **Modularity:** Encodes Rust's ownership as separation logic predicates.
-- **Specification:** Procedural macros for contracts, reuses Rust syntax for specs.
-- **Key insight:** Leverage Rust's type system for modular verification. Ownership = separation logic permissions.
-
-**Lessons for rust-fv:**
-- SSA encoding is critical (Prusti generates SSA from MIR).
-- Modular verification scales (Prusti verifies functions independently).
-- Separation logic needed for heap reasoning (consider Viper-like encoding for unsafe code).
-
-### Creusot Architecture (Inria)
-
-- **Compiler integration:** rustc_driver, MIR → Coma (Why3 IR).
-- **Specification language:** Pearlite (embedded pure functional DSL, Rust-like syntax).
-- **Prophecy variables:** Used for mutable borrows (^x = final value syntax).
-- **Backend:** Why3 platform (supports multiple provers: Z3, CVC5, Alt-Ergo).
-- **Key insight:** Functional translation (Rust → pure functions) simplifies reasoning. Prophecies handle mutable borrows compositionally.
-
-**Lessons for rust-fv:**
-- Prophecy variables essential for sound borrow reasoning (add in Phase 4).
-- Pearlite's Rust-like spec syntax is ergonomic (consider for enhanced parser).
-- Why3 backend enables prover diversity (smtlib abstraction supports this).
-
-### Kani Architecture (AWS)
-
-- **Compiler integration:** rustc_driver, MIR → CBMC IR.
-- **Approach:** Bounded model checking (unroll loops N times, bit-precise).
-- **Backend:** CBMC (C Bounded Model Checker), SAT solver.
-- **Key insight:** Bounded verification is complementary to deductive (finds bugs fast, doesn't prove correctness).
-
-**Lessons for rust-fv:**
-- Bitvector encoding is standard (Kani uses bit-precise CBMC).
-- Bounded model checking useful for bug-finding mode (consider adding BMC backend option).
-
-## Build Order for Extensions
-
-**Phase 2: Core Soundness**
-1. Implement SSA conversion (Pattern 6) — foundational for all control flow.
-2. Add aggregate type encoding (structs/tuples via SMT datatypes).
-3. Enhance spec parser (support quantifiers, implications).
-
-**Phase 3: Loop Support**
-1. Add loop invariant syntax to macros.
-2. Implement loop VC generation (base, inductive, exit).
-3. (Optional) Add basic invariant inference (e.g., LLM-based suggestion).
-
-**Phase 4: Inter-Procedural Verification**
-1. Implement modular call encoding (assume/assert contracts).
-2. Build function contract database.
-3. Add call graph analysis (detect cycles, require termination measures).
-
-**Phase 5: Advanced Borrow Reasoning**
-1. Add prophecy variables to IR.
-2. Implement prophecy lifecycle tracking in VCGen.
-3. Extend spec language with Current/Final operators (*x, ^x).
-
-**Phase 6: Optimizations**
-1. Add VC caching (skip unchanged functions).
-2. Implement incremental solving (SMT push/pop for related queries).
-3. Parallelize verification (independent VCs in separate solver instances).
+---
 
 ## Sources
 
-### Academic Publications
-- [The Prusti Project: Formal Verification for Rust](https://pm.inf.ethz.ch/publications/AstrauskasBilyFialaGrannanMathejaMuellerPoliSummers22.pdf) (NFM 2022) — Architecture of Prusti verifier
-- [Leveraging Rust Types for Modular Specification and Verification](https://www.cs.ubc.ca/~alexsumm/papers/AstrauskasMuellerPoliSummers19.pdf) (OOPSLA 2019) — Modular verification approach
-- [Creusot: A Foundry for Deductive Verification of Rust Programs](https://inria.hal.science/hal-03737878/document) (ICFEM 2022) — Creusot architecture and Why3 translation
-- [The Future is Ours: Prophecy Variables in Separation Logic](https://dl.acm.org/doi/10.1145/3371113) (POPL 2020) — Prophecy variables for mutable borrows
-- [BALI: Branch-Aware Loop Invariant Inference with LLMs](https://arxiv.org/pdf/2601.00882) (2026) — LLM-based loop invariant inference
+### High Confidence (Official Documentation + Tools)
+- [SMT-LIB FPA Theory](https://smt-lib.org/theories-FloatingPoint.shtml) — Floating-point standard
+- [Programming Z3](https://theory.stanford.edu/~nikolaj/programmingz3.html) — Uninterpreted functions, datatypes
+- [Understanding how F* uses Z3](https://fstar-lang.org/tutorial/book/under_the_hood/uth_smt.html) — Recursive function encoding
+- [Z3 Online Guide - Uninterpreted Functions](https://microsoft.github.io/z3guide/docs/logic/Uninterpreted-functions-and-constants/) — Z3 UF support
+- [Z3 Online Guide - Datatypes](https://microsoft.github.io/z3guide/docs/theories/Datatypes/) — Datatype encoding
 
-### Tools and Documentation
-- [Rust Formal Methods Interest Group](https://rust-formal-methods.github.io/) — Overview of Rust verification ecosystem
-- [KMIR: Formal Semantics of Rust MIR](https://runtimeverification.com/blog/introducing-kmir) — K Framework semantics for MIR
-- [Kani Rust Verifier](https://github.com/model-checking/kani) — AWS's bounded model checker for Rust
-- [Creusot Architecture Documentation](https://github.com/creusot-rs/creusot) — Creusot component structure
-- [Why3 Platform](https://why3.lri.fr/) — Multi-prover verification platform
-- [SMT-LIB Standard](https://smt-lib.org/) — SMT-LIB language specification
-- [Z3 Theorem Prover](https://github.com/Z3Prover/z3) — Microsoft Research SMT solver
+### Medium Confidence (Academic Research)
+- [Creusot: A Foundry for the Deductive Verification of Rust Programs](https://www.researchgate.net/publication/364287862_Creusot_A_Foundry_for_the_Deductive_Verification_of_Rust_Programs) — Prophecy encoding
+- [Using a Prophecy-Based Encoding of Rust Borrows](https://inria.hal.science/hal-05244847v1/document) — Mutable borrow encoding in Creusot
+- [RustHornBelt: A Semantic Foundation for Functional Verification](https://people.mpi-sws.org/~dreyer/papers/rusthornbelt/paper.pdf) — Prophecy + lifetimes
+- [Verus: Verifying Rust Programs using Linear Ghost Types](https://users.ece.cmu.edu/~chanheec/verus-ghost.pdf) — SMT-based Rust verification
+- [The Prusti Project: Formal Verification for Rust](https://www.researchgate.net/publication/360716882_The_Prusti_Project_Formal_Verification_for_Rust) — Separation logic approach
+- [Verifying Dynamic Trait Objects in Rust](https://cs.wellesley.edu/~avh/dyn-trait-icse-seip-2022-preprint.pdf) — Trait object verification
+- [Model Finding for Recursive Functions in SMT](https://www.cs.vu.nl/~jbe248/frf_conf.pdf) — Recursive function encoding
+- [Modular Specification and Verification of Closures in Rust](https://pm.inf.ethz.ch/publications/WolffBilyMathejaMuellerSummers21.pdf) — Closure encoding
+- [A Lightweight Formalism for Reference Lifetimes and Borrowing in Rust](https://dl.acm.org/doi/fullHtml/10.1145/3443420) — Lifetime formalization
 
-### Verification Theory
-- [Weakest Precondition Semantics](https://softwarefoundations.cis.upenn.edu/slf-current/WPsem.html) (Software Foundations) — WP calculus theory
-- [Static Single Assignment Form](https://www.cs.cornell.edu/courses/cs6120/2022sp/lesson/6/) (Cornell CS 6120) — SSA principles
-- [Boogie: An Intermediate Verification Language](https://www.microsoft.com/en-us/research/publication/boogie-an-intermediate-verification-language/) — IVL design patterns
-- [SMT Solving for Program Verification](https://ocamlpro.github.io/verification_for_dummies/smt/) (OCamlPro) — SMT solver usage patterns
+### Low Confidence (Emerging Research)
+- [A hybrid approach to semi-automated Rust verification](https://arxiv.org/html/2403.15122v1) — Gillian-Rust separation logic
+- [Defunctionalization](https://en.wikipedia.org/wiki/Defunctionalization) — Closure conversion background
+- [Interprocedural Analysis](https://www.cs.cmu.edu/~aldrich/courses/15-819O-13sp/resources/interprocedural.pdf) — Call graph analysis
+- [Towards Practical Formal Verification for a General-Purpose OS in Rust](https://asterinas.github.io/2025/02/13/towards-practical-formal-verification-for-a-general-purpose-os-in-rust.html) — Concurrency verification challenges
 
 ---
-*Architecture research for: Rust formal verification tools*
-*Researched: 2026-02-10*
-*Confidence: HIGH (based on production tools Prusti/Creusot/Kani + SMT verification literature)*
+
+## Conclusion
+
+The existing 5-crate architecture provides strong foundations for advanced feature integration. Key recommendations:
+
+1. **Leverage existing patterns**: Prophecy encoding (lifetimes), modular encoding (all features), contract database (interprocedural)
+2. **Incremental integration**: Each feature adds IR variants + encoding modules + VC kinds
+3. **Build order**: Start with floating-point and recursion (low risk), defer concurrency (high risk)
+4. **SMT theories**: Prioritize standardized theories (FPA, datatypes, UF) over custom encodings
+5. **Testing**: Maintain existing test discipline (unit + integration + SMT-level tests per feature)
+
+**Total estimated effort:** ~14,200 LOC across all features (10,800 new + 3,400 modified)
+
+**Risk mitigation:** Phased approach (7 milestones) allows early validation of architectural patterns before tackling high-risk features (unsafe, concurrency).
