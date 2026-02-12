@@ -64,6 +64,50 @@ pub struct VcLocation {
     pub function: String,
     pub block: usize,
     pub statement: usize,
+    /// Source file path (when available)
+    pub source_file: Option<String>,
+    /// Source line number (1-based, when available)
+    pub source_line: Option<usize>,
+    /// The specific contract text that failed (e.g., "result > 0")
+    pub contract_text: Option<String>,
+    /// What kind of verification condition this is
+    pub vc_kind: VcKind,
+}
+
+/// Classification of verification conditions for diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VcKind {
+    /// Precondition check (requires clause)
+    Precondition,
+    /// Postcondition check (ensures clause)
+    Postcondition,
+    /// Loop invariant holds before loop
+    LoopInvariantInit,
+    /// Loop invariant preserved by loop body
+    LoopInvariantPreserve,
+    /// Loop invariant holds after loop
+    LoopInvariantExit,
+    /// Arithmetic overflow check
+    Overflow,
+    /// Division by zero check
+    DivisionByZero,
+    /// Shift amount bounds check
+    ShiftBounds,
+    /// Assert statement check
+    Assertion,
+    /// Panic-freedom check (unwrap, index, etc.)
+    PanicFreedom,
+}
+
+impl VcKind {
+    /// Classify overflow check kind from binary operation.
+    fn from_overflow_op(op: BinOp) -> Self {
+        match op {
+            BinOp::Div | BinOp::Rem => Self::DivisionByZero,
+            BinOp::Shl | BinOp::Shr => Self::ShiftBounds,
+            _ => Self::Overflow,
+        }
+    }
 }
 
 /// Result of generating VCs for a function.
@@ -832,6 +876,10 @@ fn generate_overflow_vc(
                 function: func.name.clone(),
                 block: ov.block_idx,
                 statement: ov.stmt_idx,
+                source_file: None,
+                source_line: None,
+                contract_text: None,
+                vc_kind: VcKind::from_overflow_op(ov.op),
             },
         });
     }
@@ -921,6 +969,10 @@ fn generate_assert_terminator_vcs(
                     function: func.name.clone(),
                     block: block_idx,
                     statement: usize::MAX,
+                    source_file: None,
+                    source_line: None,
+                    contract_text: None,
+                    vc_kind: VcKind::Assertion,
                 },
             });
         }
@@ -1065,6 +1117,10 @@ fn generate_contract_vcs(
                     function: func.name.clone(),
                     block: 0,
                     statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    contract_text: Some(post.raw.clone()),
+                    vc_kind: VcKind::Postcondition,
                 },
             });
         }
@@ -1357,6 +1413,10 @@ fn generate_call_site_vcs(
                         function: func.name.clone(),
                         block: call_site.block_idx,
                         statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        contract_text: Some(pre.raw.clone()),
+                        vc_kind: VcKind::Precondition,
                     },
                 });
             }
@@ -1724,6 +1784,10 @@ fn generate_loop_invariant_vcs(
                 function: func.name.clone(),
                 block: header,
                 statement: 0,
+                source_file: None,
+                source_line: None,
+                contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
+                vc_kind: VcKind::LoopInvariantInit,
             },
         });
     }
@@ -1837,6 +1901,10 @@ fn generate_loop_invariant_vcs(
                 function: func.name.clone(),
                 block: header,
                 statement: 0,
+                source_file: None,
+                source_line: None,
+                contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
+                vc_kind: VcKind::LoopInvariantPreserve,
             },
         });
     }
@@ -1912,6 +1980,10 @@ fn generate_loop_invariant_vcs(
                         function: func.name.clone(),
                         block: header,
                         statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
+                        vc_kind: VcKind::LoopInvariantExit,
                     },
                 });
             }
