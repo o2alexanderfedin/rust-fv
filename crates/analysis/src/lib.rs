@@ -12,4 +12,5 @@ pub mod ownership;
 pub mod recursion;
 pub mod simplify;
 pub mod spec_parser;
+pub mod trait_analysis;
 pub mod vcgen;
