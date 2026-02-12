@@ -1,3 +1,4 @@
+pub mod behavioral_subtyping;
 pub mod call_graph;
 pub mod closure_analysis;
 pub mod contract_db;
