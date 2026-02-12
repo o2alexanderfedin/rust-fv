@@ -134,10 +134,34 @@ fn report_text_only(failure: &VerificationFailure) {
 
     if failure.vc_kind == VcKind::BehavioralSubtyping {
         eprintln!();
+        // Parse failure message to extract impl_type, trait_name, method_name
+        // Expected format: "impl {impl_type} does not satisfy trait {trait_name} contract for method '{method_name}'"
+        // For now, use function_name as fallback for all three
+        let (impl_type, trait_name, method_name) = parse_behavioral_subtyping_message(
+            &failure.message,
+        )
+        .unwrap_or((&failure.function_name, "Trait", "method"));
+
         eprintln!(
             "{}",
-            format_behavioral_subtyping_help(&failure.function_name)
+            format_behavioral_subtyping_help(impl_type, trait_name, method_name)
         );
+
+        // Provide specific guidance based on message content
+        if failure.message.contains("precondition") {
+            eprintln!();
+            eprintln!(
+                "{}",
+                format_precondition_weakening_help(impl_type, trait_name)
+            );
+        }
+        if failure.message.contains("postcondition") {
+            eprintln!();
+            eprintln!(
+                "{}",
+                format_postcondition_strengthening_help(impl_type, trait_name)
+            );
+        }
     }
 
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
@@ -237,17 +261,70 @@ pub fn format_fnonce_double_call_help(closure_name: &str) -> String {
     )
 }
 
+/// Parse behavioral subtyping failure message to extract impl type, trait name, and method name.
+///
+/// Expected format: "impl {impl_type} does not satisfy trait {trait_name} contract for method '{method_name}'"
+/// Returns None if the message doesn't match the expected format.
+fn parse_behavioral_subtyping_message(message: &str) -> Option<(&str, &str, &str)> {
+    // Try to extract impl_type, trait_name, method_name from message
+    // Pattern: "impl X does not satisfy trait Y contract for method 'Z'"
+    let impl_start = message.find("impl ")?;
+    let impl_end = message[impl_start + 5..].find(" does not satisfy")?;
+    let impl_type = &message[impl_start + 5..impl_start + 5 + impl_end];
+
+    let trait_start = message.find("trait ")?;
+    let trait_end = message[trait_start + 6..].find(" contract")?;
+    let trait_name = &message[trait_start + 6..trait_start + 6 + trait_end];
+
+    let method_start = message.find("method '")?;
+    let method_end = message[method_start + 8..].find('\'')?;
+    let method_name = &message[method_start + 8..method_start + 8 + method_end];
+
+    Some((impl_type, trait_name, method_name))
+}
+
 /// Format a help message for a behavioral subtyping violation.
 ///
-/// Provides guidance on what a trait impl contract failure means.
-pub fn format_behavioral_subtyping_help(impl_name: &str) -> String {
+/// Provides guidance on Liskov Substitution Principle for trait impl contracts.
+pub fn format_behavioral_subtyping_help(
+    impl_type: &str,
+    trait_name: &str,
+    method_name: &str,
+) -> String {
     format!(
-        "Behavioral subtyping violation in impl `{}`: The implementation does not satisfy \
-         the trait's contract. For each method:\n\
-         - The impl precondition must be WEAKER (allow more inputs) than the trait precondition\n\
-         - The impl postcondition must be STRONGER (guarantee more) than the trait postcondition\n\
-         This ensures substitutability: any code using the trait can safely use this impl.",
-        impl_name
+        "impl {} does not satisfy trait {} contract for method '{}'.\n\
+         \n\
+         Behavioral subtyping (Liskov Substitution Principle) requires:\n\
+         - Precondition weakening: impl must accept ALL inputs the trait accepts\n\
+         - Postcondition strengthening: impl must guarantee AT LEAST what the trait promises\n\
+         \n\
+         To fix: weaken the impl's precondition or strengthen its postcondition\n\
+         to match the trait-level contract.",
+        impl_type, trait_name, method_name
+    )
+}
+
+/// Format a help message for precondition weakening violations.
+///
+/// Explains that the impl precondition is stricter than the trait precondition.
+pub fn format_precondition_weakening_help(impl_type: &str, trait_name: &str) -> String {
+    format!(
+        "impl {}'s precondition is STRICTER than {}'s.\n\
+         Impl must accept all inputs the trait contract allows.\n\
+         Consider removing or relaxing the impl's additional precondition.",
+        impl_type, trait_name
+    )
+}
+
+/// Format a help message for postcondition strengthening violations.
+///
+/// Explains that the impl postcondition does not imply the trait postcondition.
+pub fn format_postcondition_strengthening_help(impl_type: &str, trait_name: &str) -> String {
+    format!(
+        "impl {}'s postcondition does not IMPLY {}'s.\n\
+         Impl must guarantee at least what the trait contract promises.\n\
+         Verify that the impl's behavior satisfies the trait postcondition.",
+        impl_type, trait_name
     )
 }
 
@@ -1153,7 +1230,7 @@ mod tests {
 
     #[test]
     fn test_format_behavioral_subtyping_help_contains_impl_name() {
-        let help = format_behavioral_subtyping_help("VecStack");
+        let help = format_behavioral_subtyping_help("VecStack", "Stack", "push");
         assert!(
             help.contains("VecStack"),
             "Help text should contain impl name"
@@ -1162,23 +1239,79 @@ mod tests {
 
     #[test]
     fn test_format_behavioral_subtyping_help_contains_explanation() {
-        let help = format_behavioral_subtyping_help("MyImpl");
+        let help = format_behavioral_subtyping_help("MyImpl", "MyTrait", "my_method");
         assert!(
             help.contains("Behavioral subtyping"),
             "Help text should mention behavioral subtyping"
         );
         assert!(
-            help.contains("WEAKER"),
+            help.contains("ALL inputs"),
             "Help text should explain precondition weakening"
         );
         assert!(
-            help.contains("STRONGER"),
+            help.contains("AT LEAST"),
             "Help text should explain postcondition strengthening"
         );
         assert!(
-            help.contains("substitutability"),
+            help.contains("Liskov Substitution"),
             "Help text should explain Liskov substitution principle"
         );
+    }
+
+    #[test]
+    fn test_format_precondition_weakening_help() {
+        let help = format_precondition_weakening_help("VecStack", "Stack");
+        assert!(
+            help.contains("STRICTER"),
+            "Help text should mention STRICTER precondition"
+        );
+        assert!(
+            help.contains("VecStack"),
+            "Help text should contain impl type"
+        );
+        assert!(
+            help.contains("Stack"),
+            "Help text should contain trait name"
+        );
+    }
+
+    #[test]
+    fn test_format_postcondition_strengthening_help() {
+        let help = format_postcondition_strengthening_help("VecStack", "Stack");
+        assert!(
+            help.contains("IMPLY"),
+            "Help text should mention IMPLY for postcondition"
+        );
+        assert!(
+            help.contains("VecStack"),
+            "Help text should contain impl type"
+        );
+        assert!(
+            help.contains("Stack"),
+            "Help text should contain trait name"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_behavioral_subtyping() {
+        let suggestion = suggest_fix(&VcKind::BehavioralSubtyping);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("precondition"));
+        assert!(text.contains("postcondition"));
+    }
+
+    #[test]
+    fn test_report_text_only_behavioral_subtyping() {
+        let failure = make_failure(
+            VcKind::BehavioralSubtyping,
+            Some("impl VecStack does not satisfy trait Stack contract for method 'push'"),
+            None,
+            None,
+            None,
+        );
+        report_text_only(&failure);
+        // Should not panic and should handle behavioral subtyping
     }
 
     // --- format_closure_contract_help tests ---
@@ -1230,18 +1363,7 @@ mod tests {
     }
 
     // --- report_text_only trait tests ---
-
-    #[test]
-    fn test_report_text_only_behavioral_subtyping() {
-        let failure = make_failure(
-            VcKind::BehavioralSubtyping,
-            Some("impl precondition weaker than trait"),
-            None,
-            None,
-            None,
-        );
-        report_text_only(&failure);
-    }
+    // (test_report_text_only_behavioral_subtyping moved to format_behavioral_subtyping_help tests section)
 
     // --- report_text_only closure contract tests ---
 
