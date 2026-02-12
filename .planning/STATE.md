@@ -13,18 +13,18 @@
 ## Current Position
 
 **Phase:** 7 - Closures
-**Plan:** 1 of 3 complete
+**Plan:** 2 of 3 complete
 **Status:** In Progress
-**Progress:** `[##        ] 2/7 phases` (v0.2 milestone)
+**Progress:** [██████████] 96%
 
 ### Active Work
 - Completed Plan 07-01: Closure IR and analysis infrastructure (ClosureTrait, ClosureInfo, closure_analysis module, SMT encoding)
-- Plan 07-02: Defunctionalization (closure to first-order transformation)
+- Completed Plan 07-02: Defunctionalization and VCGen integration (defunctionalize module, closure spec references, FnOnce validation)
 - Plan 07-03: Closure verification integration
 
 ### Next Steps
-1. Continue Phase 7: Execute Plan 07-02 (Defunctionalization)
-2. Execute Plan 07-03 (Closure verification and contract checking)
+1. Continue Phase 7: Execute Plan 07-03 (Closure verification and contract checking)
+2. Begin Phase 8: Traits and trait objects
 
 ## Performance Metrics
 
@@ -66,6 +66,13 @@
 - Files modified: 9 (1 created, 8 modified)
 - New LOC: ~488 (closure_analysis.rs new + IR extensions + encode_sort extensions)
 
+**Phase 7-02 (2026-02-12):**
+- Duration: 87 min
+- Tasks: 2 (TDD)
+- New tests: 11 (7 defunctionalize + 2 spec_parser + 4 vcgen) (total: 765 analysis crate)
+- Files modified: 4 (1 created, 3 modified)
+- New LOC: ~659 (defunctionalize.rs 398 + spec_parser.rs 60 + vcgen.rs 261 - 60 minor refactors)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -93,6 +100,11 @@
 | Closure environments as SMT datatypes | Follows struct encoding pattern (mk-{name} constructor, field selectors); environment is state, signature is metadata | Phase 7 |
 | ClosureInfo boxed in Ty::Closure | Prevents recursive type size explosion (ClosureInfo contains Vec<Ty>) | Phase 7 |
 | Closure classification via callee name parsing | Matches Rust's Fn/FnMut/FnOnce trait hierarchy; FnOnce most specific, Fn most general | Phase 7 |
+| Defunctionalization for closure calls | Reynolds (1972) pattern: higher-order → first-order with explicit environment parameter | Phase 7 |
+| Closure parameters as uninterpreted functions | Encoded as declare-fun in VCGen; enables modular verification | Phase 7 |
+| FnOnce validation as diagnostic VCs | Always-SAT VCs for double-call violations; same pattern as missing-decreases | Phase 7 |
+| Closure spec references via is_closure_param | Transforms predicate(x) → predicate_impl(env, x) in spec parser | Phase 7 |
+| Phase 07 P02 | 87 | 2 tasks | 4 files |
 
 ### In-Progress Todos
 
@@ -168,17 +180,16 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - Phase 7-01 (Closure IR and analysis)
-- Completed: ClosureTrait enum, ClosureInfo struct, Ty::Closure variant
-- Completed: closure_analysis module (extract, detect, classify, validate)
-- Completed: SMT datatype encoding for closure environments
-- Status: 19 new tests, 752 total analysis crate tests passing, 0 warnings
+**Last session:** 2026-02-12 - Phase 7-02 (Defunctionalization and VCGen integration)
+- Completed: defunctionalize module (ClosureEncoding, defunctionalize_closure_call, encode_closure_call_term, encode_closure_as_uninterpreted)
+- Completed: spec_parser closure reference handling (is_closure_param, convert_call extension)
+- Completed: VCGen closure integration (closure analysis section, FnOnce validation, closure declarations)
+- Status: 11 new tests (7 defunctionalize + 2 spec_parser + 4 vcgen), 765 total analysis crate tests passing, 0 warnings
 
-**Stopped at:** Phase 7 Plan 01 COMPLETE (1 of 3)
+**Stopped at:** Phase 7 Plan 02 COMPLETE (2 of 3)
 
 **Next session expectations:**
-- Execute Plan 07-02: Defunctionalization (closure to first-order transformation)
-- Execute Plan 07-03: Closure verification integration
+- Execute Plan 07-03: Closure verification integration (FnMut prophecies, closure contract checking, environment construction encoding)
 - Or check pending todos
 
 ---
