@@ -217,6 +217,14 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         declarations.append(&mut prophecy_decls);
     }
 
+    // Add closure function declarations for closure parameters
+    let closure_infos = crate::closure_analysis::extract_closure_info(func);
+    for closure_info in &closure_infos {
+        let mut closure_decls =
+            crate::defunctionalize::encode_closure_as_uninterpreted(closure_info);
+        declarations.append(&mut closure_decls);
+    }
+
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
     tracing::debug!(function = %func.name, path_count = paths.len(), "Enumerated CFG paths");
@@ -319,6 +327,57 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
 
         // Clean up: func_list is no longer needed
         drop(func_list);
+    }
+
+    // Closure analysis: detect closure parameters and generate closure-related VCs
+    {
+        let closure_infos = crate::closure_analysis::extract_closure_info(func);
+        let closure_calls = crate::closure_analysis::detect_closure_calls(func);
+
+        tracing::debug!(
+            function = %func.name,
+            closure_count = closure_infos.len(),
+            call_count = closure_calls.len(),
+            "Closure analysis"
+        );
+
+        // FnOnce validation: check for double calls
+        let fnonce_errors = crate::closure_analysis::validate_fnonce_single_call(func);
+        for err_msg in &fnonce_errors {
+            tracing::warn!(
+                function = %func.name,
+                error = %err_msg,
+                "FnOnce closure called multiple times"
+            );
+
+            // Generate diagnostic VC (always-SAT = failure)
+            let mut script = rust_fv_smtlib::script::Script::new();
+            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                "QF_BV".to_string(),
+            ));
+            script.push(rust_fv_smtlib::command::Command::Assert(
+                rust_fv_smtlib::term::Term::BoolLit(true),
+            ));
+            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+            conditions.push(VerificationCondition {
+                description: err_msg.clone(),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    contract_text: Some("FnOnce closures can only be called once".to_string()),
+                    vc_kind: VcKind::ClosureContract,
+                },
+            });
+        }
+
+        // For each closure parameter, add uninterpreted function declaration to datatype declarations
+        // This will be used when generating VCs
+        // (The actual usage will be in encode_operand/encode_place when encoding closure calls)
     }
 
     // Generate loop invariant VCs for loops with user-supplied invariants
@@ -5488,5 +5547,207 @@ mod tests {
         assert_eq!(kind1, kind2);
         assert_ne!(kind1, VcKind::Precondition);
         assert_ne!(kind1, VcKind::Termination);
+    }
+
+    // ====== Closure integration tests (Phase 7-02) ======
+
+    #[test]
+    fn test_vcgen_fn_closure_basic() {
+        // Function with Fn closure parameter and simple postcondition
+        let func = Function {
+            name: "apply_fn".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "predicate".to_string(),
+                    env_fields: vec![],
+                    params: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+                    return_ty: Ty::Bool,
+                    trait_kind: crate::ir::ClosureTrait::Fn,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Bool),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![SpecExpr {
+                    raw: "result == true".to_string(),
+                }],
+                is_pure: false,
+                decreases: None,
+                invariants: vec![],
+            },
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        let result = generate_vcs(&func, None);
+
+        // Should generate postcondition VC
+        assert!(
+            !result.conditions.is_empty(),
+            "Should generate at least postcondition VC"
+        );
+
+        // Check that the VC script contains a declare-fun for the closure
+        let has_closure_decl = result.conditions.iter().any(|vc| {
+            vc.script
+                .commands()
+                .iter()
+                .any(|cmd| matches!(cmd, rust_fv_smtlib::command::Command::DeclareFun(name, _, _) if name == "predicate_impl"))
+        });
+        assert!(
+            has_closure_decl,
+            "VC should contain declare-fun for closure implementation"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_fnmut_closure_prophecy() {
+        // Function with FnMut closure parameter
+        let func = Function {
+            name: "apply_fnmut".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "mutator".to_string(),
+                    env_fields: vec![("count".to_string(), Ty::Int(IntTy::I32))],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: crate::ir::ClosureTrait::FnMut,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        let result = generate_vcs(&func, None);
+
+        // For FnMut closures with mutable captures, should eventually generate prophecy variable declarations
+        // For now, just verify VCs are generated without errors
+        // Just check that the function completed without panicking
+        let _ = result.conditions.len();
+    }
+
+    #[test]
+    fn test_vcgen_fnonce_double_call_diagnostic() {
+        use crate::closure_analysis;
+
+        // Function that calls FnOnce closure twice
+        let func = Function {
+            name: "call_twice".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![Local::new(
+                "_1",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "consumer".to_string(),
+                    env_fields: vec![],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: crate::ir::ClosureTrait::FnOnce,
+                })),
+            )],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "FnOnce::call_once".to_string(),
+                        args: vec![Operand::Copy(Place::local("_1"))],
+                        destination: Place::local("_temp1"),
+                        target: 1,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "FnOnce::call_once".to_string(),
+                        args: vec![Operand::Copy(Place::local("_1"))],
+                        destination: Place::local("_temp2"),
+                        target: 2,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        // Validate FnOnce single-call property
+        let errors = closure_analysis::validate_fnonce_single_call(&func);
+        assert!(
+            !errors.is_empty(),
+            "Should detect FnOnce called multiple times"
+        );
+
+        let result = generate_vcs(&func, None);
+
+        // Should generate diagnostic VC for FnOnce violation
+        let has_diagnostic = result.conditions.iter().any(|vc| {
+            vc.location.vc_kind == VcKind::ClosureContract && vc.description.contains("FnOnce")
+        });
+        assert!(
+            has_diagnostic,
+            "Should generate diagnostic VC for FnOnce double-call"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_closure_env_construction() {
+        // Function that constructs a closure environment
+        let func = Function {
+            name: "make_closure".to_string(),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![Local::new(
+                "_2",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "add_x".to_string(),
+                    env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+                    params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
+                    return_ty: Ty::Int(IntTy::I32),
+                    trait_kind: crate::ir::ClosureTrait::Fn,
+                })),
+            )],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_2"),
+                    Rvalue::Aggregate(
+                        AggregateKind::Closure("add_x".to_string()),
+                        vec![Operand::Copy(Place::local("_1"))],
+                    ),
+                )],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+        };
+
+        let result = generate_vcs(&func, None);
+
+        // Should generate VCs without errors
+        // The closure env construction should be encoded as datatype constructor
+        // Just check that the function completed without panicking
+        let _ = result.conditions.len();
     }
 }
