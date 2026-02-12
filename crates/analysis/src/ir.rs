@@ -528,3 +528,390 @@ impl Ty {
         matches!(self, Self::SpecInt | Self::SpecNat)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ====== Function::is_generic tests ======
+
+    #[test]
+    fn function_is_generic_true() {
+        let func = Function {
+            name: "foo".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![GenericParam {
+                name: "T".to_string(),
+                trait_bounds: vec!["Ord".to_string()],
+            }],
+            prophecies: vec![],
+        };
+        assert!(func.is_generic());
+    }
+
+    #[test]
+    fn function_is_generic_false() {
+        let func = Function {
+            name: "bar".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(!func.is_generic());
+    }
+
+    // ====== Function::has_mut_ref_params tests ======
+
+    #[test]
+    fn function_has_mut_ref_params_true() {
+        let func = Function {
+            name: "mutate".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(func.has_mut_ref_params());
+    }
+
+    #[test]
+    fn function_has_mut_ref_params_false_shared_ref() {
+        let func = Function {
+            name: "read".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(!func.has_mut_ref_params());
+    }
+
+    #[test]
+    fn function_has_mut_ref_params_false_no_refs() {
+        let func = Function {
+            name: "pure".to_string(),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(!func.has_mut_ref_params());
+    }
+
+    #[test]
+    fn function_has_mut_ref_params_false_empty() {
+        let func = Function {
+            name: "noargs".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(!func.has_mut_ref_params());
+    }
+
+    #[test]
+    fn function_has_mut_ref_params_mixed() {
+        let func = Function {
+            name: "mixed".to_string(),
+            params: vec![
+                Local::new("_1", Ty::Int(IntTy::I32)),
+                Local::new("_2", Ty::Ref(Box::new(Ty::Bool), Mutability::Mutable)),
+            ],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+        };
+        assert!(func.has_mut_ref_params());
+    }
+
+    // ====== Local::new and Local::ghost tests ======
+
+    #[test]
+    fn local_new_is_not_ghost() {
+        let local = Local::new("_1", Ty::Int(IntTy::I32));
+        assert_eq!(local.name, "_1");
+        assert_eq!(local.ty, Ty::Int(IntTy::I32));
+        assert!(!local.is_ghost);
+    }
+
+    #[test]
+    fn local_ghost_is_ghost() {
+        let local = Local::ghost("spec_x", Ty::SpecInt);
+        assert_eq!(local.name, "spec_x");
+        assert_eq!(local.ty, Ty::SpecInt);
+        assert!(local.is_ghost);
+    }
+
+    // ====== Place::deref tests ======
+
+    #[test]
+    fn place_deref_adds_projection() {
+        let place = Place::local("_1").deref();
+        assert_eq!(place.local, "_1");
+        assert_eq!(place.projections.len(), 1);
+        assert!(matches!(place.projections[0], Projection::Deref));
+    }
+
+    #[test]
+    fn place_field_adds_projection() {
+        let place = Place::local("_1").field(2);
+        assert_eq!(place.projections.len(), 1);
+        assert!(matches!(place.projections[0], Projection::Field(2)));
+    }
+
+    #[test]
+    fn place_index_adds_projection() {
+        let place = Place::local("_1").index("_2".to_string());
+        assert_eq!(place.projections.len(), 1);
+        assert!(matches!(&place.projections[0], Projection::Index(s) if s == "_2"));
+    }
+
+    #[test]
+    fn place_chained_projections() {
+        let place = Place::local("_1").deref().field(0);
+        assert_eq!(place.projections.len(), 2);
+        assert!(matches!(place.projections[0], Projection::Deref));
+        assert!(matches!(place.projections[1], Projection::Field(0)));
+    }
+
+    // ====== BinOp::is_comparison tests ======
+
+    #[test]
+    fn binop_comparison_ops() {
+        assert!(BinOp::Eq.is_comparison());
+        assert!(BinOp::Ne.is_comparison());
+        assert!(BinOp::Lt.is_comparison());
+        assert!(BinOp::Le.is_comparison());
+        assert!(BinOp::Gt.is_comparison());
+        assert!(BinOp::Ge.is_comparison());
+    }
+
+    #[test]
+    fn binop_arithmetic_not_comparison() {
+        assert!(!BinOp::Add.is_comparison());
+        assert!(!BinOp::Sub.is_comparison());
+        assert!(!BinOp::Mul.is_comparison());
+        assert!(!BinOp::Div.is_comparison());
+        assert!(!BinOp::Rem.is_comparison());
+    }
+
+    #[test]
+    fn binop_bitwise_not_comparison() {
+        assert!(!BinOp::BitAnd.is_comparison());
+        assert!(!BinOp::BitOr.is_comparison());
+        assert!(!BinOp::BitXor.is_comparison());
+        assert!(!BinOp::Shl.is_comparison());
+        assert!(!BinOp::Shr.is_comparison());
+    }
+
+    // ====== Ty::is_signed tests ======
+
+    #[test]
+    fn ty_is_signed_for_int_types() {
+        assert!(Ty::Int(IntTy::I8).is_signed());
+        assert!(Ty::Int(IntTy::I16).is_signed());
+        assert!(Ty::Int(IntTy::I32).is_signed());
+        assert!(Ty::Int(IntTy::I64).is_signed());
+        assert!(Ty::Int(IntTy::I128).is_signed());
+        assert!(Ty::Int(IntTy::Isize).is_signed());
+    }
+
+    #[test]
+    fn ty_is_signed_false_for_non_int() {
+        assert!(!Ty::Uint(UintTy::U32).is_signed());
+        assert!(!Ty::Bool.is_signed());
+        assert!(!Ty::Unit.is_signed());
+        assert!(!Ty::SpecInt.is_signed());
+    }
+
+    // ====== Ty::is_unsigned tests ======
+
+    #[test]
+    fn ty_is_unsigned_for_uint_types() {
+        assert!(Ty::Uint(UintTy::U8).is_unsigned());
+        assert!(Ty::Uint(UintTy::U16).is_unsigned());
+        assert!(Ty::Uint(UintTy::U32).is_unsigned());
+        assert!(Ty::Uint(UintTy::U64).is_unsigned());
+        assert!(Ty::Uint(UintTy::U128).is_unsigned());
+        assert!(Ty::Uint(UintTy::Usize).is_unsigned());
+    }
+
+    #[test]
+    fn ty_is_unsigned_false_for_non_uint() {
+        assert!(!Ty::Int(IntTy::I32).is_unsigned());
+        assert!(!Ty::Bool.is_unsigned());
+        assert!(!Ty::SpecInt.is_unsigned());
+    }
+
+    // ====== Ty::is_integer tests ======
+
+    #[test]
+    fn ty_is_integer_signed() {
+        assert!(Ty::Int(IntTy::I32).is_integer());
+    }
+
+    #[test]
+    fn ty_is_integer_unsigned() {
+        assert!(Ty::Uint(UintTy::U64).is_integer());
+    }
+
+    #[test]
+    fn ty_is_integer_false_for_non_int() {
+        assert!(!Ty::Bool.is_integer());
+        assert!(!Ty::Unit.is_integer());
+        assert!(!Ty::Float(FloatTy::F64).is_integer());
+        assert!(!Ty::SpecInt.is_integer());
+    }
+
+    // ====== Ty::is_bool tests ======
+
+    #[test]
+    fn ty_is_bool_true() {
+        assert!(Ty::Bool.is_bool());
+    }
+
+    #[test]
+    fn ty_is_bool_false() {
+        assert!(!Ty::Int(IntTy::I32).is_bool());
+        assert!(!Ty::Unit.is_bool());
+    }
+
+    // ====== Ty::is_spec_int tests ======
+
+    #[test]
+    fn ty_is_spec_int_for_spec_int() {
+        assert!(Ty::SpecInt.is_spec_int());
+    }
+
+    #[test]
+    fn ty_is_spec_int_for_spec_nat() {
+        assert!(Ty::SpecNat.is_spec_int());
+    }
+
+    #[test]
+    fn ty_is_spec_int_false_for_regular_int() {
+        assert!(!Ty::Int(IntTy::I32).is_spec_int());
+        assert!(!Ty::Uint(UintTy::U64).is_spec_int());
+        assert!(!Ty::Bool.is_spec_int());
+    }
+
+    // ====== Ty::bit_width tests ======
+
+    #[test]
+    fn ty_bit_width_bool() {
+        assert_eq!(Ty::Bool.bit_width(), Some(1));
+    }
+
+    #[test]
+    fn ty_bit_width_signed() {
+        assert_eq!(Ty::Int(IntTy::I8).bit_width(), Some(8));
+        assert_eq!(Ty::Int(IntTy::I32).bit_width(), Some(32));
+        assert_eq!(Ty::Int(IntTy::I64).bit_width(), Some(64));
+    }
+
+    #[test]
+    fn ty_bit_width_unsigned() {
+        assert_eq!(Ty::Uint(UintTy::U8).bit_width(), Some(8));
+        assert_eq!(Ty::Uint(UintTy::U32).bit_width(), Some(32));
+    }
+
+    #[test]
+    fn ty_bit_width_char() {
+        assert_eq!(Ty::Char.bit_width(), Some(32));
+    }
+
+    #[test]
+    fn ty_bit_width_none_for_non_integer() {
+        assert_eq!(Ty::Unit.bit_width(), None);
+        assert_eq!(Ty::Float(FloatTy::F64).bit_width(), None);
+        assert_eq!(Ty::Generic("T".to_string()).bit_width(), None);
+    }
+
+    // ====== IntTy helper tests ======
+
+    #[test]
+    fn int_ty_bit_widths() {
+        assert_eq!(IntTy::I8.bit_width(), 8);
+        assert_eq!(IntTy::I16.bit_width(), 16);
+        assert_eq!(IntTy::I32.bit_width(), 32);
+        assert_eq!(IntTy::I64.bit_width(), 64);
+        assert_eq!(IntTy::I128.bit_width(), 128);
+        assert_eq!(IntTy::Isize.bit_width(), 64);
+    }
+
+    #[test]
+    fn int_ty_min_max_i8() {
+        assert_eq!(IntTy::I8.min_value(), -128);
+        assert_eq!(IntTy::I8.max_value(), 127);
+    }
+
+    #[test]
+    fn int_ty_min_max_i32() {
+        assert_eq!(IntTy::I32.min_value(), i128::from(i32::MIN));
+        assert_eq!(IntTy::I32.max_value(), i128::from(i32::MAX));
+    }
+
+    // ====== UintTy helper tests ======
+
+    #[test]
+    fn uint_ty_bit_widths() {
+        assert_eq!(UintTy::U8.bit_width(), 8);
+        assert_eq!(UintTy::U16.bit_width(), 16);
+        assert_eq!(UintTy::U32.bit_width(), 32);
+        assert_eq!(UintTy::U64.bit_width(), 64);
+        assert_eq!(UintTy::U128.bit_width(), 128);
+        assert_eq!(UintTy::Usize.bit_width(), 64);
+    }
+
+    #[test]
+    fn uint_ty_max_u8() {
+        assert_eq!(UintTy::U8.max_value(), 255);
+    }
+
+    #[test]
+    fn uint_ty_max_u32() {
+        assert_eq!(UintTy::U32.max_value(), u128::from(u32::MAX));
+    }
+
+    #[test]
+    fn uint_ty_max_u128() {
+        assert_eq!(UintTy::U128.max_value(), u128::MAX);
+    }
+}

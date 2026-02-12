@@ -224,6 +224,8 @@ fn parse_bitvec_value(value: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    // --- parse_bitvec_value tests ---
+
     #[test]
     fn test_parse_bitvec_hex() {
         assert_eq!(parse_bitvec_value("#x0000002a"), Some("42".to_string()));
@@ -242,6 +244,68 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_bitvec_hex_zero() {
+        assert_eq!(parse_bitvec_value("#x00000000"), Some("0".to_string()));
+    }
+
+    #[test]
+    fn test_parse_bitvec_hex_one() {
+        assert_eq!(parse_bitvec_value("#x00000001"), Some("1".to_string()));
+    }
+
+    #[test]
+    fn test_parse_bitvec_binary_zero() {
+        assert_eq!(parse_bitvec_value("#b0"), Some("0".to_string()));
+    }
+
+    #[test]
+    fn test_parse_bitvec_binary_one() {
+        assert_eq!(parse_bitvec_value("#b1"), Some("1".to_string()));
+    }
+
+    #[test]
+    fn test_parse_bitvec_not_bitvec() {
+        assert_eq!(parse_bitvec_value("42"), None);
+        assert_eq!(parse_bitvec_value("true"), None);
+        assert_eq!(parse_bitvec_value("hello"), None);
+        assert_eq!(parse_bitvec_value(""), None);
+    }
+
+    #[test]
+    fn test_parse_bitvec_hex_invalid_chars() {
+        // #x followed by invalid hex should return None
+        assert_eq!(parse_bitvec_value("#xZZZZ"), None);
+    }
+
+    #[test]
+    fn test_parse_bitvec_binary_invalid_chars() {
+        // #b followed by non-binary chars should return None
+        assert_eq!(parse_bitvec_value("#b123"), None);
+    }
+
+    #[test]
+    fn test_parse_bitvec_hex_large_value() {
+        // 64-bit max value
+        assert_eq!(
+            parse_bitvec_value("#xffffffffffffffff"),
+            Some("18446744073709551615".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_bitvec_hex_prefix_only() {
+        // Just "#x" with no digits - from_str_radix on empty string returns Err
+        assert_eq!(parse_bitvec_value("#x"), None);
+    }
+
+    #[test]
+    fn test_parse_bitvec_binary_prefix_only() {
+        assert_eq!(parse_bitvec_value("#b"), None);
+    }
+
+    // --- format_counterexample tests ---
+
+    #[test]
     fn test_format_counterexample_filters_internals() {
         let assignments = vec![
             ("_1".to_string(), "42".to_string()),
@@ -255,6 +319,169 @@ mod tests {
     }
 
     #[test]
+    fn test_format_counterexample_empty() {
+        let assignments: Vec<(String, String)> = vec![];
+        let formatted = format_counterexample(&assignments);
+        assert_eq!(formatted, "Counterexample: (no user-visible variables)");
+    }
+
+    #[test]
+    fn test_format_counterexample_all_filtered() {
+        // All variables are complex temporaries that get filtered out
+        let assignments = vec![
+            ("_temp_abc".to_string(), "1".to_string()),
+            ("_foo_bar".to_string(), "2".to_string()),
+            ("_complex_temp".to_string(), "3".to_string()),
+        ];
+        let formatted = format_counterexample(&assignments);
+        assert_eq!(formatted, "Counterexample: (no user-visible variables)");
+    }
+
+    #[test]
+    fn test_format_counterexample_named_variables() {
+        let assignments = vec![
+            ("x".to_string(), "42".to_string()),
+            ("y".to_string(), "-1".to_string()),
+        ];
+        let formatted = format_counterexample(&assignments);
+        assert!(formatted.starts_with("Counterexample:"));
+        assert!(formatted.contains("x = 42"));
+        assert!(formatted.contains("y = -1"));
+    }
+
+    #[test]
+    fn test_format_counterexample_with_bitvec_values() {
+        let assignments = vec![("x".to_string(), "#x0000002a".to_string())];
+        let formatted = format_counterexample(&assignments);
+        // Should convert #x0000002a to 42
+        assert!(formatted.contains("x = 42"));
+    }
+
+    #[test]
+    fn test_format_counterexample_mixed_filtered_and_visible() {
+        let assignments = vec![
+            ("_1".to_string(), "10".to_string()),
+            ("_temp_x".to_string(), "99".to_string()),
+            ("result".to_string(), "20".to_string()),
+            ("_abc_def".to_string(), "77".to_string()),
+            ("_10".to_string(), "30".to_string()),
+        ];
+        let formatted = format_counterexample(&assignments);
+        assert!(formatted.contains("_1 = 10"));
+        assert!(formatted.contains("result = 20"));
+        assert!(formatted.contains("_10 = 30"));
+        assert!(!formatted.contains("_temp_x"));
+        assert!(!formatted.contains("_abc_def"));
+    }
+
+    #[test]
+    fn test_format_counterexample_parameter_like_names() {
+        // _1, _2, _10 etc. should be kept (all digits after underscore)
+        let assignments = vec![
+            ("_1".to_string(), "a".to_string()),
+            ("_2".to_string(), "b".to_string()),
+            ("_10".to_string(), "c".to_string()),
+            ("_100".to_string(), "d".to_string()),
+        ];
+        let formatted = format_counterexample(&assignments);
+        assert!(formatted.contains("_1 = a"));
+        assert!(formatted.contains("_2 = b"));
+        assert!(formatted.contains("_10 = c"));
+        assert!(formatted.contains("_100 = d"));
+    }
+
+    #[test]
+    fn test_format_counterexample_underscore_only() {
+        // Just "_" has no digits after it, so skip(1) is empty,
+        // and all() on empty iterator returns true -- it should be kept
+        let assignments = vec![("_".to_string(), "val".to_string())];
+        let formatted = format_counterexample(&assignments);
+        // "_" with no chars after `_` -> chars().skip(1).all(is_digit) = true (vacuously)
+        assert!(formatted.contains("_ = val"));
+    }
+
+    // --- vc_kind_description tests ---
+
+    #[test]
+    fn test_vc_kind_description_precondition() {
+        assert_eq!(
+            vc_kind_description(&VcKind::Precondition),
+            "precondition not satisfied"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_postcondition() {
+        assert_eq!(
+            vc_kind_description(&VcKind::Postcondition),
+            "postcondition not proven"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_loop_invariant_init() {
+        assert_eq!(
+            vc_kind_description(&VcKind::LoopInvariantInit),
+            "loop invariant does not hold on entry"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_loop_invariant_preserve() {
+        assert_eq!(
+            vc_kind_description(&VcKind::LoopInvariantPreserve),
+            "loop invariant not preserved"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_loop_invariant_exit() {
+        assert_eq!(
+            vc_kind_description(&VcKind::LoopInvariantExit),
+            "loop invariant insufficient for postcondition"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_overflow() {
+        assert_eq!(
+            vc_kind_description(&VcKind::Overflow),
+            "arithmetic overflow possible"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_division_by_zero() {
+        assert_eq!(
+            vc_kind_description(&VcKind::DivisionByZero),
+            "division by zero possible"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_shift_bounds() {
+        assert_eq!(
+            vc_kind_description(&VcKind::ShiftBounds),
+            "shift amount out of bounds"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_assertion() {
+        assert_eq!(
+            vc_kind_description(&VcKind::Assertion),
+            "assertion might fail"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_panic_freedom() {
+        assert_eq!(vc_kind_description(&VcKind::PanicFreedom), "panic possible");
+    }
+
+    // --- suggest_fix tests ---
+
+    #[test]
     fn test_suggest_fix_overflow() {
         let suggestion = suggest_fix(&VcKind::Overflow);
         assert!(suggestion.is_some());
@@ -266,5 +493,66 @@ mod tests {
         let suggestion = suggest_fix(&VcKind::DivisionByZero);
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("divisor != 0"));
+    }
+
+    #[test]
+    fn test_suggest_fix_precondition() {
+        let suggestion = suggest_fix(&VcKind::Precondition);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("precondition"));
+    }
+
+    #[test]
+    fn test_suggest_fix_postcondition() {
+        let suggestion = suggest_fix(&VcKind::Postcondition);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("ensures"));
+    }
+
+    #[test]
+    fn test_suggest_fix_loop_invariant_init() {
+        let suggestion = suggest_fix(&VcKind::LoopInvariantInit);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("invariant"));
+    }
+
+    #[test]
+    fn test_suggest_fix_loop_invariant_preserve() {
+        let suggestion = suggest_fix(&VcKind::LoopInvariantPreserve);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("invariant"));
+    }
+
+    #[test]
+    fn test_suggest_fix_assertion() {
+        let suggestion = suggest_fix(&VcKind::Assertion);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("assert"));
+    }
+
+    #[test]
+    fn test_suggest_fix_shift_bounds_returns_none() {
+        // ShiftBounds falls into the _ => None arm
+        let suggestion = suggest_fix(&VcKind::ShiftBounds);
+        assert!(suggestion.is_none());
+    }
+
+    #[test]
+    fn test_suggest_fix_loop_invariant_exit_returns_none() {
+        // LoopInvariantExit falls into the _ => None arm
+        let suggestion = suggest_fix(&VcKind::LoopInvariantExit);
+        assert!(suggestion.is_none());
+    }
+
+    #[test]
+    fn test_suggest_fix_panic_freedom_returns_none() {
+        // PanicFreedom falls into the _ => None arm
+        let suggestion = suggest_fix(&VcKind::PanicFreedom);
+        assert!(suggestion.is_none());
     }
 }

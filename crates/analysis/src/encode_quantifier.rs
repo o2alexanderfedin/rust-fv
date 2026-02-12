@@ -417,4 +417,349 @@ mod tests {
             panic!("Expected Forall term");
         }
     }
+
+    // ====== infer_triggers edge cases ======
+
+    #[test]
+    fn test_infer_triggers_empty_bound_vars() {
+        // Body: f(x) > 0 but no bound vars -> any App covers "all" (vacuously)
+        let body = Term::BvSGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let triggers = infer_triggers(&body, &[]);
+        // Empty bound vars: subset check is vacuously true, so trigger found
+        assert_eq!(triggers.len(), 1);
+    }
+
+    #[test]
+    fn test_infer_triggers_app_missing_bound_var() {
+        // Body: f(x) > 0, bound vars = [x, y]
+        // f(x) only covers x, not y -> no single trigger
+        let body = Term::BvSGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let triggers = infer_triggers(&body, &["x".to_string(), "y".to_string()]);
+        assert!(triggers.is_empty(), "f(x) does not cover bound var y");
+    }
+
+    #[test]
+    fn test_infer_triggers_multiple_apps_picks_first_covering() {
+        // Body: f(x, y) && g(x)
+        // f(x, y) covers both x and y, g(x) only covers x
+        // Should pick f(x, y) as the trigger
+        let body = Term::And(vec![
+            Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string()), Term::Const("y".to_string())],
+            ),
+            Term::App("g".to_string(), vec![Term::Const("x".to_string())]),
+        ]);
+        let triggers = infer_triggers(&body, &["x".to_string(), "y".to_string()]);
+        assert_eq!(triggers.len(), 1);
+        if let Term::App(name, _) = &triggers[0][0] {
+            assert_eq!(name, "f");
+        } else {
+            panic!("Expected App trigger");
+        }
+    }
+
+    #[test]
+    fn test_infer_triggers_nested_app_in_implies() {
+        // Body: (implies (f(x) > 0) (g(x) = 1))
+        // bound vars = [x]. Both f(x) and g(x) cover x. Should pick f(x) (first).
+        let body = Term::Implies(
+            Box::new(Term::BvSGt(
+                Box::new(Term::App(
+                    "f".to_string(),
+                    vec![Term::Const("x".to_string())],
+                )),
+                Box::new(Term::IntLit(0)),
+            )),
+            Box::new(Term::Eq(
+                Box::new(Term::App(
+                    "g".to_string(),
+                    vec![Term::Const("x".to_string())],
+                )),
+                Box::new(Term::IntLit(1)),
+            )),
+        );
+        let triggers = infer_triggers(&body, &["x".to_string()]);
+        assert_eq!(triggers.len(), 1);
+        if let Term::App(name, _) = &triggers[0][0] {
+            assert_eq!(name, "f");
+        } else {
+            panic!("Expected App trigger");
+        }
+    }
+
+    #[test]
+    fn test_infer_triggers_zero_arg_app_not_trigger() {
+        // Body with zero-arg App: zero-arg apps are filtered out by collect_trigger_candidates
+        let body = Term::And(vec![
+            Term::App("zero_arg".to_string(), vec![]),
+            Term::Const("x".to_string()),
+        ]);
+        let triggers = infer_triggers(&body, &["x".to_string()]);
+        assert!(triggers.is_empty(), "Zero-arg apps should not be triggers");
+    }
+
+    // ====== annotate_quantifier with Exists ======
+
+    #[test]
+    fn test_annotate_exists_with_trigger() {
+        // exists x. f(x) > 0
+        let body = Term::BvSGt(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::IntLit(0)),
+        );
+        let exists_term = Term::Exists(vec![("x".to_string(), Sort::Int)], Box::new(body));
+
+        let annotated = annotate_quantifier(exists_term);
+
+        if let Term::Exists(_vars, body) = annotated {
+            if let Term::Annotated(_, annotations) = &*body {
+                assert_eq!(annotations.len(), 1);
+                assert_eq!(annotations[0].0, "pattern");
+                assert!(!annotations[0].1.is_empty());
+            } else {
+                panic!("Expected Annotated body for Exists");
+            }
+        } else {
+            panic!("Expected Exists term");
+        }
+    }
+
+    #[test]
+    fn test_annotate_exists_no_trigger() {
+        // exists x. x > 0 (no function app)
+        let body = Term::BvSGt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(0)),
+        );
+        let exists_term = Term::Exists(vec![("x".to_string(), Sort::Int)], Box::new(body));
+
+        let annotated = annotate_quantifier(exists_term);
+
+        if let Term::Exists(_vars, result_body) = annotated {
+            assert!(
+                !matches!(&*result_body, Term::Annotated(_, _)),
+                "Exists body should not be annotated when no trigger found"
+            );
+        } else {
+            panic!("Expected Exists term");
+        }
+    }
+
+    // ====== annotate_quantifier non-quantifier passthrough ======
+
+    #[test]
+    fn test_annotate_non_quantifier_passthrough() {
+        let term = Term::BoolLit(true);
+        let result = annotate_quantifier(term.clone());
+        // Should return as-is
+        assert!(matches!(result, Term::BoolLit(true)));
+    }
+
+    #[test]
+    fn test_annotate_const_passthrough() {
+        let term = Term::Const("x".to_string());
+        let result = annotate_quantifier(term);
+        assert!(matches!(result, Term::Const(_)));
+    }
+
+    // ====== collect_trigger_candidates for various Term types ======
+
+    #[test]
+    fn test_candidates_from_ite() {
+        // ite(true, f(x), g(y))
+        let term = Term::Ite(
+            Box::new(Term::BoolLit(true)),
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            Box::new(Term::App(
+                "g".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn test_candidates_from_not() {
+        let term = Term::Not(Box::new(Term::App(
+            "pred".to_string(),
+            vec![Term::Const("x".to_string())],
+        )));
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_from_let_binding() {
+        // let y = f(x) in g(y)
+        let term = Term::Let(
+            vec![(
+                "y".to_string(),
+                Term::App("f".to_string(), vec![Term::Const("x".to_string())]),
+            )],
+            Box::new(Term::App(
+                "g".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2); // f(x) and g(y)
+    }
+
+    #[test]
+    fn test_candidates_from_nested_quantifier() {
+        // Nested forall: forall y. h(y)
+        let term = Term::Forall(
+            vec![("y".to_string(), Sort::Int)],
+            Box::new(Term::App(
+                "h".to_string(),
+                vec![Term::Const("y".to_string())],
+            )),
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+        if let Term::App(name, _) = &candidates[0] {
+            assert_eq!(name, "h");
+        } else {
+            panic!("Expected App candidate");
+        }
+    }
+
+    #[test]
+    fn test_candidates_from_annotated() {
+        let term = Term::Annotated(
+            Box::new(Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string())],
+            )),
+            vec![("pattern".to_string(), vec![])],
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_candidates_literals_produce_none() {
+        let term = Term::And(vec![
+            Term::BoolLit(true),
+            Term::IntLit(42),
+            Term::BitVecLit(0, 32),
+            Term::Const("x".to_string()),
+        ]);
+        let candidates = find_trigger_candidates(&term);
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn test_candidates_nested_app_in_app() {
+        // f(g(x)): should produce both f(g(x)) and g(x)
+        let term = Term::App(
+            "f".to_string(),
+            vec![Term::App(
+                "g".to_string(),
+                vec![Term::Const("x".to_string())],
+            )],
+        );
+        let candidates = find_trigger_candidates(&term);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    // ====== free_variables additional tests ======
+
+    #[test]
+    fn test_free_variables_ite() {
+        let term = Term::Ite(
+            Box::new(Term::Const("c".to_string())),
+            Box::new(Term::Const("a".to_string())),
+            Box::new(Term::Const("b".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 3);
+        assert!(vars.contains("a"));
+        assert!(vars.contains("b"));
+        assert!(vars.contains("c"));
+    }
+
+    #[test]
+    fn test_free_variables_let() {
+        let term = Term::Let(
+            vec![("y".to_string(), Term::Const("x".to_string()))],
+            Box::new(Term::Const("y".to_string())),
+        );
+        let vars = free_variables(&term);
+        assert!(vars.contains("x"));
+        assert!(vars.contains("y"));
+    }
+
+    #[test]
+    fn test_free_variables_app() {
+        let term = Term::App(
+            "f".to_string(),
+            vec![Term::Const("a".to_string()), Term::Const("b".to_string())],
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 2);
+        assert!(vars.contains("a"));
+        assert!(vars.contains("b"));
+    }
+
+    #[test]
+    fn test_free_variables_literals_have_none() {
+        let term = Term::And(vec![
+            Term::BoolLit(false),
+            Term::IntLit(42),
+            Term::BitVecLit(7, 8),
+        ]);
+        let vars = free_variables(&term);
+        assert!(vars.is_empty());
+    }
+
+    #[test]
+    fn test_free_variables_annotated() {
+        let term = Term::Annotated(
+            Box::new(Term::Const("z".to_string())),
+            vec![("note".to_string(), vec![])],
+        );
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("z"));
+    }
+
+    #[test]
+    fn test_free_variables_bvneg() {
+        let term = Term::BvNeg(Box::new(Term::Const("x".to_string())));
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 1);
+        assert!(vars.contains("x"));
+    }
+
+    #[test]
+    fn test_free_variables_distinct() {
+        let term = Term::Distinct(vec![
+            Term::Const("a".to_string()),
+            Term::Const("b".to_string()),
+            Term::Const("c".to_string()),
+        ]);
+        let vars = free_variables(&term);
+        assert_eq!(vars.len(), 3);
+    }
 }

@@ -234,3 +234,227 @@ fn print_usage() {
     eprintln!("    1  At least one function failed verification");
     eprintln!("    2  Build/compilation error");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- parse_timeout tests ---
+
+    #[test]
+    fn test_parse_timeout_default() {
+        let args: Vec<String> = vec![];
+        assert_eq!(parse_timeout(&args), 30);
+    }
+
+    #[test]
+    fn test_parse_timeout_separate_arg() {
+        let args: Vec<String> = vec!["--timeout".into(), "60".into()];
+        assert_eq!(parse_timeout(&args), 60);
+    }
+
+    #[test]
+    fn test_parse_timeout_equals_form() {
+        let args: Vec<String> = vec!["--timeout=120".into()];
+        assert_eq!(parse_timeout(&args), 120);
+    }
+
+    #[test]
+    fn test_parse_timeout_invalid_value_returns_default() {
+        let args: Vec<String> = vec!["--timeout".into(), "not_a_number".into()];
+        assert_eq!(parse_timeout(&args), 30);
+    }
+
+    #[test]
+    fn test_parse_timeout_equals_invalid_returns_default() {
+        let args: Vec<String> = vec!["--timeout=abc".into()];
+        assert_eq!(parse_timeout(&args), 30);
+    }
+
+    #[test]
+    fn test_parse_timeout_zero() {
+        let args: Vec<String> = vec!["--timeout".into(), "0".into()];
+        assert_eq!(parse_timeout(&args), 0);
+    }
+
+    #[test]
+    fn test_parse_timeout_among_other_args() {
+        let args: Vec<String> = vec![
+            "--package".into(),
+            "mylib".into(),
+            "--timeout".into(),
+            "45".into(),
+            "--lib".into(),
+        ];
+        assert_eq!(parse_timeout(&args), 45);
+    }
+
+    #[test]
+    fn test_parse_timeout_missing_value() {
+        // --timeout is last arg, no value follows
+        let args: Vec<String> = vec!["--timeout".into()];
+        assert_eq!(parse_timeout(&args), 30);
+    }
+
+    // --- parse_output_format tests ---
+
+    #[test]
+    fn test_parse_output_format_default() {
+        let args: Vec<String> = vec![];
+        assert_eq!(parse_output_format(&args), "text");
+    }
+
+    #[test]
+    fn test_parse_output_format_json_separate() {
+        let args: Vec<String> = vec!["--output-format".into(), "json".into()];
+        assert_eq!(parse_output_format(&args), "json");
+    }
+
+    #[test]
+    fn test_parse_output_format_json_equals() {
+        let args: Vec<String> = vec!["--output-format=json".into()];
+        assert_eq!(parse_output_format(&args), "json");
+    }
+
+    #[test]
+    fn test_parse_output_format_text_explicit() {
+        let args: Vec<String> = vec!["--output-format".into(), "text".into()];
+        assert_eq!(parse_output_format(&args), "text");
+    }
+
+    #[test]
+    fn test_parse_output_format_custom_value() {
+        let args: Vec<String> = vec!["--output-format=sarif".into()];
+        assert_eq!(parse_output_format(&args), "sarif");
+    }
+
+    #[test]
+    fn test_parse_output_format_missing_value() {
+        // --output-format is last arg, no value follows
+        let args: Vec<String> = vec!["--output-format".into()];
+        assert_eq!(parse_output_format(&args), "text");
+    }
+
+    #[test]
+    fn test_parse_output_format_among_other_args() {
+        let args: Vec<String> = vec![
+            "--fresh".into(),
+            "--output-format".into(),
+            "json".into(),
+            "--timeout".into(),
+            "10".into(),
+        ];
+        assert_eq!(parse_output_format(&args), "json");
+    }
+
+    // --- parse_fresh tests ---
+
+    #[test]
+    fn test_parse_fresh_default() {
+        let args: Vec<String> = vec![];
+        assert!(!parse_fresh(&args));
+    }
+
+    #[test]
+    fn test_parse_fresh_present() {
+        let args: Vec<String> = vec!["--fresh".into()];
+        assert!(parse_fresh(&args));
+    }
+
+    #[test]
+    fn test_parse_fresh_among_other_args() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "30".into(),
+            "--fresh".into(),
+            "--lib".into(),
+        ];
+        assert!(parse_fresh(&args));
+    }
+
+    #[test]
+    fn test_parse_fresh_not_present() {
+        let args: Vec<String> = vec!["--timeout".into(), "30".into(), "--lib".into()];
+        assert!(!parse_fresh(&args));
+    }
+
+    // --- parse_jobs tests ---
+
+    #[test]
+    fn test_parse_jobs_default() {
+        let args: Vec<String> = vec![];
+        assert_eq!(parse_jobs(&args), None);
+    }
+
+    #[test]
+    fn test_parse_jobs_separate_arg() {
+        let args: Vec<String> = vec!["--jobs".into(), "4".into()];
+        assert_eq!(parse_jobs(&args), Some(4));
+    }
+
+    #[test]
+    fn test_parse_jobs_equals_form() {
+        let args: Vec<String> = vec!["--jobs=8".into()];
+        assert_eq!(parse_jobs(&args), Some(8));
+    }
+
+    #[test]
+    fn test_parse_jobs_invalid_value() {
+        let args: Vec<String> = vec!["--jobs".into(), "abc".into()];
+        assert_eq!(parse_jobs(&args), None);
+    }
+
+    #[test]
+    fn test_parse_jobs_equals_invalid() {
+        let args: Vec<String> = vec!["--jobs=xyz".into()];
+        assert_eq!(parse_jobs(&args), None);
+    }
+
+    #[test]
+    fn test_parse_jobs_one() {
+        let args: Vec<String> = vec!["--jobs".into(), "1".into()];
+        assert_eq!(parse_jobs(&args), Some(1));
+    }
+
+    #[test]
+    fn test_parse_jobs_missing_value() {
+        let args: Vec<String> = vec!["--jobs".into()];
+        assert_eq!(parse_jobs(&args), None);
+    }
+
+    #[test]
+    fn test_parse_jobs_among_other_args() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "10".into(),
+            "--jobs".into(),
+            "16".into(),
+            "--fresh".into(),
+        ];
+        assert_eq!(parse_jobs(&args), Some(16));
+    }
+
+    #[test]
+    fn test_parse_jobs_zero() {
+        let args: Vec<String> = vec!["--jobs".into(), "0".into()];
+        assert_eq!(parse_jobs(&args), Some(0));
+    }
+
+    // --- Combined argument parsing tests ---
+
+    #[test]
+    fn test_all_args_combined() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "90".into(),
+            "--output-format=json".into(),
+            "--fresh".into(),
+            "--jobs".into(),
+            "2".into(),
+        ];
+        assert_eq!(parse_timeout(&args), 90);
+        assert_eq!(parse_output_format(&args), "json");
+        assert!(parse_fresh(&args));
+        assert_eq!(parse_jobs(&args), Some(2));
+    }
+}

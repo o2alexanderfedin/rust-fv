@@ -636,4 +636,1089 @@ mod tests {
         assert!(!smtlib.contains("(check-sat)"));
         assert!(!smtlib.contains("(get-model)"));
     }
+
+    // ---- Sort formatting: remaining variants ----
+
+    #[test]
+    fn format_sort_int() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Int);
+        assert_eq!(s, "Int");
+    }
+
+    #[test]
+    fn format_sort_real() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Real);
+        assert_eq!(s, "Real");
+    }
+
+    #[test]
+    fn format_sort_datatype() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Datatype("MyType".to_string()));
+        assert_eq!(s, "MyType");
+    }
+
+    #[test]
+    fn format_sort_float() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Float(8, 24));
+        assert_eq!(s, "(_ FloatingPoint 8 24)");
+    }
+
+    #[test]
+    fn format_sort_float_double() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Float(11, 53));
+        assert_eq!(s, "(_ FloatingPoint 11 53)");
+    }
+
+    #[test]
+    fn format_sort_uninterpreted() {
+        let mut s = String::new();
+        format_sort(&mut s, &Sort::Uninterpreted("U".to_string()));
+        assert_eq!(s, "U");
+    }
+
+    #[test]
+    fn format_sort_nested_array() {
+        let mut s = String::new();
+        let inner = Sort::Array(Box::new(Sort::Int), Box::new(Sort::Bool));
+        let outer = Sort::Array(Box::new(Sort::BitVec(8)), Box::new(inner));
+        format_sort(&mut s, &outer);
+        assert_eq!(s, "(Array (_ BitVec 8) (Array Int Bool))");
+    }
+
+    // ---- Term formatting: boolean and core operations ----
+
+    #[test]
+    fn format_term_bool_lit_false() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::BoolLit(false));
+        assert_eq!(s, "false");
+    }
+
+    #[test]
+    fn format_term_const() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::Const("my_var".to_string()));
+        assert_eq!(s, "my_var");
+    }
+
+    #[test]
+    fn format_term_not() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::Not(Box::new(Term::Const("a".to_string()))));
+        assert_eq!(s, "(not a)");
+    }
+
+    #[test]
+    fn format_term_or() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Or(vec![
+                Term::Const("a".to_string()),
+                Term::Const("b".to_string()),
+                Term::Const("c".to_string()),
+            ]),
+        );
+        assert_eq!(s, "(or a b c)");
+    }
+
+    #[test]
+    fn format_term_implies() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Implies(
+                Box::new(Term::Const("p".to_string())),
+                Box::new(Term::Const("q".to_string())),
+            ),
+        );
+        assert_eq!(s, "(=> p q)");
+    }
+
+    #[test]
+    fn format_term_iff() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Iff(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(= a b)");
+    }
+
+    #[test]
+    fn format_term_distinct() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Distinct(vec![
+                Term::Const("a".to_string()),
+                Term::Const("b".to_string()),
+                Term::Const("c".to_string()),
+            ]),
+        );
+        assert_eq!(s, "(distinct a b c)");
+    }
+
+    #[test]
+    fn format_term_ite() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Ite(
+                Box::new(Term::Const("c".to_string())),
+                Box::new(Term::IntLit(1)),
+                Box::new(Term::IntLit(0)),
+            ),
+        );
+        assert_eq!(s, "(ite c 1 0)");
+    }
+
+    // ---- Term formatting: bitvector arithmetic ----
+
+    #[test]
+    fn format_term_bvsub() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSub(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsub x y)");
+    }
+
+    #[test]
+    fn format_term_bvmul() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvMul(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvmul x y)");
+    }
+
+    #[test]
+    fn format_term_bvsdiv() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSDiv(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsdiv a b)");
+    }
+
+    #[test]
+    fn format_term_bvudiv() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvUDiv(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvudiv a b)");
+    }
+
+    #[test]
+    fn format_term_bvsrem() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSRem(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsrem a b)");
+    }
+
+    #[test]
+    fn format_term_bvurem() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvURem(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvurem a b)");
+    }
+
+    #[test]
+    fn format_term_bvneg() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::BvNeg(Box::new(Term::Const("x".to_string()))));
+        assert_eq!(s, "(bvneg x)");
+    }
+
+    // ---- Term formatting: bitvector comparisons (signed) ----
+
+    #[test]
+    fn format_term_bvslt() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSLt(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvslt a b)");
+    }
+
+    #[test]
+    fn format_term_bvsle() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSLe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsle a b)");
+    }
+
+    #[test]
+    fn format_term_bvsgt() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSGt(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsgt a b)");
+    }
+
+    #[test]
+    fn format_term_bvsge() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvSGe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvsge a b)");
+    }
+
+    // ---- Term formatting: bitvector comparisons (unsigned) ----
+
+    #[test]
+    fn format_term_bvult() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvULt(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvult a b)");
+    }
+
+    #[test]
+    fn format_term_bvule() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvULe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvule a b)");
+    }
+
+    #[test]
+    fn format_term_bvugt() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvUGt(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvugt a b)");
+    }
+
+    #[test]
+    fn format_term_bvuge() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvUGe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvuge a b)");
+    }
+
+    // ---- Term formatting: bitvector bitwise ----
+
+    #[test]
+    fn format_term_bvand() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvAnd(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvand a b)");
+    }
+
+    #[test]
+    fn format_term_bvor() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvOr(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvor a b)");
+    }
+
+    #[test]
+    fn format_term_bvxor() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvXor(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvxor a b)");
+    }
+
+    #[test]
+    fn format_term_bvnot() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::BvNot(Box::new(Term::Const("x".to_string()))));
+        assert_eq!(s, "(bvnot x)");
+    }
+
+    #[test]
+    fn format_term_bvshl() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvShl(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvshl a b)");
+    }
+
+    #[test]
+    fn format_term_bvlshr() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvLShr(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvlshr a b)");
+    }
+
+    #[test]
+    fn format_term_bvashr() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::BvAShr(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(bvashr a b)");
+    }
+
+    // ---- Term formatting: bitvector conversions ----
+
+    #[test]
+    fn format_term_zero_extend() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::ZeroExtend(8, Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "((_ zero_extend 8) x)");
+    }
+
+    #[test]
+    fn format_term_sign_extend() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::SignExtend(16, Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "((_ sign_extend 16) x)");
+    }
+
+    #[test]
+    fn format_term_extract() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Extract(7, 0, Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "((_ extract 7 0) x)");
+    }
+
+    #[test]
+    fn format_term_concat() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Concat(
+                Box::new(Term::Const("hi".to_string())),
+                Box::new(Term::Const("lo".to_string())),
+            ),
+        );
+        assert_eq!(s, "(concat hi lo)");
+    }
+
+    #[test]
+    fn format_term_bv2int() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Bv2Int(Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "(bv2int x)");
+    }
+
+    #[test]
+    fn format_term_int2bv() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Int2Bv(32, Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "((_ int2bv 32) x)");
+    }
+
+    // ---- Term formatting: integer arithmetic ----
+
+    #[test]
+    fn format_term_int_add() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntAdd(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(+ a b)");
+    }
+
+    #[test]
+    fn format_term_int_sub() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntSub(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(- a b)");
+    }
+
+    #[test]
+    fn format_term_int_mul() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntMul(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(* a b)");
+    }
+
+    #[test]
+    fn format_term_int_div() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntDiv(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(div a b)");
+    }
+
+    #[test]
+    fn format_term_int_mod() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntMod(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(mod a b)");
+    }
+
+    #[test]
+    fn format_term_int_neg() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntNeg(Box::new(Term::Const("x".to_string()))),
+        );
+        assert_eq!(s, "(- x)");
+    }
+
+    #[test]
+    fn format_term_int_lt() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntLt(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(< a b)");
+    }
+
+    #[test]
+    fn format_term_int_le() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntLe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(<= a b)");
+    }
+
+    #[test]
+    fn format_term_int_ge() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::IntGe(
+                Box::new(Term::Const("a".to_string())),
+                Box::new(Term::Const("b".to_string())),
+            ),
+        );
+        assert_eq!(s, "(>= a b)");
+    }
+
+    // ---- Term formatting: array operations ----
+
+    #[test]
+    fn format_term_select() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Select(
+                Box::new(Term::Const("arr".to_string())),
+                Box::new(Term::IntLit(3)),
+            ),
+        );
+        assert_eq!(s, "(select arr 3)");
+    }
+
+    #[test]
+    fn format_term_store() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Store(
+                Box::new(Term::Const("arr".to_string())),
+                Box::new(Term::IntLit(0)),
+                Box::new(Term::IntLit(42)),
+            ),
+        );
+        assert_eq!(s, "(store arr 0 42)");
+    }
+
+    // ---- Term formatting: quantifiers ----
+
+    #[test]
+    fn format_term_forall() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Forall(
+                vec![("x".to_string(), Sort::Int), ("y".to_string(), Sort::Int)],
+                Box::new(Term::Eq(
+                    Box::new(Term::Const("x".to_string())),
+                    Box::new(Term::Const("y".to_string())),
+                )),
+            ),
+        );
+        assert_eq!(s, "(forall ((x Int) (y Int)) (= x y))");
+    }
+
+    #[test]
+    fn format_term_exists() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Exists(
+                vec![("x".to_string(), Sort::Bool)],
+                Box::new(Term::Const("x".to_string())),
+            ),
+        );
+        assert_eq!(s, "(exists ((x Bool)) x)");
+    }
+
+    // ---- Term formatting: let bindings ----
+
+    #[test]
+    fn format_term_let() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Let(
+                vec![("a".to_string(), Term::IntLit(10))],
+                Box::new(Term::IntAdd(
+                    Box::new(Term::Const("a".to_string())),
+                    Box::new(Term::IntLit(1)),
+                )),
+            ),
+        );
+        assert_eq!(s, "(let ((a 10)) (+ a 1))");
+    }
+
+    #[test]
+    fn format_term_let_multiple_bindings() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Let(
+                vec![
+                    ("a".to_string(), Term::IntLit(1)),
+                    ("b".to_string(), Term::IntLit(2)),
+                ],
+                Box::new(Term::IntAdd(
+                    Box::new(Term::Const("a".to_string())),
+                    Box::new(Term::Const("b".to_string())),
+                )),
+            ),
+        );
+        assert_eq!(s, "(let ((a 1) (b 2)) (+ a b))");
+    }
+
+    // ---- Term formatting: function application ----
+
+    #[test]
+    fn format_term_app_with_args() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string()), Term::IntLit(3)],
+            ),
+        );
+        assert_eq!(s, "(f x 3)");
+    }
+
+    #[test]
+    fn format_term_app_no_args() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::App("f".to_string(), vec![]));
+        // App with no args just outputs the function name in parens
+        assert_eq!(s, "(f)");
+    }
+
+    // ---- Term formatting: annotations ----
+
+    #[test]
+    fn format_term_annotated_empty() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Annotated(Box::new(Term::Const("x".to_string())), vec![]),
+        );
+        assert_eq!(s, "x");
+    }
+
+    #[test]
+    fn format_term_annotated_with_pattern() {
+        let mut s = String::new();
+        let body = Term::IntGt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(0)),
+        );
+        let trigger = Term::App("f".to_string(), vec![Term::Const("x".to_string())]);
+        format_term(
+            &mut s,
+            &Term::Annotated(Box::new(body), vec![("pattern".to_string(), vec![trigger])]),
+        );
+        assert_eq!(s, "(! (> x 0) :pattern ((f x)))");
+    }
+
+    // ---- Term formatting: bitvec lit edge cases ----
+
+    #[test]
+    fn format_term_bitvec_lit_large_width() {
+        // Test width >= 128 to exercise the overflow branch
+        let mut s = String::new();
+        format_term(&mut s, &Term::BitVecLit(0xff, 128));
+        // width=128 -> hex_digits = 32, mask = i128::MAX
+        let hex_digits = 32;
+        let mask = i128::MAX;
+        let unsigned = 0xffi128 & mask;
+        let expected = format!("#x{:0>width$x}", unsigned, width = hex_digits);
+        assert_eq!(s, expected);
+    }
+
+    #[test]
+    fn format_term_int_lit_zero() {
+        let mut s = String::new();
+        format_term(&mut s, &Term::IntLit(0));
+        assert_eq!(s, "0");
+    }
+
+    // ---- Command formatting: remaining variants ----
+
+    #[test]
+    fn format_command_set_logic() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::SetLogic("QF_BV".to_string()));
+        assert_eq!(s, "(set-logic QF_BV)");
+    }
+
+    #[test]
+    fn format_command_set_option() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::SetOption("produce-models".to_string(), "true".to_string()),
+        );
+        assert_eq!(s, "(set-option :produce-models true)");
+    }
+
+    #[test]
+    fn format_command_declare_sort() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::DeclareSort("Pair".to_string(), 0));
+        assert_eq!(s, "(declare-sort Pair 0)");
+    }
+
+    #[test]
+    fn format_command_define_sort() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DefineSort("BV8".to_string(), vec![], Sort::BitVec(8)),
+        );
+        assert_eq!(s, "(define-sort BV8 () (_ BitVec 8))");
+    }
+
+    #[test]
+    fn format_command_define_sort_with_params() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DefineSort(
+                "MyArray".to_string(),
+                vec!["T".to_string()],
+                Sort::Array(
+                    Box::new(Sort::Int),
+                    Box::new(Sort::Uninterpreted("T".to_string())),
+                ),
+            ),
+        );
+        assert_eq!(s, "(define-sort MyArray (T) (Array Int T))");
+    }
+
+    #[test]
+    fn format_command_declare_fun_no_params() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DeclareFun("c".to_string(), vec![], Sort::Bool),
+        );
+        assert_eq!(s, "(declare-fun c () Bool)");
+    }
+
+    #[test]
+    fn format_command_declare_fun_with_params() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DeclareFun("f".to_string(), vec![Sort::Int, Sort::Int], Sort::Bool),
+        );
+        assert_eq!(s, "(declare-fun f (Int Int) Bool)");
+    }
+
+    #[test]
+    fn format_command_define_fun() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DefineFun(
+                "double".to_string(),
+                vec![("x".to_string(), Sort::Int)],
+                Sort::Int,
+                Term::IntAdd(
+                    Box::new(Term::Const("x".to_string())),
+                    Box::new(Term::Const("x".to_string())),
+                ),
+            ),
+        );
+        assert_eq!(s, "(define-fun double ((x Int)) Int (+ x x))");
+    }
+
+    #[test]
+    fn format_command_define_fun_multi_params() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DefineFun(
+                "add".to_string(),
+                vec![("x".to_string(), Sort::Int), ("y".to_string(), Sort::Int)],
+                Sort::Int,
+                Term::IntAdd(
+                    Box::new(Term::Const("x".to_string())),
+                    Box::new(Term::Const("y".to_string())),
+                ),
+            ),
+        );
+        assert_eq!(s, "(define-fun add ((x Int) (y Int)) Int (+ x y))");
+    }
+
+    #[test]
+    fn format_command_check_sat() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::CheckSat);
+        assert_eq!(s, "(check-sat)");
+    }
+
+    #[test]
+    fn format_command_get_model() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::GetModel);
+        assert_eq!(s, "(get-model)");
+    }
+
+    #[test]
+    fn format_command_get_value() {
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::GetValue(vec![
+                Term::Const("x".to_string()),
+                Term::Const("y".to_string()),
+            ]),
+        );
+        assert_eq!(s, "(get-value (x y))");
+    }
+
+    #[test]
+    fn format_command_push() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::Push(1));
+        assert_eq!(s, "(push 1)");
+    }
+
+    #[test]
+    fn format_command_pop() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::Pop(2));
+        assert_eq!(s, "(pop 2)");
+    }
+
+    #[test]
+    fn format_command_echo() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::Echo("hello".to_string()));
+        assert_eq!(s, "(echo \"hello\")");
+    }
+
+    #[test]
+    fn format_command_comment() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::Comment("this is a comment".to_string()));
+        assert_eq!(s, ";; this is a comment");
+    }
+
+    #[test]
+    fn format_command_exit() {
+        let mut s = String::new();
+        format_command(&mut s, &SmtCmd::Exit);
+        assert_eq!(s, "(exit)");
+    }
+
+    #[test]
+    fn format_command_declare_datatype_enum() {
+        use rust_fv_smtlib::command::DatatypeVariant;
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DeclareDatatype {
+                name: "Color".to_string(),
+                variants: vec![
+                    DatatypeVariant {
+                        constructor: "Red".to_string(),
+                        fields: vec![],
+                    },
+                    DatatypeVariant {
+                        constructor: "Green".to_string(),
+                        fields: vec![],
+                    },
+                    DatatypeVariant {
+                        constructor: "Blue".to_string(),
+                        fields: vec![],
+                    },
+                ],
+            },
+        );
+        assert_eq!(s, "(declare-datatype Color ((Red) (Green) (Blue)))");
+    }
+
+    #[test]
+    fn format_command_declare_datatype_with_fields() {
+        use rust_fv_smtlib::command::DatatypeVariant;
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DeclareDatatype {
+                name: "Point".to_string(),
+                variants: vec![DatatypeVariant {
+                    constructor: "mk-Point".to_string(),
+                    fields: vec![
+                        ("Point-x".to_string(), Sort::BitVec(32)),
+                        ("Point-y".to_string(), Sort::BitVec(32)),
+                    ],
+                }],
+            },
+        );
+        assert_eq!(
+            s,
+            "(declare-datatype Point ((mk-Point (Point-x (_ BitVec 32)) (Point-y (_ BitVec 32)))))"
+        );
+    }
+
+    #[test]
+    fn format_command_declare_datatype_mixed() {
+        use rust_fv_smtlib::command::DatatypeVariant;
+        let mut s = String::new();
+        format_command(
+            &mut s,
+            &SmtCmd::DeclareDatatype {
+                name: "Option_i32".to_string(),
+                variants: vec![
+                    DatatypeVariant {
+                        constructor: "mk-None".to_string(),
+                        fields: vec![],
+                    },
+                    DatatypeVariant {
+                        constructor: "mk-Some".to_string(),
+                        fields: vec![("Some-0".to_string(), Sort::BitVec(32))],
+                    },
+                ],
+            },
+        );
+        assert_eq!(
+            s,
+            "(declare-datatype Option_i32 ((mk-None) (mk-Some (Some-0 (_ BitVec 32)))))"
+        );
+    }
+
+    // ---- ensure_check_sat_and_get_model edge cases ----
+
+    #[test]
+    fn ensure_only_check_sat_present() {
+        let mut script = Script::new();
+        script.push(SmtCmd::CheckSat);
+        // No GetModel
+        let mut smtlib = String::new();
+        ensure_check_sat_and_get_model(&mut smtlib, &script);
+        assert!(!smtlib.contains("(check-sat)"));
+        assert!(smtlib.contains("(get-model)"));
+    }
+
+    #[test]
+    fn ensure_only_get_model_present() {
+        let mut script = Script::new();
+        script.push(SmtCmd::GetModel);
+        // No CheckSat
+        let mut smtlib = String::new();
+        ensure_check_sat_and_get_model(&mut smtlib, &script);
+        assert!(smtlib.contains("(check-sat)"));
+        assert!(!smtlib.contains("(get-model)"));
+    }
+
+    // ---- format_script integration ----
+
+    #[test]
+    fn format_script_empty() {
+        let script = Script::new();
+        let text = format_script(&script);
+        assert_eq!(text, "");
+    }
+
+    #[test]
+    fn format_script_multiple_commands() {
+        let mut script = Script::new();
+        script.push(SmtCmd::SetLogic("QF_BV".to_string()));
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::BitVec(32)));
+        script.push(SmtCmd::CheckSat);
+        script.push(SmtCmd::Exit);
+        let text = format_script(&script);
+        assert!(text.contains("(set-logic QF_BV)\n"));
+        assert!(text.contains("(declare-const x (_ BitVec 32))\n"));
+        assert!(text.contains("(check-sat)\n"));
+        assert!(text.contains("(exit)\n"));
+    }
+
+    // ---- Eq term formatting ----
+
+    #[test]
+    fn format_term_eq() {
+        let mut s = String::new();
+        format_term(
+            &mut s,
+            &Term::Eq(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::IntLit(5)),
+            ),
+        );
+        assert_eq!(s, "(= x 5)");
+    }
 }

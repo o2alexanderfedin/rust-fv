@@ -516,3 +516,208 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
     }
     .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_fv_analysis::vcgen::VcKind;
+
+    // --- OutputFormat tests ---
+
+    #[test]
+    fn test_output_format_text() {
+        let fmt = OutputFormat::Text;
+        assert_eq!(fmt, OutputFormat::Text);
+    }
+
+    #[test]
+    fn test_output_format_json() {
+        let fmt = OutputFormat::Json;
+        assert_eq!(fmt, OutputFormat::Json);
+    }
+
+    #[test]
+    fn test_output_format_ne() {
+        assert_ne!(OutputFormat::Text, OutputFormat::Json);
+    }
+
+    #[test]
+    fn test_output_format_clone() {
+        let fmt = OutputFormat::Json;
+        let cloned = fmt;
+        assert_eq!(fmt, cloned);
+    }
+
+    #[test]
+    fn test_output_format_debug() {
+        assert_eq!(format!("{:?}", OutputFormat::Text), "Text");
+        assert_eq!(format!("{:?}", OutputFormat::Json), "Json");
+    }
+
+    // --- VerificationCallbacks::new tests ---
+
+    #[test]
+    fn test_callbacks_new_text() {
+        let cb = VerificationCallbacks::new(OutputFormat::Text, 4, false);
+        assert!(cb.enabled);
+        assert_eq!(cb.output_format, OutputFormat::Text);
+        assert_eq!(cb.jobs, 4);
+        assert!(!cb.fresh);
+        assert!(cb.results.is_empty());
+        assert!(cb.failures.is_empty());
+        assert!(cb.crate_name.is_none());
+        assert!(cb.use_simplification);
+    }
+
+    #[test]
+    fn test_callbacks_new_json() {
+        let cb = VerificationCallbacks::new(OutputFormat::Json, 8, true);
+        assert!(cb.enabled);
+        assert_eq!(cb.output_format, OutputFormat::Json);
+        assert_eq!(cb.jobs, 8);
+        assert!(cb.fresh);
+    }
+
+    #[test]
+    fn test_callbacks_new_single_job() {
+        let cb = VerificationCallbacks::new(OutputFormat::Text, 1, false);
+        assert_eq!(cb.jobs, 1);
+    }
+
+    // --- VerificationCallbacks::passthrough tests ---
+
+    #[test]
+    fn test_callbacks_passthrough() {
+        let cb = VerificationCallbacks::passthrough();
+        assert!(!cb.enabled);
+        assert_eq!(cb.output_format, OutputFormat::Text);
+        assert_eq!(cb.jobs, 1);
+        assert!(!cb.fresh);
+        assert!(cb.results.is_empty());
+        assert!(cb.failures.is_empty());
+        assert!(cb.crate_name.is_none());
+        assert!(cb.use_simplification);
+    }
+
+    // --- vc_kind_to_string tests ---
+
+    #[test]
+    fn test_vc_kind_to_string_precondition() {
+        assert_eq!(vc_kind_to_string(&VcKind::Precondition), "precondition");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_postcondition() {
+        assert_eq!(vc_kind_to_string(&VcKind::Postcondition), "postcondition");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_loop_invariant_init() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::LoopInvariantInit),
+            "loop_invariant_init"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_loop_invariant_preserve() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::LoopInvariantPreserve),
+            "loop_invariant_preserve"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_loop_invariant_exit() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::LoopInvariantExit),
+            "loop_invariant_exit"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_overflow() {
+        assert_eq!(vc_kind_to_string(&VcKind::Overflow), "overflow");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_division_by_zero() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::DivisionByZero),
+            "division_by_zero"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_shift_bounds() {
+        assert_eq!(vc_kind_to_string(&VcKind::ShiftBounds), "shift_bounds");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_assertion() {
+        assert_eq!(vc_kind_to_string(&VcKind::Assertion), "assertion");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_panic_freedom() {
+        assert_eq!(vc_kind_to_string(&VcKind::PanicFreedom), "panic_freedom");
+    }
+
+    // --- VerificationResult tests (struct construction) ---
+
+    #[test]
+    fn test_verification_result_construction() {
+        let result = VerificationResult {
+            function_name: "test_fn".to_string(),
+            condition: "postcondition: result > 0".to_string(),
+            verified: true,
+            counterexample: None,
+            vc_location: rust_fv_analysis::vcgen::VcLocation {
+                function: "test_fn".to_string(),
+                block: 0,
+                statement: 0,
+                source_file: None,
+                source_line: None,
+                contract_text: None,
+                vc_kind: VcKind::Postcondition,
+            },
+        };
+        assert_eq!(result.function_name, "test_fn");
+        assert!(result.verified);
+        assert!(result.counterexample.is_none());
+    }
+
+    #[test]
+    fn test_verification_result_with_counterexample() {
+        let result = VerificationResult {
+            function_name: "div".to_string(),
+            condition: "division by zero".to_string(),
+            verified: false,
+            counterexample: Some("b = 0".to_string()),
+            vc_location: rust_fv_analysis::vcgen::VcLocation {
+                function: "div".to_string(),
+                block: 1,
+                statement: 2,
+                source_file: Some("src/lib.rs".to_string()),
+                source_line: Some(42),
+                contract_text: Some("b != 0".to_string()),
+                vc_kind: VcKind::DivisionByZero,
+            },
+        };
+        assert!(!result.verified);
+        assert_eq!(result.counterexample.as_deref(), Some("b = 0"));
+        assert_eq!(
+            result.vc_location.source_file.as_deref(),
+            Some("src/lib.rs")
+        );
+        assert_eq!(result.vc_location.source_line, Some(42));
+    }
+
+    // --- print_results with no results should not panic ---
+
+    #[test]
+    fn test_print_results_empty() {
+        let cb = VerificationCallbacks::passthrough();
+        cb.print_results(); // Should not panic
+    }
+}
