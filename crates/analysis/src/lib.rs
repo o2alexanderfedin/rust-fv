@@ -7,6 +7,7 @@ pub mod encode_term;
 pub mod ir;
 pub mod monomorphize;
 pub mod ownership;
+pub mod recursion;
 pub mod simplify;
 pub mod spec_parser;
 pub mod vcgen;
