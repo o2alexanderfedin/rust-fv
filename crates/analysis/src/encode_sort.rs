@@ -84,6 +84,10 @@ pub fn encode_type(ty: &Ty) -> Sort {
             tracing::trace!(closure_name = %info.name, "Encoding closure as datatype sort");
             Sort::Datatype(info.name.clone())
         }
+        Ty::TraitObject(trait_name) => {
+            tracing::trace!(trait_name = %trait_name, "Encoding trait object as uninterpreted sort");
+            Sort::Uninterpreted(trait_name.clone())
+        }
     }
 }
 
@@ -606,5 +610,16 @@ mod tests {
         } else {
             panic!("Expected DeclareDatatype");
         }
+    }
+
+    // ====== Ty::TraitObject encoding tests (Phase 8) ======
+
+    #[test]
+    fn test_encode_type_trait_object() {
+        let trait_obj = Ty::TraitObject("Stack".to_string());
+        assert_eq!(
+            encode_type(&trait_obj),
+            Sort::Uninterpreted("Stack".to_string())
+        );
     }
 }

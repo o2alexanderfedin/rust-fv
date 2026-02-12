@@ -24,6 +24,47 @@ pub enum ClosureTrait {
     FnOnce,
 }
 
+/// A method in a trait definition with contract specifications.
+#[derive(Debug, Clone)]
+pub struct TraitMethod {
+    /// Method name (e.g., "push", "pop")
+    pub name: String,
+    /// Parameter names and types (including &self/&mut self)
+    pub params: Vec<(String, Ty)>,
+    /// Return type
+    pub return_ty: Ty,
+    /// Preconditions (trait-level requirements)
+    pub requires: Vec<SpecExpr>,
+    /// Postconditions (trait-level guarantees)
+    pub ensures: Vec<SpecExpr>,
+    /// Whether this is a pure/specification-only method
+    pub is_pure: bool,
+}
+
+/// A trait definition with methods and contract specifications.
+#[derive(Debug, Clone)]
+pub struct TraitDef {
+    /// Trait name (e.g., "Stack", "Iterator")
+    pub name: String,
+    /// Methods defined in this trait
+    pub methods: Vec<TraitMethod>,
+    /// Whether this trait is sealed (pub(crate), private, or sealed super-trait pattern)
+    pub is_sealed: bool,
+    /// Super-trait names for inheritance
+    pub super_traits: Vec<String>,
+}
+
+/// An implementation of a trait for a concrete type.
+#[derive(Debug, Clone)]
+pub struct TraitImpl {
+    /// The trait being implemented (e.g., "Stack")
+    pub trait_name: String,
+    /// The concrete type implementing the trait (e.g., "VecStack")
+    pub impl_type: String,
+    /// Names of the trait methods this impl provides
+    pub method_names: Vec<String>,
+}
+
 /// Information about a closure type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureInfo {
@@ -433,6 +474,10 @@ pub enum Ty {
     /// Closure type with environment, parameters, return type, and trait kind.
     /// Box is used to avoid recursive type size explosion.
     Closure(Box<ClosureInfo>),
+    /// Trait object type (dyn Trait).
+    /// Represents dynamic dispatch via trait objects (Box<dyn Trait>, &dyn Trait, etc.).
+    /// The outer container (Box, &, &mut) is represented separately via Ref/RawPtr wrappers.
+    TraitObject(String),
 }
 
 /// Signed integer types.
@@ -566,6 +611,11 @@ impl Ty {
     /// Whether this is a closure type.
     pub fn is_closure(&self) -> bool {
         matches!(self, Self::Closure(_))
+    }
+
+    /// Whether this is a trait object type.
+    pub fn is_trait_object(&self) -> bool {
+        matches!(self, Self::TraitObject(_))
     }
 }
 
@@ -1042,5 +1092,119 @@ mod tests {
         let debug_output = format!("{:?}", closure_agg);
         assert!(debug_output.contains("Closure"));
         assert!(debug_output.contains("test_closure"));
+    }
+
+    // ====== Trait types tests (Phase 8) ======
+
+    #[test]
+    fn test_trait_method_creation() {
+        let method = TraitMethod {
+            name: "push".to_string(),
+            params: vec![
+                (
+                    "self".to_string(),
+                    Ty::Ref(
+                        Box::new(Ty::Named("Stack".to_string())),
+                        Mutability::Mutable,
+                    ),
+                ),
+                ("item".to_string(), Ty::Int(IntTy::I32)),
+            ],
+            return_ty: Ty::Unit,
+            requires: vec![SpecExpr {
+                raw: "item > 0".to_string(),
+            }],
+            ensures: vec![SpecExpr {
+                raw: "self.len() == old(self.len()) + 1".to_string(),
+            }],
+            is_pure: false,
+        };
+        assert_eq!(method.name, "push");
+        assert_eq!(method.params.len(), 2);
+        assert_eq!(method.requires.len(), 1);
+        assert_eq!(method.ensures.len(), 1);
+        assert!(!method.is_pure);
+    }
+
+    #[test]
+    fn test_trait_def_creation() {
+        let trait_def = TraitDef {
+            name: "Stack".to_string(),
+            methods: vec![TraitMethod {
+                name: "push".to_string(),
+                params: vec![],
+                return_ty: Ty::Unit,
+                requires: vec![],
+                ensures: vec![],
+                is_pure: false,
+            }],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        assert_eq!(trait_def.name, "Stack");
+        assert_eq!(trait_def.methods.len(), 1);
+        assert!(!trait_def.is_sealed);
+        assert_eq!(trait_def.super_traits.len(), 0);
+    }
+
+    #[test]
+    fn test_trait_def_sealed() {
+        let sealed_trait = TraitDef {
+            name: "InternalStack".to_string(),
+            methods: vec![],
+            is_sealed: true,
+            super_traits: vec![],
+        };
+        assert!(sealed_trait.is_sealed);
+
+        let public_trait = TraitDef {
+            name: "PublicStack".to_string(),
+            methods: vec![],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        assert!(!public_trait.is_sealed);
+    }
+
+    #[test]
+    fn test_trait_impl_creation() {
+        let trait_impl = TraitImpl {
+            trait_name: "Stack".to_string(),
+            impl_type: "VecStack".to_string(),
+            method_names: vec!["push".to_string(), "pop".to_string()],
+        };
+        assert_eq!(trait_impl.trait_name, "Stack");
+        assert_eq!(trait_impl.impl_type, "VecStack");
+        assert_eq!(trait_impl.method_names.len(), 2);
+        assert_eq!(trait_impl.method_names[0], "push");
+    }
+
+    #[test]
+    fn test_ty_trait_object() {
+        let trait_obj = Ty::TraitObject("Stack".to_string());
+        assert!(trait_obj.is_trait_object());
+        if let Ty::TraitObject(name) = trait_obj {
+            assert_eq!(name, "Stack");
+        } else {
+            panic!("Expected TraitObject variant");
+        }
+    }
+
+    #[test]
+    fn test_ty_non_trait_object_is_not_trait_object() {
+        assert!(!Ty::Int(IntTy::I32).is_trait_object());
+        assert!(!Ty::Bool.is_trait_object());
+        assert!(!Ty::Unit.is_trait_object());
+        assert!(!Ty::SpecInt.is_trait_object());
+        assert!(
+            !Ty::Closure(Box::new(ClosureInfo {
+                name: "test".to_string(),
+                env_fields: vec![],
+                params: vec![],
+                return_ty: Ty::Unit,
+                trait_kind: ClosureTrait::Fn,
+            }))
+            .is_trait_object()
+        );
     }
 }

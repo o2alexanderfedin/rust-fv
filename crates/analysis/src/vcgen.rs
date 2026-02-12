@@ -101,6 +101,8 @@ pub enum VcKind {
     Termination,
     /// Closure contract verification
     ClosureContract,
+    /// Behavioral subtyping check (trait impl satisfies trait contract)
+    BehavioralSubtyping,
 }
 
 impl VcKind {

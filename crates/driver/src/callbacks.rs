@@ -522,6 +522,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::PanicFreedom => "panic_freedom",
         VcKind::Termination => "termination",
         VcKind::ClosureContract => "closure_contract",
+        VcKind::BehavioralSubtyping => "behavioral_subtyping",
     }
     .to_string()
 }
@@ -670,6 +671,27 @@ mod tests {
     #[test]
     fn test_vc_kind_to_string_panic_freedom() {
         assert_eq!(vc_kind_to_string(&VcKind::PanicFreedom), "panic_freedom");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_termination() {
+        assert_eq!(vc_kind_to_string(&VcKind::Termination), "termination");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_closure_contract() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::ClosureContract),
+            "closure_contract"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_behavioral_subtyping() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::BehavioralSubtyping),
+            "behavioral_subtyping"
+        );
     }
 
     // --- VerificationResult tests (struct construction) ---
