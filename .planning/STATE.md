@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 ## Current Position
 
 Phase: 5 of 5 (Performance and Polish) -- IN PROGRESS
-Plan: 3 of 5 in current phase
-Status: 05-01 (simplification), 05-02 (benchmarks), 05-03 (diagnostics) complete
-Last activity: 2026-02-11 -- 05-03 enhanced diagnostics and JSON output
+Plan: 3 of 3 in current phase -- COMPLETE
+Status: 05-01 (simplification), 05-02 (caching and parallelism), 05-03 (diagnostics) complete
+Last activity: 2026-02-12 -- 05-02 caching and parallel verification
 
-Progress: [████████████████████] 60% (Phase 5: 3/5 plans complete)
+Progress: [████████████████████] 100% (Phase 5: 3/3 plans complete)
 
 ## What Exists (v0.1.0)
 
@@ -39,6 +39,7 @@ Progress: [████████████████████] 60% (Ph
 - **Full spec parser (02-05)**: syn-based expression parser with old() operator, field access, backward-compatible fallback
 - **cargo verify subcommand (02-05)**: Colored per-function output (OK/FAIL/TIMEOUT), --help, --timeout, exit codes
 - **Formula simplification (05-01)**: Simplify module with 8 algebraic rules, recursive term rewriting, ~30% SMT size reduction
+- **VC caching and parallel verification (05-02)**: SHA-256 hash-based per-function caching in target/rust-fv-cache/, Rayon parallelism (cores/2 default), topological ordering via call graph, --fresh and --jobs flags
 - **Enhanced diagnostics (05-03)**: VcKind classification (10 categories), ariadne-based error reporting, fix suggestions, counterexample formatting
 - **JSON output (05-03)**: Structured JSON output via --output-format json for IDE/rust-analyzer integration
 
@@ -51,9 +52,9 @@ Progress: [████████████████████] 60% (Ph
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
-- Average duration: ~13.2 min
-- Total execution time: ~225 min
+- Total plans completed: 18
+- Average duration: ~12.9 min
+- Total execution time: ~232 min
 
 **By Phase:**
 
@@ -63,10 +64,11 @@ Progress: [████████████████████] 60% (Ph
 | 02-table-stakes-completion | 5/5 | ~78 min | ~16 min |
 | 03-modular-verification | 2/2 | ~21 min | ~11 min |
 | 04-differentiation | 4/4 | ~83 min | ~21 min |
-| 05-performance-and-polish | 3/5 | ~22 min | ~7 min |
+| 05-performance-and-polish | 3/3 | ~29 min | ~10 min |
 
 *Updated after each plan completion*
 | Phase 05 P03 | 12 | 2 tasks | 5 files |
+| Phase 05 P02 | 10 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -144,6 +146,9 @@ Recent decisions affecting current work:
 - [05-03]: JSON to stdout, all other output to stderr (IDE integration best practice)
 - [05-03]: Fallback text diagnostics when source location unavailable (ariadne requires source file access)
 - [05-03]: Fix suggestions for common patterns (overflow, precondition, postcondition, loop invariants, division-by-zero)
+- [Phase 05-02]: Per-function caching with SHA-256 hash keys (conservative invalidation)
+- [Phase 05-02]: Subprocess-based Z3 instances per thread for isolation
+- [Phase 05-02]: Topological ordering via call graph (leaf functions first)
 
 ### Pending Todos
 
@@ -156,7 +161,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-11
-Stopped at: Completed 05-03 (enhanced diagnostics and JSON output)
+Last session: 2026-02-12
+Stopped at: Completed 05-02 (VC caching and parallel verification)
 Resume file: None
 Next step: Continue Phase 5 with remaining plans (documentation, performance optimization, or additional polish features)
