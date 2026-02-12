@@ -10,8 +10,19 @@ use rustc_driver::Callbacks;
 use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
 
+use crate::diagnostics;
+use crate::json_output;
 use crate::mir_converter;
 use crate::output;
+
+/// Output format for verification results.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Colored text output (default)
+    Text,
+    /// Structured JSON output
+    Json,
+}
 
 /// Result of verifying a single function.
 #[derive(Debug)]
@@ -20,6 +31,8 @@ pub struct VerificationResult {
     pub condition: String,
     pub verified: bool,
     pub counterexample: Option<String>,
+    #[allow(dead_code)] // Used for future diagnostics enhancement
+    pub vc_location: rust_fv_analysis::vcgen::VcLocation,
 }
 
 /// Callbacks that perform verification after analysis.
@@ -28,14 +41,23 @@ pub struct VerificationCallbacks {
     enabled: bool,
     /// Collected results
     results: Vec<VerificationResult>,
+    /// Output format (Text or Json)
+    output_format: OutputFormat,
+    /// Structured failure information for diagnostics
+    failures: Vec<diagnostics::VerificationFailure>,
+    /// Crate name (extracted during after_analysis)
+    crate_name: Option<String>,
 }
 
 impl VerificationCallbacks {
     /// Create callbacks with verification enabled.
-    pub fn new() -> Self {
+    pub fn new(output_format: OutputFormat) -> Self {
         Self {
             enabled: true,
             results: Vec::new(),
+            output_format,
+            failures: Vec::new(),
+            crate_name: None,
         }
     }
 
@@ -44,6 +66,9 @@ impl VerificationCallbacks {
         Self {
             enabled: false,
             results: Vec::new(),
+            output_format: OutputFormat::Text,
+            failures: Vec::new(),
+            crate_name: None,
         }
     }
 
@@ -52,6 +77,7 @@ impl VerificationCallbacks {
     /// Groups per-VC results by function name and produces a single
     /// per-function line with OK/FAIL/TIMEOUT status.
     pub fn print_results(&self) {
+        let crate_name = self.crate_name.as_deref().unwrap_or("unknown");
         // Group results by function name
         let mut func_map: std::collections::HashMap<String, Vec<&VerificationResult>> =
             std::collections::HashMap::new();
@@ -103,7 +129,85 @@ impl VerificationCallbacks {
         // Sort by name for deterministic output
         func_results.sort_by(|a, b| a.name.cmp(&b.name));
 
-        output::print_verification_results(&func_results);
+        match self.output_format {
+            OutputFormat::Text => {
+                // Print summary table
+                output::print_verification_results(&func_results);
+
+                // Print detailed diagnostics for each failure
+                for failure in &self.failures {
+                    diagnostics::report_verification_failure(failure);
+                }
+            }
+            OutputFormat::Json => {
+                // Build JSON report
+                let json_functions: Vec<json_output::JsonFunctionResult> = func_results
+                    .iter()
+                    .map(|fr| {
+                        let status_str = match fr.status {
+                            output::VerificationStatus::Ok => "ok",
+                            output::VerificationStatus::Fail => "fail",
+                            output::VerificationStatus::Timeout => "timeout",
+                        };
+
+                        // Collect failures for this function
+                        let failures: Vec<json_output::JsonFailure> = self
+                            .failures
+                            .iter()
+                            .filter(|f| f.function_name == fr.name)
+                            .map(|f| json_output::JsonFailure {
+                                vc_kind: vc_kind_to_string(&f.vc_kind),
+                                description: f.message.clone(),
+                                contract: f.contract_text.clone(),
+                                source_file: f.source_file.clone(),
+                                source_line: f.source_line,
+                                counterexample: f.counterexample.as_ref().map(|cx| {
+                                    cx.iter()
+                                        .map(|(k, v)| json_output::JsonAssignment {
+                                            variable: k.clone(),
+                                            value: v.clone(),
+                                        })
+                                        .collect()
+                                }),
+                                suggestion: diagnostics::suggest_fix(&f.vc_kind),
+                            })
+                            .collect();
+
+                        json_output::JsonFunctionResult {
+                            name: fr.name.clone(),
+                            status: status_str.to_string(),
+                            vc_count: fr.vc_count,
+                            verified_count: fr.verified_count,
+                            failures,
+                        }
+                    })
+                    .collect();
+
+                let summary = json_output::JsonSummary {
+                    total: func_results.len(),
+                    ok: func_results
+                        .iter()
+                        .filter(|r| r.status == output::VerificationStatus::Ok)
+                        .count(),
+                    fail: func_results
+                        .iter()
+                        .filter(|r| r.status == output::VerificationStatus::Fail)
+                        .count(),
+                    timeout: func_results
+                        .iter()
+                        .filter(|r| r.status == output::VerificationStatus::Timeout)
+                        .count(),
+                };
+
+                let report = json_output::JsonVerificationReport {
+                    crate_name: crate_name.to_string(),
+                    functions: json_functions,
+                    summary,
+                };
+
+                json_output::print_json_report(&report);
+            }
+        }
     }
 }
 
@@ -117,7 +221,13 @@ impl Callbacks for VerificationCallbacks {
             return rustc_driver::Compilation::Continue;
         }
 
-        eprintln!("[rust-fv] Running formal verification...");
+        // Extract crate name
+        self.crate_name = Some(tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE).to_string());
+
+        // Only print progress messages in Text mode (suppress in JSON mode)
+        if self.output_format == OutputFormat::Text {
+            eprintln!("[rust-fv] Running formal verification...");
+        }
 
         // Extract contracts from HIR attributes
         let contracts_map = extract_contracts(tcx);
@@ -179,7 +289,9 @@ impl Callbacks for VerificationCallbacks {
                 continue;
             }
 
-            eprintln!("[rust-fv] Verifying: {name}");
+            if self.output_format == OutputFormat::Text {
+                eprintln!("[rust-fv] Verifying: {name}");
+            }
 
             // Get the optimized MIR
             let mir = tcx.optimized_mir(def_id);
@@ -205,21 +317,42 @@ impl Callbacks for VerificationCallbacks {
                             condition: vc.description.clone(),
                             verified: true,
                             counterexample: None,
+                            vc_location: vc.location.clone(),
                         });
                     }
                     Ok(rust_fv_solver::SolverResult::Sat(model)) => {
-                        let cx = model.map(|m| {
+                        let cx_str = model.as_ref().map(|m| {
                             m.assignments
                                 .iter()
                                 .map(|(k, v)| format!("{k} = {v}"))
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         });
+
+                        // Build structured failure information
+                        let counterexample = model.as_ref().map(|m| {
+                            m.assignments
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect()
+                        });
+
+                        self.failures.push(diagnostics::VerificationFailure {
+                            function_name: name.clone(),
+                            vc_kind: vc.location.vc_kind.clone(),
+                            contract_text: vc.location.contract_text.clone(),
+                            source_file: vc.location.source_file.clone(),
+                            source_line: vc.location.source_line,
+                            counterexample,
+                            message: vc.description.clone(),
+                        });
+
                         self.results.push(VerificationResult {
                             function_name: name.clone(),
                             condition: vc.description.clone(),
                             verified: false,
-                            counterexample: cx,
+                            counterexample: cx_str,
+                            vc_location: vc.location.clone(),
                         });
                     }
                     Ok(rust_fv_solver::SolverResult::Unknown(reason)) => {
@@ -228,6 +361,7 @@ impl Callbacks for VerificationCallbacks {
                             condition: format!("{} (unknown: {reason})", vc.description),
                             verified: false,
                             counterexample: None,
+                            vc_location: vc.location.clone(),
                         });
                     }
                     Err(e) => {
@@ -236,6 +370,7 @@ impl Callbacks for VerificationCallbacks {
                             condition: format!("{} (error: {e})", vc.description),
                             verified: false,
                             counterexample: None,
+                            vc_location: vc.location.clone(),
                         });
                     }
                 }
@@ -334,4 +469,22 @@ fn extract_doc_value(attr: &rustc_hir::Attribute) -> Option<String> {
         return Some(value.to_string());
     }
     None
+}
+
+/// Convert VcKind to a JSON-friendly string.
+fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
+    use rust_fv_analysis::vcgen::VcKind;
+    match vc_kind {
+        VcKind::Precondition => "precondition",
+        VcKind::Postcondition => "postcondition",
+        VcKind::LoopInvariantInit => "loop_invariant_init",
+        VcKind::LoopInvariantPreserve => "loop_invariant_preserve",
+        VcKind::LoopInvariantExit => "loop_invariant_exit",
+        VcKind::Overflow => "overflow",
+        VcKind::DivisionByZero => "division_by_zero",
+        VcKind::ShiftBounds => "shift_bounds",
+        VcKind::Assertion => "assertion",
+        VcKind::PanicFreedom => "panic_freedom",
+    }
+    .to_string()
 }

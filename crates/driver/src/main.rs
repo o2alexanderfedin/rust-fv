@@ -24,6 +24,8 @@ extern crate rustc_span;
 
 mod callbacks;
 mod cargo_verify;
+mod diagnostics;
+mod json_output;
 mod mir_converter;
 mod output;
 
@@ -57,13 +59,18 @@ fn main() -> ExitCode {
     let verify =
         std::env::var("RUST_FV_VERIFY").is_ok() || args.iter().any(|a| a == "--rust-fv-verify");
 
+    let output_format = match std::env::var("RUST_FV_OUTPUT_FORMAT").as_deref() {
+        Ok("json") => callbacks::OutputFormat::Json,
+        _ => callbacks::OutputFormat::Text,
+    };
+
     let rustc_args: Vec<String> = args
         .into_iter()
         .filter(|a| a != "--rust-fv-verify")
         .collect();
 
     let mut callbacks = if verify {
-        callbacks::VerificationCallbacks::new()
+        callbacks::VerificationCallbacks::new(output_format)
     } else {
         callbacks::VerificationCallbacks::passthrough()
     };

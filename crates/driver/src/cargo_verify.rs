@@ -50,6 +50,9 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse timeout from args (default: 30 seconds per function)
     let timeout = parse_timeout(args);
 
+    // Parse output format from args (default: text)
+    let output_format = parse_output_format(args);
+
     // Build the cargo check command with our driver as RUSTC
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
@@ -62,14 +65,20 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
         cmd.env("RUST_FV_TIMEOUT", timeout.to_string());
     }
 
+    if output_format == "json" {
+        cmd.env("RUST_FV_OUTPUT_FORMAT", "json");
+    }
+
     // Forward any extra args (e.g., --package, --lib, etc.)
     for arg in args {
-        if !arg.starts_with("--timeout") {
+        if !arg.starts_with("--timeout") && !arg.starts_with("--output-format") {
             cmd.arg(arg);
         }
     }
 
-    eprintln!("{}", "Running verification...".dimmed());
+    if output_format != "json" {
+        eprintln!("{}", "Running verification...".dimmed());
+    }
 
     match cmd.status() {
         Ok(status) => {
@@ -136,6 +145,21 @@ fn parse_timeout(args: &[String]) -> u64 {
     30 // default: 30 seconds
 }
 
+/// Parse --output-format FORMAT from arguments.
+fn parse_output_format(args: &[String]) -> String {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--output-format"
+            && let Some(val) = args.get(i + 1)
+        {
+            return val.clone();
+        }
+        if let Some(val) = arg.strip_prefix("--output-format=") {
+            return val.to_string();
+        }
+    }
+    "text".to_string() // default: text
+}
+
 /// Print usage information.
 fn print_usage() {
     eprintln!("rust-fv: Formal verification for Rust");
@@ -144,18 +168,21 @@ fn print_usage() {
     eprintln!("    cargo verify [OPTIONS]");
     eprintln!();
     eprintln!("OPTIONS:");
-    eprintln!("    --timeout <SECONDS>    Verification timeout per function (default: 30)");
-    eprintln!("    --help, -h             Print this help message");
+    eprintln!("    --timeout <SECONDS>         Verification timeout per function (default: 30)");
+    eprintln!("    --output-format <FORMAT>    Output format: text or json (default: text)");
+    eprintln!("    --help, -h                  Print this help message");
     eprintln!();
     eprintln!("DESCRIPTION:");
     eprintln!("    Runs formal verification on all annotated functions in the current crate.");
     eprintln!("    Functions are annotated with #[requires(...)], #[ensures(...)], #[pure],");
     eprintln!("    and #[invariant(...)] attributes from the rust-fv-macros crate.");
     eprintln!();
-    eprintln!("    Results are displayed with colored status:");
+    eprintln!("    Results are displayed with colored status (text mode):");
     eprintln!("      [OK]      - All verification conditions verified");
     eprintln!("      [FAIL]    - At least one verification condition failed");
     eprintln!("      [TIMEOUT] - Verification timed out");
+    eprintln!();
+    eprintln!("    JSON mode outputs structured results to stdout for IDE integration.");
     eprintln!();
     eprintln!("EXIT CODES:");
     eprintln!("    0  All functions verified successfully");

@@ -9,6 +9,7 @@
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use rust_fv_analysis::ir::*;
+use rust_fv_analysis::simplify::simplify_script;
 use rust_fv_analysis::vcgen;
 
 // ---------------------------------------------------------------------------
@@ -645,6 +646,70 @@ fn bench_e2e_complex_function(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// A/B Simplification Comparison Benchmarks
+// ---------------------------------------------------------------------------
+
+fn bench_simplification_ab(c: &mut Criterion) {
+    let solver = match rust_fv_solver::Z3Solver::with_default_config() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Z3 not available, skipping simplification bench: {e}");
+            return;
+        }
+    };
+
+    let mut group = c.benchmark_group("simplification");
+
+    // Max function A/B comparison
+    let max_func = make_max_function();
+    group.bench_function("max_without", |b| {
+        b.iter(|| {
+            let vcs = vcgen::generate_vcs(&max_func, None);
+            for vc in &vcs.conditions {
+                let smtlib = script_to_smtlib(&vc.script);
+                let _ = solver.check_sat_raw(&smtlib);
+            }
+        });
+    });
+
+    group.bench_function("max_with", |b| {
+        b.iter(|| {
+            let vcs = vcgen::generate_vcs(&max_func, None);
+            for vc in &vcs.conditions {
+                let simplified = simplify_script(&vc.script);
+                let smtlib = script_to_smtlib(&simplified);
+                let _ = solver.check_sat_raw(&smtlib);
+            }
+        });
+    });
+
+    // Clamp function A/B comparison
+    let clamp_func = make_complex_function();
+    group.bench_function("clamp_without", |b| {
+        b.iter(|| {
+            let vcs = vcgen::generate_vcs(&clamp_func, None);
+            for vc in &vcs.conditions {
+                let smtlib = script_to_smtlib(&vc.script);
+                let _ = solver.check_sat_raw(&smtlib);
+            }
+        });
+    });
+
+    group.bench_function("clamp_with", |b| {
+        b.iter(|| {
+            let vcs = vcgen::generate_vcs(&clamp_func, None);
+            for vc in &vcs.conditions {
+                let simplified = simplify_script(&vc.script);
+                let smtlib = script_to_smtlib(&simplified);
+                let _ = solver.check_sat_raw(&smtlib);
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
 // Criterion groups and main
 // ---------------------------------------------------------------------------
 
@@ -662,4 +727,6 @@ criterion_group!(
     bench_e2e_complex_function,
 );
 
-criterion_main!(vcgen_benches, e2e_benches);
+criterion_group!(simplification_benches, bench_simplification_ab,);
+
+criterion_main!(vcgen_benches, e2e_benches, simplification_benches);

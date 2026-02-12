@@ -20,5 +20,7 @@ rust-fv-solver = { workspace = true }
 rust-fv-smtlib = { workspace = true }
 colored = "3.1"
 ariadne = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

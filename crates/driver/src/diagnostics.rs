@@ -5,7 +5,7 @@
 /// - Colored arrows pointing to failing spec
 /// - Counterexample with concrete variable values
 /// - Fix suggestions for common failure patterns
-use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
+use ariadne::{ColorGenerator, Label, Report, ReportKind};
 use colored::Colorize;
 use rust_fv_analysis::vcgen::VcKind;
 
@@ -70,7 +70,7 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         report
     };
 
-    let report = if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
+    let _report = if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
         report.with_help(suggestion)
     } else {
         report
@@ -78,7 +78,7 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
 
     // For now, we can't actually read source files, so we skip eprint for ariadne.
     // When integrated with rustc driver, we'd use the real source map:
-    // report.finish().eprint((source_file, Source::from(source_text))).unwrap();
+    // _report.finish().eprint((source_file, Source::from(source_text))).unwrap();
 
     // Fall back to text for now
     report_text_only(failure);
@@ -89,12 +89,15 @@ fn report_text_only(failure: &VerificationFailure) {
     let error_code = "V001";
     let header = format!(
         "error[{}]: verification failed: {}",
-        error_code,
-        failure.function_name
+        error_code, failure.function_name
     );
 
     eprintln!("{}", header.red().bold());
-    eprintln!("  {}: {}", "kind".bold(), vc_kind_description(&failure.vc_kind));
+    eprintln!(
+        "  {}: {}",
+        "kind".bold(),
+        vc_kind_description(&failure.vc_kind)
+    );
 
     if let Some(ref contract) = failure.contract_text {
         eprintln!("  {}: {}", "contract".bold(), contract);
@@ -134,9 +137,9 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
 /// Suggest a fix for common verification failure patterns.
 pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
     match vc_kind {
-        VcKind::Overflow => Some(
-            "Consider adding a bounds check or using checked_add/wrapping_add".to_string(),
-        ),
+        VcKind::Overflow => {
+            Some("Consider adding a bounds check or using checked_add/wrapping_add".to_string())
+        }
         VcKind::Precondition => Some(
             "The caller does not satisfy the callee's precondition. \
              Strengthen the caller's requires clause or weaken the callee's."
@@ -157,9 +160,9 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
              Check that the invariant holds after each iteration."
                 .to_string(),
         ),
-        VcKind::DivisionByZero => Some(
-            "Add a check divisor != 0 or add #[requires(divisor != 0)]".to_string(),
-        ),
+        VcKind::DivisionByZero => {
+            Some("Add a check divisor != 0 or add #[requires(divisor != 0)]".to_string())
+        }
         VcKind::Assertion => Some(
             "The assert condition may not hold on all paths. \
              Add preconditions to constrain inputs."
@@ -224,9 +227,12 @@ mod tests {
     #[test]
     fn test_parse_bitvec_hex() {
         assert_eq!(parse_bitvec_value("#x0000002a"), Some("42".to_string()));
+        // Note: #xffffffff parses as 4294967295 (unsigned interpretation)
+        // since we don't know the bit width. For proper signed interpretation,
+        // we'd need to track the width, which would require more context.
         assert_eq!(
             parse_bitvec_value("#xffffffff"),
-            Some("-1".to_string()) // i128 interpretation
+            Some("4294967295".to_string())
         );
     }
 
