@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Soundness Foundation** - Fix SSA violation, audit overflow encoding, establish soundness/completeness test suites
 - [x] **Phase 2: Table Stakes Completion** - Loops, cargo verify, assertions, panics, structs, z3 crate, spec parser
 - [x] **Phase 3: Modular Verification** - Function summaries, inter-procedural verification, ownership reasoning
-- [ ] **Phase 4: Differentiation** - Unbounded integers, ghost code, quantifiers, prophecy variables, traits/generics
+- [x] **Phase 4: Differentiation** - Unbounded integers, ghost code, quantifiers, prophecy variables, traits/generics
 - [ ] **Phase 5: Performance and Polish** - Benchmarks, caching, parallelism, formula simplification, error messages
 
 ## Phase Details
@@ -88,10 +88,10 @@ Plans:
   5. A generic function `fn max<T: Ord>(a: T, b: T) -> T` is verified via monomorphization for concrete type instantiations used in the crate
 
 Plans:
-- [ ] 04-01-PLAN.md -- Unbounded integers (int/nat), ghost code (#[ghost] attribute), bitvector-to-Int conversion
-- [ ] 04-02-PLAN.md -- Quantifier support (forall/exists) with conservative trigger inference and :pattern annotations
-- [ ] 04-03-PLAN.md -- Prophecy variables for mutable borrow reasoning (creation, resolution, final_value operator)
-- [ ] 04-04-PLAN.md -- Generic function verification via monomorphization (type substitution, per-instantiation VCs)
+- [x] 04-01-PLAN.md -- Unbounded integers (int/nat), ghost code (#[ghost] attribute), bitvector-to-Int conversion
+- [x] 04-02-PLAN.md -- Quantifier support (forall/exists) with conservative trigger inference and :pattern annotations
+- [x] 04-03-PLAN.md -- Prophecy variables for mutable borrow reasoning (creation, resolution, final_value operator)
+- [x] 04-04-PLAN.md -- Generic function verification via monomorphization (type substitution, per-instantiation VCs)
 
 ### Phase 5: Performance and Polish
 **Goal**: Verification is fast enough for interactive development and error messages guide developers to fixes
@@ -104,12 +104,12 @@ Plans:
   3. Verification of a crate with 20+ annotated functions runs solver instances in parallel, completing faster than sequential verification
   4. Verification failure messages include: source file and line number, the specific property that failed, and a counterexample showing concrete values that violate the property
   5. Formula simplification (constant folding, dead code elimination, common subexpression elimination) measurably reduces solver time on the benchmark suite compared to unsimplified formulas
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 05-01: Benchmark suite and formula simplification
-- [ ] 05-02: VC caching and parallel verification
-- [ ] 05-03: Error message polish and documentation
+- [ ] 05-01-PLAN.md -- Formula simplification (constant folding, identity elimination) and benchmark suite with A/B comparison
+- [ ] 05-02-PLAN.md -- VC caching with SHA-256 invalidation and Rayon-based parallel verification with topological ordering
+- [ ] 05-03-PLAN.md -- Ariadne-based rustc-style error diagnostics, fix suggestions, and structured JSON output
 
 ## Progress
 
@@ -121,9 +121,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Soundness Foundation | 3/3 | Complete | 2026-02-11 |
 | 2. Table Stakes Completion | 5/5 | Complete | 2026-02-11 |
 | 3. Modular Verification | 2/2 | Complete | 2026-02-11 |
-| 4. Differentiation | 0/4 | Planned | - |
-| 5. Performance and Polish | 0/3 | Not started | - |
+| 4. Differentiation | 4/4 | Complete | 2026-02-11 |
+| 5. Performance and Polish | 0/3 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-11 (Phase 4 planned)*
+*Last updated: 2026-02-11 (Phase 5 planned)*
