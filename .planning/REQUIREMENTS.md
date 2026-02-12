@@ -120,56 +120,65 @@ Requirements for v0.2 Advanced Verification. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Pending | Pending |
-| REC-02 | Pending | Pending |
-| REC-03 | Pending | Pending |
-| REC-04 | Pending | Pending |
-| REC-05 | Pending | Pending |
-| CLO-01 | Pending | Pending |
-| CLO-02 | Pending | Pending |
-| CLO-03 | Pending | Pending |
-| CLO-04 | Pending | Pending |
-| CLO-05 | Pending | Pending |
-| CLO-06 | Pending | Pending |
-| TRT-01 | Pending | Pending |
-| TRT-02 | Pending | Pending |
-| TRT-03 | Pending | Pending |
-| TRT-04 | Pending | Pending |
-| TRT-05 | Pending | Pending |
-| LIF-01 | Pending | Pending |
-| LIF-02 | Pending | Pending |
-| LIF-03 | Pending | Pending |
-| LIF-04 | Pending | Pending |
-| LIF-05 | Pending | Pending |
-| LIF-06 | Pending | Pending |
-| USF-01 | Pending | Pending |
-| USF-02 | Pending | Pending |
-| USF-03 | Pending | Pending |
-| USF-04 | Pending | Pending |
-| USF-05 | Pending | Pending |
-| USF-06 | Pending | Pending |
-| FPV-01 | Pending | Pending |
-| FPV-02 | Pending | Pending |
-| FPV-03 | Pending | Pending |
-| FPV-04 | Pending | Pending |
-| FPV-05 | Pending | Pending |
-| FPV-06 | Pending | Pending |
-| CON-01 | Pending | Pending |
-| CON-02 | Pending | Pending |
-| CON-03 | Pending | Pending |
-| CON-04 | Pending | Pending |
-| CON-05 | Pending | Pending |
-| CON-06 | Pending | Pending |
-| INF-01 | Pending | Pending |
-| INF-02 | Pending | Pending |
-| INF-03 | Pending | Pending |
-| INF-04 | Pending | Pending |
+| REC-01 | Phase 6 | Pending |
+| REC-02 | Phase 6 | Pending |
+| REC-03 | Phase 6 | Pending |
+| REC-04 | Phase 6 | Pending |
+| REC-05 | Phase 6 | Pending |
+| CLO-01 | Phase 7 | Pending |
+| CLO-02 | Phase 7 | Pending |
+| CLO-03 | Phase 7 | Pending |
+| CLO-04 | Phase 7 | Pending |
+| CLO-05 | Phase 7 | Pending |
+| CLO-06 | Phase 7 | Pending |
+| TRT-01 | Phase 8 | Pending |
+| TRT-02 | Phase 8 | Pending |
+| TRT-03 | Phase 8 | Pending |
+| TRT-04 | Phase 8 | Pending |
+| TRT-05 | Phase 8 | Pending |
+| LIF-01 | Phase 9 | Pending |
+| LIF-02 | Phase 9 | Pending |
+| LIF-03 | Phase 9 | Pending |
+| LIF-04 | Phase 9 | Pending |
+| LIF-05 | Phase 9 | Pending |
+| LIF-06 | Phase 9 | Pending |
+| USF-01 | Phase 10 | Pending |
+| USF-02 | Phase 10 | Pending |
+| USF-03 | Phase 10 | Pending |
+| USF-04 | Phase 10 | Pending |
+| USF-05 | Phase 10 | Pending |
+| USF-06 | Phase 10 | Pending |
+| FPV-01 | Phase 11 | Pending |
+| FPV-02 | Phase 11 | Pending |
+| FPV-03 | Phase 11 | Pending |
+| FPV-04 | Phase 11 | Pending |
+| FPV-05 | Phase 11 | Pending |
+| FPV-06 | Phase 11 | Pending |
+| CON-01 | Phase 12 | Pending |
+| CON-02 | Phase 12 | Pending |
+| CON-03 | Phase 12 | Pending |
+| CON-04 | Phase 12 | Pending |
+| CON-05 | Phase 12 | Pending |
+| CON-06 | Phase 12 | Pending |
+| INF-01 | Phase 6 | Pending |
+| INF-02 | Phase 9 | Pending |
+| INF-03 | Phase 12 | Pending |
+| INF-04 | Phase 12 | Pending |
 
 **Coverage:**
 - v0.2 requirements: 44 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 44
+- Mapped to phases: 44/44 (100%)
+- Unmapped: 0
+
+**Phase distribution:**
+- Phase 6 (Recursive Functions): 6 requirements (REC-01 through REC-05, INF-01)
+- Phase 7 (Closures): 6 requirements (CLO-01 through CLO-06)
+- Phase 8 (Trait Objects): 5 requirements (TRT-01 through TRT-05)
+- Phase 9 (Lifetime Reasoning): 7 requirements (LIF-01 through LIF-06, INF-02)
+- Phase 10 (Unsafe Code Detection): 6 requirements (USF-01 through USF-06)
+- Phase 11 (Floating-Point Verification): 6 requirements (FPV-01 through FPV-06)
+- Phase 12 (Concurrency Verification): 8 requirements (CON-01 through CON-06, INF-03, INF-04)
 
 ---
 *Requirements defined: 2026-02-12*
-*Last updated: 2026-02-12 after v0.2 milestone research*
+*Last updated: 2026-02-12 (traceability complete)*
