@@ -13,22 +13,21 @@
 ## Current Position
 
 **Phase:** 9 - Lifetime Reasoning
-**Plan:** 1 of 3 complete
+**Plan:** 2 of 3 complete
 **Status:** In Progress
-**Progress:** [█████████░] 93%
+**Progress:** [█████████░] 95%
 
 ### Active Work
-- Phase 9 Plan 01 COMPLETE: Lifetime IR and Analysis Infrastructure
-- Added LifetimeParam, OutlivesConstraint, BorrowInfo, ReborrowChain IR types
-- Created lifetime_analysis module with LifetimeContext, transitive outlives resolution, reborrow chain detection
-- Extended ProphecyInfo with deref_level for nested mutable borrows (&mut &mut T)
-- Added detect_nested_prophecies with layer-by-layer prophecy generation
-- Added VcKind::BorrowValidity for borrow-specific verification diagnostics
-- Added region_sort() for lifetime region SMT encoding
+- Phase 9 Plan 02 COMPLETE: Borrow Conflict VC Generation
+- Created borrow_conflict module with conflict detection, expiry VCs, reborrow validation
+- Integrated borrow validity VCs into VCGen pipeline (conditional on lifetime metadata)
+- Added #[borrow_ensures(param, expr)] proc macro for mutable borrow specifications
+- Generated 15 new tests (13 borrow_conflict + 2 macro), all passing
+- Functions with lifetime parameters automatically receive BorrowValidity VCs
 
 ### Next Steps
-1. Execute Phase 9 Plan 02: Borrow Conflict VC Generation
-2. Execute Phase 9 Plan 03: End-to-End Lifetime Verification
+1. Execute Phase 9 Plan 03: End-to-End Lifetime Verification
+2. Add spec parser support for final(*x) nested prophecy syntax (deferred from 09-02)
 3. Update progress metrics and milestone tracking
 
 ## Performance Metrics
@@ -113,6 +112,13 @@
 - Files modified: 33 (1 created, 32 modified)
 - New LOC: ~2,116 (lifetime_analysis.rs 1,041 + ir.rs/encode_prophecy.rs/diagnostics extensions 1,075)
 
+**Phase 9-02 (2026-02-13):**
+- Duration: 10 min
+- Tasks: 2 (TDD)
+- New tests: 15 (13 borrow_conflict + 2 macros) (total: 1,974 workspace)
+- Files modified: 5 (1 created, 4 modified)
+- New LOC: ~734 (borrow_conflict.rs 637 + macros/lib.rs 97)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -162,7 +168,12 @@
 | VcKind::BorrowValidity for borrow-specific diagnostics | Separate VC kind for shared/mutable conflicts, use-after-expiry, reborrow validity; enables targeted error messages | Phase 9 |
 | region_sort() returns Sort::Uninterpreted("Region") | Lifetime regions as uninterpreted sorts; consistent interface for lifetime encoding throughout pipeline | Phase 9 |
 | compute_live_ranges conservative approximation | Borrow live 0..num_blocks for now; precise MIR-based ranges deferred to driver integration (per research: extract rustc's results) | Phase 9 |
+| Borrow conflict detection via live range intersection | For each (shared, mutable) pair, compute intersection; O(n*m) but n and m small in practice | Phase 9 |
+| Reborrow validation checks source_local directly | Iterate borrow_info.source_local rather than reborrow_chains (chains may not be built in all contexts) | Phase 9 |
+| Borrow validity VCs conditional on lifetime metadata | Only generated when !lifetime_params.is_empty() or !borrow_info.is_empty(); backward compatible | Phase 9 |
+| BorrowEnsuresArgs parser struct for proc macro | Custom Parse implementation for two-argument #[borrow_ensures(param, expr)] syntax | Phase 9 |
 | Phase 09 P01 | 14 | 2 tasks | 33 files |
+| Phase 09 P02 | 10 | 2 tasks | 5 files |
 
 ### In-Progress Todos
 
@@ -238,19 +249,19 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-13 - Phase 9-01 (Lifetime IR and Analysis Infrastructure)
-- Completed: Lifetime IR types (LifetimeParam, OutlivesConstraint, BorrowInfo, ReborrowChain)
-- Completed: lifetime_analysis module with LifetimeContext, transitive outlives, reborrow chains
-- Completed: Nested prophecy encoding (ProphecyInfo.deref_level, detect_nested_prophecies)
-- Completed: VcKind::BorrowValidity with driver diagnostics integration
-- Completed: region_sort() for lifetime region SMT encoding
-- Status: 40 new tests (8 IR + 20 lifetime_analysis + 8 encode_prophecy + 4 driver), 1,959 total workspace tests passing, 0 warnings
+**Last session:** 2026-02-13 - Phase 9-02 (Borrow Conflict VC Generation)
+- Completed: borrow_conflict module with detect_borrow_conflicts, generate_conflict_vcs, generate_expiry_vcs, generate_reborrow_vcs
+- Completed: VCGen integration (borrow validity VCs for functions with lifetime metadata)
+- Completed: #[borrow_ensures(param, expr)] proc macro with BorrowEnsuresArgs parser
+- Completed: LifetimeContext.reborrow_chains() accessor method
+- Status: 15 new tests (13 borrow_conflict + 2 macros), 1,974 total workspace tests passing, 0 warnings
+- Deferred: Spec parser final(*x) nested prophecy syntax (to be added in 09-03 or refinement)
 
-**Stopped at:** Phase 9-01 COMPLETE (1 of 3)
+**Stopped at:** Phase 9-02 COMPLETE (2 of 3)
 
 **Next session expectations:**
-- Execute Phase 9 Plan 02: Borrow Conflict VC Generation
 - Execute Phase 9 Plan 03: End-to-End Lifetime Verification
+- Optional: Add spec parser final(*x) nested prophecy support
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
