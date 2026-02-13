@@ -100,6 +100,25 @@ pub fn decreases(attr: TokenStream, item: TokenStream) -> TokenStream {
     spec_attribute("decreases", attr, item)
 }
 
+/// Attach a borrow ensures specification to a function with mutable reference parameters.
+///
+/// `#[borrow_ensures(param, expr)]` specifies the final value constraint for a mutable
+/// borrow parameter. The first argument is the parameter name, the second is the
+/// expression describing its final value.
+///
+/// # Example
+///
+/// ```ignore
+/// #[borrow_ensures(x, *x == old(*x) + 1)]
+/// fn increment(x: &mut i32) {
+///     *x += 1;
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn borrow_ensures(attr: TokenStream, item: TokenStream) -> TokenStream {
+    borrow_ensures_impl(attr.into(), item.into()).into()
+}
+
 /// Mark a variable or code block as specification-only (ghost code).
 ///
 /// Ghost variables and functions are used in specifications but erased
@@ -180,6 +199,50 @@ fn pure_impl(
     }
 
     let doc_value = "rust_fv::pure";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
+/// Parser for borrow_ensures attribute syntax: (param, expr).
+struct BorrowEnsuresArgs {
+    param: syn::Expr,
+    _comma: syn::Token![,],
+    expr: syn::Expr,
+}
+
+impl syn::parse::Parse for BorrowEnsuresArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(BorrowEnsuresArgs {
+            param: input.parse()?,
+            _comma: input.parse()?,
+            expr: input.parse()?,
+        })
+    }
+}
+
+/// `proc_macro2`-based implementation of `borrow_ensures` for unit testing.
+///
+/// Parses the attribute as (param_name, expression) and encodes as:
+/// `rust_fv::borrow_ensures::PARAM::EXPR`
+fn borrow_ensures_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    // Parse attribute as (param, expr)
+    let args: BorrowEnsuresArgs = match syn::parse2(attr) {
+        Ok(a) => a,
+        Err(err) => return err.to_compile_error(),
+    };
+
+    // Convert to strings
+    let param_str = args.param.to_token_stream().to_string();
+    let expr_str = args.expr.to_token_stream().to_string();
+
+    let doc_value = format!("rust_fv::borrow_ensures::{}::{}", param_str, expr_str);
 
     quote::quote! {
         #[doc(hidden)]
@@ -629,5 +692,39 @@ mod tests {
 
         assert!(result_str.contains("if n == 0"));
         assert!(result_str.contains("n * factorial (n - 1)"));
+    }
+
+    // --- borrow_ensures tests (Phase 9-02) ---
+
+    #[test]
+    fn test_borrow_ensures_macro() {
+        let attr: proc_macro2::TokenStream = quote! { x, *x == old(*x) + 1 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn increment(x: &mut i32) {
+                *x += 1;
+            }
+        };
+
+        let result = borrow_ensures_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::borrow_ensures::"));
+        assert!(result_str.contains("fn increment"));
+    }
+
+    #[test]
+    fn test_borrow_ensures_doc_format() {
+        let attr: proc_macro2::TokenStream = quote! { x, *x == old(*x) + 1 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn f(x: &mut i32) {}
+        };
+
+        let result = borrow_ensures_impl(attr, item);
+        let result_str = normalise(result);
+
+        // Should encode as rust_fv::borrow_ensures::PARAM::EXPR
+        assert!(result_str.contains("rust_fv::borrow_ensures::x::"));
+        assert!(result_str.contains("* x == old (* x) + 1"));
     }
 }
