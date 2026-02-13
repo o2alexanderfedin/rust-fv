@@ -105,6 +105,8 @@ pub enum VcKind {
     BehavioralSubtyping,
     /// Borrow validity check (shared/mutable conflict, use-after-expiry, reborrow validity)
     BorrowValidity,
+    /// Memory safety check (null-check, bounds-check, use-after-free for unsafe code)
+    MemorySafety,
 }
 
 impl VcKind {
@@ -1774,6 +1776,10 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -2912,6 +2918,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         }
     }
@@ -2991,6 +3001,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         }
     }
@@ -3145,6 +3159,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3192,6 +3210,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3773,6 +3795,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3800,6 +3826,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3838,6 +3868,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3876,6 +3910,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -3901,6 +3939,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -3921,6 +3963,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -3941,6 +3987,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4057,6 +4107,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -4234,6 +4288,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4266,6 +4324,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4298,6 +4360,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4366,6 +4432,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         }
     }
@@ -4533,6 +4603,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4613,6 +4687,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -4641,6 +4719,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -4737,6 +4819,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4777,6 +4863,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4808,6 +4898,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4839,6 +4933,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4868,6 +4966,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -4938,6 +5040,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         }
     }
@@ -4990,6 +5096,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -5042,6 +5152,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -5227,6 +5341,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -5267,6 +5385,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -5307,6 +5429,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -5347,6 +5473,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -5434,6 +5564,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -5610,6 +5744,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         }
     }
 
@@ -5765,6 +5903,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let result = generate_vcs(&func, None);
@@ -5817,6 +5959,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let result = generate_vcs(&func, None);
@@ -5878,6 +6024,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         // Validate FnOnce single-call property
@@ -5934,6 +6084,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let result = generate_vcs(&func, None);
@@ -5969,6 +6123,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         // Call with None TraitDatabase - should work as before
@@ -5997,6 +6155,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         // Should generate VCs without panicking even without TraitDatabase

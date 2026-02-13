@@ -232,6 +232,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         }
     }
 
@@ -253,6 +257,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         }
     }
 
@@ -280,6 +288,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         }
     }
 
@@ -428,6 +440,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 2);
@@ -463,6 +479,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 3);
@@ -492,6 +512,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 0);
@@ -527,6 +551,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies[1].initial_var, "_1_deref_initial");
@@ -555,6 +583,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         let prophecies = detect_nested_prophecies(&func);
         let commands = nested_prophecy_declarations(&prophecies);

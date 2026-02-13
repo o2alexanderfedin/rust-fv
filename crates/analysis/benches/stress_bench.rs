@@ -123,6 +123,10 @@ fn make_loop_stress_function() -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -227,6 +231,10 @@ fn make_interprocedural_stress_function() -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -510,6 +518,10 @@ fn make_large_function_stress() -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }

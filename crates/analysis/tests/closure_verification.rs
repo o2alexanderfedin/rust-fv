@@ -418,6 +418,10 @@ fn make_closure_caller(
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -586,6 +590,10 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -670,6 +678,10 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -751,6 +763,10 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -837,6 +853,10 @@ fn e2e_fnonce_double_call_diagnostic() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -956,6 +976,10 @@ fn e2e_closure_contract_specification_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1042,6 +1066,10 @@ fn e2e_closure_contract_violation_detected() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1158,6 +1186,10 @@ fn e2e_fn_closure_multiple_params_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

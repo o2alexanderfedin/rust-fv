@@ -74,6 +74,10 @@ pub fn convert_mir(
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 

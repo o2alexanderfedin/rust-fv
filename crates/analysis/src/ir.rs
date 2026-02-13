@@ -118,6 +118,76 @@ pub struct ReborrowChain {
     pub reborrows: Vec<String>,
 }
 
+/// Provenance of a raw pointer (tracks origin for null-check optimization).
+///
+/// Used in unsafe code verification to determine which safety checks are needed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RawPtrProvenance {
+    /// Pointer derived from a safe reference (&T or &mut T) -- guaranteed non-null
+    FromRef,
+    /// Pointer derived from integer cast -- unknown validity
+    FromInt,
+    /// Provenance not determined or mixed
+    Unknown,
+}
+
+/// Information about an unsafe block in the function.
+///
+/// Tracks the location and reason for unsafety for diagnostic purposes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnsafeBlockInfo {
+    /// Basic block index where the unsafe block starts
+    pub block_index: usize,
+    /// Human-readable description (e.g., "unsafe block at line 42")
+    pub source_description: String,
+    /// Reason for unsafety (e.g., "raw pointer dereference", "unsafe function call")
+    pub reason: String,
+}
+
+/// An unsafe operation detected in the function body.
+///
+/// Represents operations that require memory safety verification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnsafeOperation {
+    /// Raw pointer dereference (*ptr)
+    RawDeref {
+        ptr_local: String,
+        ptr_ty: Ty,
+        provenance: RawPtrProvenance,
+        block_index: usize,
+    },
+    /// Pointer arithmetic (ptr.add(offset) or ptr.offset(offset))
+    PtrArithmetic {
+        ptr_local: String,
+        offset_local: String,
+        ptr_ty: Ty,
+        is_signed_offset: bool,
+        block_index: usize,
+    },
+    /// Pointer cast (from one raw pointer type to another)
+    PtrCast {
+        source_local: String,
+        source_ty: Ty,
+        target_ty: Ty,
+        provenance: RawPtrProvenance,
+        block_index: usize,
+    },
+}
+
+/// Safety contracts for unsafe functions.
+///
+/// Captures preconditions (#[unsafe_requires]) and postconditions (#[unsafe_ensures])
+/// that establish trust boundaries for unsafe code.
+#[derive(Debug, Clone, Default)]
+pub struct UnsafeContracts {
+    /// Safety preconditions from #[unsafe_requires]
+    pub requires: Vec<SpecExpr>,
+    /// Safety postconditions from #[unsafe_ensures]
+    pub ensures: Vec<SpecExpr>,
+    /// True if function is annotated with #[verifier::trusted]
+    pub is_trusted: bool,
+}
+
 /// Information about a closure type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureInfo {
@@ -162,6 +232,17 @@ pub struct Function {
     /// Reborrow chains tracking original-to-reborrow relationships.
     /// Empty if function has no reborrows.
     pub reborrow_chains: Vec<ReborrowChain>,
+    /// Detected unsafe blocks in the function.
+    /// Empty if function has no unsafe blocks.
+    pub unsafe_blocks: Vec<UnsafeBlockInfo>,
+    /// Detected unsafe operations in the function.
+    /// Empty if function has no unsafe operations.
+    pub unsafe_operations: Vec<UnsafeOperation>,
+    /// Safety contracts for unsafe functions.
+    /// None for safe functions.
+    pub unsafe_contracts: Option<UnsafeContracts>,
+    /// True if this function is declared as `unsafe fn`.
+    pub is_unsafe_fn: bool,
 }
 
 impl Function {
@@ -711,6 +792,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(func.is_generic());
     }
@@ -731,6 +816,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(!func.is_generic());
     }
@@ -756,6 +845,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -779,6 +872,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -799,6 +896,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -819,6 +920,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -842,6 +947,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1407,6 +1516,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");

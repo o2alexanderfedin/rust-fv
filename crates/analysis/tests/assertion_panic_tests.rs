@@ -408,6 +408,10 @@ fn test_assert_true_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -493,6 +497,10 @@ fn test_assert_false_counterexample() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -603,6 +611,10 @@ fn test_assert_after_computation() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -716,6 +728,10 @@ fn test_array_bounds_safe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -804,6 +820,10 @@ fn test_array_bounds_unsafe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -908,6 +928,10 @@ fn test_div_by_zero_safe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -999,6 +1023,10 @@ fn test_div_by_zero_unsafe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1091,6 +1119,10 @@ fn test_unwrap_safe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1168,6 +1200,10 @@ fn test_unwrap_unsafe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1247,6 +1283,10 @@ fn test_error_message_specificity() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1412,6 +1452,10 @@ fn test_remainder_by_zero_unsafe() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 

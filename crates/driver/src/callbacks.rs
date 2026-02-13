@@ -524,6 +524,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::ClosureContract => "closure_contract",
         VcKind::BehavioralSubtyping => "behavioral_subtyping",
         VcKind::BorrowValidity => "borrow_validity",
+        VcKind::MemorySafety => "memory_safety",
     }
     .to_string()
 }
@@ -701,6 +702,11 @@ mod tests {
             vc_kind_to_string(&VcKind::BorrowValidity),
             "borrow_validity"
         );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_memory_safety() {
+        assert_eq!(vc_kind_to_string(&VcKind::MemorySafety), "memory_safety");
     }
 
     // --- VerificationResult tests (struct construction) ---

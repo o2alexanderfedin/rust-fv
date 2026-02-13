@@ -433,6 +433,10 @@ fn test_copy_semantics_preserved() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -550,6 +554,10 @@ fn test_shared_borrow_preserved() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -672,6 +680,10 @@ fn test_mutable_borrow_havoced() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -800,6 +812,10 @@ fn test_move_semantics_value_consumed() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -997,6 +1013,10 @@ fn test_mixed_ownership_call() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1117,6 +1137,10 @@ fn test_ownership_with_postcondition_assumption() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1242,6 +1266,10 @@ fn test_no_ownership_without_contract_db() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1333,6 +1361,10 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         }
     };
@@ -1539,6 +1571,10 @@ fn test_ownership_multiple_shared_borrow_calls() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1691,6 +1727,10 @@ fn test_preservation_constraint_smt_encoding() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 

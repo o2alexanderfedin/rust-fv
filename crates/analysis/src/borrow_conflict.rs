@@ -402,6 +402,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -452,6 +456,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         // For now this is a placeholder test - actual implementation
@@ -552,6 +560,10 @@ mod tests {
                 source_local: None,
             }],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let _result = generate_vcs(&func, None);
@@ -580,6 +592,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
         };
 
         let result = generate_vcs(&func, None);

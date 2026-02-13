@@ -55,6 +55,10 @@ fn make_add_function(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -736,6 +740,10 @@ fn make_max_function(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -934,6 +942,10 @@ fn make_classify_function(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -1046,6 +1058,10 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -1232,6 +1248,10 @@ fn make_quad_function(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     }
 }
@@ -1354,6 +1374,10 @@ fn test_single_branch_overflow_check() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
         loops: vec![],
     };
 
@@ -1780,6 +1804,10 @@ fn test_quantifier_full_pipeline() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -1889,6 +1917,10 @@ fn test_generic_max_i32_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Register i32 instantiation
@@ -1993,6 +2025,10 @@ fn test_generic_max_u64_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2097,6 +2133,10 @@ fn test_generic_max_wrong_postcondition() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Register i32 instantiation
@@ -2185,6 +2225,10 @@ fn test_generic_multiple_instantiations() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2272,6 +2316,10 @@ fn test_generic_no_instantiations_warning() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2337,6 +2385,10 @@ fn test_prophecy_increment_mut_ref() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2398,6 +2450,10 @@ fn test_prophecy_no_mutation_verified() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2485,6 +2541,10 @@ fn test_prophecy_conditional_mutation() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2549,6 +2609,10 @@ fn test_prophecy_basic() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -426,6 +426,10 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -492,6 +496,10 @@ fn make_even(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -558,6 +566,10 @@ fn make_odd(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -664,6 +676,10 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     }
 }
 
@@ -959,6 +975,10 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1039,6 +1059,10 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1188,6 +1212,10 @@ fn snd_recursive_without_decreases_rejected() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

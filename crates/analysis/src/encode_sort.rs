@@ -91,6 +91,14 @@ pub fn encode_type(ty: &Ty) -> Sort {
     }
 }
 
+/// Return the sort for raw pointer addresses.
+///
+/// Raw pointers are represented as 64-bit bitvectors for address arithmetic
+/// and null-check verification in unsafe code.
+pub fn ptr_addr_sort() -> Sort {
+    Sort::BitVec(64)
+}
+
 fn encode_float(fty: &FloatTy) -> Sort {
     match fty {
         FloatTy::F32 => Sort::Float(8, 24),
@@ -429,6 +437,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -475,6 +487,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -500,6 +516,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -539,6 +559,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -617,6 +641,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 
@@ -672,6 +700,10 @@ mod tests {
             outlives_constraints: vec![],
             borrow_info: vec![],
             reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
             loops: vec![],
         };
 

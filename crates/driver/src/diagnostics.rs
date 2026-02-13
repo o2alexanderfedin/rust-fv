@@ -169,6 +169,13 @@ fn report_text_only(failure: &VerificationFailure) {
         eprintln!("{}", format_borrow_validity_help());
     }
 
+    if failure.vc_kind == VcKind::MemorySafety {
+        eprintln!();
+        eprintln!("{}", format_memory_safety_help());
+        eprintln!();
+        eprintln!("{}", format_unsafe_contract_help());
+    }
+
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
         eprintln!();
         eprintln!("{}: {}", "help".cyan().bold(), suggestion);
@@ -194,6 +201,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::ClosureContract => "closure contract not satisfied",
         VcKind::BehavioralSubtyping => "impl does not satisfy trait contract",
         VcKind::BorrowValidity => "borrow validity violation",
+        VcKind::MemorySafety => "memory safety violation",
     }
 }
 
@@ -244,6 +252,12 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::BorrowValidity => Some(
             "Check borrow lifetimes: ensure shared and mutable borrows don't overlap, \
              borrows don't outlive their source, and reborrows maintain validity."
+                .to_string(),
+        ),
+        VcKind::MemorySafety => Some(
+            "Add safety contracts with #[unsafe_requires(ptr != null)] for null-safety, \
+             #[unsafe_requires(offset < size)] for bounds-safety, or mark the function \
+             #[trusted] if it has been manually verified."
                 .to_string(),
         ),
         _ => None,
@@ -348,6 +362,36 @@ pub fn format_borrow_validity_help() -> String {
      - A borrow must not outlive the lifetime of its source\n\
      - Reborrows (&mut &mut T) must maintain validity through all layers\n\
      - Ensure lifetime constraints ('a: 'b) are satisfied"
+        .to_string()
+}
+
+/// Format a help message for memory safety violations.
+///
+/// Explains the three-tier unsafe verification approach: detection, basic checks, and trust boundaries.
+pub fn format_memory_safety_help() -> String {
+    "memory safety violation: rust-fv uses a three-tier approach for unsafe code:\n\
+     \n\
+     1. Detection: unsafe blocks and operations are flagged for manual review\n\
+     2. Basic checks: null-safety, bounds-safety, and use-after-free detection\n\
+     3. Trust boundaries: verified functions can be marked with #[verifier::trusted]\n\
+     \n\
+     This is a WARNING, not an error. Review the unsafe code and add contracts if needed."
+        .to_string()
+}
+
+/// Format a help message for unsafe contract annotations.
+///
+/// Explains how to annotate unsafe functions with safety contracts.
+pub fn format_unsafe_contract_help() -> String {
+    "annotating unsafe functions with safety contracts:\n\
+     \n\
+     - #[unsafe_requires(ptr != null)] for null-safety preconditions\n\
+     - #[unsafe_requires(offset < size)] for bounds-safety preconditions\n\
+     - #[unsafe_ensures(result != null)] for safety postconditions\n\
+     - #[verifier::trusted] to skip body verification for manually verified functions\n\
+     \n\
+     Contracts enable compositional verification: callers must satisfy preconditions,\n\
+     and can assume postconditions hold."
         .to_string()
 }
 
@@ -1451,5 +1495,24 @@ mod tests {
         let text = suggestion.unwrap();
         assert!(text.contains("borrow"));
         assert!(text.contains("lifetime"));
+    }
+
+    // --- VcKind::MemorySafety tests (Phase 10) ---
+
+    #[test]
+    fn test_vc_kind_description_memory_safety() {
+        assert_eq!(
+            vc_kind_description(&VcKind::MemorySafety),
+            "memory safety violation"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_memory_safety() {
+        let suggestion = suggest_fix(&VcKind::MemorySafety);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("unsafe_requires"));
+        assert!(text.contains("trusted"));
     }
 }

@@ -119,6 +119,10 @@ fn test_lifetime_params_outlives_verified() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Extract lifetime parameters
@@ -176,6 +180,10 @@ fn test_outlives_with_static_lifetime() {
             source_local: None,
         }],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -259,6 +267,10 @@ fn test_nll_conflict_detection() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Build lifetime context
@@ -316,6 +328,10 @@ fn test_prophecy_single_mut_ref() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Detect prophecies
@@ -360,6 +376,10 @@ fn test_prophecy_nested_mut_mut() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -440,6 +460,10 @@ fn test_borrow_validity_vc_generation() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -521,6 +545,10 @@ fn test_reborrow_chain_detection() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     // Detect reborrow chains
@@ -608,6 +636,10 @@ fn test_reborrow_outlives_detection() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -659,6 +691,10 @@ fn test_phase9_requirement_coverage() {
         outlives_constraints: vec![],
         borrow_info: vec![],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -707,6 +743,10 @@ fn test_phase9_requirement_coverage() {
             },
         ],
         reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
     };
 
     let chains = detect_reborrow_chains(&reborrow_func);
