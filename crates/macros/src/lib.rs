@@ -135,6 +135,60 @@ pub fn ghost(attr: TokenStream, item: TokenStream) -> TokenStream {
     ghost_impl(attr.into(), item.into()).into()
 }
 
+/// Attach a safety precondition to an unsafe function.
+///
+/// `#[unsafe_requires(expr)]` specifies a safety precondition that must hold
+/// for unsafe code to be correct. Unlike `#[requires]`, this is about memory
+/// safety rather than logical correctness.
+///
+/// # Example
+///
+/// ```ignore
+/// #[unsafe_requires(ptr != null)]
+/// unsafe fn deref_ptr(ptr: *const i32) -> i32 { *ptr }
+/// ```
+#[proc_macro_attribute]
+pub fn unsafe_requires(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("unsafe_requires", attr, item)
+}
+
+/// Attach a safety postcondition to an unsafe function.
+///
+/// `#[unsafe_ensures(expr)]` specifies a safety postcondition that the unsafe
+/// function guarantees on return.
+///
+/// # Example
+///
+/// ```ignore
+/// #[unsafe_ensures(result != null)]
+/// unsafe fn allocate() -> *mut u8 { /* ... */ }
+/// ```
+#[proc_macro_attribute]
+pub fn unsafe_ensures(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("unsafe_ensures", attr, item)
+}
+
+/// Mark a function as manually verified (trusted).
+///
+/// Functions annotated with `#[trusted]` have their body verification skipped,
+/// but call-site contracts are still checked. This establishes a trust boundary
+/// for code that has been manually verified or is axiomatically correct.
+///
+/// Note: The actual annotation path in user code is `#[verifier::trusted]`, but
+/// Rust proc macros cannot use `::` in attribute names, so the implementation
+/// is named `#[trusted]` and documented as `verifier::trusted`.
+///
+/// # Example
+///
+/// ```ignore
+/// #[trusted]
+/// unsafe fn manually_verified_operation() -> i32 { /* ... */ }
+/// ```
+#[proc_macro_attribute]
+pub fn trusted(attr: TokenStream, item: TokenStream) -> TokenStream {
+    trusted_impl(attr.into(), item.into()).into()
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -262,6 +316,28 @@ fn ghost_impl(
     }
 
     let doc_value = "rust_fv::ghost";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
+/// `proc_macro2`-based implementation of `trusted` for unit testing.
+///
+/// Marks a function as manually verified. Takes no arguments and embeds
+/// the marker `rust_fv::trusted` as a doc attribute.
+fn trusted_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new_spanned(attr, "`#[trusted]` does not accept arguments")
+            .to_compile_error();
+    }
+
+    let doc_value = "rust_fv::trusted";
 
     quote::quote! {
         #[doc(hidden)]
@@ -726,5 +802,97 @@ mod tests {
         // Should encode as rust_fv::borrow_ensures::PARAM::EXPR
         assert!(result_str.contains("rust_fv::borrow_ensures::x::"));
         assert!(result_str.contains("* x == old (* x) + 1"));
+    }
+
+    // --- unsafe contract tests (Phase 10-01) ---
+
+    #[test]
+    fn test_unsafe_requires_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! { x > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            unsafe fn positive_only(x: i32) -> i32 { x }
+        };
+
+        let result = spec_attribute_impl("unsafe_requires", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::unsafe_requires::x > 0"));
+        assert!(result_str.contains("unsafe fn positive_only"));
+    }
+
+    #[test]
+    fn test_unsafe_ensures_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! { result > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            unsafe fn allocate() -> *mut u8 { /* ... */ }
+        };
+
+        let result = spec_attribute_impl("unsafe_ensures", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::unsafe_ensures::result > 0"));
+        assert!(result_str.contains("unsafe fn allocate"));
+    }
+
+    #[test]
+    fn test_trusted_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            unsafe fn manually_verified() -> i32 { 42 }
+        };
+
+        let result = trusted_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::trusted"));
+        assert!(result_str.contains("unsafe fn manually_verified"));
+    }
+
+    #[test]
+    fn test_unsafe_requires_complex_expr() {
+        let attr: proc_macro2::TokenStream = quote! { ptr != null && len > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            unsafe fn deref_slice(ptr: *const u8, len: usize) {}
+        };
+
+        let result = spec_attribute_impl("unsafe_requires", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("ptr != null && len > 0"));
+    }
+
+    #[test]
+    fn test_trusted_no_args() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            fn f() {}
+        };
+
+        let result = trusted_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::trusted"));
+        assert!(result_str.contains("fn f"));
+    }
+
+    #[test]
+    fn test_unsafe_requires_on_unsafe_fn() {
+        let attr: proc_macro2::TokenStream = quote! { x > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            unsafe fn test(x: i32) -> i32 {
+                x * 2
+            }
+        };
+
+        let result = spec_attribute_impl("unsafe_requires", attr, item);
+        let result_str = normalise(result);
+
+        // Verify both annotation and original function preserved
+        assert!(result_str.contains("rust_fv::unsafe_requires::x > 0"));
+        assert!(result_str.contains("unsafe fn test"));
+        assert!(result_str.contains("x * 2"));
     }
 }
