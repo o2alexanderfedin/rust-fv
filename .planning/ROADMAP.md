@@ -105,9 +105,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- Infrastructure: IR lifetime types (LifetimeParam, BorrowInfo, ReborrowChain), lifetime_analysis module, VcKind::BorrowValidity, nested prophecy encoding
-- [ ] 09-02-PLAN.md -- Core: borrow_conflict.rs module, VCGen borrow validity integration, spec parser final(*x)/final(**x), #[borrow_ensures] macro
-- [ ] 09-03-PLAN.md -- Integration: borrow timeline diagnostics, end-to-end Z3 verification tests
+- [x] 09-01-PLAN.md -- Infrastructure: IR lifetime types (LifetimeParam, BorrowInfo, ReborrowChain), lifetime_analysis module, VcKind::BorrowValidity, nested prophecy encoding
+- [x] 09-02-PLAN.md -- Core: borrow_conflict.rs module, VCGen borrow validity integration, spec parser final(*x)/final(**x), #[borrow_ensures] macro
+- [x] 09-03-PLAN.md -- Integration: borrow timeline diagnostics, end-to-end Z3 verification tests
 
 **Success Criteria:**
 1. Developer verifies function with lifetime parameters (`'a`, `'b`) and compiler-inferred outlives constraints (`T: 'a`)
@@ -181,11 +181,11 @@ Plans:
 | 6. Recursive Functions | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 7. Closures | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 8. Trait Objects | v0.2 | 3/3 | Complete | 2026-02-12 |
-| 9. Lifetime Reasoning | v0.2 | 0/3 | Planned | - |
+| 9. Lifetime Reasoning | v0.2 | 3/3 | Complete | 2026-02-13 |
 | 10. Unsafe Code Detection | v0.2 | 0/? | Pending | - |
 | 11. Floating-Point Verification | v0.2 | 0/? | Pending | - |
 | 12. Concurrency Verification | v0.2 | 0/? | Pending | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-12 (Phase 9 planned: 3 plans)*
+*Last updated: 2026-02-13 (Phase 9 complete: 3/3 plans)*
