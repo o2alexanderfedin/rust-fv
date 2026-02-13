@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-12T21:18:00Z
+**Last updated:** 2026-02-13T01:46:26Z
 
 ## Project Reference
 
@@ -12,22 +12,23 @@
 
 ## Current Position
 
-**Phase:** 8 - Traits and Trait Objects
-**Plan:** 3 of 3 complete
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Phase:** 9 - Lifetime Reasoning
+**Plan:** 1 of 3 complete
+**Status:** In Progress
+**Progress:** [█████████░] 93%
 
 ### Active Work
-- Phase 8 COMPLETE: All 3 plans executed successfully
-- Trait IR and analysis infrastructure (TraitDef, TraitMethod, TraitImpl, VcKind::BehavioralSubtyping)
-- Behavioral subtyping VC generation with LSP verification
-- Sealed trait sum type encoding (DeclareDatatype)
-- End-to-end trait verification tests via Z3 (10 tests, all 5 success criteria validated)
-- Trait-specific diagnostics with contextual LSP guidance
+- Phase 9 Plan 01 COMPLETE: Lifetime IR and Analysis Infrastructure
+- Added LifetimeParam, OutlivesConstraint, BorrowInfo, ReborrowChain IR types
+- Created lifetime_analysis module with LifetimeContext, transitive outlives resolution, reborrow chain detection
+- Extended ProphecyInfo with deref_level for nested mutable borrows (&mut &mut T)
+- Added detect_nested_prophecies with layer-by-layer prophecy generation
+- Added VcKind::BorrowValidity for borrow-specific verification diagnostics
+- Added region_sort() for lifetime region SMT encoding
 
 ### Next Steps
-1. Mark Phase 8 complete in ROADMAP.md
-2. Continue v0.2 Advanced Verification milestone with next phase
+1. Execute Phase 9 Plan 02: Borrow Conflict VC Generation
+2. Execute Phase 9 Plan 03: End-to-End Lifetime Verification
 3. Update progress metrics and milestone tracking
 
 ## Performance Metrics
@@ -105,6 +106,13 @@
 - Files modified: 2 (1 created, 1 modified)
 - New LOC: ~730 (trait_verification.rs 608 + diagnostics.rs 122)
 
+**Phase 9-01 (2026-02-13):**
+- Duration: 14 min
+- Tasks: 2 (TDD)
+- New tests: 40 (8 IR + 20 lifetime_analysis + 8 encode_prophecy + 4 driver) (total: 1,959 workspace)
+- Files modified: 33 (1 created, 32 modified)
+- New LOC: ~2,116 (lifetime_analysis.rs 1,041 + ir.rs/encode_prophecy.rs/diagnostics extensions 1,075)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -146,6 +154,15 @@
 | Trait method call recognition via pattern matching | TraitName::method pattern parsing with TraitDatabase validation; extends to MIR call sites in future | Phase 8 |
 | E2E test structure validates VC infrastructure | Tests verify VC count, descriptions, names rather than Z3 results (symbolic encoding means all UNSAT); validates generation pipeline correctness | Phase 8 |
 | Diagnostic message parsing for contextual help | parse_behavioral_subtyping_message extracts impl/trait/method from structured errors; enables specific LSP guidance | Phase 8 |
+| LifetimeParam, OutlivesConstraint, BorrowInfo, ReborrowChain as core lifetime IR | Four new types between TraitImpl and ClosureInfo for lifetime reasoning; extends Function struct with lifetime_params, outlives_constraints, borrow_info, reborrow_chains fields | Phase 9 |
+| Transitive closure for outlives resolution | Fixpoint iteration to derive 'a: 'c from 'a: 'b and 'b: 'c; ensures complete constraint set for verification | Phase 9 |
+| Reborrow chain detection groups borrows with source_local | Builds map source → [reborrows], traces chains from roots; enables validation of nested &mut &mut T patterns | Phase 9 |
+| ProphecyInfo.deref_level tracks nested mutable borrow layers | 0 for direct &mut T, 1 for outer of &mut &mut T, etc.; enables layer-by-layer prophecy encoding | Phase 9 |
+| Nested prophecy naming convention | _prophecy (level 0), _deref_prophecy (level 1), _deref{N}_prophecy (N>1); consistent naming for multi-level borrows | Phase 9 |
+| VcKind::BorrowValidity for borrow-specific diagnostics | Separate VC kind for shared/mutable conflicts, use-after-expiry, reborrow validity; enables targeted error messages | Phase 9 |
+| region_sort() returns Sort::Uninterpreted("Region") | Lifetime regions as uninterpreted sorts; consistent interface for lifetime encoding throughout pipeline | Phase 9 |
+| compute_live_ranges conservative approximation | Borrow live 0..num_blocks for now; precise MIR-based ranges deferred to driver integration (per research: extract rustc's results) | Phase 9 |
+| Phase 09 P01 | 14 | 2 tasks | 33 files |
 
 ### In-Progress Todos
 
@@ -221,18 +238,19 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-12 - Phase 8-03 (End-to-End Trait Verification)
-- Completed: End-to-end trait verification tests via Z3 (10 tests covering all 5 success criteria)
-- Completed: Trait behavioral subtyping diagnostic helpers with LSP guidance
-- Completed: Full workspace validation (1,919 tests passing, 0 warnings)
-- Completed: Phase 8 validation (all 5 success criteria + all 5 TRT requirements satisfied)
-- Status: 16 new tests (10 trait_verification + 6 diagnostics), 1,919 total workspace tests passing, 0 warnings
+**Last session:** 2026-02-13 - Phase 9-01 (Lifetime IR and Analysis Infrastructure)
+- Completed: Lifetime IR types (LifetimeParam, OutlivesConstraint, BorrowInfo, ReborrowChain)
+- Completed: lifetime_analysis module with LifetimeContext, transitive outlives, reborrow chains
+- Completed: Nested prophecy encoding (ProphecyInfo.deref_level, detect_nested_prophecies)
+- Completed: VcKind::BorrowValidity with driver diagnostics integration
+- Completed: region_sort() for lifetime region SMT encoding
+- Status: 40 new tests (8 IR + 20 lifetime_analysis + 8 encode_prophecy + 4 driver), 1,959 total workspace tests passing, 0 warnings
 
-**Stopped at:** Phase 8 COMPLETE (3 of 3)
+**Stopped at:** Phase 9-01 COMPLETE (1 of 3)
 
 **Next session expectations:**
-- Mark Phase 8 complete in ROADMAP.md
-- Continue v0.2 Advanced Verification milestone with Phase 9 (Lifetime Reasoning) or other phases
+- Execute Phase 9 Plan 02: Borrow Conflict VC Generation
+- Execute Phase 9 Plan 03: End-to-End Lifetime Verification
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
