@@ -384,6 +384,43 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         // (The actual usage will be in encode_operand/encode_place when encoding closure calls)
     }
 
+    // --- Borrow validity analysis ---
+    // Only run if function has lifetime metadata
+    if !func.lifetime_params.is_empty() || !func.borrow_info.is_empty() {
+        tracing::debug!(
+            function = %func.name,
+            lifetime_params = func.lifetime_params.len(),
+            borrows = func.borrow_info.len(),
+            "Generating borrow validity VCs"
+        );
+
+        let lifetime_ctx = crate::lifetime_analysis::build_lifetime_context(func);
+        let live_ranges = crate::lifetime_analysis::compute_live_ranges(func);
+
+        // Generate conflict VCs
+        let conflicts =
+            crate::borrow_conflict::detect_borrow_conflicts(&lifetime_ctx, &live_ranges);
+        let mut conflict_vcs =
+            crate::borrow_conflict::generate_conflict_vcs(&conflicts, &func.name);
+        conditions.append(&mut conflict_vcs);
+
+        // Generate expiry VCs
+        let mut expiry_vcs =
+            crate::borrow_conflict::generate_expiry_vcs(&lifetime_ctx, &live_ranges, func);
+        conditions.append(&mut expiry_vcs);
+
+        // Generate reborrow VCs
+        let mut reborrow_vcs =
+            crate::borrow_conflict::generate_reborrow_vcs(&lifetime_ctx, &live_ranges);
+        conditions.append(&mut reborrow_vcs);
+
+        tracing::debug!(
+            function = %func.name,
+            conflicts = conflicts.len(),
+            "Borrow validity VCs generated"
+        );
+    }
+
     // Generate loop invariant VCs for loops with user-supplied invariants
     let detected_loops = detect_loops(func);
     for loop_info in &detected_loops {

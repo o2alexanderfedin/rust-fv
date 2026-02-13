@@ -80,6 +80,11 @@ impl LifetimeContext {
     pub fn shared_borrows(&self) -> Vec<&BorrowInfo> {
         self.borrow_map.values().filter(|b| !b.is_mutable).collect()
     }
+
+    /// Get all reborrow chains.
+    pub fn reborrow_chains(&self) -> &[ReborrowChain] {
+        &self.reborrow_chains
+    }
 }
 
 impl Default for LifetimeContext {
