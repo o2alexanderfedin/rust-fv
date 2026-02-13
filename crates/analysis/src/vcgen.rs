@@ -423,6 +423,203 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         );
     }
 
+    // === Unsafe code analysis (Phase 10) ===
+    // Check if function is trusted - skip body verification if so
+    if crate::unsafe_analysis::is_trusted_function(func) {
+        tracing::info!(
+            function = %func.name,
+            "Trusted function - skipping body verification"
+        );
+        // Early return with empty VCs - only contracts matter at call sites
+        return FunctionVCs {
+            function_name: func.name.clone(),
+            conditions: vec![],
+        };
+    }
+
+    // Detect unsafe blocks
+    let unsafe_blocks = crate::unsafe_analysis::detect_unsafe_blocks(func);
+    if !unsafe_blocks.is_empty() {
+        tracing::debug!(
+            function = %func.name,
+            unsafe_block_count = unsafe_blocks.len(),
+            "Detected unsafe blocks"
+        );
+    }
+
+    // Check for missing unsafe contracts
+    if let Some(warning_msg) = crate::unsafe_analysis::check_missing_unsafe_contracts(func) {
+        tracing::warn!(
+            function = %func.name,
+            warning = %warning_msg,
+            "Unsafe function missing safety contracts"
+        );
+
+        // Generate diagnostic VC (always-SAT = warning)
+        let mut script = rust_fv_smtlib::script::Script::new();
+        script.push(rust_fv_smtlib::command::Command::SetLogic(
+            "QF_BV".to_string(),
+        ));
+        script.push(rust_fv_smtlib::command::Command::Assert(
+            rust_fv_smtlib::term::Term::BoolLit(true),
+        ));
+        script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+        conditions.push(VerificationCondition {
+            description: warning_msg.clone(),
+            script,
+            location: VcLocation {
+                function: func.name.clone(),
+                block: 0,
+                statement: 0,
+                source_file: None,
+                source_line: None,
+                contract_text: Some(
+                    "add #[unsafe_requires], #[unsafe_ensures], or #[trusted]".to_string(),
+                ),
+                vc_kind: VcKind::MemorySafety,
+            },
+        });
+    }
+
+    // Extract and analyze unsafe operations
+    let unsafe_operations = crate::unsafe_analysis::extract_unsafe_operations(func);
+    if !unsafe_operations.is_empty() {
+        tracing::debug!(
+            function = %func.name,
+            unsafe_op_count = unsafe_operations.len(),
+            "Detected unsafe operations"
+        );
+
+        // Add heap model declarations if needed (for bounds checks)
+        let mut heap_model_added = false;
+        if crate::heap_model::heap_model_declarations_needed(func) {
+            // Heap model commands will be prepended to VCs that need them
+            heap_model_added = true;
+            tracing::debug!(
+                function = %func.name,
+                "Heap model declarations needed for pointer arithmetic"
+            );
+        }
+
+        // Generate memory safety VCs for each unsafe operation
+        for op in &unsafe_operations {
+            // Null-check VC
+            if crate::unsafe_analysis::needs_null_check(op) {
+                let (ptr_local, block_index) = match op {
+                    UnsafeOperation::RawDeref {
+                        ptr_local,
+                        block_index,
+                        ..
+                    } => (ptr_local, *block_index),
+                    _ => continue, // shouldn't happen based on needs_null_check logic
+                };
+
+                // Build null-check VC script
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+
+                // Add datatype and variable declarations
+                for cmd in &datatype_declarations {
+                    script.push(cmd.clone());
+                }
+                for cmd in &declarations {
+                    script.push(cmd.clone());
+                }
+
+                // Assert the null-check condition (ptr == 0 is the violation)
+                let null_check_assertion =
+                    crate::heap_model::generate_null_check_assertion(ptr_local);
+                script.push(rust_fv_smtlib::command::Command::Assert(
+                    null_check_assertion,
+                ));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                conditions.push(VerificationCondition {
+                    description: format!(
+                        "null-check: raw pointer dereference of '{}' requires non-null",
+                        ptr_local
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_index,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        contract_text: Some(format!("{} != null", ptr_local)),
+                        vc_kind: VcKind::MemorySafety,
+                    },
+                });
+            }
+
+            // Bounds-check VC
+            if crate::unsafe_analysis::needs_bounds_check(op) {
+                let (ptr_local, offset_local, block_index) = match op {
+                    UnsafeOperation::PtrArithmetic {
+                        ptr_local,
+                        offset_local,
+                        block_index,
+                        ..
+                    } => (ptr_local, offset_local, *block_index),
+                    _ => continue, // shouldn't happen based on needs_bounds_check logic
+                };
+
+                // Build bounds-check VC script
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+
+                // Add heap model declarations
+                if heap_model_added {
+                    let heap_model_cmds = crate::heap_model::declare_heap_model();
+                    for cmd in heap_model_cmds {
+                        script.push(cmd);
+                    }
+                }
+
+                // Add datatype and variable declarations
+                for cmd in &datatype_declarations {
+                    script.push(cmd.clone());
+                }
+                for cmd in &declarations {
+                    script.push(cmd.clone());
+                }
+
+                // Assert the bounds-check condition (offset out of bounds is the violation)
+                let bounds_check_assertion =
+                    crate::heap_model::generate_bounds_check_assertion(ptr_local, offset_local);
+                script.push(rust_fv_smtlib::command::Command::Assert(
+                    bounds_check_assertion,
+                ));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                conditions.push(VerificationCondition {
+                    description: format!(
+                        "bounds-check: pointer arithmetic on '{}' with offset '{}'",
+                        ptr_local, offset_local
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_index,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        contract_text: Some(format!(
+                            "offset {} within allocation bounds",
+                            offset_local
+                        )),
+                        vc_kind: VcKind::MemorySafety,
+                    },
+                });
+            }
+        }
+    }
+
     // Generate loop invariant VCs for loops with user-supplied invariants
     let detected_loops = detect_loops(func);
     for loop_info in &detected_loops {
@@ -6165,5 +6362,287 @@ mod tests {
         let result = generate_vcs(&func, None);
         // Should not panic - just verify result exists
         let _ = result.conditions;
+    }
+
+    // === Unsafe analysis tests ===
+
+    #[test]
+    fn test_vcgen_trusted_function_skipped() {
+        // Trusted function should skip body verification
+        let func = Function {
+            name: "trusted_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: Some(UnsafeContracts {
+                requires: vec![],
+                ensures: vec![],
+                is_trusted: true,
+            }),
+            is_unsafe_fn: true,
+        };
+
+        let result = generate_vcs(&func, None);
+        assert_eq!(
+            result.conditions.len(),
+            0,
+            "Trusted function should produce no body VCs"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_missing_contracts_warning() {
+        // Unsafe function without contracts should produce diagnostic VC
+        let func = Function {
+            name: "unsafe_no_contracts".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: true,
+        };
+
+        let result = generate_vcs(&func, None);
+        // Should have at least the missing-contracts warning VC
+        let warning_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::MemorySafety)
+            .collect();
+        assert!(
+            !warning_vcs.is_empty(),
+            "Should produce missing-contracts warning VC"
+        );
+        assert!(
+            warning_vcs[0].description.contains("no safety contracts"),
+            "Warning should mention missing contracts"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_null_check_generated() {
+        // Function with RawDeref (Unknown provenance) should generate null-check VC
+        let func = Function {
+            name: "deref_ptr".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            )],
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![UnsafeOperation::RawDeref {
+                ptr_local: "_1".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                provenance: RawPtrProvenance::Unknown,
+                block_index: 0,
+            }],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+        };
+
+        let result = generate_vcs(&func, None);
+        let null_check_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+            })
+            .collect();
+        assert!(!null_check_vcs.is_empty(), "Should produce null-check VC");
+        assert!(
+            null_check_vcs[0].description.contains("_1"),
+            "Null-check should reference the pointer variable"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_null_check_skipped_from_ref() {
+        // Function with RawDeref (FromRef provenance) should NOT generate null-check VC
+        let func = Function {
+            name: "deref_from_ref".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            )],
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![UnsafeOperation::RawDeref {
+                ptr_local: "_1".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                provenance: RawPtrProvenance::FromRef,
+                block_index: 0,
+            }],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+        };
+
+        let result = generate_vcs(&func, None);
+        let null_check_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+            })
+            .collect();
+        assert!(
+            null_check_vcs.is_empty(),
+            "Should NOT produce null-check VC for FromRef pointers"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_bounds_check_generated() {
+        // Function with PtrArithmetic should generate bounds-check VC
+        let func = Function {
+            name: "ptr_add".to_string(),
+            params: vec![
+                Local::new(
+                    "_1",
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                ),
+                Local::new("_2", Ty::Int(IntTy::I32)),
+            ],
+            return_local: Local::new(
+                "_0",
+                Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            ),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![UnsafeOperation::PtrArithmetic {
+                ptr_local: "_1".to_string(),
+                offset_local: "_2".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                is_signed_offset: false,
+                block_index: 0,
+            }],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+        };
+
+        let result = generate_vcs(&func, None);
+        let bounds_check_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::MemorySafety
+                    && vc.description.contains("bounds-check")
+            })
+            .collect();
+        assert!(
+            !bounds_check_vcs.is_empty(),
+            "Should produce bounds-check VC"
+        );
+        assert!(
+            bounds_check_vcs[0].description.contains("_1"),
+            "Bounds-check should reference pointer"
+        );
+        assert!(
+            bounds_check_vcs[0].description.contains("_2"),
+            "Bounds-check should reference offset"
+        );
+    }
+
+    #[test]
+    fn test_vcgen_safe_function_no_unsafe_vcs() {
+        // Safe function with no unsafe operations produces no MemorySafety VCs
+        let func = Function {
+            name: "safe_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+        };
+
+        let result = generate_vcs(&func, None);
+        let memory_safety_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::MemorySafety)
+            .collect();
+        assert!(
+            memory_safety_vcs.is_empty(),
+            "Safe function should not produce MemorySafety VCs"
+        );
     }
 }
