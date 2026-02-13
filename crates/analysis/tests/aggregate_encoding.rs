@@ -388,6 +388,10 @@ fn test_struct_construction() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -493,6 +497,10 @@ fn test_struct_field_postcondition_positive() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -562,6 +570,10 @@ fn test_struct_field_postcondition_negative() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -631,6 +643,10 @@ fn test_tuple_construction() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -728,6 +744,10 @@ fn test_tuple_field_access() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -818,6 +838,10 @@ fn test_array_select() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -965,6 +989,10 @@ fn test_enum_variant_construction() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 

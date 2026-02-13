@@ -103,6 +103,8 @@ pub enum VcKind {
     ClosureContract,
     /// Behavioral subtyping check (trait impl satisfies trait contract)
     BehavioralSubtyping,
+    /// Borrow validity check (shared/mutable conflict, use-after-expiry, reborrow validity)
+    BorrowValidity,
 }
 
 impl VcKind {
@@ -1731,6 +1733,10 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -2865,6 +2871,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -2940,6 +2950,10 @@ mod tests {
             },
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -3090,6 +3104,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3133,6 +3151,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3710,6 +3732,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3733,6 +3759,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3767,6 +3797,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3801,6 +3835,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -3822,6 +3860,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -3838,6 +3880,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -3854,6 +3900,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -3966,6 +4016,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -4139,6 +4193,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4167,6 +4225,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4195,6 +4257,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4259,6 +4325,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -4422,6 +4492,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4498,6 +4572,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -4522,6 +4600,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -4614,6 +4696,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4650,6 +4736,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4677,6 +4767,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4704,6 +4798,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4729,6 +4827,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -4795,6 +4897,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -4843,6 +4949,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -4891,6 +5001,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -5072,6 +5186,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -5108,6 +5226,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -5144,6 +5266,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -5180,6 +5306,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -5263,6 +5393,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -5435,6 +5569,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 
@@ -5586,6 +5724,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -5634,6 +5776,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -5691,6 +5837,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         // Validate FnOnce single-call property
@@ -5743,6 +5893,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -5774,6 +5928,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         // Call with None TraitDatabase - should work as before
@@ -5798,6 +5956,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         // Should generate VCs without panicking even without TraitDatabase

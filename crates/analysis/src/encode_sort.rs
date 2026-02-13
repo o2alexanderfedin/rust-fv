@@ -247,6 +247,17 @@ pub fn is_signed_type(ty: &Ty) -> bool {
     matches!(ty, Ty::Int(_))
 }
 
+/// Helper function to create the Region sort for lifetime encoding.
+///
+/// Lifetime regions are represented as uninterpreted sorts in SMT.
+/// This function provides a consistent way to reference the Region sort
+/// throughout the verification pipeline.
+///
+/// Returns `Sort::Uninterpreted("Region")`.
+pub fn region_sort() -> Sort {
+    Sort::Uninterpreted("Region".to_string())
+}
+
 /// Encode a sealed trait as an SMT datatype (sum type) over known implementations.
 ///
 /// This generates a DeclareDatatype command with one variant per implementation.
@@ -289,6 +300,12 @@ mod tests {
     use super::*;
     use crate::ir::{IntTy, UintTy};
     use rust_fv_smtlib::sort::Sort;
+
+    #[test]
+    fn test_region_sort() {
+        let sort = region_sort();
+        assert_eq!(sort, Sort::Uninterpreted("Region".to_string()));
+    }
 
     #[test]
     fn bool_encodes_to_bool() {
@@ -408,6 +425,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -450,6 +471,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -471,6 +496,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -506,6 +535,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
         let decls = collect_datatype_declarations(&func);
@@ -580,6 +613,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 
@@ -631,6 +668,10 @@ mod tests {
             contracts: Default::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         };
 

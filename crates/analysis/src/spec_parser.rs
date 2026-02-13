@@ -919,6 +919,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -941,6 +945,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -969,6 +977,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -987,6 +999,10 @@ mod tests {
             contracts: Contracts::default(),
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
             loops: vec![],
         }
     }
@@ -1453,6 +1469,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 
@@ -1559,6 +1579,10 @@ mod tests {
             generic_params: vec![],
             loops: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 

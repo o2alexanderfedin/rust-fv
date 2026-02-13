@@ -358,6 +358,10 @@ fn make_caller_function(
         contracts: caller_contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -627,6 +631,10 @@ fn test_call_site_postcondition_assumed() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -736,6 +744,10 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -840,6 +852,10 @@ fn test_call_chain_no_blowup() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -906,6 +922,10 @@ fn test_call_without_contracts_treated_as_opaque() {
         contracts: Contracts::default(),
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 

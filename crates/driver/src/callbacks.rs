@@ -523,6 +523,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::Termination => "termination",
         VcKind::ClosureContract => "closure_contract",
         VcKind::BehavioralSubtyping => "behavioral_subtyping",
+        VcKind::BorrowValidity => "borrow_validity",
     }
     .to_string()
 }
@@ -691,6 +692,14 @@ mod tests {
         assert_eq!(
             vc_kind_to_string(&VcKind::BehavioralSubtyping),
             "behavioral_subtyping"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_borrow_validity() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::BorrowValidity),
+            "borrow_validity"
         );
     }
 

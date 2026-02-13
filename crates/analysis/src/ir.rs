@@ -65,6 +65,59 @@ pub struct TraitImpl {
     pub method_names: Vec<String>,
 }
 
+/// A named lifetime parameter in a function signature.
+///
+/// Lifetime parameters represent regions in the program where borrows are valid.
+/// Examples: `'a`, `'b`, `'static`
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LifetimeParam {
+    /// Lifetime name (e.g., "'a", "'b", "'static")
+    pub name: String,
+    /// True if this is the 'static lifetime
+    pub is_static: bool,
+}
+
+/// An outlives constraint between two lifetimes.
+///
+/// `OutlivesConstraint { longer: "'a", shorter: "'b" }` represents `'a: 'b`
+/// (lifetime 'a must outlive lifetime 'b).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutlivesConstraint {
+    /// The lifetime that must outlive (e.g., "'a")
+    pub longer: String,
+    /// The lifetime that is outlived (e.g., "'b")
+    pub shorter: String,
+}
+
+/// Information about a borrow in the function.
+///
+/// Tracks the borrow origin, region, mutability, and whether it's a reborrow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowInfo {
+    /// The local variable holding the borrow (e.g., "_1")
+    pub local_name: String,
+    /// The lifetime/region associated with this borrow (e.g., "'a")
+    pub region: String,
+    /// True for &mut, false for &
+    pub is_mutable: bool,
+    /// Deref level: 0 for direct borrow, 1 for reborrow of &mut, etc.
+    pub deref_level: u32,
+    /// If this is a reborrow, the original borrow local name
+    pub source_local: Option<String>,
+}
+
+/// A chain of reborrows from an original borrow.
+///
+/// Example: if `&mut x` is borrowed as `y`, then `y` is borrowed as `z`,
+/// the reborrow chain is `{original: "x", reborrows: ["y", "z"]}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReborrowChain {
+    /// Original borrow local name
+    pub original: String,
+    /// Chain of reborrow local names in order
+    pub reborrows: Vec<String>,
+}
+
 /// Information about a closure type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureInfo {
@@ -97,6 +150,18 @@ pub struct Function {
     /// Prophecy variables for mutable borrow parameters.
     /// Empty for functions without `&mut T` parameters.
     pub prophecies: Vec<ProphecyInfo>,
+    /// Lifetime parameters extracted from function signature.
+    /// Empty for functions without lifetime parameters.
+    pub lifetime_params: Vec<LifetimeParam>,
+    /// Outlives constraints between lifetime parameters.
+    /// Empty if no lifetime constraints exist.
+    pub outlives_constraints: Vec<OutlivesConstraint>,
+    /// Information about all borrows in the function.
+    /// Empty if function has no borrows.
+    pub borrow_info: Vec<BorrowInfo>,
+    /// Reborrow chains tracking original-to-reborrow relationships.
+    /// Empty if function has no reborrows.
+    pub reborrow_chains: Vec<ReborrowChain>,
 }
 
 impl Function {
@@ -640,6 +705,10 @@ mod tests {
                 trait_bounds: vec!["Ord".to_string()],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(func.is_generic());
     }
@@ -656,6 +725,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(!func.is_generic());
     }
@@ -677,6 +750,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -696,6 +773,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -712,6 +793,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -728,6 +813,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -747,6 +836,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1206,5 +1299,117 @@ mod tests {
             }))
             .is_trait_object()
         );
+    }
+
+    // ====== Lifetime IR types tests ======
+
+    #[test]
+    fn test_lifetime_param_creation() {
+        let lifetime = LifetimeParam {
+            name: "'a".to_string(),
+            is_static: false,
+        };
+        assert_eq!(lifetime.name, "'a");
+        assert!(!lifetime.is_static);
+    }
+
+    #[test]
+    fn test_lifetime_param_static() {
+        let static_lifetime = LifetimeParam {
+            name: "'static".to_string(),
+            is_static: true,
+        };
+        assert_eq!(static_lifetime.name, "'static");
+        assert!(static_lifetime.is_static);
+    }
+
+    #[test]
+    fn test_outlives_constraint() {
+        let constraint = OutlivesConstraint {
+            longer: "'a".to_string(),
+            shorter: "'b".to_string(),
+        };
+        assert_eq!(constraint.longer, "'a");
+        assert_eq!(constraint.shorter, "'b");
+    }
+
+    #[test]
+    fn test_borrow_info_shared() {
+        let borrow = BorrowInfo {
+            local_name: "_1".to_string(),
+            region: "'a".to_string(),
+            is_mutable: false,
+            deref_level: 0,
+            source_local: None,
+        };
+        assert_eq!(borrow.local_name, "_1");
+        assert_eq!(borrow.region, "'a");
+        assert!(!borrow.is_mutable);
+        assert_eq!(borrow.deref_level, 0);
+        assert!(borrow.source_local.is_none());
+    }
+
+    #[test]
+    fn test_borrow_info_mutable() {
+        let borrow = BorrowInfo {
+            local_name: "_2".to_string(),
+            region: "'b".to_string(),
+            is_mutable: true,
+            deref_level: 0,
+            source_local: None,
+        };
+        assert!(borrow.is_mutable);
+    }
+
+    #[test]
+    fn test_borrow_info_reborrow() {
+        let borrow = BorrowInfo {
+            local_name: "_3".to_string(),
+            region: "'c".to_string(),
+            is_mutable: true,
+            deref_level: 1,
+            source_local: Some("_2".to_string()),
+        };
+        assert_eq!(borrow.deref_level, 1);
+        assert_eq!(borrow.source_local, Some("_2".to_string()));
+    }
+
+    #[test]
+    fn test_reborrow_chain() {
+        let chain = ReborrowChain {
+            original: "_1".to_string(),
+            reborrows: vec!["_2".to_string(), "_3".to_string()],
+        };
+        assert_eq!(chain.original, "_1");
+        assert_eq!(chain.reborrows.len(), 2);
+        assert_eq!(chain.reborrows[0], "_2");
+        assert_eq!(chain.reborrows[1], "_3");
+    }
+
+    #[test]
+    fn test_function_lifetime_fields() {
+        let func = Function {
+            name: "test_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![LifetimeParam {
+                name: "'a".to_string(),
+                is_static: false,
+            }],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+        };
+        assert_eq!(func.lifetime_params.len(), 1);
+        assert_eq!(func.lifetime_params[0].name, "'a");
+        assert_eq!(func.outlives_constraints.len(), 0);
+        assert_eq!(func.borrow_info.len(), 0);
+        assert_eq!(func.reborrow_chains.len(), 0);
     }
 }

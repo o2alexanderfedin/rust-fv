@@ -422,6 +422,10 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -484,6 +488,10 @@ fn make_even(contracts: Contracts) -> Function {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -546,6 +554,10 @@ fn make_odd(contracts: Contracts) -> Function {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -648,6 +660,10 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -939,6 +955,10 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1015,6 +1035,10 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1160,6 +1184,10 @@ fn snd_recursive_without_decreases_rejected() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

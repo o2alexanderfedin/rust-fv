@@ -384,6 +384,10 @@ fn cmp_bounded_add() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -441,6 +445,10 @@ fn cmp_bounded_sub() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -498,6 +506,10 @@ fn cmp_bounded_mul() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -555,6 +567,10 @@ fn cmp_safe_div() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -607,6 +623,10 @@ fn cmp_safe_shift() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -648,6 +668,10 @@ fn cmp_identity_postcondition() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -685,6 +709,10 @@ fn cmp_constant_postcondition() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -744,6 +772,10 @@ fn cmp_bounded_add_postcondition() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -824,6 +856,10 @@ fn cmp_max_function() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -935,6 +971,10 @@ fn cmp_abs_function() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1074,6 +1114,10 @@ fn cmp_clamp_function() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1162,6 +1206,10 @@ fn cmp_if_else_same_result() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1277,6 +1325,10 @@ fn cmp_multi_branch_classify() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1365,6 +1417,10 @@ fn cmp_early_return() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1516,6 +1572,10 @@ fn cmp_nested_branches_correct() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1590,6 +1650,10 @@ fn cmp_u8_bounded_add() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1647,6 +1711,10 @@ fn cmp_i64_bounded_add() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1704,6 +1772,10 @@ fn cmp_u64_bounded_mul() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1761,6 +1833,10 @@ fn cmp_i8_safe_operations() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1802,6 +1878,10 @@ fn cmp_mixed_width_identity() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1858,6 +1938,10 @@ fn cmp_safe_unsigned_sub() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1916,6 +2000,10 @@ fn cmp_safe_signed_rem() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

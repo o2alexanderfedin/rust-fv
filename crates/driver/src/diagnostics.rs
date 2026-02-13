@@ -164,6 +164,11 @@ fn report_text_only(failure: &VerificationFailure) {
         }
     }
 
+    if failure.vc_kind == VcKind::BorrowValidity {
+        eprintln!();
+        eprintln!("{}", format_borrow_validity_help());
+    }
+
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
         eprintln!();
         eprintln!("{}: {}", "help".cyan().bold(), suggestion);
@@ -188,6 +193,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::Termination => "termination measure not proven to decrease",
         VcKind::ClosureContract => "closure contract not satisfied",
         VcKind::BehavioralSubtyping => "impl does not satisfy trait contract",
+        VcKind::BorrowValidity => "borrow validity violation",
     }
 }
 
@@ -233,6 +239,11 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::BehavioralSubtyping => Some(
             "Check that the impl precondition is weaker (allows more) than the trait precondition, \
              and that the impl postcondition is stronger (guarantees more) than the trait postcondition."
+                .to_string(),
+        ),
+        VcKind::BorrowValidity => Some(
+            "Check borrow lifetimes: ensure shared and mutable borrows don't overlap, \
+             borrows don't outlive their source, and reborrows maintain validity."
                 .to_string(),
         ),
         _ => None,
@@ -326,6 +337,18 @@ pub fn format_postcondition_strengthening_help(impl_type: &str, trait_name: &str
          Verify that the impl's behavior satisfies the trait postcondition.",
         impl_type, trait_name
     )
+}
+
+/// Format a help message for borrow validity failures.
+///
+/// Explains the borrow lifecycle and common validity violations.
+pub fn format_borrow_validity_help() -> String {
+    "borrow validity error: check the following:\n\
+     - Shared (&) and mutable (&mut) borrows cannot overlap\n\
+     - A borrow must not outlive the lifetime of its source\n\
+     - Reborrows (&mut &mut T) must maintain validity through all layers\n\
+     - Ensure lifetime constraints ('a: 'b) are satisfied"
+        .to_string()
 }
 
 /// Format a help message for a recursive function missing a `#[decreases]` annotation.
@@ -1409,5 +1432,24 @@ mod tests {
             vc_kind_description(&VcKind::BehavioralSubtyping),
             "impl does not satisfy trait contract"
         );
+    }
+
+    // --- VcKind::BorrowValidity tests (Phase 9) ---
+
+    #[test]
+    fn test_vc_kind_description_borrow_validity() {
+        assert_eq!(
+            vc_kind_description(&VcKind::BorrowValidity),
+            "borrow validity violation"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_borrow_validity() {
+        let suggestion = suggest_fix(&VcKind::BorrowValidity);
+        assert!(suggestion.is_some());
+        let text = suggestion.unwrap();
+        assert!(text.contains("borrow"));
+        assert!(text.contains("lifetime"));
     }
 }

@@ -51,6 +51,10 @@ fn make_add_function(contracts: Contracts) -> Function {
         contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -728,6 +732,10 @@ fn make_max_function(contracts: Contracts) -> Function {
         contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -922,6 +930,10 @@ fn make_classify_function(contracts: Contracts) -> Function {
         contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -1030,6 +1042,10 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -1212,6 +1228,10 @@ fn make_quad_function(contracts: Contracts) -> Function {
         contracts,
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     }
 }
@@ -1330,6 +1350,10 @@ fn test_single_branch_overflow_check() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -1752,6 +1776,10 @@ fn test_quantifier_full_pipeline() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -1857,6 +1885,10 @@ fn test_generic_max_i32_verified() {
             trait_bounds: vec!["Ord".to_string()],
         }],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     // Register i32 instantiation
@@ -1957,6 +1989,10 @@ fn test_generic_max_u64_verified() {
             trait_bounds: vec!["Ord".to_string()],
         }],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2057,6 +2093,10 @@ fn test_generic_max_wrong_postcondition() {
             trait_bounds: vec!["Ord".to_string()],
         }],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     // Register i32 instantiation
@@ -2141,6 +2181,10 @@ fn test_generic_multiple_instantiations() {
             trait_bounds: vec!["Ord".to_string()],
         }],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2224,6 +2268,10 @@ fn test_generic_no_instantiations_warning() {
             trait_bounds: vec!["Ord".to_string()],
         }],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2285,6 +2333,10 @@ fn test_prophecy_increment_mut_ref() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2342,6 +2394,10 @@ fn test_prophecy_no_mutation_verified() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2425,6 +2481,10 @@ fn test_prophecy_conditional_mutation() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2485,6 +2545,10 @@ fn test_prophecy_basic() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -141,6 +141,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 
@@ -158,6 +162,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 
@@ -181,6 +189,10 @@ mod tests {
             loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         }
     }
 

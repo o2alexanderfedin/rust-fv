@@ -404,6 +404,10 @@ fn test_assert_true_verified() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -485,6 +489,10 @@ fn test_assert_false_counterexample() {
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -591,6 +599,10 @@ fn test_assert_after_computation() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -700,6 +712,10 @@ fn test_array_bounds_safe() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -784,6 +800,10 @@ fn test_array_bounds_unsafe() {
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -884,6 +904,10 @@ fn test_div_by_zero_safe() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -971,6 +995,10 @@ fn test_div_by_zero_unsafe() {
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -1059,6 +1087,10 @@ fn test_unwrap_safe() {
         },
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -1132,6 +1164,10 @@ fn test_unwrap_unsafe() {
         contracts: Contracts::default(), // No precondition
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -1207,6 +1243,10 @@ fn test_error_message_specificity() {
         contracts: Contracts::default(),
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 
@@ -1368,6 +1408,10 @@ fn test_remainder_by_zero_unsafe() {
         contracts: Contracts::default(),
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
         loops: vec![],
     };
 

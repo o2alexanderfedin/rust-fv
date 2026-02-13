@@ -307,6 +307,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -352,6 +356,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -400,6 +408,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -462,6 +474,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -493,6 +509,10 @@ mod tests {
                 trait_bounds: vec!["Ord".to_string()],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -951,6 +971,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1017,6 +1041,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1081,6 +1109,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1306,6 +1338,10 @@ mod tests {
                 trait_bounds: vec![],
             }],
             prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
         };
 
         let mut subs = HashMap::new();

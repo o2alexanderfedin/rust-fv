@@ -414,6 +414,10 @@ fn make_closure_caller(
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     }
 }
 
@@ -578,6 +582,10 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -658,6 +666,10 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -735,6 +747,10 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -817,6 +833,10 @@ fn e2e_fnonce_double_call_diagnostic() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -932,6 +952,10 @@ fn e2e_closure_contract_specification_verified() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1014,6 +1038,10 @@ fn e2e_closure_contract_violation_detected() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1126,6 +1154,10 @@ fn e2e_fn_closure_multiple_params_verified() {
         loops: vec![],
         generic_params: vec![],
         prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
