@@ -12,24 +12,25 @@
 
 ## Current Position
 
-**Phase:** 9 - Lifetime Reasoning
-**Plan:** 3 of 3 complete
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Phase:** 10 - Unsafe Code Detection
+**Plan:** 1 of 3 complete
+**Status:** In Progress
+**Progress:** [███░░░░░░░] 33%
 
 ### Active Work
-- Phase 9 Plan 03 COMPLETE: End-to-End Lifetime Verification
-- Created lifetime_verification.rs with 9 comprehensive e2e tests
-- All 5 Phase 9 success criteria validated by specific tests
-- All 7 requirements (LIF-01 through LIF-06, INF-02) validated
-- Borrow lifetime diagnostics already implemented (pre-existing)
-- Total workspace tests: 1,998 (up from 1,974)
-- Phase 9 fully complete with all requirements satisfied
+- Phase 10 Plan 01 COMPLETE: Unsafe Code IR Foundation
+- Added RawPtrProvenance, UnsafeBlockInfo, UnsafeOperation, UnsafeContracts types
+- Extended Function struct with 4 unsafe fields (235+ sites updated)
+- Added VcKind::MemorySafety with memory safety diagnostics
+- Implemented #[unsafe_requires], #[unsafe_ensures], #[trusted] proc macros
+- Total workspace tests: 2,011 (up from 1,998, +13 new tests)
+- Duration: 11 min 13 sec, 2 tasks (both TDD), 32 files modified
 
 ### Next Steps
-1. Execute Phase 10: Unsafe Code Detection
-2. Optional: Add spec parser support for final(*x) nested prophecy syntax
-3. Optional: MIR-based live range computation for precise NLL semantics
+1. Execute Phase 10 Plan 02: Unsafe Block Detection
+2. Execute Phase 10 Plan 03: End-to-End Unsafe Verification
+3. Optional: Add spec parser support for final(*x) nested prophecy syntax
+4. Optional: MIR-based live range computation for precise NLL semantics
 
 ## Performance Metrics
 
@@ -186,6 +187,13 @@
 | Phase 09 P01 | 14 | 2 tasks | 33 files |
 | Phase 09 P02 | 10 | 2 tasks | 5 files |
 | Phase 09 P03 | 8 | 2 tasks | 1 files |
+| RawPtrProvenance tracks pointer origin for null-check optimization | FromRef (from safe reference) guaranteed non-null; FromInt (from integer cast) unknown validity; enables targeted safety checks | Phase 10 |
+| VcKind::MemorySafety produces warnings not errors | Per USF-06 requirement; unsafe code detection is advisory, not blocking | Phase 10 |
+| ptr_addr_sort() returns Sort::BitVec(64) | 64-bit bitvector sort for raw pointer addresses; enables address arithmetic and null checks in SMT | Phase 10 |
+| #[trusted] macro embeds 'rust_fv::trusted' | Rust proc macros cannot use :: in names; documented as #[verifier::trusted] for users | Phase 10 |
+| UnsafeContracts uses #[derive(Default)] | Vec and bool already have proper defaults; clippy::derivable_impls recommends derive over manual impl | Phase 10 |
+| Function struct extended with 4 unsafe fields | unsafe_blocks, unsafe_operations, unsafe_contracts, is_unsafe_fn added after reborrow_chains; 235+ construction sites updated | Phase 10 |
+| Phase 10 P01 | 11 | 2 tasks | 32 files |
 
 ### In-Progress Todos
 
@@ -261,20 +269,20 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-13T02:16:05.424Z - Phase 9-03 (End-to-End Lifetime Verification)
-- Completed: lifetime_verification.rs with 9 comprehensive e2e tests
-- Completed: All 5 Phase 9 success criteria validated by specific tests
-- Completed: All 7 requirements (LIF-01 through LIF-06, INF-02) validated
-- Deviation: Task 1 diagnostics pre-existing (format_borrow_timeline, format_borrow_fix_suggestion, format_lifetime_explanation already implemented with 101 passing tests)
-- Status: 9 new e2e tests added, 1,998 total workspace tests passing, 0 warnings, 0 formatting issues
-- Phase 9 fully complete
+**Last session:** 2026-02-13T05:49:08Z - Phase 10-01 (Unsafe Code IR Foundation)
+- Completed: Task 1 - Added unsafe IR types, VcKind::MemorySafety, Function extensions (cd4910d)
+- Completed: Task 2 - Added unsafe contract proc macros (b4f5fdf)
+- Duration: 11 min 13 sec
+- Tests: 2,011 total workspace tests (+13 new), 0 warnings, 0 formatting issues
+- Commits: 2 atomic task commits
+- Summary: .planning/phases/10-unsafe-code-detection/10-01-SUMMARY.md
 
-**Stopped at:** Completed 09-03-PLAN.md
+**Stopped at:** Completed 10-01-PLAN.md
 
 **Next session expectations:**
-- Begin Phase 10: Unsafe Code Detection
-- Optional: Add spec parser final(*x) nested prophecy support
-- Optional: Z3 integration tests for lifetime verification
+- Execute Phase 10-02: Unsafe Block Detection
+- Detect unsafe blocks/operations in MIR conversion
+- Generate memory safety VCs (null-check, bounds-check)
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
