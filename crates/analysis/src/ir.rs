@@ -256,6 +256,8 @@ pub struct ProphecyInfo {
     pub prophecy_var: String,
     /// The type being pointed to (e.g., Ty::Int(IntTy::I32) for &mut i32)
     pub inner_ty: Ty,
+    /// Deref level: 0 for direct &mut T, 1 for outer of &mut &mut T, etc.
+    pub deref_level: u32,
 }
 
 /// A specification expression (parsed from attribute strings).

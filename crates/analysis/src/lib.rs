@@ -8,6 +8,7 @@ pub mod encode_quantifier;
 pub mod encode_sort;
 pub mod encode_term;
 pub mod ir;
+pub mod lifetime_analysis;
 pub mod monomorphize;
 pub mod ownership;
 pub mod recursion;
