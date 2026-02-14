@@ -7,7 +7,9 @@
 
 pub mod hashmap;
 pub mod iterator;
+pub mod loader;
 pub mod option;
+pub mod override_check;
 pub mod result;
 pub mod string;
 pub mod types;

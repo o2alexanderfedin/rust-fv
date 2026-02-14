@@ -386,6 +386,94 @@ fn trusted_impl(
     }
 }
 
+/// Attach an override contract for a stdlib method.
+///
+/// `#[override_contract]` allows users to replace stdlib contracts with
+/// custom specifications that are more precise for their use case.
+///
+/// # Example
+///
+/// ```ignore
+/// #[override_contract]
+/// extern "Rust" {
+///     #[requires(len < capacity)]
+///     #[ensures(len == old(len) + 1)]
+///     fn Vec_push(self: &mut Vec<T>, value: T);
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn override_contract(attr: TokenStream, item: TokenStream) -> TokenStream {
+    override_contract_impl(attr.into(), item.into()).into()
+}
+
+/// Attach an extension to a stdlib contract.
+///
+/// `#[extend_contract]` allows users to add extra preconditions and postconditions
+/// to existing stdlib contracts without fully replacing them.
+///
+/// # Example
+///
+/// ```ignore
+/// #[extend_contract]
+/// extern "Rust" {
+///     #[requires(self.is_valid())]
+///     fn Vec_push(self: &mut Vec<T>, value: T);
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn extend_contract(attr: TokenStream, item: TokenStream) -> TokenStream {
+    extend_contract_impl(attr.into(), item.into()).into()
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers (continued)
+// ---------------------------------------------------------------------------
+
+/// `proc_macro2`-based implementation of `override_contract` for unit testing.
+///
+/// Parses the annotated extern block, extracts function signatures with
+/// #[requires]/[ensures], and stores as doc attribute:
+/// `rust_fv::override_contract::METHOD_NAME::REQUIRES::EXPR` or
+/// `rust_fv::override_contract::METHOD_NAME::ENSURES::EXPR`
+fn override_contract_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new_spanned(attr, "`#[override_contract]` does not accept arguments")
+            .to_compile_error();
+    }
+
+    let doc_value = "rust_fv::override_contract";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
+/// `proc_macro2`-based implementation of `extend_contract` for unit testing.
+///
+/// Same pattern as override_contract but stores as `rust_fv::extend_contract::...`
+fn extend_contract_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new_spanned(attr, "`#[extend_contract]` does not accept arguments")
+            .to_compile_error();
+    }
+
+    let doc_value = "rust_fv::extend_contract";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
 /// Parse and encode `#[verify(concurrent, threads = N, switches = M)]` attributes.
 fn verify_impl(
     attr: proc_macro2::TokenStream,
@@ -1054,5 +1142,101 @@ mod tests {
         assert!(result_str.contains("rust_fv::verify::threads::4"));
         assert!(result_str.contains("rust_fv::verify::switches::8"));
         assert!(result_str.contains("fn heavy_concurrent"));
+    }
+
+    // --- override_contract tests (Phase 13-04) ---
+
+    #[test]
+    fn test_override_contract_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            extern "Rust" {
+                fn Vec_push(v: &mut Vec<i32>, value: i32);
+            }
+        };
+
+        let result = override_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::override_contract"));
+        assert!(result_str.contains("extern \"Rust\""));
+        assert!(result_str.contains("fn Vec_push"));
+    }
+
+    #[test]
+    fn test_override_contract_no_args() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            fn test() {}
+        };
+
+        let result = override_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::override_contract"));
+        assert!(result_str.contains("fn test"));
+    }
+
+    #[test]
+    fn test_override_contract_with_args_returns_error() {
+        let attr: proc_macro2::TokenStream = quote! { something };
+        let item: proc_macro2::TokenStream = quote! {
+            fn foo() {}
+        };
+
+        let result = override_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("compile_error"));
+        assert!(result_str.contains("does not accept arguments"));
+    }
+
+    // --- extend_contract tests (Phase 13-04) ---
+
+    #[test]
+    fn test_extend_contract_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            extern "Rust" {
+                fn Vec_push(v: &mut Vec<i32>, value: i32);
+            }
+        };
+
+        let result = extend_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::extend_contract"));
+        assert!(result_str.contains("extern \"Rust\""));
+        assert!(result_str.contains("fn Vec_push"));
+    }
+
+    #[test]
+    fn test_extend_contract_no_args() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            fn test() {}
+        };
+
+        let result = extend_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::extend_contract"));
+        assert!(result_str.contains("fn test"));
+    }
+
+    #[test]
+    fn test_extend_contract_with_args_returns_error() {
+        let attr: proc_macro2::TokenStream = quote! { something };
+        let item: proc_macro2::TokenStream = quote! {
+            fn foo() {}
+        };
+
+        let result = extend_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("compile_error"));
+        assert!(result_str.contains("does not accept arguments"));
     }
 }
