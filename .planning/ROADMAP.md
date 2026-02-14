@@ -129,9 +129,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md -- Infrastructure: IR unsafe types (UnsafeBlockInfo, UnsafeOperation, UnsafeContracts, RawPtrProvenance), VcKind::MemorySafety, proc macros (#[unsafe_requires], #[unsafe_ensures], #[trusted])
-- [ ] 10-02-PLAN.md -- Core: unsafe_analysis.rs module (detection, provenance), heap_model.rs module (heap-as-array encoding), VCGen unsafe integration
-- [ ] 10-03-PLAN.md -- Integration: unsafe diagnostics, end-to-end Z3 verification tests
+- [x] 10-01-PLAN.md -- Infrastructure: IR unsafe types (UnsafeBlockInfo, UnsafeOperation, UnsafeContracts, RawPtrProvenance), VcKind::MemorySafety, proc macros (#[unsafe_requires], #[unsafe_ensures], #[trusted])
+- [x] 10-02-PLAN.md -- Core: unsafe_analysis.rs module (detection, provenance), heap_model.rs module (heap-as-array encoding), VCGen unsafe integration
+- [x] 10-03-PLAN.md -- Integration: unsafe diagnostics, end-to-end Z3 verification tests
 
 **Success Criteria:**
 1. Developer writes unsafe block and verifier flags it in output with source location and warning message
@@ -189,10 +189,10 @@ Plans:
 | 7. Closures | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 8. Trait Objects | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 9. Lifetime Reasoning | v0.2 | 3/3 | Complete | 2026-02-13 |
-| 10. Unsafe Code Detection | v0.2 | 0/3 | Planned | - |
+| 10. Unsafe Code Detection | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 11. Floating-Point Verification | v0.2 | 0/? | Pending | - |
 | 12. Concurrency Verification | v0.2 | 0/? | Pending | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-13 (Phase 10 planned: 3 plans)*
+*Last updated: 2026-02-14 (Phase 10 complete: 3/3 plans)*
