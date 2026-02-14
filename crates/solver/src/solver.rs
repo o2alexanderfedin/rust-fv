@@ -247,6 +247,11 @@ fn format_sort(output: &mut String, sort: &rust_fv_smtlib::sort::Sort) {
         Sort::Datatype(name) => output.push_str(name),
         Sort::Float(e, s) => output.push_str(&format!("(_ FloatingPoint {e} {s})")),
         Sort::Uninterpreted(name) => output.push_str(name),
+        Sort::Seq(inner) => {
+            output.push_str("(Seq ");
+            format_sort(output, inner);
+            output.push(')');
+        }
     }
 }
 
@@ -470,8 +475,17 @@ fn format_term(output: &mut String, term: &rust_fv_smtlib::term::Term) {
         | Term::FpIsInfinite(..)
         | Term::FpIsZero(..)
         | Term::FpIsNegative(..)
-        | Term::FpIsPositive(..) => {
-            // Delegate to Term's Display impl for floating-point terms
+        | Term::FpIsPositive(..)
+        // Sequence terms: use Display impl from smtlib
+        | Term::SeqEmpty(..)
+        | Term::SeqUnit(..)
+        | Term::SeqConcat(..)
+        | Term::SeqLen(..)
+        | Term::SeqNth(..)
+        | Term::SeqExtract(..)
+        | Term::SeqContains(..)
+        | Term::SeqUpdate(..) => {
+            // Delegate to Term's Display impl for floating-point and sequence terms
             output.push_str(&term.to_string());
         }
     }

@@ -25,6 +25,7 @@ impl fmt::Display for Sort {
             Sort::Datatype(name) => write!(f, "{name}"),
             Sort::Float(e, s) => write!(f, "(_ FloatingPoint {e} {s})"),
             Sort::Uninterpreted(name) => write!(f, "{name}"),
+            Sort::Seq(inner) => write!(f, "(Seq {inner})"),
         }
     }
 }
@@ -297,6 +298,16 @@ impl fmt::Display for Term {
             Term::FpIsZero(x) => fmt_unop("fp.isZero", x, f),
             Term::FpIsNegative(x) => fmt_unop("fp.isNegative", x, f),
             Term::FpIsPositive(x) => fmt_unop("fp.isPositive", x, f),
+
+            // --- Sequence operations ---
+            Term::SeqEmpty(sort) => write!(f, "(as seq.empty {sort})"),
+            Term::SeqUnit(x) => fmt_unop("seq.unit", x, f),
+            Term::SeqConcat(a, b) => fmt_binop("seq.++", a, b, f),
+            Term::SeqLen(s) => fmt_unop("seq.len", s, f),
+            Term::SeqNth(s, i) => fmt_binop("seq.nth", s, i, f),
+            Term::SeqExtract(s, offset, len) => write!(f, "(seq.extract {s} {offset} {len})"),
+            Term::SeqContains(s, sub) => fmt_binop("seq.contains", s, sub, f),
+            Term::SeqUpdate(s, i, val) => write!(f, "(seq.update {s} {i} {val})"),
         }
     }
 }
@@ -456,6 +467,25 @@ mod tests {
     #[test]
     fn sort_uninterpreted() {
         assert_eq!(Sort::Uninterpreted("U".into()).to_string(), "U");
+    }
+
+    #[test]
+    fn sort_seq_int() {
+        let s = Sort::Seq(Box::new(Sort::Int));
+        assert_eq!(s.to_string(), "(Seq Int)");
+    }
+
+    #[test]
+    fn sort_seq_bitvec() {
+        let s = Sort::Seq(Box::new(Sort::BitVec(32)));
+        assert_eq!(s.to_string(), "(Seq (_ BitVec 32))");
+    }
+
+    #[test]
+    fn sort_seq_nested() {
+        let inner = Sort::Seq(Box::new(Sort::Int));
+        let outer = Sort::Seq(Box::new(inner));
+        assert_eq!(outer.to_string(), "(Seq (Seq Int))");
     }
 
     // -----------------------------------------------------------------------
@@ -1719,5 +1749,96 @@ mod tests {
     fn test_fp_is_positive() {
         let t = Term::FpIsPositive(Box::new(Term::Const("x".into())));
         assert_eq!(t.to_string(), "(fp.isPositive x)");
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Sequence operations
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_seq_empty_int() {
+        let t = Term::SeqEmpty(Sort::Int);
+        assert_eq!(t.to_string(), "(as seq.empty Int)");
+    }
+
+    #[test]
+    fn test_seq_empty_bitvec() {
+        let t = Term::SeqEmpty(Sort::BitVec(8));
+        assert_eq!(t.to_string(), "(as seq.empty (_ BitVec 8))");
+    }
+
+    #[test]
+    fn test_seq_empty_seq() {
+        let t = Term::SeqEmpty(Sort::Seq(Box::new(Sort::Int)));
+        assert_eq!(t.to_string(), "(as seq.empty (Seq Int))");
+    }
+
+    #[test]
+    fn test_seq_unit() {
+        let t = Term::SeqUnit(Box::new(Term::IntLit(42)));
+        assert_eq!(t.to_string(), "(seq.unit 42)");
+    }
+
+    #[test]
+    fn test_seq_concat() {
+        let t = Term::SeqConcat(
+            Box::new(Term::Const("s1".into())),
+            Box::new(Term::Const("s2".into())),
+        );
+        assert_eq!(t.to_string(), "(seq.++ s1 s2)");
+    }
+
+    #[test]
+    fn test_seq_len() {
+        let t = Term::SeqLen(Box::new(Term::Const("s".into())));
+        assert_eq!(t.to_string(), "(seq.len s)");
+    }
+
+    #[test]
+    fn test_seq_nth() {
+        let t = Term::SeqNth(
+            Box::new(Term::Const("s".into())),
+            Box::new(Term::IntLit(0)),
+        );
+        assert_eq!(t.to_string(), "(seq.nth s 0)");
+    }
+
+    #[test]
+    fn test_seq_extract() {
+        let t = Term::SeqExtract(
+            Box::new(Term::Const("s".into())),
+            Box::new(Term::IntLit(1)),
+            Box::new(Term::IntLit(3)),
+        );
+        assert_eq!(t.to_string(), "(seq.extract s 1 3)");
+    }
+
+    #[test]
+    fn test_seq_contains() {
+        let t = Term::SeqContains(
+            Box::new(Term::Const("s".into())),
+            Box::new(Term::Const("sub".into())),
+        );
+        assert_eq!(t.to_string(), "(seq.contains s sub)");
+    }
+
+    #[test]
+    fn test_seq_update() {
+        let t = Term::SeqUpdate(
+            Box::new(Term::Const("s".into())),
+            Box::new(Term::IntLit(2)),
+            Box::new(Term::IntLit(99)),
+        );
+        assert_eq!(t.to_string(), "(seq.update s 2 99)");
+    }
+
+    #[test]
+    fn test_seq_nested_operations() {
+        // (seq.len (seq.++ s1 s2))
+        let t = Term::SeqLen(Box::new(Term::SeqConcat(
+            Box::new(Term::Const("s1".into())),
+            Box::new(Term::Const("s2".into())),
+        )));
+        assert_eq!(t.to_string(), "(seq.len (seq.++ s1 s2))");
     }
 }

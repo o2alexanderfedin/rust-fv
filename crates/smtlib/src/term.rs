@@ -207,4 +207,22 @@ pub enum Term {
     FpIsNegative(Box<Term>),
     /// `(fp.isPositive x)`
     FpIsPositive(Box<Term>),
+
+    // === Sequence operations ===
+    /// `(as seq.empty (Seq T))` — empty sequence with type parameter
+    SeqEmpty(Sort),
+    /// `(seq.unit x)` — singleton sequence
+    SeqUnit(Box<Term>),
+    /// `(seq.++ a b)` — sequence concatenation
+    SeqConcat(Box<Term>, Box<Term>),
+    /// `(seq.len s)` — sequence length (returns Int)
+    SeqLen(Box<Term>),
+    /// `(seq.nth s i)` — element at index (s: Seq T, i: Int) -> T
+    SeqNth(Box<Term>, Box<Term>),
+    /// `(seq.extract s offset len)` — subsequence extraction
+    SeqExtract(Box<Term>, Box<Term>, Box<Term>),
+    /// `(seq.contains s sub)` — containment check
+    SeqContains(Box<Term>, Box<Term>),
+    /// `(seq.update s i val)` — functional update at index
+    SeqUpdate(Box<Term>, Box<Term>, Box<Term>),
 }

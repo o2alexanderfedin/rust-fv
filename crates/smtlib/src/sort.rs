@@ -17,4 +17,6 @@ pub enum Sort {
     Float(u32, u32),
     /// Uninterpreted sort
     Uninterpreted(String),
+    /// Sequence sort: `(Seq T)` — SMT-LIB sequence theory
+    Seq(Box<Sort>),
 }

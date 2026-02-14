@@ -104,7 +104,10 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::FpLt(a, b)
         | Term::FpLeq(a, b)
         | Term::FpGt(a, b)
-        | Term::FpGeq(a, b) => {
+        | Term::FpGeq(a, b)
+        | Term::SeqConcat(a, b)
+        | Term::SeqNth(a, b)
+        | Term::SeqContains(a, b) => {
             collect_free_variables(a, vars);
             collect_free_variables(b, vars);
         }
@@ -113,7 +116,9 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::FpAdd(cond, then_branch, else_branch)
         | Term::FpSub(cond, then_branch, else_branch)
         | Term::FpMul(cond, then_branch, else_branch)
-        | Term::FpDiv(cond, then_branch, else_branch) => {
+        | Term::FpDiv(cond, then_branch, else_branch)
+        | Term::SeqExtract(cond, then_branch, else_branch)
+        | Term::SeqUpdate(cond, then_branch, else_branch) => {
             collect_free_variables(cond, vars);
             collect_free_variables(then_branch, vars);
             collect_free_variables(else_branch, vars);
@@ -132,7 +137,9 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::FpIsInfinite(inner)
         | Term::FpIsZero(inner)
         | Term::FpIsNegative(inner)
-        | Term::FpIsPositive(inner) => {
+        | Term::FpIsPositive(inner)
+        | Term::SeqUnit(inner)
+        | Term::SeqLen(inner) => {
             collect_free_variables(inner, vars);
         }
         Term::FpSqrt(rm, inner) => {
@@ -166,7 +173,8 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::FpPosZero(_, _)
         | Term::FpNegZero(_, _)
         | Term::FpFromBits(_, _, _, _, _)
-        | Term::RoundingMode(_) => {
+        | Term::RoundingMode(_)
+        | Term::SeqEmpty(_) => {
             // Literals have no variables
         }
     }
@@ -240,7 +248,10 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::FpLt(a, b)
         | Term::FpLeq(a, b)
         | Term::FpGt(a, b)
-        | Term::FpGeq(a, b) => {
+        | Term::FpGeq(a, b)
+        | Term::SeqConcat(a, b)
+        | Term::SeqNth(a, b)
+        | Term::SeqContains(a, b) => {
             collect_trigger_candidates(a, candidates);
             collect_trigger_candidates(b, candidates);
         }
@@ -249,7 +260,9 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::FpAdd(cond, then_branch, else_branch)
         | Term::FpSub(cond, then_branch, else_branch)
         | Term::FpMul(cond, then_branch, else_branch)
-        | Term::FpDiv(cond, then_branch, else_branch) => {
+        | Term::FpDiv(cond, then_branch, else_branch)
+        | Term::SeqExtract(cond, then_branch, else_branch)
+        | Term::SeqUpdate(cond, then_branch, else_branch) => {
             collect_trigger_candidates(cond, candidates);
             collect_trigger_candidates(then_branch, candidates);
             collect_trigger_candidates(else_branch, candidates);
@@ -268,7 +281,9 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::FpIsInfinite(inner)
         | Term::FpIsZero(inner)
         | Term::FpIsNegative(inner)
-        | Term::FpIsPositive(inner) => {
+        | Term::FpIsPositive(inner)
+        | Term::SeqUnit(inner)
+        | Term::SeqLen(inner) => {
             collect_trigger_candidates(inner, candidates);
         }
         Term::FpSqrt(rm, inner) => {
@@ -297,7 +312,8 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::FpPosZero(_, _)
         | Term::FpNegZero(_, _)
         | Term::FpFromBits(_, _, _, _, _)
-        | Term::RoundingMode(_) => {
+        | Term::RoundingMode(_)
+        | Term::SeqEmpty(_) => {
             // No triggers in literals or bare variables
         }
     }

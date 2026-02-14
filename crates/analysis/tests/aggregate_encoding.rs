@@ -112,6 +112,11 @@ fn format_sort(out: &mut String, sort: &rust_fv_smtlib::sort::Sort) {
         }
         Sort::Datatype(name) | Sort::Uninterpreted(name) => out.push_str(name),
         Sort::Float(e, s) => out.push_str(&format!("(_ FloatingPoint {e} {s})")),
+        Sort::Seq(inner) => {
+            out.push_str("(Seq ");
+            format_sort(out, inner);
+            out.push(')');
+        }
     }
 }
 
@@ -332,7 +337,16 @@ fn format_term(out: &mut String, term: &rust_fv_smtlib::term::Term) {
         | Term::FpIsInfinite(..)
         | Term::FpIsZero(..)
         | Term::FpIsNegative(..)
-        | Term::FpIsPositive(..) => {
+        | Term::FpIsPositive(..)
+        // Sequence terms: delegate to Display impl
+        | Term::SeqEmpty(..)
+        | Term::SeqUnit(..)
+        | Term::SeqConcat(..)
+        | Term::SeqLen(..)
+        | Term::SeqNth(..)
+        | Term::SeqExtract(..)
+        | Term::SeqContains(..)
+        | Term::SeqUpdate(..) => {
             out.push_str(&term.to_string());
         }
     }

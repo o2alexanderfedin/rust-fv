@@ -421,6 +421,28 @@ pub fn simplify_term(term: &Term) -> Term {
         Term::FpIsZero(a) => Term::FpIsZero(Box::new(simplify_term(a))),
         Term::FpIsNegative(a) => Term::FpIsNegative(Box::new(simplify_term(a))),
         Term::FpIsPositive(a) => Term::FpIsPositive(Box::new(simplify_term(a))),
+
+        // === Sequence operations (passthrough with recursion) ===
+        Term::SeqEmpty(sort) => Term::SeqEmpty(sort.clone()),
+        Term::SeqUnit(a) => Term::SeqUnit(Box::new(simplify_term(a))),
+        Term::SeqConcat(a, b) => {
+            Term::SeqConcat(Box::new(simplify_term(a)), Box::new(simplify_term(b)))
+        }
+        Term::SeqLen(a) => Term::SeqLen(Box::new(simplify_term(a))),
+        Term::SeqNth(a, b) => Term::SeqNth(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::SeqExtract(a, b, c) => Term::SeqExtract(
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+            Box::new(simplify_term(c)),
+        ),
+        Term::SeqContains(a, b) => {
+            Term::SeqContains(Box::new(simplify_term(a)), Box::new(simplify_term(b)))
+        }
+        Term::SeqUpdate(a, b, c) => Term::SeqUpdate(
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+            Box::new(simplify_term(c)),
+        ),
     }
 }
 
