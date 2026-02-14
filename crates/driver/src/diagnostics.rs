@@ -94,6 +94,17 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
 
 /// Report failure using colored text output (no source file access).
 fn report_text_only(failure: &VerificationFailure) {
+    // Emit performance warning for FloatingPoint verification (once per run)
+    if failure.vc_kind == VcKind::FloatingPointNaN {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static FLOAT_WARNING_EMITTED: AtomicBool = AtomicBool::new(false);
+
+        if !FLOAT_WARNING_EMITTED.swap(true, Ordering::Relaxed) {
+            emit_float_verification_warning();
+            eprintln!();
+        }
+    }
+
     let error_code = "V001";
     let header = format!(
         "error[{}]: verification failed: {}",
@@ -460,6 +471,20 @@ pub fn format_float_verification_help() -> String {
      float arithmetic is inherently approximate. Add guards like !x.is_nan() \
      for stricter guarantees, or use #[allows_nan] (future) to suppress warnings."
         .to_string()
+}
+
+/// Emit a performance warning when floating-point verification is enabled.
+///
+/// Per FPV-06 requirement: Warn users that FPA theory is 2-10x slower than bitvectors.
+/// This warning should be emitted ONCE per verification run when FloatingPointNaN VCs are present.
+pub fn emit_float_verification_warning() {
+    eprintln!(
+        "{}",
+        "warning: FloatingPoint verification enabled -- FPA theory is 2-10x slower than bitvectors."
+            .yellow()
+            .bold()
+    );
+    eprintln!("  Consider limiting float verification to functions that need it.");
 }
 
 /// Format a warning for an unsafe block detected during verification.
@@ -1799,5 +1824,30 @@ mod tests {
         };
         // This should use ReportKind::Warning instead of Error
         report_with_ariadne(&failure, "src/lib.rs", 10);
+    }
+
+    // --- FloatingPoint performance warning tests ---
+
+    #[test]
+    fn test_emit_float_verification_warning() {
+        // Test that emit_float_verification_warning() produces expected output
+        // Note: This writes to stderr, so we're just testing it doesn't panic
+        emit_float_verification_warning();
+    }
+
+    #[test]
+    fn test_report_text_only_float_nan() {
+        // Test that FloatingPointNaN failures trigger the performance warning
+        let failure = VerificationFailure {
+            function_name: "float_fn".to_string(),
+            vc_kind: VcKind::FloatingPointNaN,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "NaN propagation check failed".to_string(),
+        };
+        // This should emit the performance warning (once)
+        report_text_only(&failure);
     }
 }
