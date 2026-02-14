@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A compiler-integrated formal verification tool that mathematically proves properties about Rust code. It hooks into `rustc` via `rustc_driver::Callbacks`, extracts MIR, translates it to SMT-LIB2, and verifies properties using Z3. Developers annotate functions with `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`, and `#[ghost]` macros and run `cargo verify` for automated verification with rustc-style diagnostics. Supports loops, structs, inter-procedural verification, ownership reasoning, quantifiers, prophecy variables, and generics.
+A compiler-integrated formal verification tool that mathematically proves properties about Rust code. It hooks into `rustc` via `rustc_driver::Callbacks`, extracts MIR, translates it to SMT-LIB2, and verifies properties using Z3. Developers annotate functions with `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`, `#[ghost]`, `#[decreases]`, `#[lock_invariant]`, `#[unsafe_requires]`, `#[unsafe_ensures]`, and `#[verifier::trusted]` macros and run `cargo verify` for automated verification with rustc-style diagnostics. Supports loops, structs, inter-procedural verification, ownership reasoning, quantifiers, prophecy variables, generics, recursive functions, closures, trait objects, lifetimes, unsafe code, floating-point, and concurrency.
 
 ## Core Value
 
@@ -12,66 +12,40 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Validated
 
-- ✓ Proc macro annotations (`#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`) -- v0.1.0
-- ✓ SMT-LIB2 AST with strongly-typed sorts, terms, commands, scripts -- v0.1.0
-- ✓ Bitvector theory (QF_BV) encoding for all integer types (i8-i128, u8-u128, isize, usize) -- v0.1.0
+- ✓ Proc macro annotations (`#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`) -- v0.1
+- ✓ SMT-LIB2 AST with strongly-typed sorts, terms, commands, scripts -- v0.1
+- ✓ Bitvector theory (QF_BV) encoding for all integer types -- v0.1
 - ✓ Arithmetic overflow detection for add/sub/mul/div/rem/shl/shr -- v0.1
-- ✓ MIR-to-IR conversion (basic blocks, statements, terminators, operands) -- v0.1.0
-- ✓ Verification condition generation from IR functions -- v0.1.0
+- ✓ MIR-to-IR conversion (basic blocks, statements, terminators, operands) -- v0.1
+- ✓ Verification condition generation from IR functions -- v0.1
 - ✓ Z3 solver integration via subprocess and native API -- v0.1
-- ✓ End-to-end pipeline: annotation -> MIR extraction -> VC -> SMT -> Z3 -> result -- v0.1.0
-- ✓ Rustc driver with `after_analysis` hook and `RUSTC` env var integration -- v0.1.0
-- ✓ Contract extraction from HIR doc attributes -- v0.1.0
-- ✓ Precondition and postcondition verification -- v0.1.0
-- ✓ Counterexample extraction from SAT results -- v0.1.0
-- ✓ Path-sensitive VCGen with sound control-flow handling -- v0.1
-- ✓ Soundness test suite (22 programs) and completeness test suite (22 programs) -- v0.1
-- ✓ Division-by-zero and shift overflow verification -- v0.1
-- ✓ Loop invariant verification (3-VC: init/preserve/exit) -- v0.1
-- ✓ Assertion and panic detection (unwrap, bounds, div-by-zero) -- v0.1
-- ✓ Aggregate type encoding (structs, tuples, enums as SMT datatypes) -- v0.1
-- ✓ Full syn-based specification parser with old() operator -- v0.1
-- ✓ `cargo verify` subcommand with colored output -- v0.1
-- ✓ Z3 native API backend via SolverBackend trait -- v0.1
-- ✓ Structured tracing via tracing crate -- v0.1
-- ✓ Inter-procedural verification with contract summaries -- v0.1
-- ✓ Ownership-aware verification (move/copy/borrow classification) -- v0.1
-- ✓ Unbounded mathematical integers (SpecInt/SpecNat, `as int` cast) -- v0.1
-- ✓ Ghost code via `#[ghost]` attribute -- v0.1
-- ✓ Quantifiers (forall/exists) with automatic trigger inference -- v0.1
-- ✓ Prophecy variables for mutable borrow reasoning -- v0.1
-- ✓ Generic function verification via monomorphization -- v0.1
-- ✓ Formula simplification (8 algebraic rules, ~30% SMT size reduction) -- v0.1
-- ✓ VC caching with SHA-256 invalidation -- v0.1
-- ✓ Parallel verification with Rayon and topological ordering -- v0.1
-- ✓ Ariadne-based rustc-style error diagnostics with fix suggestions -- v0.1
-- ✓ JSON output for IDE integration -- v0.1
+- ✓ End-to-end pipeline: annotation -> MIR -> VC -> SMT -> Z3 -> result -- v0.1
+- ✓ Rustc driver with `after_analysis` hook -- v0.1
+- ✓ Precondition/postcondition, counterexample, path-sensitive VCGen -- v0.1
+- ✓ Soundness/completeness test suites (44 programs) -- v0.1
+- ✓ Loops, assertions, aggregates, spec parser with old() -- v0.1
+- ✓ `cargo verify`, native Z3, tracing, inter-procedural, ownership -- v0.1
+- ✓ SpecInt/SpecNat, ghost code, quantifiers, prophecy, generics -- v0.1
+- ✓ Simplification, caching, parallelism, Ariadne diagnostics, JSON output -- v0.1
+- ✓ Recursive functions with `#[decreases]` termination measures and Tarjan's SCC -- v0.2
+- ✓ Closure verification via defunctionalization (Fn/FnMut/FnOnce) -- v0.2
+- ✓ Trait object verification with behavioral subtyping and sealed traits -- v0.2
+- ✓ Lifetime reasoning with NLL tracking, outlives, reborrow chains, nested prophecy -- v0.2
+- ✓ Unsafe code detection with heap-as-array model, null/bounds checks, `#[trusted]` -- v0.2
+- ✓ IEEE 754 floating-point verification with SMT FPA theory -- v0.2
+- ✓ Bounded concurrency verification with happens-before, data races, deadlock detection -- v0.2
 
 ### Active
 
-- [ ] Recursive function support with termination measures (`#[decreases]`)
-- [ ] Closure verification (capture reasoning, Fn/FnMut/FnOnce contracts)
-- [ ] Trait object and dynamic dispatch verification
-- [ ] Unsafe code verification with conservative approximations
-- [ ] Deeper reference/lifetime reasoning (reborrow tracking, lifetime-aware specs)
-- [ ] SSA-based parameter encoding for prophecy variable resolution
-- [ ] Floating-point verification (IEEE 754, QF_FP theory)
-- [ ] Concurrency verification (atomics, Mutex/RwLock, Send/Sync, async/await)
 - [ ] Standard library contracts (Vec, HashMap, Option, Result)
 - [ ] Trigger customization (`#[trigger]`) for quantifier performance
-- [ ] Z3 bv2int native integration (currently deferred)
-
-## Current Milestone: v0.2 Advanced Verification
-
-**Goal:** Extend verification to cover all major Rust language features -- recursive functions, closures, traits, unsafe code, lifetimes, floating-point, and concurrency.
-
-**Target features:**
-- Recursive functions with termination measures
-- Closure and trait object verification
-- Unsafe code with conservative approximations
-- Deeper reference/lifetime reasoning with SSA fix
-- Floating-point verification (IEEE 754)
-- Concurrency verification (atomics, locks, async)
+- [ ] Z3 bv2int native integration
+- [ ] Higher-order closures with specification entailments
+- [ ] Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
+- [ ] Async/await verification (Future trait, executor semantics)
+- [ ] Separation logic for heap reasoning
+- [ ] VSCode extension for real-time verification feedback
+- [ ] rust-analyzer integration for inline diagnostics
 
 ### Out of Scope
 
@@ -87,9 +61,9 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.1 shipped with 1,741 tests, zero warnings, 5-crate workspace (macros/, smtlib/, solver/, analysis/, driver/), 43,621 LOC Rust
-- **Known limitations:** Prophecy encoding limitation with direct &mut param reassignment (needs SSA for parameters), Z3 bv2int requires Z3 4.8.10+
-- **Tech debt:** Floating-point types unsupported, recursive functions unsupported, no standard library contracts
+- **Current state:** v0.2 shipped with 2,264 tests, zero warnings, 5-crate workspace (macros/, smtlib/, solver/, analysis/, driver/), 66,133 LOC Rust
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics
+- **Tech debt:** No standard library contracts, no weak memory models, no async/await support
 
 ## Constraints
 
@@ -110,18 +84,15 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | Bitvector theory (QF_BV) | Exact integer overflow semantics matching Rust | ✓ Good |
 | SolverBackend trait (subprocess + native Z3) | Zero-cost abstraction, ~50ms overhead eliminated with native | ✓ Good |
 | Hidden doc attributes for spec transport | Works with stable proc macros, survives compilation phases | ✓ Good |
-| Verification by negation (assert NOT, check UNSAT) | Standard SMT approach, counterexamples come free | ✓ Good |
 | 5-crate workspace separation | Clean boundaries, testable on stable (except driver) | ✓ Good |
-| Path-condition encoding over SSA phi-nodes | Simpler handling of early returns, match arms | ✓ Good |
-| Classical 3-VC loop verification | Proven Hoare-logic approach, clear failure diagnostics | ✓ Good |
 | Contract-based modular verification | Scalable (no callee inlining), standard technique | ✓ Good |
-| Monomorphization for generics | Mirrors Rust's own approach, concrete type safety | ✓ Good |
-| Conservative trigger inference | Automatic benefit for all quantified specs | ✓ Good |
-| AST-level formula simplification | Backend-agnostic, zero overhead, ~30% reduction | ✓ Good |
-| Per-function SHA-256 caching | Conservative invalidation, correct by default | ✓ Good |
-| Rayon parallel verification | Simple, effective, topological ordering for correctness | ✓ Good |
-| Ariadne for diagnostics | Mature library, rustc-style output, good UX | ✓ Good |
-| JSON output to stdout | IDE integration best practice, stderr for human output | ✓ Good |
+| Uninterpreted function encoding for recursion | Dafny/F* pattern; better control than Z3 define-fun-rec | ✓ Good |
+| Defunctionalization for closures | Reynolds 1972; first-order SMT with explicit environment parameter | ✓ Good |
+| Behavioral subtyping for traits | LSP enforcement; precondition weaker, postcondition stronger | ✓ Good |
+| Heap-as-array memory model for unsafe | Byte-addressable memory with allocation metadata; null axiom | ✓ Good |
+| IEEE 754 FPA theory for floats | Exact semantics; 2-10x slower but correct | ✓ Good |
+| Bounded concurrency with happens-before | State explosion mitigation; sequential consistency first | ✓ Good |
+| petgraph for SCC analysis | Mature Tarjan's algorithm; used for recursion and deadlock detection | ✓ Good |
 
 ---
-*Last updated: 2026-02-12 after v0.2 milestone start*
+*Last updated: 2026-02-14 after v0.2 milestone completion*
