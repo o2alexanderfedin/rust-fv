@@ -254,6 +254,49 @@ impl fmt::Display for Term {
                     write!(f, ")")
                 }
             }
+
+            // --- Floating-point literals ---
+            Term::FpNaN(eb, sb) => write!(f, "(_ NaN {eb} {sb})"),
+            Term::FpPosInf(eb, sb) => write!(f, "(_ +oo {eb} {sb})"),
+            Term::FpNegInf(eb, sb) => write!(f, "(_ -oo {eb} {sb})"),
+            Term::FpPosZero(eb, sb) => write!(f, "(_ +zero {eb} {sb})"),
+            Term::FpNegZero(eb, sb) => write!(f, "(_ -zero {eb} {sb})"),
+            Term::FpFromBits(sign, exp, sig, eb, sb) => {
+                // Format as (fp #bSIGN #bEXP #bSIG)
+                // sign is 1 bit, exp is eb bits, sig is (sb-1) bits
+                write!(
+                    f,
+                    "(fp #b{sign} #b{exp:0width_exp$b} #b{sig:0width_sig$b})",
+                    width_exp = *eb as usize,
+                    width_sig = (*sb - 1) as usize
+                )
+            }
+
+            // --- Rounding mode ---
+            Term::RoundingMode(mode) => write!(f, "{mode}"),
+
+            // --- Floating-point arithmetic ---
+            Term::FpAdd(rm, x, y) => write!(f, "(fp.add {rm} {x} {y})"),
+            Term::FpSub(rm, x, y) => write!(f, "(fp.sub {rm} {x} {y})"),
+            Term::FpMul(rm, x, y) => write!(f, "(fp.mul {rm} {x} {y})"),
+            Term::FpDiv(rm, x, y) => write!(f, "(fp.div {rm} {x} {y})"),
+            Term::FpSqrt(rm, x) => write!(f, "(fp.sqrt {rm} {x})"),
+            Term::FpAbs(x) => fmt_unop("fp.abs", x, f),
+            Term::FpNeg(x) => fmt_unop("fp.neg", x, f),
+
+            // --- Floating-point comparison ---
+            Term::FpEq(x, y) => fmt_binop("fp.eq", x, y, f),
+            Term::FpLt(x, y) => fmt_binop("fp.lt", x, y, f),
+            Term::FpLeq(x, y) => fmt_binop("fp.leq", x, y, f),
+            Term::FpGt(x, y) => fmt_binop("fp.gt", x, y, f),
+            Term::FpGeq(x, y) => fmt_binop("fp.geq", x, y, f),
+
+            // --- Floating-point predicates ---
+            Term::FpIsNaN(x) => fmt_unop("fp.isNaN", x, f),
+            Term::FpIsInfinite(x) => fmt_unop("fp.isInfinite", x, f),
+            Term::FpIsZero(x) => fmt_unop("fp.isZero", x, f),
+            Term::FpIsNegative(x) => fmt_unop("fp.isNegative", x, f),
+            Term::FpIsPositive(x) => fmt_unop("fp.isPositive", x, f),
         }
     }
 }
@@ -1469,5 +1512,212 @@ mod tests {
             t.to_string(),
             "(forall ((x Int)) (! (> x 0) :pattern ((f x))))"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Floating-point literals
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fp_nan_f32() {
+        let t = Term::FpNaN(8, 24);
+        assert_eq!(t.to_string(), "(_ NaN 8 24)");
+    }
+
+    #[test]
+    fn test_fp_nan_f64() {
+        let t = Term::FpNaN(11, 53);
+        assert_eq!(t.to_string(), "(_ NaN 11 53)");
+    }
+
+    #[test]
+    fn test_fp_pos_inf() {
+        let t = Term::FpPosInf(11, 53);
+        assert_eq!(t.to_string(), "(_ +oo 11 53)");
+    }
+
+    #[test]
+    fn test_fp_neg_inf() {
+        let t = Term::FpNegInf(11, 53);
+        assert_eq!(t.to_string(), "(_ -oo 11 53)");
+    }
+
+    #[test]
+    fn test_fp_pos_zero() {
+        let t = Term::FpPosZero(8, 24);
+        assert_eq!(t.to_string(), "(_ +zero 8 24)");
+    }
+
+    #[test]
+    fn test_fp_neg_zero() {
+        let t = Term::FpNegZero(8, 24);
+        assert_eq!(t.to_string(), "(_ -zero 8 24)");
+    }
+
+    #[test]
+    fn test_fp_from_bits() {
+        // 1.0 in IEEE 754 double: sign=0, exp=0x3FF (1023), sig=0
+        // eb=11, sb=53 for f64
+        // exp is 11 bits: 0x3FF = 01111111111
+        // sig is 52 bits (sb-1): all zeros
+        let t = Term::FpFromBits(0, 0x3FF, 0, 11, 53);
+        assert_eq!(
+            t.to_string(),
+            "(fp #b0 #b01111111111 #b0000000000000000000000000000000000000000000000000000)"
+        );
+    }
+
+    #[test]
+    fn test_rounding_mode_rne() {
+        let t = Term::RoundingMode("RNE".into());
+        assert_eq!(t.to_string(), "RNE");
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Floating-point arithmetic
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fp_add() {
+        let t = Term::FpAdd(
+            Box::new(Term::RoundingMode("RNE".into())),
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.add RNE x y)");
+    }
+
+    #[test]
+    fn test_fp_sub() {
+        let t = Term::FpSub(
+            Box::new(Term::RoundingMode("RNE".into())),
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.sub RNE x y)");
+    }
+
+    #[test]
+    fn test_fp_mul() {
+        let t = Term::FpMul(
+            Box::new(Term::RoundingMode("RNE".into())),
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.mul RNE x y)");
+    }
+
+    #[test]
+    fn test_fp_div() {
+        let t = Term::FpDiv(
+            Box::new(Term::RoundingMode("RNE".into())),
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.div RNE x y)");
+    }
+
+    #[test]
+    fn test_fp_sqrt() {
+        let t = Term::FpSqrt(
+            Box::new(Term::RoundingMode("RNE".into())),
+            Box::new(Term::Const("x".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.sqrt RNE x)");
+    }
+
+    #[test]
+    fn test_fp_abs() {
+        let t = Term::FpAbs(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.abs x)");
+    }
+
+    #[test]
+    fn test_fp_neg() {
+        let t = Term::FpNeg(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.neg x)");
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Floating-point comparison
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fp_eq() {
+        let t = Term::FpEq(
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.eq x y)");
+    }
+
+    #[test]
+    fn test_fp_lt() {
+        let t = Term::FpLt(
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.lt x y)");
+    }
+
+    #[test]
+    fn test_fp_leq() {
+        let t = Term::FpLeq(
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.leq x y)");
+    }
+
+    #[test]
+    fn test_fp_gt() {
+        let t = Term::FpGt(
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.gt x y)");
+    }
+
+    #[test]
+    fn test_fp_geq() {
+        let t = Term::FpGeq(
+            Box::new(Term::Const("x".into())),
+            Box::new(Term::Const("y".into())),
+        );
+        assert_eq!(t.to_string(), "(fp.geq x y)");
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Floating-point predicates
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fp_is_nan() {
+        let t = Term::FpIsNaN(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.isNaN x)");
+    }
+
+    #[test]
+    fn test_fp_is_infinite() {
+        let t = Term::FpIsInfinite(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.isInfinite x)");
+    }
+
+    #[test]
+    fn test_fp_is_zero() {
+        let t = Term::FpIsZero(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.isZero x)");
+    }
+
+    #[test]
+    fn test_fp_is_negative() {
+        let t = Term::FpIsNegative(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.isNegative x)");
+    }
+
+    #[test]
+    fn test_fp_is_positive() {
+        let t = Term::FpIsPositive(Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "(fp.isPositive x)");
     }
 }

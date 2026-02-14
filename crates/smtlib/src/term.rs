@@ -149,4 +149,62 @@ pub enum Term {
     /// Annotated term: `(! body :key1 (val1 val2) :key2 (val3))`
     /// Used for trigger patterns on quantifiers: `(! body :pattern (f x))`
     Annotated(Box<Term>, Vec<(String, Vec<Term>)>),
+
+    // === Floating-point literals ===
+    /// IEEE 754 NaN: `(_ NaN eb sb)`
+    FpNaN(u32, u32),
+    /// Positive infinity: `(_ +oo eb sb)`
+    FpPosInf(u32, u32),
+    /// Negative infinity: `(_ -oo eb sb)`
+    FpNegInf(u32, u32),
+    /// Positive zero: `(_ +zero eb sb)`
+    FpPosZero(u32, u32),
+    /// Negative zero: `(_ -zero eb sb)`
+    FpNegZero(u32, u32),
+    /// Bit representation: `(fp sign exp sig)` with eb, sb
+    FpFromBits(u8, u64, u64, u32, u32),
+
+    // === Rounding mode ===
+    /// Rounding mode: RNE, RNA, RTP, RTN, RTZ
+    RoundingMode(String),
+
+    // === Floating-point arithmetic ===
+    /// `(fp.add rm x y)`
+    FpAdd(Box<Term>, Box<Term>, Box<Term>),
+    /// `(fp.sub rm x y)`
+    FpSub(Box<Term>, Box<Term>, Box<Term>),
+    /// `(fp.mul rm x y)`
+    FpMul(Box<Term>, Box<Term>, Box<Term>),
+    /// `(fp.div rm x y)`
+    FpDiv(Box<Term>, Box<Term>, Box<Term>),
+    /// `(fp.sqrt rm x)`
+    FpSqrt(Box<Term>, Box<Term>),
+    /// `(fp.abs x)`
+    FpAbs(Box<Term>),
+    /// `(fp.neg x)`
+    FpNeg(Box<Term>),
+
+    // === Floating-point comparison ===
+    /// `(fp.eq x y)` — IEEE 754 equality
+    FpEq(Box<Term>, Box<Term>),
+    /// `(fp.lt x y)`
+    FpLt(Box<Term>, Box<Term>),
+    /// `(fp.leq x y)`
+    FpLeq(Box<Term>, Box<Term>),
+    /// `(fp.gt x y)`
+    FpGt(Box<Term>, Box<Term>),
+    /// `(fp.geq x y)`
+    FpGeq(Box<Term>, Box<Term>),
+
+    // === Floating-point predicates ===
+    /// `(fp.isNaN x)`
+    FpIsNaN(Box<Term>),
+    /// `(fp.isInfinite x)`
+    FpIsInfinite(Box<Term>),
+    /// `(fp.isZero x)`
+    FpIsZero(Box<Term>),
+    /// `(fp.isNegative x)`
+    FpIsNegative(Box<Term>),
+    /// `(fp.isPositive x)`
+    FpIsPositive(Box<Term>),
 }

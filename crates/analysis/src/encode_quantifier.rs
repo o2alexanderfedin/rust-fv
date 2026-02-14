@@ -99,11 +99,21 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::IntLe(a, b)
         | Term::IntGt(a, b)
         | Term::IntGe(a, b)
-        | Term::Select(a, b) => {
+        | Term::Select(a, b)
+        | Term::FpEq(a, b)
+        | Term::FpLt(a, b)
+        | Term::FpLeq(a, b)
+        | Term::FpGt(a, b)
+        | Term::FpGeq(a, b) => {
             collect_free_variables(a, vars);
             collect_free_variables(b, vars);
         }
-        Term::Ite(cond, then_branch, else_branch) | Term::Store(cond, then_branch, else_branch) => {
+        Term::Ite(cond, then_branch, else_branch)
+        | Term::Store(cond, then_branch, else_branch)
+        | Term::FpAdd(cond, then_branch, else_branch)
+        | Term::FpSub(cond, then_branch, else_branch)
+        | Term::FpMul(cond, then_branch, else_branch)
+        | Term::FpDiv(cond, then_branch, else_branch) => {
             collect_free_variables(cond, vars);
             collect_free_variables(then_branch, vars);
             collect_free_variables(else_branch, vars);
@@ -115,7 +125,18 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::Extract(_, _, inner)
         | Term::Bv2Int(inner)
         | Term::Int2Bv(_, inner)
-        | Term::IntNeg(inner) => {
+        | Term::IntNeg(inner)
+        | Term::FpAbs(inner)
+        | Term::FpNeg(inner)
+        | Term::FpIsNaN(inner)
+        | Term::FpIsInfinite(inner)
+        | Term::FpIsZero(inner)
+        | Term::FpIsNegative(inner)
+        | Term::FpIsPositive(inner) => {
+            collect_free_variables(inner, vars);
+        }
+        Term::FpSqrt(rm, inner) => {
+            collect_free_variables(rm, vars);
             collect_free_variables(inner, vars);
         }
         Term::Forall(_, body) | Term::Exists(_, body) => {
@@ -136,7 +157,16 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         Term::Annotated(body, _) => {
             collect_free_variables(body, vars);
         }
-        Term::BoolLit(_) | Term::IntLit(_) | Term::BitVecLit(_, _) => {
+        Term::BoolLit(_)
+        | Term::IntLit(_)
+        | Term::BitVecLit(_, _)
+        | Term::FpNaN(_, _)
+        | Term::FpPosInf(_, _)
+        | Term::FpNegInf(_, _)
+        | Term::FpPosZero(_, _)
+        | Term::FpNegZero(_, _)
+        | Term::FpFromBits(_, _, _, _, _)
+        | Term::RoundingMode(_) => {
             // Literals have no variables
         }
     }
@@ -205,11 +235,21 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::IntLe(a, b)
         | Term::IntGt(a, b)
         | Term::IntGe(a, b)
-        | Term::Select(a, b) => {
+        | Term::Select(a, b)
+        | Term::FpEq(a, b)
+        | Term::FpLt(a, b)
+        | Term::FpLeq(a, b)
+        | Term::FpGt(a, b)
+        | Term::FpGeq(a, b) => {
             collect_trigger_candidates(a, candidates);
             collect_trigger_candidates(b, candidates);
         }
-        Term::Ite(cond, then_branch, else_branch) | Term::Store(cond, then_branch, else_branch) => {
+        Term::Ite(cond, then_branch, else_branch)
+        | Term::Store(cond, then_branch, else_branch)
+        | Term::FpAdd(cond, then_branch, else_branch)
+        | Term::FpSub(cond, then_branch, else_branch)
+        | Term::FpMul(cond, then_branch, else_branch)
+        | Term::FpDiv(cond, then_branch, else_branch) => {
             collect_trigger_candidates(cond, candidates);
             collect_trigger_candidates(then_branch, candidates);
             collect_trigger_candidates(else_branch, candidates);
@@ -221,7 +261,18 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::Extract(_, _, inner)
         | Term::Bv2Int(inner)
         | Term::Int2Bv(_, inner)
-        | Term::IntNeg(inner) => {
+        | Term::IntNeg(inner)
+        | Term::FpAbs(inner)
+        | Term::FpNeg(inner)
+        | Term::FpIsNaN(inner)
+        | Term::FpIsInfinite(inner)
+        | Term::FpIsZero(inner)
+        | Term::FpIsNegative(inner)
+        | Term::FpIsPositive(inner) => {
+            collect_trigger_candidates(inner, candidates);
+        }
+        Term::FpSqrt(rm, inner) => {
+            collect_trigger_candidates(rm, candidates);
             collect_trigger_candidates(inner, candidates);
         }
         Term::Forall(_, body) | Term::Exists(_, body) => {
@@ -236,7 +287,17 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         Term::Annotated(body, _) => {
             collect_trigger_candidates(body, candidates);
         }
-        Term::BoolLit(_) | Term::IntLit(_) | Term::BitVecLit(_, _) | Term::Const(_) => {
+        Term::BoolLit(_)
+        | Term::IntLit(_)
+        | Term::BitVecLit(_, _)
+        | Term::Const(_)
+        | Term::FpNaN(_, _)
+        | Term::FpPosInf(_, _)
+        | Term::FpNegInf(_, _)
+        | Term::FpPosZero(_, _)
+        | Term::FpNegZero(_, _)
+        | Term::FpFromBits(_, _, _, _, _)
+        | Term::RoundingMode(_) => {
             // No triggers in literals or bare variables
         }
     }

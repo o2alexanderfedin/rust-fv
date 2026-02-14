@@ -446,6 +446,34 @@ fn format_term(output: &mut String, term: &rust_fv_smtlib::term::Term) {
                 output.push(')');
             }
         }
+        // Floating-point terms: use Display impl from smtlib
+        Term::FpNaN(..)
+        | Term::FpPosInf(..)
+        | Term::FpNegInf(..)
+        | Term::FpPosZero(..)
+        | Term::FpNegZero(..)
+        | Term::FpFromBits(..)
+        | Term::RoundingMode(..)
+        | Term::FpAdd(..)
+        | Term::FpSub(..)
+        | Term::FpMul(..)
+        | Term::FpDiv(..)
+        | Term::FpSqrt(..)
+        | Term::FpAbs(..)
+        | Term::FpNeg(..)
+        | Term::FpEq(..)
+        | Term::FpLt(..)
+        | Term::FpLeq(..)
+        | Term::FpGt(..)
+        | Term::FpGeq(..)
+        | Term::FpIsNaN(..)
+        | Term::FpIsInfinite(..)
+        | Term::FpIsZero(..)
+        | Term::FpIsNegative(..)
+        | Term::FpIsPositive(..) => {
+            // Delegate to Term's Display impl for floating-point terms
+            output.push_str(&term.to_string());
+        }
     }
 }
 

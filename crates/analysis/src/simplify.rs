@@ -22,7 +22,17 @@ use rust_fv_smtlib::term::Term;
 pub fn simplify_term(term: &Term) -> Term {
     match term {
         // === Literals and variables (already simplified) ===
-        Term::BoolLit(_) | Term::IntLit(_) | Term::BitVecLit(_, _) | Term::Const(_) => term.clone(),
+        Term::BoolLit(_)
+        | Term::IntLit(_)
+        | Term::BitVecLit(_, _)
+        | Term::Const(_)
+        | Term::FpNaN(_, _)
+        | Term::FpPosInf(_, _)
+        | Term::FpNegInf(_, _)
+        | Term::FpPosZero(_, _)
+        | Term::FpNegZero(_, _)
+        | Term::FpFromBits(_, _, _, _, _)
+        | Term::RoundingMode(_) => term.clone(),
 
         // === Boolean operations ===
         Term::Not(inner) => {
@@ -374,6 +384,43 @@ pub fn simplify_term(term: &Term) -> Term {
             let simplified: Vec<Term> = terms.iter().map(simplify_term).collect();
             Term::Distinct(simplified)
         }
+
+        // === Floating-point operations (passthrough with recursion) ===
+        Term::FpAdd(rm, a, b) => Term::FpAdd(
+            Box::new(simplify_term(rm)),
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+        ),
+        Term::FpSub(rm, a, b) => Term::FpSub(
+            Box::new(simplify_term(rm)),
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+        ),
+        Term::FpMul(rm, a, b) => Term::FpMul(
+            Box::new(simplify_term(rm)),
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+        ),
+        Term::FpDiv(rm, a, b) => Term::FpDiv(
+            Box::new(simplify_term(rm)),
+            Box::new(simplify_term(a)),
+            Box::new(simplify_term(b)),
+        ),
+        Term::FpSqrt(rm, a) => {
+            Term::FpSqrt(Box::new(simplify_term(rm)), Box::new(simplify_term(a)))
+        }
+        Term::FpAbs(a) => Term::FpAbs(Box::new(simplify_term(a))),
+        Term::FpNeg(a) => Term::FpNeg(Box::new(simplify_term(a))),
+        Term::FpEq(a, b) => Term::FpEq(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::FpLt(a, b) => Term::FpLt(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::FpLeq(a, b) => Term::FpLeq(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::FpGt(a, b) => Term::FpGt(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::FpGeq(a, b) => Term::FpGeq(Box::new(simplify_term(a)), Box::new(simplify_term(b))),
+        Term::FpIsNaN(a) => Term::FpIsNaN(Box::new(simplify_term(a))),
+        Term::FpIsInfinite(a) => Term::FpIsInfinite(Box::new(simplify_term(a))),
+        Term::FpIsZero(a) => Term::FpIsZero(Box::new(simplify_term(a))),
+        Term::FpIsNegative(a) => Term::FpIsNegative(Box::new(simplify_term(a))),
+        Term::FpIsPositive(a) => Term::FpIsPositive(Box::new(simplify_term(a))),
     }
 }
 
