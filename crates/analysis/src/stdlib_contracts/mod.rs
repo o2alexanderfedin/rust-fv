@@ -9,5 +9,6 @@ pub mod hashmap;
 pub mod iterator;
 pub mod string;
 pub mod types;
+pub mod vec;
 
 pub use types::{ContractSource, StdlibContract, StdlibContractRegistry};
