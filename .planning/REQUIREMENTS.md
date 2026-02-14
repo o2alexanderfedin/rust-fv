@@ -68,29 +68,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STDLIB-01 | Pending | Pending |
-| STDLIB-02 | Pending | Pending |
-| STDLIB-03 | Pending | Pending |
-| STDLIB-04 | Pending | Pending |
-| STDLIB-05 | Pending | Pending |
-| PERF-01 | Pending | Pending |
-| PERF-02 | Pending | Pending |
-| PERF-03 | Pending | Pending |
-| PERF-04 | Pending | Pending |
-| PERF-05 | Pending | Pending |
-| PERF-06 | Pending | Pending |
-| IDE-01 | Pending | Pending |
-| IDE-02 | Pending | Pending |
-| IDE-03 | Pending | Pending |
-| IDE-04 | Pending | Pending |
-| IDE-05 | Pending | Pending |
-| IDE-06 | Pending | Pending |
+| STDLIB-01 | Phase 13 | Pending |
+| STDLIB-02 | Phase 13 | Pending |
+| STDLIB-03 | Phase 13 | Pending |
+| STDLIB-04 | Phase 13 | Pending |
+| STDLIB-05 | Phase 13 | Pending |
+| PERF-01 | Phase 14 | Pending |
+| PERF-02 | Phase 14 | Pending |
+| PERF-03 | Phase 15 | Pending |
+| PERF-04 | Phase 15 | Pending |
+| PERF-05 | Phase 18 | Pending |
+| PERF-06 | Phase 18 | Pending |
+| IDE-01 | Phase 16 | Pending |
+| IDE-02 | Phase 16 | Pending |
+| IDE-03 | Phase 16 | Pending |
+| IDE-04 | Phase 17 | Pending |
+| IDE-05 | Phase 17 | Pending |
+| IDE-06 | Phase 16 | Pending |
 
 **Coverage:**
 - v0.3 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17
+- Mapped to phases: 17
+- Unmapped: 0
+
+**Coverage validation:** ✓ All requirements mapped to exactly one phase
 
 ---
 *Requirements defined: 2026-02-14*
-*Last updated: 2026-02-14 after initial definition*
+*Last updated: 2026-02-14 after roadmap creation*
