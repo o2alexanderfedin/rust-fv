@@ -53,11 +53,16 @@ pub struct VerificationCallbacks {
     fresh: bool,
     /// Apply formula simplification before solver submission
     use_simplification: bool,
+    /// Whether to disable stdlib contracts
+    no_stdlib_contracts: bool,
 }
 
 impl VerificationCallbacks {
     /// Create callbacks with verification enabled.
     pub fn new(output_format: OutputFormat, jobs: usize, fresh: bool) -> Self {
+        // Check for --no-stdlib-contracts environment variable
+        let no_stdlib_contracts = std::env::var("RUST_FV_NO_STDLIB_CONTRACTS").is_ok();
+
         Self {
             enabled: true,
             results: Vec::new(),
@@ -67,6 +72,7 @@ impl VerificationCallbacks {
             jobs,
             fresh,
             use_simplification: true, // Default: enable simplification
+            no_stdlib_contracts,
         }
     }
 
@@ -81,6 +87,7 @@ impl VerificationCallbacks {
             jobs: 1,
             fresh: false,
             use_simplification: true,
+            no_stdlib_contracts: false,
         }
     }
 
@@ -275,6 +282,13 @@ impl Callbacks for VerificationCallbacks {
                     return_ty,
                 },
             );
+        }
+
+        // Load stdlib contracts unless disabled
+        if !self.no_stdlib_contracts {
+            let stdlib_registry =
+                rust_fv_analysis::stdlib_contracts::loader::load_default_contracts();
+            stdlib_registry.merge_into(&mut contract_db);
         }
 
         // Determine cache directory (target/rust-fv-cache/)

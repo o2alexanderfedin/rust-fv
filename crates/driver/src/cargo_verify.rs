@@ -59,6 +59,9 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse jobs flag from args (default: num_cpus/2)
     let jobs = parse_jobs(args);
 
+    // Parse no-stdlib-contracts flag from args (default: false)
+    let no_stdlib_contracts = parse_no_stdlib_contracts(args);
+
     // Build the cargo check command with our driver as RUSTC
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
@@ -83,12 +86,17 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
         cmd.env("RUST_FV_JOBS", j.to_string());
     }
 
+    if no_stdlib_contracts {
+        cmd.env("RUST_FV_NO_STDLIB_CONTRACTS", "1");
+    }
+
     // Forward any extra args (e.g., --package, --lib, etc.)
     for arg in args {
         if !arg.starts_with("--timeout")
             && !arg.starts_with("--output-format")
             && !arg.starts_with("--fresh")
             && !arg.starts_with("--jobs")
+            && !arg.starts_with("--no-stdlib-contracts")
         {
             cmd.arg(arg);
         }
@@ -198,6 +206,11 @@ fn parse_jobs(args: &[String]) -> Option<usize> {
     None
 }
 
+/// Parse --no-stdlib-contracts flag from arguments.
+fn parse_no_stdlib_contracts(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--no-stdlib-contracts")
+}
+
 /// Print usage information.
 fn print_usage() {
     eprintln!("rust-fv: Formal verification for Rust");
@@ -212,6 +225,7 @@ fn print_usage() {
     eprintln!(
         "    --jobs <N>                  Number of parallel verification threads (default: num_cpus/2)"
     );
+    eprintln!("    --no-stdlib-contracts       Disable standard library contracts");
     eprintln!("    --help, -h                  Print this help message");
     eprintln!();
     eprintln!("DESCRIPTION:");
@@ -860,5 +874,37 @@ version = "0.1.0"
         assert_eq!(parse_output_format(&args), "text");
         assert_eq!(parse_jobs(&args), None);
         assert!(!parse_fresh(&args));
+        assert!(!parse_no_stdlib_contracts(&args));
+    }
+
+    // --- parse_no_stdlib_contracts tests ---
+
+    #[test]
+    fn test_parse_no_stdlib_contracts_default() {
+        let args: Vec<String> = vec![];
+        assert!(!parse_no_stdlib_contracts(&args));
+    }
+
+    #[test]
+    fn test_parse_no_stdlib_contracts_present() {
+        let args: Vec<String> = vec!["--no-stdlib-contracts".into()];
+        assert!(parse_no_stdlib_contracts(&args));
+    }
+
+    #[test]
+    fn test_parse_no_stdlib_contracts_among_other_args() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "30".into(),
+            "--no-stdlib-contracts".into(),
+            "--lib".into(),
+        ];
+        assert!(parse_no_stdlib_contracts(&args));
+    }
+
+    #[test]
+    fn test_parse_no_stdlib_contracts_not_present() {
+        let args: Vec<String> = vec!["--timeout".into(), "30".into(), "--lib".into()];
+        assert!(!parse_no_stdlib_contracts(&args));
     }
 }
