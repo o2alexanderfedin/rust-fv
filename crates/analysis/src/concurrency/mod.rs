@@ -1,3 +1,4 @@
+pub mod channel_verification;
 pub mod deadlock_detection;
 pub mod happens_before;
 pub mod lock_invariants;
@@ -8,6 +9,7 @@ pub mod lock_invariants;
 pub mod thread_encoding;
 
 // Re-export key types for convenience
+pub use channel_verification::{ChannelOp, ChannelState};
 pub use deadlock_detection::{DeadlockCycle, LockOrderGraph};
 pub use happens_before::{EventId, MemoryAccess};
 pub use lock_invariants::LockOp;

@@ -667,6 +667,19 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         }
     }
 
+    // Generate concurrency VCs (data race freedom, lock invariants, deadlocks, channel safety)
+    {
+        let mut concurrency_vcs = generate_concurrency_vcs(func);
+        if !concurrency_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                concurrency_vc_count = concurrency_vcs.len(),
+                "Generated concurrency VCs (bounded verification)"
+            );
+            conditions.append(&mut concurrency_vcs);
+        }
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),
@@ -3096,6 +3109,239 @@ fn split_at_operator<'a>(s: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
         }
     }
     None
+}
+
+/// Generate concurrency verification conditions.
+///
+/// Produces VCs for:
+/// - Data race freedom (conflicting concurrent accesses must be ordered)
+/// - Lock invariants (must hold at release)
+/// - Deadlocks (lock-order cycle detection)
+/// - Channel safety (send-on-closed, capacity overflow, recv deadlock)
+/// - Bounded verification warning
+///
+/// Only runs if:
+/// - func.concurrency_config.verify_concurrency is true, OR
+/// - func.thread_spawns is non-empty
+pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
+    // Guard: only run if concurrency verification is enabled or thread spawns detected
+    let should_verify = func
+        .concurrency_config
+        .as_ref()
+        .map(|c| c.verify_concurrency)
+        .unwrap_or(false)
+        || !func.thread_spawns.is_empty();
+
+    if !should_verify {
+        return Vec::new();
+    }
+
+    let mut vcs = Vec::new();
+
+    // Step 1: Build MemoryAccess list from atomic_ops
+    use crate::concurrency::MemoryAccess;
+    use crate::ir::AtomicOpKind;
+    let accesses: Vec<MemoryAccess> = func
+        .atomic_ops
+        .iter()
+        .enumerate()
+        .map(|(event_id, atomic_op)| {
+            let is_write = matches!(
+                atomic_op.kind,
+                AtomicOpKind::Store
+                    | AtomicOpKind::Swap
+                    | AtomicOpKind::CompareExchange
+                    | AtomicOpKind::FetchAdd
+                    | AtomicOpKind::FetchSub
+            );
+
+            MemoryAccess {
+                event_id,
+                location: atomic_op.atomic_place.local.clone(),
+                is_write,
+                thread_id: 0, // Placeholder - will be filled by interleaving enumeration
+                source_line: None,
+            }
+        })
+        .collect();
+
+    // Step 2: Generate data race freedom VCs
+    if !accesses.is_empty() {
+        let mut race_vcs = crate::concurrency::happens_before::data_race_freedom_vcs(&accesses);
+        vcs.append(&mut race_vcs);
+    }
+
+    // Step 3: Generate lock invariant VCs
+    use crate::concurrency::lock_invariants::{LockOp, lock_invariant_vcs};
+    use crate::ir::SyncOpKind;
+    for (mutex_place, invariant_spec) in &func.lock_invariants {
+        // Build locations from sync_ops
+        let locations: Vec<(VcLocation, LockOp)> = func
+            .sync_ops
+            .iter()
+            .filter_map(|sync_op| {
+                if sync_op.sync_object.local == *mutex_place {
+                    let lock_op = match sync_op.kind {
+                        SyncOpKind::MutexLock => LockOp::Acquire,
+                        SyncOpKind::MutexUnlock => LockOp::Release,
+                        _ => return None,
+                    };
+
+                    Some((
+                        VcLocation {
+                            function: func.name.clone(),
+                            block: 0, // No block_index in SyncOp
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            contract_text: Some(invariant_spec.raw.clone()),
+                            vc_kind: VcKind::LockInvariant,
+                        },
+                        lock_op,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !locations.is_empty() {
+            let mut inv_vcs = lock_invariant_vcs(mutex_place, &invariant_spec.raw, &locations);
+            vcs.append(&mut inv_vcs);
+        }
+    }
+
+    // Step 4: Build LockOrderGraph and detect deadlocks
+    use crate::concurrency::deadlock_detection::{LockOrderGraph, deadlock_vcs, detect_deadlock};
+    use std::collections::HashMap;
+
+    let mut lock_order_graph = LockOrderGraph::new();
+    let mut lock_name_to_id: HashMap<String, usize> = HashMap::new();
+    let mut next_lock_id = 0;
+
+    // Track which locks are held at each program point
+    let mut held_locks: Vec<usize> = Vec::new();
+
+    for sync_op in &func.sync_ops {
+        // Get or assign lock ID
+        let lock_id = *lock_name_to_id
+            .entry(sync_op.sync_object.local.clone())
+            .or_insert_with(|| {
+                let id = next_lock_id;
+                next_lock_id += 1;
+                id
+            });
+
+        match sync_op.kind {
+            SyncOpKind::MutexLock => {
+                // Add edges from all currently held locks to this lock
+                for &held_lock in &held_locks {
+                    lock_order_graph.add_edge(held_lock, lock_id);
+                }
+                // Mark this lock as held
+                if !held_locks.contains(&lock_id) {
+                    held_locks.push(lock_id);
+                }
+            }
+            SyncOpKind::MutexUnlock => {
+                // Remove this lock from held set
+                held_locks.retain(|&id| id != lock_id);
+            }
+            _ => {}
+        }
+    }
+
+    // Detect deadlock cycles
+    if let Some(cycle) = detect_deadlock(&lock_order_graph) {
+        let mut deadlock_vcs = deadlock_vcs(&[cycle]);
+        vcs.append(&mut deadlock_vcs);
+    }
+
+    // Step 5: Generate channel operation VCs
+    use crate::concurrency::channel_verification::{
+        ChannelOp, ChannelState, channel_operation_vcs,
+    };
+    for sync_op in &func.sync_ops {
+        match sync_op.kind {
+            SyncOpKind::ChannelSend => {
+                let channel = ChannelState {
+                    name: sync_op.sync_object.local.clone(),
+                    capacity: None,   // Unknown - would come from type analysis
+                    is_closed: false, // Conservative assumption
+                };
+                let op = ChannelOp::Send {
+                    value: "msg".to_string(), // Placeholder
+                };
+                let location = VcLocation {
+                    function: func.name.clone(),
+                    block: 0, // No block_index in SyncOp
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    contract_text: None,
+                    vc_kind: VcKind::ChannelSafety,
+                };
+                let mut chan_vcs = channel_operation_vcs(&channel, &op, location);
+                vcs.append(&mut chan_vcs);
+            }
+            SyncOpKind::ChannelRecv => {
+                let channel = ChannelState {
+                    name: sync_op.sync_object.local.clone(),
+                    capacity: None,
+                    is_closed: false,
+                };
+                let op = ChannelOp::Recv;
+                let location = VcLocation {
+                    function: func.name.clone(),
+                    block: 0, // No block_index in SyncOp
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    contract_text: None,
+                    vc_kind: VcKind::ChannelSafety,
+                };
+                let mut chan_vcs = channel_operation_vcs(&channel, &op, location);
+                vcs.append(&mut chan_vcs);
+            }
+            _ => {}
+        }
+    }
+
+    // Step 6: Add bounded verification warning VC
+    let config = func.concurrency_config.as_ref();
+    let max_threads = config.map(|c| c.max_threads).unwrap_or(2);
+    let max_switches = config.map(|c| c.max_context_switches).unwrap_or(3);
+
+    let warning_description = format!(
+        "Bounded verification: up to {} threads, {} context switches. May miss bugs in deeper interleavings.",
+        max_threads, max_switches
+    );
+
+    // Diagnostic VC (always-SAT pattern)
+    let mut script = rust_fv_smtlib::script::Script::new();
+    script.push(rust_fv_smtlib::command::Command::SetLogic(
+        "QF_BV".to_string(),
+    ));
+    script.push(rust_fv_smtlib::command::Command::Assert(
+        rust_fv_smtlib::term::Term::BoolLit(true),
+    ));
+    script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+    vcs.push(VerificationCondition {
+        description: warning_description,
+        script,
+        location: VcLocation {
+            function: func.name.clone(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            contract_text: Some("Bounded concurrency verification enabled".to_string()),
+            vc_kind: VcKind::DataRaceFreedom,
+        },
+    });
+
+    vcs
 }
 
 // === Unit tests ===
@@ -6940,5 +7186,298 @@ mod tests {
         assert_eq!(cs, VcKind::ChannelSafety);
         assert_ne!(cs, VcKind::Deadlock);
         assert_ne!(cs, VcKind::DataRaceFreedom);
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_empty() {
+        // Function without concurrency produces no VCs
+        let func = Function {
+            name: "sequential_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        assert!(vcs.is_empty());
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_with_atomics() {
+        use crate::ir::{AtomicOp, AtomicOpKind, AtomicOrdering, ConcurrencyConfig};
+
+        let func = Function {
+            name: "concurrent_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![
+                AtomicOp {
+                    kind: AtomicOpKind::Store,
+                    atomic_place: Place::local("x".to_string()),
+                    ordering: AtomicOrdering::SeqCst,
+                    value: Some(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                },
+                AtomicOp {
+                    kind: AtomicOpKind::Load,
+                    atomic_place: Place::local("x".to_string()),
+                    ordering: AtomicOrdering::SeqCst,
+                    value: None,
+                },
+            ],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: Some(ConcurrencyConfig {
+                verify_concurrency: true,
+                max_threads: 2,
+                max_context_switches: 3,
+            }),
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        // Should have: data race VCs + bounded verification warning
+        assert!(!vcs.is_empty());
+        assert!(
+            vcs.iter()
+                .any(|vc| vc.description.contains("Bounded verification"))
+        );
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_with_lock_invariants() {
+        use crate::ir::{ConcurrencyConfig, SyncOp, SyncOpKind};
+
+        let func = Function {
+            name: "mutex_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![
+                SyncOp {
+                    kind: SyncOpKind::MutexLock,
+                    sync_object: Place::local("m".to_string()),
+                },
+                SyncOp {
+                    kind: SyncOpKind::MutexUnlock,
+                    sync_object: Place::local("m".to_string()),
+                },
+            ],
+            lock_invariants: vec![(
+                "m".to_string(),
+                SpecExpr {
+                    raw: "x > 0".to_string(),
+                },
+            )],
+            concurrency_config: Some(ConcurrencyConfig {
+                verify_concurrency: true,
+                max_threads: 2,
+                max_context_switches: 3,
+            }),
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        // Should have: lock invariant VC at release + bounded verification warning
+        assert!(!vcs.is_empty());
+        let lock_vcs: Vec<_> = vcs
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::LockInvariant)
+            .collect();
+        assert_eq!(lock_vcs.len(), 1); // One release
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_with_sync_ops() {
+        use crate::ir::{ConcurrencyConfig, SyncOp, SyncOpKind};
+
+        let func = Function {
+            name: "deadlock_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![
+                SyncOp {
+                    kind: SyncOpKind::MutexLock,
+                    sync_object: Place::local("m1".to_string()),
+                },
+                SyncOp {
+                    kind: SyncOpKind::MutexLock,
+                    sync_object: Place::local("m2".to_string()),
+                },
+            ],
+            lock_invariants: vec![],
+            concurrency_config: Some(ConcurrencyConfig {
+                verify_concurrency: true,
+                max_threads: 2,
+                max_context_switches: 3,
+            }),
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        // Should have: bounded verification warning (no deadlock in single-thread linear order)
+        assert!(!vcs.is_empty());
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_bounded_warning() {
+        use crate::ir::ConcurrencyConfig;
+
+        let func = Function {
+            name: "concurrent_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: Some(ConcurrencyConfig {
+                verify_concurrency: true,
+                max_threads: 4,
+                max_context_switches: 8,
+            }),
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        assert_eq!(vcs.len(), 1); // Just the bounded verification warning
+        assert!(vcs[0].description.contains("Bounded verification"));
+        assert!(vcs[0].description.contains("4 threads"));
+        assert!(vcs[0].description.contains("8 context switches"));
+    }
+
+    #[test]
+    fn test_generate_concurrency_vcs_integration() {
+        use crate::ir::ThreadSpawn;
+
+        // Function with thread_spawns auto-enables verification
+        let func = Function {
+            name: "spawns_threads".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![ThreadSpawn {
+                handle_local: "t1".to_string(),
+                thread_fn: "worker".to_string(),
+                args: vec![],
+                is_scoped: false,
+            }],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None, // No explicit config, but thread_spawns present
+        };
+
+        let vcs = generate_concurrency_vcs(&func);
+        // Should auto-enable and produce bounded verification warning
+        assert!(!vcs.is_empty());
+        assert!(
+            vcs.iter()
+                .any(|vc| vc.description.contains("Bounded verification"))
+        );
     }
 }
