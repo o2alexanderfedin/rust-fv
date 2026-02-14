@@ -4,7 +4,9 @@
 /// its exact semantics, including overflow and division-by-zero checks.
 use rust_fv_smtlib::term::Term;
 
-use crate::ir::{AggregateKind, BinOp, Constant, Function, Operand, Place, Projection, Ty, UnOp};
+use crate::ir::{
+    AggregateKind, BinOp, Constant, FloatTy, Function, Operand, Place, Projection, Ty, UnOp,
+};
 
 /// Encode an operand as an SMT-LIB term.
 pub fn encode_operand(op: &Operand) -> Term {
@@ -221,18 +223,114 @@ fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
     None
 }
 
+/// Encode a float constant as an SMT-LIB floating-point term.
+///
+/// IEEE 754 encoding:
+/// - f32: 8-bit exponent, 24-bit significand (eb=8, sb=24)
+/// - f64: 11-bit exponent, 53-bit significand (eb=11, sb=53)
+pub fn encode_float_constant(value: f64, fty: FloatTy) -> Term {
+    let (eb, sb) = match fty {
+        FloatTy::F32 => (8, 24),
+        FloatTy::F64 => (11, 53),
+    };
+
+    // Special values
+    if value.is_nan() {
+        return Term::FpNaN(eb, sb);
+    }
+    if value.is_infinite() {
+        return if value.is_sign_positive() {
+            Term::FpPosInf(eb, sb)
+        } else {
+            Term::FpNegInf(eb, sb)
+        };
+    }
+    if value == 0.0 {
+        return if value.is_sign_positive() {
+            Term::FpPosZero(eb, sb)
+        } else {
+            Term::FpNegZero(eb, sb)
+        };
+    }
+
+    // Normal values: convert to bit representation
+    let bits = match fty {
+        FloatTy::F32 => {
+            let f32_val = value as f32;
+            f32_val.to_bits() as u64
+        }
+        FloatTy::F64 => value.to_bits(),
+    };
+
+    // Extract sign, exponent, significand
+    let (sign_bit, exp_bits, sig_bits) = match fty {
+        FloatTy::F32 => {
+            // f32: 1 sign + 8 exp + 23 mantissa
+            let sign = ((bits >> 31) & 1) as u8;
+            let exp = (bits >> 23) & 0xFF;
+            let sig = bits & 0x7FFFFF;
+            (sign, exp, sig)
+        }
+        FloatTy::F64 => {
+            // f64: 1 sign + 11 exp + 52 mantissa
+            let sign = ((bits >> 63) & 1) as u8;
+            let exp = (bits >> 52) & 0x7FF;
+            let sig = bits & 0xFFFFFFFFFFFFF;
+            (sign, exp, sig)
+        }
+    };
+
+    Term::FpFromBits(sign_bit, exp_bits, sig_bits, eb, sb)
+}
+
 /// Encode a constant value as an SMT-LIB term.
 pub fn encode_constant(c: &Constant) -> Term {
     match c {
         Constant::Bool(b) => Term::BoolLit(*b),
         Constant::Int(val, ity) => Term::BitVecLit(*val, ity.bit_width()),
         Constant::Uint(val, uty) => Term::BitVecLit(*val as i128, uty.bit_width()),
-        Constant::Float(_, _) => {
-            // Phase 1: floats represented as uninterpreted constants
-            Term::Const("FLOAT_UNSUPPORTED".to_string())
-        }
+        Constant::Float(value, fty) => encode_float_constant(*value, *fty),
         Constant::Unit => Term::BoolLit(true),
         Constant::Str(s) => Term::Const(format!("STR_{s}")),
+    }
+}
+
+/// Encode floating-point binary operations.
+///
+/// For arithmetic operations (Add, Sub, Mul, Div), uses RNE (Round to Nearest, ties to Even) rounding mode.
+/// For comparisons, uses IEEE 754 semantics (FpEq, FpLt, etc.).
+pub fn encode_fp_binop(op: BinOp, lhs: &Term, rhs: &Term) -> Term {
+    let l = Box::new(lhs.clone());
+    let r = Box::new(rhs.clone());
+
+    match op {
+        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
+            let rm = Box::new(Term::RoundingMode("RNE".to_string()));
+            match op {
+                BinOp::Add => Term::FpAdd(rm, l, r),
+                BinOp::Sub => Term::FpSub(rm, l, r),
+                BinOp::Mul => Term::FpMul(rm, l, r),
+                BinOp::Div => Term::FpDiv(rm, l, r),
+                _ => unreachable!(),
+            }
+        }
+        BinOp::Eq => Term::FpEq(l, r),
+        BinOp::Ne => Term::Not(Box::new(Term::FpEq(l, r))),
+        BinOp::Lt => Term::FpLt(l, r),
+        BinOp::Le => Term::FpLeq(l, r),
+        BinOp::Gt => Term::FpGt(l, r),
+        BinOp::Ge => Term::FpGeq(l, r),
+        BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr | BinOp::Rem => {
+            panic!("unsupported float binop: {op:?}")
+        }
+    }
+}
+
+/// Encode floating-point unary operations.
+pub fn encode_fp_unop(op: UnOp, operand: &Term) -> Term {
+    match op {
+        UnOp::Neg => Term::FpNeg(Box::new(operand.clone())),
+        UnOp::Not => panic!("Not operation is not valid for float types"),
     }
 }
 
@@ -240,6 +338,11 @@ pub fn encode_constant(c: &Constant) -> Term {
 ///
 /// Selects signed vs unsigned operations based on the type.
 pub fn encode_binop(op: BinOp, lhs: &Term, rhs: &Term, ty: &Ty) -> Term {
+    // Dispatch to float encoding for float types
+    if matches!(ty, Ty::Float(_)) {
+        return encode_fp_binop(op, lhs, rhs);
+    }
+
     let l = Box::new(lhs.clone());
     let r = Box::new(rhs.clone());
     let signed = ty.is_signed();
@@ -308,6 +411,11 @@ pub fn encode_binop(op: BinOp, lhs: &Term, rhs: &Term, ty: &Ty) -> Term {
 
 /// Encode a unary operation as an SMT-LIB term.
 pub fn encode_unop(op: UnOp, operand: &Term, ty: &Ty) -> Term {
+    // Dispatch to float encoding for float types
+    if matches!(ty, Ty::Float(_)) {
+        return encode_fp_unop(op, operand);
+    }
+
     match op {
         UnOp::Not => {
             if ty.is_bool() {
@@ -913,12 +1021,13 @@ mod tests {
     // ====== Coverage: encode_constant (lines 222, 224-225) ======
 
     #[test]
-    fn encode_float_constant_unsupported() {
+    fn encode_float_constant_2_71() {
         let c = Constant::Float(2.71, crate::ir::FloatTy::F64);
-        assert_eq!(
+        // Should produce FpFromBits, not FLOAT_UNSUPPORTED
+        assert!(matches!(
             encode_constant(&c),
-            Term::Const("FLOAT_UNSUPPORTED".to_string())
-        );
+            Term::FpFromBits(_, _, _, 11, 53)
+        ));
     }
 
     #[test]
@@ -1754,12 +1863,13 @@ mod tests {
     }
 
     #[test]
-    fn encode_constant_f32() {
+    fn encode_constant_f32_1_0() {
         let c = Constant::Float(1.0, crate::ir::FloatTy::F32);
-        assert_eq!(
+        // Should produce FpFromBits with f32 parameters (8, 24)
+        assert!(matches!(
             encode_constant(&c),
-            Term::Const("FLOAT_UNSUPPORTED".to_string())
-        );
+            Term::FpFromBits(_, _, _, 8, 24)
+        ));
     }
 
     // ====== Coverage: overflow_check on non-bit-width type returns None ======
@@ -1794,5 +1904,126 @@ mod tests {
         );
         let result = encode_aggregate_with_type(&kind, &ops, &result_ty);
         assert_eq!(result, Some(Term::App("mk-None".to_string(), vec![])));
+    }
+
+    // ====== Float encoding tests (Phase 11 Plan 02 - TDD RED) ======
+
+    #[test]
+    fn test_encode_float_constant_f64_1_0() {
+        use crate::ir::FloatTy;
+        // 1.0_f64 = 0x3FF0000000000000
+        let result = encode_float_constant(1.0, FloatTy::F64);
+        assert!(matches!(result, Term::FpFromBits(_, _, _, 11, 53)));
+    }
+
+    #[test]
+    fn test_encode_float_constant_f32_1_0() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(1.0, FloatTy::F32);
+        assert!(matches!(result, Term::FpFromBits(_, _, _, 8, 24)));
+    }
+
+    #[test]
+    fn test_encode_float_constant_nan() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(f64::NAN, FloatTy::F64);
+        assert_eq!(result, Term::FpNaN(11, 53));
+    }
+
+    #[test]
+    fn test_encode_float_constant_pos_inf() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(f64::INFINITY, FloatTy::F64);
+        assert_eq!(result, Term::FpPosInf(11, 53));
+    }
+
+    #[test]
+    fn test_encode_float_constant_neg_inf() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(f64::NEG_INFINITY, FloatTy::F64);
+        assert_eq!(result, Term::FpNegInf(11, 53));
+    }
+
+    #[test]
+    fn test_encode_float_constant_pos_zero() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(0.0, FloatTy::F64);
+        assert_eq!(result, Term::FpPosZero(11, 53));
+    }
+
+    #[test]
+    fn test_encode_float_constant_neg_zero() {
+        use crate::ir::FloatTy;
+        let result = encode_float_constant(-0.0_f64, FloatTy::F64);
+        assert_eq!(result, Term::FpNegZero(11, 53));
+    }
+
+    #[test]
+    fn test_encode_fp_binop_add() {
+        let result = encode_fp_binop(BinOp::Add, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpAdd(_, _, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_binop_sub() {
+        let result = encode_fp_binop(BinOp::Sub, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpSub(_, _, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_binop_mul() {
+        let result = encode_fp_binop(BinOp::Mul, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpMul(_, _, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_binop_div() {
+        let result = encode_fp_binop(BinOp::Div, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpDiv(_, _, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_comparison_eq() {
+        let result = encode_fp_binop(BinOp::Eq, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpEq(_, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_comparison_lt() {
+        let result = encode_fp_binop(BinOp::Lt, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpLt(_, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_comparison_le() {
+        let result = encode_fp_binop(BinOp::Le, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpLeq(_, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_comparison_gt() {
+        let result = encode_fp_binop(BinOp::Gt, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpGt(_, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_comparison_ge() {
+        let result = encode_fp_binop(BinOp::Ge, &var("x"), &var("y"));
+        assert!(matches!(result, Term::FpGeq(_, _)));
+    }
+
+    #[test]
+    fn test_encode_fp_unop_neg() {
+        let result = encode_fp_unop(UnOp::Neg, &var("x"));
+        assert!(matches!(result, Term::FpNeg(_)));
+    }
+
+    #[test]
+    fn test_encode_binop_dispatches_float() {
+        use crate::ir::FloatTy;
+        let ty = Ty::Float(FloatTy::F64);
+        let result = encode_binop(BinOp::Add, &var("x"), &var("y"), &ty);
+        // Should produce FpAdd, not BvAdd
+        assert!(matches!(result, Term::FpAdd(_, _, _)));
     }
 }
