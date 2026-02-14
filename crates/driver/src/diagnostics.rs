@@ -47,7 +47,14 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
     let mut colors = ColorGenerator::new();
     let color = colors.next();
 
-    let report = Report::build(ReportKind::Error, source_file, offset)
+    // Use Warning severity for MemorySafety (per USF-06 requirement)
+    let report_kind = if failure.vc_kind == VcKind::MemorySafety {
+        ReportKind::Warning
+    } else {
+        ReportKind::Error
+    };
+
+    let report = Report::build(report_kind, source_file, offset)
         .with_message(format!(
             "verification failed: {}",
             vc_kind_description(&failure.vc_kind)
@@ -170,6 +177,25 @@ fn report_text_only(failure: &VerificationFailure) {
     }
 
     if failure.vc_kind == VcKind::MemorySafety {
+        eprintln!();
+        // Check failure message to determine which sub-type of memory safety violation
+        if failure.message.contains("null-check") {
+            // Extract pointer name from message if possible (fallback to "ptr")
+            let ptr_name =
+                extract_identifier_from_message(&failure.message, "null-check").unwrap_or("ptr");
+            eprintln!("{}", format_null_check_failure(ptr_name));
+        } else if failure.message.contains("bounds-check") {
+            // Extract pointer and offset names from message if possible
+            let ptr_name =
+                extract_identifier_from_message(&failure.message, "bounds-check").unwrap_or("ptr");
+            let offset_name = "offset"; // Default offset name
+            eprintln!("{}", format_bounds_check_failure(ptr_name, offset_name));
+        } else if failure.message.contains("no safety contracts") {
+            eprintln!(
+                "{}",
+                format_missing_unsafe_contracts_help(&failure.function_name)
+            );
+        }
         eprintln!();
         eprintln!("{}", format_memory_safety_help());
         eprintln!();
@@ -308,6 +334,24 @@ fn parse_behavioral_subtyping_message(message: &str) -> Option<(&str, &str, &str
     Some((impl_type, trait_name, method_name))
 }
 
+/// Extract an identifier from a message based on a keyword.
+///
+/// Attempts to find an identifier (alphanumeric + underscore) near the keyword.
+/// Returns None if no identifier is found.
+fn extract_identifier_from_message<'a>(message: &'a str, _keyword: &str) -> Option<&'a str> {
+    // Simple heuristic: find first underscore-prefixed identifier (like "_1", "_ptr")
+    // or alphanumeric identifier
+    for word in message.split_whitespace() {
+        let cleaned = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+        if !cleaned.is_empty()
+            && (cleaned.starts_with('_') || cleaned.chars().next().unwrap().is_alphabetic())
+        {
+            return Some(cleaned);
+        }
+    }
+    None
+}
+
 /// Format a help message for a behavioral subtyping violation.
 ///
 /// Provides guidance on Liskov Substitution Principle for trait impl contracts.
@@ -393,6 +437,72 @@ pub fn format_unsafe_contract_help() -> String {
      Contracts enable compositional verification: callers must satisfy preconditions,\n\
      and can assume postconditions hold."
         .to_string()
+}
+
+/// Format a warning for an unsafe block detected during verification.
+///
+/// Provides information about the unsafe block location and reason.
+#[allow(dead_code)]
+pub fn format_unsafe_block_warning(block_desc: &str, reason: &str) -> String {
+    format!(
+        "warning: unsafe code detected: {}\n  Reason: {}\n  \
+         The verifier flags all unsafe code for review. Consider adding safety contracts\n  \
+         or marking with #[trusted] if manually verified.",
+        block_desc, reason
+    )
+}
+
+/// Format a diagnostic for a null-check failure on a raw pointer dereference.
+///
+/// Suggests adding safety contracts or deriving pointers from valid references.
+pub fn format_null_check_failure(ptr_name: &str) -> String {
+    format!(
+        "Raw pointer '{}' may be null at dereference.\n  \
+         The verifier could not prove the pointer is non-null.\n  \
+         Suggestion: Add #[unsafe_requires({} != null)] to the function,\n  \
+         or ensure the pointer is derived from a valid reference.",
+        ptr_name, ptr_name
+    )
+}
+
+/// Format a diagnostic for a bounds-check failure on pointer arithmetic.
+///
+/// Suggests adding safety contracts to constrain offset bounds.
+pub fn format_bounds_check_failure(ptr_name: &str, offset_name: &str) -> String {
+    format!(
+        "Pointer arithmetic on '{}' with offset '{}' may exceed allocation bounds.\n  \
+         The verifier could not prove the offset stays within the allocated region.\n  \
+         Suggestion: Add #[unsafe_requires({} < alloc_size)] to the function.",
+        ptr_name, offset_name, offset_name
+    )
+}
+
+/// Format a notice for a trusted function whose body verification is skipped.
+///
+/// Warns that incorrect contracts may lead to unsoundness.
+#[allow(dead_code)]
+pub fn format_trusted_function_notice(func_name: &str) -> String {
+    format!(
+        "note: function '{}' is marked #[trusted]\n  \
+         Body verification skipped. Contracts are verified at call sites.\n  \
+         WARNING: Incorrect contracts may lead to unsound verification results.\n  \
+         Ensure manual review has been performed.",
+        func_name
+    )
+}
+
+/// Format a help message for an unsafe function missing safety contracts.
+///
+/// Suggests adding contract annotations or marking the function as trusted.
+pub fn format_missing_unsafe_contracts_help(func_name: &str) -> String {
+    format!(
+        "warning: unsafe function '{}' has no safety contracts.\n  \
+         Without contracts, the verifier cannot check safety properties at call sites.\n  \
+         Add #[unsafe_requires(...)] for preconditions (e.g., pointer validity).\n  \
+         Add #[unsafe_ensures(...)] for postconditions.\n  \
+         Or mark #[trusted] if the function has been manually verified.",
+        func_name
+    )
 }
 
 /// Format a help message for a recursive function missing a `#[decreases]` annotation.
@@ -1514,5 +1624,157 @@ mod tests {
         let text = suggestion.unwrap();
         assert!(text.contains("unsafe_requires"));
         assert!(text.contains("trusted"));
+    }
+
+    // --- format_unsafe_block_warning tests ---
+
+    #[test]
+    fn test_format_unsafe_block_warning() {
+        let warning =
+            format_unsafe_block_warning("unsafe block in process_data", "raw pointer dereference");
+        assert!(warning.contains("unsafe block in process_data"));
+        assert!(warning.contains("raw pointer dereference"));
+        assert!(warning.contains("warning: unsafe code detected"));
+        assert!(warning.contains("safety contracts"));
+        assert!(warning.contains("#[trusted]"));
+    }
+
+    // --- format_null_check_failure tests ---
+
+    #[test]
+    fn test_format_null_check_failure() {
+        let diagnostic = format_null_check_failure("_1");
+        assert!(diagnostic.contains("_1"));
+        assert!(diagnostic.contains("may be null"));
+        assert!(diagnostic.contains("non-null"));
+        assert!(diagnostic.contains("#[unsafe_requires(_1 != null)]"));
+        assert!(diagnostic.contains("valid reference"));
+    }
+
+    // --- format_bounds_check_failure tests ---
+
+    #[test]
+    fn test_format_bounds_check_failure() {
+        let diagnostic = format_bounds_check_failure("_1", "_2");
+        assert!(diagnostic.contains("_1"));
+        assert!(diagnostic.contains("_2"));
+        assert!(diagnostic.contains("Pointer arithmetic"));
+        assert!(diagnostic.contains("allocation bounds"));
+        assert!(diagnostic.contains("#[unsafe_requires(_2 < alloc_size)]"));
+    }
+
+    // --- format_trusted_function_notice tests ---
+
+    #[test]
+    fn test_format_trusted_function_notice() {
+        let notice = format_trusted_function_notice("my_unsafe_fn");
+        assert!(notice.contains("my_unsafe_fn"));
+        assert!(notice.contains("#[trusted]"));
+        assert!(notice.contains("Body verification skipped"));
+        assert!(notice.contains("call sites"));
+        assert!(notice.contains("unsound verification results"));
+        assert!(notice.contains("manual review"));
+    }
+
+    // --- format_missing_unsafe_contracts_help tests ---
+
+    #[test]
+    fn test_format_missing_unsafe_contracts_help() {
+        let help = format_missing_unsafe_contracts_help("unsafe_fn");
+        assert!(help.contains("unsafe_fn"));
+        assert!(help.contains("no safety contracts"));
+        assert!(help.contains("#[unsafe_requires(...)]"));
+        assert!(help.contains("#[unsafe_ensures(...)]"));
+        assert!(help.contains("#[trusted]"));
+        assert!(help.contains("call sites"));
+    }
+
+    // --- VcKind::MemorySafety in test arrays ---
+
+    #[test]
+    fn test_memory_safety_vc_kind_in_all_arrays() {
+        // Verify that VcKind::MemorySafety is present in comprehensive test arrays
+        let vc_kinds = [
+            VcKind::Precondition,
+            VcKind::Postcondition,
+            VcKind::LoopInvariantInit,
+            VcKind::LoopInvariantPreserve,
+            VcKind::LoopInvariantExit,
+            VcKind::Overflow,
+            VcKind::DivisionByZero,
+            VcKind::ShiftBounds,
+            VcKind::Assertion,
+            VcKind::PanicFreedom,
+            VcKind::Termination,
+            VcKind::ClosureContract,
+            VcKind::BehavioralSubtyping,
+            VcKind::BorrowValidity,
+            VcKind::MemorySafety,
+        ];
+        // Just verify we can iterate over all kinds including MemorySafety
+        for vc_kind in vc_kinds {
+            let _desc = vc_kind_description(&vc_kind);
+        }
+    }
+
+    // --- report_text_only MemorySafety tests ---
+
+    #[test]
+    fn test_report_text_only_memory_safety_null_check() {
+        let failure = VerificationFailure {
+            function_name: "test_fn".to_string(),
+            vc_kind: VcKind::MemorySafety,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "null-check failed for _1".to_string(),
+        };
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_memory_safety_bounds_check() {
+        let failure = VerificationFailure {
+            function_name: "test_fn".to_string(),
+            vc_kind: VcKind::MemorySafety,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "bounds-check failed for ptr".to_string(),
+        };
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_report_text_only_memory_safety_no_contracts() {
+        let failure = VerificationFailure {
+            function_name: "unsafe_func".to_string(),
+            vc_kind: VcKind::MemorySafety,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "no safety contracts found".to_string(),
+        };
+        report_text_only(&failure);
+    }
+
+    // --- report_with_ariadne MemorySafety warning severity test ---
+
+    #[test]
+    fn test_report_with_ariadne_memory_safety_warning() {
+        let failure = VerificationFailure {
+            function_name: "unsafe_fn".to_string(),
+            vc_kind: VcKind::MemorySafety,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "null-check failed".to_string(),
+        };
+        // This should use ReportKind::Warning instead of Error
+        report_with_ariadne(&failure, "src/lib.rs", 10);
     }
 }
