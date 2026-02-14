@@ -62,9 +62,16 @@ pub fn generate_null_check_assertion(ptr_name: &str) -> Term {
 ///
 /// If the VC is SAT, the offset can be out of bounds (violation found).
 /// If the VC is UNSAT, the offset is always within bounds (property holds).
+///
+/// Note: The offset is zero-extended to 64 bits to match pointer width if needed.
 pub fn generate_bounds_check_assertion(ptr_name: &str, offset_name: &str) -> Term {
     let ptr = Term::Const(ptr_name.to_string());
-    let offset = Term::Const(offset_name.to_string());
+    let offset_raw = Term::Const(offset_name.to_string());
+
+    // Zero-extend offset to 64 bits if it's 32 bits
+    // In practice, offsets are typically i32/u32 (32-bit) but pointers are 64-bit
+    // We use zero-extension for unsigned offsets, which is the common case
+    let offset = Term::App("(_ zero_extend 32)".to_string(), vec![offset_raw]);
 
     // alloc_base(ptr)
     let base = Term::App("alloc_base".to_string(), vec![ptr.clone()]);
@@ -210,13 +217,13 @@ mod tests {
     #[test]
     fn test_generate_bounds_check_assertion() {
         let term = generate_bounds_check_assertion("p", "off");
-        // Should be (not (bvult (bvadd (bvsub p (alloc_base p)) off) (alloc_size p)))
+        // Should be (not (bvult (bvadd (bvsub p (alloc_base p)) (zero_extend off)) (alloc_size p)))
         match term {
             Term::Not(inner) => match *inner {
                 Term::BvULt(effective_offset, size) => {
                     // Verify effective_offset structure
                     match *effective_offset {
-                        Term::BvAdd(base_offset, offset) => {
+                        Term::BvAdd(base_offset, offset_extended) => {
                             // base_offset should be (bvsub p (alloc_base p))
                             match *base_offset {
                                 Term::BvSub(ptr, base_fn) => {
@@ -231,8 +238,15 @@ mod tests {
                                 }
                                 _ => panic!("Expected BvSub for base offset"),
                             }
-                            // offset should be off
-                            assert!(matches!(*offset, Term::Const(ref name) if name == "off"));
+                            // offset should be (zero_extend off)
+                            match *offset_extended {
+                                Term::App(name, args) => {
+                                    assert_eq!(name, "(_ zero_extend 32)");
+                                    assert_eq!(args.len(), 1);
+                                    assert!(matches!(args[0], Term::Const(ref n) if n == "off"));
+                                }
+                                _ => panic!("Expected App for zero_extend"),
+                            }
                         }
                         _ => panic!("Expected BvAdd for effective offset"),
                     }

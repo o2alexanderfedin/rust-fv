@@ -517,6 +517,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
 
                 // Build null-check VC script
                 let mut script = rust_fv_smtlib::script::Script::new();
+                // Use QF_BV for null-checks (no heap model needed, just pointer comparison)
                 script.push(rust_fv_smtlib::command::Command::SetLogic(
                     "QF_BV".to_string(),
                 ));
@@ -569,8 +570,9 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
 
                 // Build bounds-check VC script
                 let mut script = rust_fv_smtlib::script::Script::new();
+                // Use QF_AUFBV for bounds-checks (requires heap model with uninterpreted functions)
                 script.push(rust_fv_smtlib::command::Command::SetLogic(
-                    "QF_BV".to_string(),
+                    "QF_AUFBV".to_string(),
                 ));
 
                 // Add heap model declarations
