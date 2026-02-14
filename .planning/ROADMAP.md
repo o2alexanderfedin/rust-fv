@@ -62,11 +62,14 @@ Extended formal verification to cover all major Rust language features -- recurs
   4. Developer can verify functions using Iterator operations (next, collect, map, filter) with working contracts
   5. Developer can override stdlib contracts with custom specifications when stdlib contracts are insufficient
 
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 13-01: TBD
-- [ ] 13-02: TBD
+- [ ] 13-01-PLAN.md — SMT sequence theory infrastructure + stdlib contract data model
+- [ ] 13-02-PLAN.md — Vec, Option, Result contracts (TDD)
+- [ ] 13-03-PLAN.md — HashMap, Iterator, String/str/slice contracts (TDD)
+- [ ] 13-04-PLAN.md — Contract loading, override mechanism, CLI integration
+- [ ] 13-05-PLAN.md — Oracle tests (proptest) + E2E integration tests
 
 ---
 
