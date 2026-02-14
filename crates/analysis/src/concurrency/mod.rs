@@ -1,3 +1,6 @@
+pub mod deadlock_detection;
+pub mod happens_before;
+pub mod lock_invariants;
 /// Concurrency verification module.
 ///
 /// Provides thread interleaving enumeration, happens-before encoding,
@@ -5,4 +8,7 @@
 pub mod thread_encoding;
 
 // Re-export key types for convenience
+pub use deadlock_detection::{DeadlockCycle, LockOrderGraph};
+pub use happens_before::{EventId, MemoryAccess};
+pub use lock_invariants::LockOp;
 pub use thread_encoding::{Interleaving, InterleavingEvent, ThreadState};
