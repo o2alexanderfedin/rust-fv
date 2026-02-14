@@ -18,6 +18,7 @@ pub mod ownership;
 pub mod recursion;
 pub mod simplify;
 pub mod spec_parser;
+pub mod stdlib_contracts;
 pub mod trait_analysis;
 pub mod unsafe_analysis;
 pub mod vcgen;

@@ -119,6 +119,11 @@ fn format_sort(out: &mut String, sort: &Sort) {
         }
         Sort::Datatype(n) | Sort::Uninterpreted(n) => out.push_str(n),
         Sort::Float(e, s) => out.push_str(&format!("(_ FloatingPoint {e} {s})")),
+        Sort::Seq(inner) => {
+            out.push_str("(Seq ");
+            format_sort(out, inner);
+            out.push(')');
+        }
     }
 }
 

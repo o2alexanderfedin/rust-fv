@@ -6,6 +6,8 @@
 //! stdlib function.
 
 pub mod hashmap;
+pub mod iterator;
+pub mod string;
 pub mod types;
 
 pub use types::{ContractSource, StdlibContract, StdlibContractRegistry};

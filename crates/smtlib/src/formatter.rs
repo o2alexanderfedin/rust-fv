@@ -1796,10 +1796,7 @@ mod tests {
 
     #[test]
     fn test_seq_nth() {
-        let t = Term::SeqNth(
-            Box::new(Term::Const("s".into())),
-            Box::new(Term::IntLit(0)),
-        );
+        let t = Term::SeqNth(Box::new(Term::Const("s".into())), Box::new(Term::IntLit(0)));
         assert_eq!(t.to_string(), "(seq.nth s 0)");
     }
 

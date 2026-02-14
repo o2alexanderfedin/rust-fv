@@ -266,6 +266,52 @@ pub fn region_sort() -> Sort {
     Sort::Uninterpreted("Region".to_string())
 }
 
+/// Encode standard library collection types to appropriate SMT sorts.
+///
+/// Recognizes common stdlib types and maps them to theory-appropriate encodings:
+/// - `Vec<T>` → `Seq(T_sort)` with separate length/capacity tracking
+/// - `HashMap<K,V>` → `Array(K_sort, Option_sort(V_sort))`
+/// - `String` → `Seq(BitVec(8))` (UTF-8 byte sequence)
+/// - `&str` → `Seq(BitVec(8))`
+/// - `Option<T>` → SMT datatype (already handled by encode_type)
+/// - `Result<T,E>` → SMT datatype (already handled by encode_type)
+///
+/// Returns `None` for types that aren't recognized stdlib collections.
+/// This will be refined in Plan 04 when actual stdlib contracts are wired in.
+pub fn encode_stdlib_type(name: &str, type_args: &[Ty]) -> Option<Sort> {
+    match name {
+        "Vec" | "VecDeque" | "LinkedList" => {
+            // Vec<T> encoded as Seq(T)
+            // Note: length and capacity are tracked separately via uninterpreted functions
+            let elem_ty = type_args.first()?;
+            let elem_sort = encode_type(elem_ty);
+            Some(Sort::Seq(Box::new(elem_sort)))
+        }
+        "HashMap" | "BTreeMap" => {
+            // HashMap<K, V> encoded as Array(K, Option<V>)
+            // This models partial maps where missing keys map to None
+            if type_args.len() < 2 {
+                return None;
+            }
+            let key_sort = encode_type(&type_args[0]);
+            let val_sort = encode_type(&type_args[1]);
+            // Option<V> is encoded as a datatype, but for simplicity here we use
+            // Array directly. This will be refined when full stdlib contracts are added.
+            Some(Sort::Array(Box::new(key_sort), Box::new(val_sort)))
+        }
+        "String" => {
+            // String as sequence of bytes (UTF-8)
+            Some(Sort::Seq(Box::new(Sort::BitVec(8))))
+        }
+        "str" => {
+            // &str as sequence of bytes
+            Some(Sort::Seq(Box::new(Sort::BitVec(8))))
+        }
+        // Option and Result are handled as datatypes by encode_type, not here
+        _ => None,
+    }
+}
+
 /// Encode a sealed trait as an SMT datatype (sum type) over known implementations.
 ///
 /// This generates a DeclareDatatype command with one variant per implementation.
@@ -812,6 +858,82 @@ mod tests {
             assert_eq!(variants[0].fields[0].0, "as-ImplA");
         } else {
             panic!("Expected DeclareDatatype command");
+        }
+    }
+
+    // ====== encode_stdlib_type tests ======
+
+    #[test]
+    fn test_encode_stdlib_type_vec() {
+        let result = encode_stdlib_type("Vec", &[Ty::Int(IntTy::I32)]);
+        assert!(result.is_some());
+        if let Some(Sort::Seq(inner)) = result {
+            assert_eq!(*inner, Sort::BitVec(32));
+        } else {
+            panic!("Expected Seq sort for Vec<i32>");
+        }
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_hashmap() {
+        let result = encode_stdlib_type("HashMap", &[Ty::Int(IntTy::I32), Ty::Bool]);
+        assert!(result.is_some());
+        if let Some(Sort::Array(key, val)) = result {
+            assert_eq!(*key, Sort::BitVec(32));
+            assert_eq!(*val, Sort::Bool);
+        } else {
+            panic!("Expected Array sort for HashMap<i32, bool>");
+        }
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_string() {
+        let result = encode_stdlib_type("String", &[]);
+        assert!(result.is_some());
+        if let Some(Sort::Seq(inner)) = result {
+            assert_eq!(*inner, Sort::BitVec(8));
+        } else {
+            panic!("Expected Seq(BitVec(8)) for String");
+        }
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_str_slice() {
+        let result = encode_stdlib_type("str", &[]);
+        assert!(result.is_some());
+        if let Some(Sort::Seq(inner)) = result {
+            assert_eq!(*inner, Sort::BitVec(8));
+        } else {
+            panic!("Expected Seq(BitVec(8)) for &str");
+        }
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_unknown() {
+        let result = encode_stdlib_type("UnknownType", &[]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_vec_deque() {
+        let result = encode_stdlib_type("VecDeque", &[Ty::Bool]);
+        assert!(result.is_some());
+        if let Some(Sort::Seq(inner)) = result {
+            assert_eq!(*inner, Sort::Bool);
+        } else {
+            panic!("Expected Seq sort for VecDeque<bool>");
+        }
+    }
+
+    #[test]
+    fn test_encode_stdlib_type_btree_map() {
+        let result = encode_stdlib_type("BTreeMap", &[Ty::Uint(UintTy::U64), Ty::Int(IntTy::I32)]);
+        assert!(result.is_some());
+        if let Some(Sort::Array(key, val)) = result {
+            assert_eq!(*key, Sort::BitVec(64));
+            assert_eq!(*val, Sort::BitVec(32));
+        } else {
+            panic!("Expected Array sort for BTreeMap");
         }
     }
 }
