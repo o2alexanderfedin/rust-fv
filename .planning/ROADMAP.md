@@ -150,6 +150,13 @@ Plans:
 
 **Requirements:** FPV-01, FPV-02, FPV-03, FPV-04, FPV-05, FPV-06, INF-02 (VcKind::FloatingPointNaN)
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 11-01-PLAN.md -- Infrastructure: FloatingPoint Term variants (literals, arithmetic, comparison, predicates), SMT-LIB2 formatting, VcKind::FloatingPointNaN, driver diagnostics
+- [ ] 11-02-PLAN.md -- Core: float constant/operation encoding (replace FLOAT_UNSUPPORTED), float_verification.rs module (NaN/Inf VCs), VCGen integration
+- [ ] 11-03-PLAN.md -- Integration: end-to-end Z3 verification tests, performance warning
+
 **Success Criteria:**
 1. Developer enables floating-point verification and verifier encodes `f32`/`f64` as SMT FloatingPoint theory (IEEE 754)
 2. Developer verifies FP operation and verifier generates NaN propagation VC (`!fp.isNaN(result)` unless NaN expected)
@@ -190,9 +197,9 @@ Plans:
 | 8. Trait Objects | v0.2 | 3/3 | Complete | 2026-02-12 |
 | 9. Lifetime Reasoning | v0.2 | 3/3 | Complete | 2026-02-13 |
 | 10. Unsafe Code Detection | v0.2 | 3/3 | Complete | 2026-02-14 |
-| 11. Floating-Point Verification | v0.2 | 0/? | Pending | - |
+| 11. Floating-Point Verification | v0.2 | 0/3 | Planned | - |
 | 12. Concurrency Verification | v0.2 | 0/? | Pending | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-14 (Phase 10 complete: 3/3 plans)*
+*Last updated: 2026-02-14 (Phase 11 planned: 3 plans)*
