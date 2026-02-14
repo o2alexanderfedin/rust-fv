@@ -646,6 +646,19 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         }
     }
 
+    // Generate floating-point VCs (NaN propagation and infinity overflow)
+    {
+        let mut float_vcs = crate::float_verification::generate_float_vcs(func);
+        if !float_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                float_vc_count = float_vcs.len(),
+                "Generated floating-point VCs (NaN propagation + infinity overflow)"
+            );
+            conditions.append(&mut float_vcs);
+        }
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),

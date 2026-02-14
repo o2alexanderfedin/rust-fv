@@ -8,6 +8,7 @@ pub mod encode_prophecy;
 pub mod encode_quantifier;
 pub mod encode_sort;
 pub mod encode_term;
+pub mod float_verification;
 pub mod heap_model;
 pub mod ir;
 pub mod lifetime_analysis;
