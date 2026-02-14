@@ -226,6 +226,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = extract_closure_info(&func);
@@ -253,6 +258,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = extract_closure_info(&func);
@@ -289,6 +299,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = detect_closure_calls(&func);
@@ -327,6 +342,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let errors = validate_fnonce_single_call(&func);
@@ -376,6 +396,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let errors = validate_fnonce_single_call(&func);

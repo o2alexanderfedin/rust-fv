@@ -464,6 +464,11 @@ fn test_copy_semantics_preserved() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -585,6 +590,11 @@ fn test_shared_borrow_preserved() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -711,6 +721,11 @@ fn test_mutable_borrow_havoced() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -843,6 +858,11 @@ fn test_move_semantics_value_consumed() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1044,6 +1064,11 @@ fn test_mixed_ownership_call() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1168,6 +1193,11 @@ fn test_ownership_with_postcondition_assumption() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1297,6 +1327,11 @@ fn test_no_ownership_without_contract_db() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1392,6 +1427,11 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         }
     };
@@ -1602,6 +1642,11 @@ fn test_ownership_multiple_shared_borrow_calls() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1758,6 +1803,11 @@ fn test_preservation_constraint_smt_encoding() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 

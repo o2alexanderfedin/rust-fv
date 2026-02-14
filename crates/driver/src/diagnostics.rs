@@ -246,6 +246,10 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::BorrowValidity => "borrow validity violation",
         VcKind::MemorySafety => "memory safety violation",
         VcKind::FloatingPointNaN => "floating-point verification failure",
+        VcKind::DataRaceFreedom => "data race detected",
+        VcKind::LockInvariant => "lock invariant violation",
+        VcKind::Deadlock => "potential deadlock detected",
+        VcKind::ChannelSafety => "channel operation safety violation",
     }
 }
 
@@ -307,6 +311,26 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::FloatingPointNaN => Some(
             "Consider adding NaN guards (!x.is_nan()) or using #[allows_nan] to suppress. \
              Float operations may produce NaN from 0.0/0.0, Inf - Inf, etc."
+                .to_string(),
+        ),
+        VcKind::DataRaceFreedom => Some(
+            "Add synchronization (Mutex, RwLock, or atomic operations) to protect shared state. \
+             Ensure all concurrent accesses to the same memory location are ordered by happens-before."
+                .to_string(),
+        ),
+        VcKind::LockInvariant => Some(
+            "Ensure the lock invariant holds before releasing the lock. \
+             The invariant was assumed at acquire and must be re-established at release."
+                .to_string(),
+        ),
+        VcKind::Deadlock => Some(
+            "Establish a consistent lock ordering. If multiple locks are needed, \
+             always acquire them in the same order across all threads."
+                .to_string(),
+        ),
+        VcKind::ChannelSafety => Some(
+            "Check channel usage: ensure sender is not dropped before receiver reads, \
+             bounded channels have capacity for sends, and receivers handle closed channels."
                 .to_string(),
         ),
         _ => None,

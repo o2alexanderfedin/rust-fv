@@ -42,6 +42,11 @@ fn make_i32_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -72,6 +77,11 @@ fn make_u32_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -108,6 +118,11 @@ fn make_struct_return_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -134,6 +149,11 @@ fn make_tuple_return_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -164,6 +184,11 @@ fn make_bool_return_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }

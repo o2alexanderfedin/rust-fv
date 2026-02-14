@@ -526,6 +526,10 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::BorrowValidity => "borrow_validity",
         VcKind::MemorySafety => "memory_safety",
         VcKind::FloatingPointNaN => "floating_point_nan",
+        VcKind::DataRaceFreedom => "data_race_freedom",
+        VcKind::LockInvariant => "lock_invariant",
+        VcKind::Deadlock => "deadlock",
+        VcKind::ChannelSafety => "channel_safety",
     }
     .to_string()
 }

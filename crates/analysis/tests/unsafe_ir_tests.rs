@@ -182,6 +182,11 @@ fn test_function_unsafe_fields() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     assert_eq!(func.unsafe_blocks.len(), 1);
@@ -210,6 +215,11 @@ fn test_function_is_unsafe_fn() {
         unsafe_operations: vec![],
         unsafe_contracts: Some(UnsafeContracts::default()),
         is_unsafe_fn: true,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     assert!(func.is_unsafe_fn);

@@ -457,6 +457,11 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -527,6 +532,11 @@ fn make_even(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -597,6 +607,11 @@ fn make_odd(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -707,6 +722,11 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -1006,6 +1026,11 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1090,6 +1115,11 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1243,6 +1273,11 @@ fn snd_recursive_without_decreases_rejected() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

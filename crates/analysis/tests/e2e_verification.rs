@@ -59,6 +59,11 @@ fn make_add_function(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -771,6 +776,11 @@ fn make_max_function(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -973,6 +983,11 @@ fn make_classify_function(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -1089,6 +1104,11 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -1279,6 +1299,11 @@ fn make_quad_function(contracts: Contracts) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     }
 }
@@ -1405,6 +1430,11 @@ fn test_single_branch_overflow_check() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
 
@@ -1835,6 +1865,11 @@ fn test_quantifier_full_pipeline() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -1948,6 +1983,11 @@ fn test_generic_max_i32_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Register i32 instantiation
@@ -2056,6 +2096,11 @@ fn test_generic_max_u64_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2164,6 +2209,11 @@ fn test_generic_max_wrong_postcondition() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Register i32 instantiation
@@ -2256,6 +2306,11 @@ fn test_generic_multiple_instantiations() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2347,6 +2402,11 @@ fn test_generic_no_instantiations_warning() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2416,6 +2476,11 @@ fn test_prophecy_increment_mut_ref() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2481,6 +2546,11 @@ fn test_prophecy_no_mutation_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2572,6 +2642,11 @@ fn test_prophecy_conditional_mutation() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2640,6 +2715,11 @@ fn test_prophecy_basic() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -406,6 +406,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -460,6 +465,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         // For now this is a placeholder test - actual implementation
@@ -564,6 +574,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let _result = generate_vcs(&func, None);
@@ -596,6 +611,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);

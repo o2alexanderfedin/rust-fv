@@ -109,6 +109,14 @@ pub enum VcKind {
     MemorySafety,
     /// Floating-point NaN propagation or infinity overflow check
     FloatingPointNaN,
+    /// Data race freedom check (conflicting accesses must be ordered)
+    DataRaceFreedom,
+    /// Lock invariant check (must hold at release)
+    LockInvariant,
+    /// Deadlock detection (lock-order cycle)
+    Deadlock,
+    /// Channel operation safety (send-on-closed, capacity overflow, recv deadlock)
+    ChannelSafety,
 }
 
 impl VcKind {
@@ -1994,6 +2002,11 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -3136,6 +3149,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         }
     }
@@ -3219,6 +3237,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         }
     }
@@ -3377,6 +3400,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -3428,6 +3456,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4013,6 +4046,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4044,6 +4082,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4086,6 +4129,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4128,6 +4176,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4157,6 +4210,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4181,6 +4239,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4205,6 +4268,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4325,6 +4393,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -4506,6 +4579,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4542,6 +4620,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4578,6 +4661,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4650,6 +4738,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         }
     }
@@ -4821,6 +4914,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -4905,6 +5003,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -4937,6 +5040,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -5037,6 +5145,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5081,6 +5194,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5116,6 +5234,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5151,6 +5274,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5184,6 +5312,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5258,6 +5391,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         }
     }
@@ -5314,6 +5452,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -5370,6 +5513,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -5559,6 +5707,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5603,6 +5756,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5647,6 +5805,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5691,6 +5854,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5782,6 +5950,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
             loops: vec![],
         };
 
@@ -5962,6 +6135,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         }
     }
 
@@ -6121,6 +6299,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6177,6 +6360,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6242,6 +6430,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         // Validate FnOnce single-call property
@@ -6302,6 +6495,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6341,6 +6539,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         // Call with None TraitDatabase - should work as before
@@ -6373,6 +6576,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -6411,6 +6619,11 @@ mod tests {
                 is_trusted: true,
             }),
             is_unsafe_fn: true,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6445,6 +6658,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: true,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6496,6 +6714,11 @@ mod tests {
             }],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6545,6 +6768,11 @@ mod tests {
             }],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6600,6 +6828,11 @@ mod tests {
             }],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6649,6 +6882,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6670,5 +6908,37 @@ mod tests {
         assert_ne!(fp_nan, VcKind::Overflow);
         assert_ne!(fp_nan, VcKind::MemorySafety);
         assert_eq!(fp_nan, VcKind::FloatingPointNaN);
+    }
+
+    #[test]
+    fn test_vc_kind_data_race_freedom() {
+        let drf = VcKind::DataRaceFreedom;
+        assert_eq!(drf, VcKind::DataRaceFreedom);
+        assert_ne!(drf, VcKind::Overflow);
+        assert_ne!(drf, VcKind::LockInvariant);
+    }
+
+    #[test]
+    fn test_vc_kind_lock_invariant() {
+        let li = VcKind::LockInvariant;
+        assert_eq!(li, VcKind::LockInvariant);
+        assert_ne!(li, VcKind::DataRaceFreedom);
+        assert_ne!(li, VcKind::Deadlock);
+    }
+
+    #[test]
+    fn test_vc_kind_deadlock() {
+        let dl = VcKind::Deadlock;
+        assert_eq!(dl, VcKind::Deadlock);
+        assert_ne!(dl, VcKind::LockInvariant);
+        assert_ne!(dl, VcKind::ChannelSafety);
+    }
+
+    #[test]
+    fn test_vc_kind_channel_safety() {
+        let cs = VcKind::ChannelSafety;
+        assert_eq!(cs, VcKind::ChannelSafety);
+        assert_ne!(cs, VcKind::Deadlock);
+        assert_ne!(cs, VcKind::DataRaceFreedom);
     }
 }

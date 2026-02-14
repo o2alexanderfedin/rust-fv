@@ -72,6 +72,11 @@ fn build_float_add_function(param_ty: FloatTy) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -106,6 +111,11 @@ fn build_float_mul_function(param_ty: FloatTy) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -140,6 +150,11 @@ fn build_float_div_function(param_ty: FloatTy) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -174,6 +189,11 @@ fn build_float_comparison_function(op: BinOp, param_ty: FloatTy) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -224,6 +244,11 @@ fn build_multi_float_ops_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -254,6 +279,11 @@ fn build_float_constant_function(value: f64, param_ty: FloatTy) -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -288,6 +318,11 @@ fn build_float_div_zero_function() -> Function {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -768,6 +803,11 @@ fn test_safe_function_no_float_vcs() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Generate VCs

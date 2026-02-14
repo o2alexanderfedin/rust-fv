@@ -431,6 +431,7 @@ mod tests {
             locals: vec![],
             basic_blocks: vec![],
             contracts: Default::default(),
+            loops: vec![],
             generic_params: vec![],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -441,7 +442,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
-            loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -492,6 +497,11 @@ mod tests {
             unsafe_contracts: None,
             is_unsafe_fn: false,
             loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -521,6 +531,11 @@ mod tests {
             unsafe_contracts: None,
             is_unsafe_fn: false,
             loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -564,6 +579,11 @@ mod tests {
             unsafe_contracts: None,
             is_unsafe_fn: false,
             loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -646,6 +666,11 @@ mod tests {
             unsafe_contracts: None,
             is_unsafe_fn: false,
             loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -705,6 +730,11 @@ mod tests {
             unsafe_contracts: None,
             is_unsafe_fn: false,
             loops: vec![],
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
 
         let decls = collect_datatype_declarations(&func);

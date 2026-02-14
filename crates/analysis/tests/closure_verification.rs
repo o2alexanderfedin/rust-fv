@@ -449,6 +449,11 @@ fn make_closure_caller(
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -621,6 +626,11 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -709,6 +719,11 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -794,6 +809,11 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -884,6 +904,11 @@ fn e2e_fnonce_double_call_diagnostic() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1007,6 +1032,11 @@ fn e2e_closure_contract_specification_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1097,6 +1127,11 @@ fn e2e_closure_contract_violation_detected() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1217,6 +1252,11 @@ fn e2e_fn_closure_multiple_params_verified() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

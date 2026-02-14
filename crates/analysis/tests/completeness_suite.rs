@@ -419,6 +419,11 @@ fn cmp_bounded_add() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -484,6 +489,11 @@ fn cmp_bounded_sub() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -549,6 +559,11 @@ fn cmp_bounded_mul() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -614,6 +629,11 @@ fn cmp_safe_div() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -674,6 +694,11 @@ fn cmp_safe_shift() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -723,6 +748,11 @@ fn cmp_identity_postcondition() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -768,6 +798,11 @@ fn cmp_constant_postcondition() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -835,6 +870,11 @@ fn cmp_bounded_add_postcondition() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -923,6 +963,11 @@ fn cmp_max_function() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1042,6 +1087,11 @@ fn cmp_abs_function() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1189,6 +1239,11 @@ fn cmp_clamp_function() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1285,6 +1340,11 @@ fn cmp_if_else_same_result() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1408,6 +1468,11 @@ fn cmp_multi_branch_classify() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1504,6 +1569,11 @@ fn cmp_early_return() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1663,6 +1733,11 @@ fn cmp_nested_branches_correct() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1745,6 +1820,11 @@ fn cmp_u8_bounded_add() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1810,6 +1890,11 @@ fn cmp_i64_bounded_add() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1875,6 +1960,11 @@ fn cmp_u64_bounded_mul() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1940,6 +2030,11 @@ fn cmp_i8_safe_operations() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1989,6 +2084,11 @@ fn cmp_mixed_width_identity() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2053,6 +2153,11 @@ fn cmp_safe_unsigned_sub() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2119,6 +2224,11 @@ fn cmp_safe_signed_rem() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

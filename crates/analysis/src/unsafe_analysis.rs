@@ -143,6 +143,11 @@ mod tests {
             unsafe_operations,
             unsafe_contracts,
             is_unsafe_fn,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         }
     }
 

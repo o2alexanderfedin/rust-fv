@@ -188,6 +188,103 @@ pub struct UnsafeContracts {
     pub is_trusted: bool,
 }
 
+// ============================ Concurrency IR Types ============================
+
+/// A thread spawn site in the program.
+///
+/// Represents calls to `std::thread::spawn` or `std::thread::scope`.
+#[derive(Debug, Clone)]
+pub struct ThreadSpawn {
+    /// Local variable holding the JoinHandle
+    pub handle_local: String,
+    /// Closure or function called in spawned thread
+    pub thread_fn: String,
+    /// Arguments passed to thread function
+    pub args: Vec<Operand>,
+    /// Whether this is a scoped thread (std::thread::scope)
+    pub is_scoped: bool,
+}
+
+/// Type of atomic operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtomicOpKind {
+    Load,
+    Store,
+    Swap,
+    CompareExchange,
+    FetchAdd,
+    FetchSub,
+}
+
+/// Memory ordering for atomic operations (maps to C11/C++11 memory model).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtomicOrdering {
+    Relaxed,
+    Acquire,
+    Release,
+    AcqRel,
+    SeqCst,
+}
+
+/// An atomic operation in the program.
+///
+/// Represents operations on types from `std::sync::atomic`.
+#[derive(Debug, Clone)]
+pub struct AtomicOp {
+    /// Type of atomic operation
+    pub kind: AtomicOpKind,
+    /// Memory ordering
+    pub ordering: AtomicOrdering,
+    /// The atomic variable being accessed
+    pub atomic_place: Place,
+    /// Value for stores/compare-exchange (None for loads)
+    pub value: Option<Operand>,
+}
+
+/// Type of synchronization operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyncOpKind {
+    MutexLock,
+    MutexUnlock,
+    RwLockRead,
+    RwLockWrite,
+    RwLockUnlock,
+    ChannelSend,
+    ChannelRecv,
+}
+
+/// A synchronization operation (mutex, rwlock, channel).
+#[derive(Debug, Clone)]
+pub struct SyncOp {
+    /// Type of synchronization operation
+    pub kind: SyncOpKind,
+    /// The synchronization object (Mutex, RwLock, Sender, Receiver)
+    pub sync_object: Place,
+}
+
+/// Configuration for bounded concurrency verification.
+///
+/// Bounded verification explores all interleavings up to specified limits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConcurrencyConfig {
+    /// Whether concurrency verification is enabled (opt-in)
+    pub verify_concurrency: bool,
+    /// Maximum number of threads to consider (default: 3)
+    pub max_threads: usize,
+    /// Maximum number of context switches to explore (default: 5)
+    pub max_context_switches: usize,
+}
+
+impl Default for ConcurrencyConfig {
+    fn default() -> Self {
+        ConcurrencyConfig {
+            verify_concurrency: false,
+            max_threads: 3,
+            max_context_switches: 5,
+        }
+    }
+}
+
 /// Information about a closure type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosureInfo {
@@ -243,6 +340,21 @@ pub struct Function {
     pub unsafe_contracts: Option<UnsafeContracts>,
     /// True if this function is declared as `unsafe fn`.
     pub is_unsafe_fn: bool,
+    /// Thread spawn sites detected in the function.
+    /// Empty if function spawns no threads.
+    pub thread_spawns: Vec<ThreadSpawn>,
+    /// Atomic operations detected in the function.
+    /// Empty if function has no atomic operations.
+    pub atomic_ops: Vec<AtomicOp>,
+    /// Synchronization operations detected in the function.
+    /// Empty if function has no sync operations.
+    pub sync_ops: Vec<SyncOp>,
+    /// Lock invariants specified on mutex/rwlock fields.
+    /// Each entry is (mutex_local_name, invariant_expr).
+    pub lock_invariants: Vec<(String, SpecExpr)>,
+    /// Concurrency verification configuration.
+    /// None if concurrency verification not enabled.
+    pub concurrency_config: Option<ConcurrencyConfig>,
 }
 
 impl Function {
@@ -796,6 +908,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(func.is_generic());
     }
@@ -820,6 +937,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(!func.is_generic());
     }
@@ -849,6 +971,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -876,6 +1003,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -900,6 +1032,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -924,6 +1061,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -951,6 +1093,11 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1520,11 +1667,113 @@ mod tests {
             unsafe_operations: vec![],
             unsafe_contracts: None,
             is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
         assert_eq!(func.outlives_constraints.len(), 0);
         assert_eq!(func.borrow_info.len(), 0);
         assert_eq!(func.reborrow_chains.len(), 0);
+    }
+
+    // ====== Concurrency IR types tests (Phase 12) ======
+
+    #[test]
+    fn test_thread_spawn_creation() {
+        let spawn = ThreadSpawn {
+            handle_local: "_1".to_string(),
+            thread_fn: "worker".to_string(),
+            args: vec![Operand::Copy(Place::local("_4"))],
+            is_scoped: false,
+        };
+        assert_eq!(spawn.handle_local, "_1");
+        assert_eq!(spawn.thread_fn, "worker");
+        assert_eq!(spawn.args.len(), 1);
+        assert!(!spawn.is_scoped);
+    }
+
+    #[test]
+    fn test_atomic_op_creation() {
+        let atomic_op = AtomicOp {
+            kind: AtomicOpKind::Load,
+            ordering: AtomicOrdering::SeqCst,
+            atomic_place: Place::local("_2"),
+            value: None,
+        };
+        assert_eq!(atomic_op.kind, AtomicOpKind::Load);
+        assert_eq!(atomic_op.ordering, AtomicOrdering::SeqCst);
+        assert_eq!(atomic_op.atomic_place.local, "_2");
+        assert!(atomic_op.value.is_none());
+    }
+
+    #[test]
+    fn test_sync_op_creation() {
+        let sync_op = SyncOp {
+            kind: SyncOpKind::MutexLock,
+            sync_object: Place::local("_3"),
+        };
+        assert_eq!(sync_op.kind, SyncOpKind::MutexLock);
+        assert_eq!(sync_op.sync_object.local, "_3");
+    }
+
+    #[test]
+    fn test_concurrency_config_default() {
+        let config = ConcurrencyConfig::default();
+        assert!(!config.verify_concurrency);
+        assert_eq!(config.max_threads, 3);
+        assert_eq!(config.max_context_switches, 5);
+    }
+
+    #[test]
+    fn test_function_with_concurrency_fields() {
+        let func = Function {
+            name: "concurrent_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![ThreadSpawn {
+                handle_local: "_1".to_string(),
+                thread_fn: "worker".to_string(),
+                args: vec![],
+                is_scoped: false,
+            }],
+            atomic_ops: vec![AtomicOp {
+                kind: AtomicOpKind::Store,
+                ordering: AtomicOrdering::Release,
+                atomic_place: Place::local("_2"),
+                value: Some(Operand::Move(Place::local("_3"))),
+            }],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: Some(ConcurrencyConfig {
+                verify_concurrency: true,
+                max_threads: 4,
+                max_context_switches: 10,
+            }),
+        };
+        assert_eq!(func.thread_spawns.len(), 1);
+        assert_eq!(func.atomic_ops.len(), 1);
+        assert!(func.concurrency_config.is_some());
+        let config = func.concurrency_config.unwrap();
+        assert!(config.verify_concurrency);
+        assert_eq!(config.max_threads, 4);
+        assert_eq!(config.max_context_switches, 10);
     }
 }

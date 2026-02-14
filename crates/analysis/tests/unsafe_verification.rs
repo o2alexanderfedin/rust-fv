@@ -79,6 +79,11 @@ fn make_unsafe_function(
         unsafe_operations,
         unsafe_contracts,
         is_unsafe_fn,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     }
 }
 
@@ -586,6 +591,11 @@ fn test_safe_function_no_unsafe_vcs() {
         unsafe_operations: vec![],
         unsafe_contracts: None,
         is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
     };
 
     // Generate VCs
