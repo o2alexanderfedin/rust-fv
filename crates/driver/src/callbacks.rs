@@ -525,6 +525,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::BehavioralSubtyping => "behavioral_subtyping",
         VcKind::BorrowValidity => "borrow_validity",
         VcKind::MemorySafety => "memory_safety",
+        VcKind::FloatingPointNaN => "floating_point_nan",
     }
     .to_string()
 }
@@ -707,6 +708,14 @@ mod tests {
     #[test]
     fn test_vc_kind_to_string_memory_safety() {
         assert_eq!(vc_kind_to_string(&VcKind::MemorySafety), "memory_safety");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_floating_point_nan() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::FloatingPointNaN),
+            "floating_point_nan"
+        );
     }
 
     // --- VerificationResult tests (struct construction) ---

@@ -47,12 +47,13 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
     let mut colors = ColorGenerator::new();
     let color = colors.next();
 
-    // Use Warning severity for MemorySafety (per USF-06 requirement)
-    let report_kind = if failure.vc_kind == VcKind::MemorySafety {
-        ReportKind::Warning
-    } else {
-        ReportKind::Error
-    };
+    // Use Warning severity for MemorySafety (per USF-06 requirement) and FloatingPointNaN
+    let report_kind =
+        if failure.vc_kind == VcKind::MemorySafety || failure.vc_kind == VcKind::FloatingPointNaN {
+            ReportKind::Warning
+        } else {
+            ReportKind::Error
+        };
 
     let report = Report::build(report_kind, source_file, offset)
         .with_message(format!(
@@ -202,6 +203,11 @@ fn report_text_only(failure: &VerificationFailure) {
         eprintln!("{}", format_unsafe_contract_help());
     }
 
+    if failure.vc_kind == VcKind::FloatingPointNaN {
+        eprintln!();
+        eprintln!("{}", format_float_verification_help());
+    }
+
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
         eprintln!();
         eprintln!("{}: {}", "help".cyan().bold(), suggestion);
@@ -228,6 +234,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::BehavioralSubtyping => "impl does not satisfy trait contract",
         VcKind::BorrowValidity => "borrow validity violation",
         VcKind::MemorySafety => "memory safety violation",
+        VcKind::FloatingPointNaN => "floating-point verification failure",
     }
 }
 
@@ -284,6 +291,11 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
             "Add safety contracts with #[unsafe_requires(ptr != null)] for null-safety, \
              #[unsafe_requires(offset < size)] for bounds-safety, or mark the function \
              #[trusted] if it has been manually verified."
+                .to_string(),
+        ),
+        VcKind::FloatingPointNaN => Some(
+            "Consider adding NaN guards (!x.is_nan()) or using #[allows_nan] to suppress. \
+             Float operations may produce NaN from 0.0/0.0, Inf - Inf, etc."
                 .to_string(),
         ),
         _ => None,
@@ -436,6 +448,17 @@ pub fn format_unsafe_contract_help() -> String {
      \n\
      Contracts enable compositional verification: callers must satisfy preconditions,\n\
      and can assume postconditions hold."
+        .to_string()
+}
+
+/// Format a help message for floating-point verification failures.
+///
+/// Explains IEEE 754 quirks and opt-in performance trade-off.
+pub fn format_float_verification_help() -> String {
+    "floating-point verification: IEEE 754 semantics include NaN propagation, \
+     signed zeros, and infinity overflow. These checks are warnings because \
+     float arithmetic is inherently approximate. Add guards like !x.is_nan() \
+     for stricter guarantees, or use #[allows_nan] (future) to suppress warnings."
         .to_string()
 }
 

@@ -107,6 +107,8 @@ pub enum VcKind {
     BorrowValidity,
     /// Memory safety check (null-check, bounds-check, use-after-free for unsafe code)
     MemorySafety,
+    /// Floating-point NaN propagation or infinity overflow check
+    FloatingPointNaN,
 }
 
 impl VcKind {
@@ -6646,5 +6648,14 @@ mod tests {
             memory_safety_vcs.is_empty(),
             "Safe function should not produce MemorySafety VCs"
         );
+    }
+
+    #[test]
+    fn test_vc_kind_floating_point_nan_eq() {
+        // VcKind::FloatingPointNaN should exist and be distinct
+        let fp_nan = VcKind::FloatingPointNaN;
+        assert_ne!(fp_nan, VcKind::Overflow);
+        assert_ne!(fp_nan, VcKind::MemorySafety);
+        assert_eq!(fp_nan, VcKind::FloatingPointNaN);
     }
 }
