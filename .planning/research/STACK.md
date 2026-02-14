@@ -1,535 +1,293 @@
-# Technology Stack Additions for Advanced Verification Features
+# Stack Research
 
-**Project:** rust-fv (Formal Verification for Rust)
-**Milestone:** Advanced Verification Features (Recursive Functions, Closures, Traits, Unsafe, Lifetimes, Floating-Point, Concurrency)
-**Researched:** 2026-02-11
-**Context:** Stack additions for SUBSEQUENT milestone building on existing validated capabilities
+**Domain:** Formal Verification Tooling for Rust
+**Researched:** 2026-02-14
+**Confidence:** HIGH
 
-## Executive Summary
+## Recommended Stack
 
-This stack research focuses ONLY on what's needed for the new advanced features: recursive functions, closures, trait objects, unsafe code verification, lifetime reasoning, floating-point arithmetic, and concurrency verification. The existing foundation (Z3 with QF_BV/QF_UFBVDT, syn 2.0, subprocess+native API, 5-crate workspace) remains unchanged and is NOT re-researched per milestone context.
+### Standard Library Contracts
 
-**Critical finding:** NO major new dependencies required beyond what's already in the codebase or was recommended in the base research. The advanced features are achievable through:
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| External crate pattern | N/A | Distribute stdlib specifications separately | Proven by Prusti (`prusti-std`) and Verus (`vstd`). Allows versioning specs independently from rust-fv core, users opt-in with `extern crate rust_fv_std;` |
+| `serde` for metadata | 1.0 | Serialize contract metadata for distribution | Industry standard for Rust serialization, already in workspace deps. Enables JSON-based contract storage/loading |
 
-1. **Existing Z3 capabilities** (quantifiers, datatypes, floating-point theory, uninterpreted functions)
-2. **Existing rustc APIs** (MIR closure/trait representations, borrow checker facts)
-3. **One lightweight graph library** (petgraph 0.8.3 for call graph analysis)
-4. **Optional polonius crate** (0.3.0 for lifetime facts if deeper borrow analysis needed)
+**Distribution Strategy:**
+- Create `rust-fv-std` crate with `#[extern_spec]`-style contracts for stdlib functions
+- Ship as separate optional dependency (follows Prusti model from external specs research)
+- Store contracts as combination of proc macro annotations + JSON metadata (serde-serialized)
+- Users add `extern crate rust_fv_std;` to import stdlib contracts
+- Future: Consider upstream integration via rust-lang compiler-team MCP (see issue #942 for primitive ownership assertions precedent)
 
-The key insight is that these features are **encoding challenges**, not dependency challenges. The stack is stable; the work is in VCGen and SMT translation logic.
+### Trigger Customization (Proc Macro)
 
----
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `syn` | 2.x | Parse `#[trigger]` attribute syntax | Already workspace dep (macros/Cargo.toml), handles "full" feature for all Rust syntax |
+| `quote` | 1.x | Code generation for trigger metadata | Already workspace dep, standard for proc macro codegen |
+| `proc-macro2` | 1.x | Stable proc macro API | Already workspace dep, provides stable interface over unstable rustc APIs |
 
-## Recommended Stack Additions
+**Implementation Approach:**
+- Add `#[trigger]` attribute macro to `rust-fv-macros` crate (alongside existing `#[requires]`, `#[ensures]`, etc.)
+- Parse trigger patterns from attribute: `#[trigger(pattern = "f(x)")]` or `#[trigger(auto)]`
+- Emit metadata struct alongside function (similar to existing contract metadata)
+- rust-analyzer supports attribute proc macro expansion (enabled by default since v0.2.768)
+- Verus/Dafny precedent: surface-language trigger selection with manual override annotations
 
-### Graph Analysis (Recursive Functions + Call Graph)
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **petgraph** | 0.8.3 | Strongly connected component detection for recursion analysis | Tarjan's SCC algorithm (O(V+E)) to detect mutual recursion. Already used by rustc internally. Memory-efficient implementation. **Required for recursive function verification.** |
+**What NOT to do:**
+- Don't implement trigger inference in proc macro (too complex, wrong layer) — do it in analysis crate during VCGen
+- Don't use unstable proc macro features (stick to stable `syn`/`quote` patterns)
 
-### Lifetime Analysis (Optional Enhancement)
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **polonius** | 0.3.0 | Borrow checker facts (optional, for advanced lifetime reasoning) | Generates loan_killed_at, loan_invalidated_at, var_used_at facts. **Only if** rustc borrow checker output proves insufficient. May NOT be needed if basic ownership reasoning suffices. |
+### VSCode Extension + Real-Time Verification
 
-### NO New Core Dependencies Required
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `tower-lsp` | 0.20+ | Rust LSP server implementation | De facto standard for Rust LSP servers (used by rust-analyzer, multiple verified tooling projects). Built on Tokio, provides `LanguageServer` trait |
+| `lsp-types` | 0.97+ | LSP protocol type definitions | Official LSP 3.17 types, diagnostic structures, message types. 18M+ downloads, maintained by LSP working group |
+| `tokio` | 1.47.x LTS | Async runtime for LSP server | tower-lsp requires Tokio. Use 1.47.x LTS (supported until Sept 2026) for stability. Provides async I/O for file watching + verification tasks |
+| `notify` | 7.x+ | Cross-platform file system watching | Used by rust-analyzer, cargo-watch, watchexec. Provides debounced events + raw API. Cross-platform (inotify/FSEvents/ReadDirectoryChangesW) |
+| `vscode-languageclient` (npm) | 9.x | VSCode extension LSP client | Official Microsoft LSP client for VSCode extensions. TypeScript/JavaScript, handles server lifecycle |
+| `@vscode/vsce` (npm) | 3.6+ | VSCode extension packaging | Official packaging tool (renamed from `vsce`). Requires Node.js 20.x+, supports multi-platform targets |
 
-The following advanced features do NOT require new crate dependencies:
-
-| Feature | Stack Needed | Already Have? |
-|---------|--------------|---------------|
-| **Recursive functions** | SMT quantifiers (forall), call graph analysis (SCC), termination metrics | YES: Z3 supports quantifiers via ALL logic; add petgraph for SCC |
-| **Closures** | MIR closure representation (upvar capture modes), SMT datatypes for closure environments | YES: rustc_middle::mir has closure info; z3 crate supports datatypes |
-| **Trait objects** | MIR vtable dispatch representation, SMT uninterpreted functions for dynamic dispatch | YES: rustc_middle::mir::TerminatorKind::Call; z3 supports UF theory |
-| **Unsafe code** | Integration with Miri for runtime UB detection (complementary, not verifier responsibility) | NO: Verification of unsafe is out of scope; defer to Miri (state-of-art 2026) |
-| **Lifetime reasoning** | Rustc borrow checker facts via rustc_borrowck, possibly polonius for advanced cases | MOSTLY: rustc APIs available; add polonius ONLY if needed |
-| **Floating-point** | SMT-LIB FloatingPoint theory (IEEE 754), Z3's QF_FP/QF_FPBV logics | YES: Z3 4.13+ has native FP support; z3 crate exposes it |
-| **Concurrency** | Happens-before partial order encoding, either symbolic execution of interleavings OR ownership-based data race freedom proofs | YES: Can encode with existing SMT; concurrency is HIGH complexity, Phase 6+ |
-
----
-
-## Technology Specifications
-
-### petgraph 0.8.3 (Graph Analysis)
-
-**Installation:**
-```toml
-# In crates/analysis/Cargo.toml
-[dependencies]
-petgraph = "0.8.3"
+**Architecture:**
+```
+VSCode Extension (TypeScript)
+  └─ vscode-languageclient (spawns LSP server process)
+       └─ rust-fv-lsp (Rust binary, tower-lsp)
+            ├─ tower-lsp: LSP protocol handling
+            ├─ notify: Watch .rs files for changes
+            ├─ tokio: Async runtime (spawn verification tasks)
+            └─ rust-fv-driver: Invoke verification on demand
 ```
 
-**What it provides:**
-- `petgraph::algo::tarjan_scc`: Tarjan's strongly connected components in O(V+E) time
-- `petgraph::Graph`: Directed graph for call graphs
-- `petgraph::algo::toposort`: Topological sort for non-recursive call ordering
+**New Workspace Crate:**
+- `crates/lsp/` - LSP server binary
+  - Dependencies: `tower-lsp`, `lsp-types`, `tokio`, `notify`, `rust-fv-driver`, `rust-fv-analysis`
+  - Implements: `textDocument/didOpen`, `didChange`, `didSave` → trigger verification
+  - Implements: `textDocument/publishDiagnostics` → map `ariadne` output to LSP diagnostics
+  - File watching: Use `notify` to detect changes outside VSCode (git switches, external edits)
 
-**Why this version:**
-- Latest stable (released Feb 2026)
-- Rust 1.64+ compatible (rust-fv requires 1.85+)
-- Used by rustc itself (`rustc_data_structures::graph::scc`)
-
-**Use cases:**
-1. **Recursive function detection:** Build call graph from MIR, run `tarjan_scc`, identify cycles
-2. **Mutual recursion groups:** SCCs with >1 function require shared termination metrics
-3. **Verification order:** Topological sort of non-recursive functions for bottom-up verification
-
-**Confidence:** HIGH (standard graph algorithms, widely used in Rust ecosystem)
-
-**Source:** [petgraph 0.8.3 on crates.io](https://crates.io/crates/petgraph), [tarjan_scc documentation](https://docs.rs/petgraph/latest/petgraph/algo/fn.tarjan_scc.html)
-
----
-
-### polonius 0.3.0 (Optional Lifetime Facts)
-
-**Installation:**
-```toml
-# In crates/driver/Cargo.toml (nightly-only crate)
-[dependencies]
-polonius = { version = "0.3", optional = true }
-
-[features]
-advanced-lifetimes = ["polonius"]
+**VSCode Extension Structure:**
+```
+extensions/vscode-rust-fv/
+├── package.json          # Extension manifest, activationEvents, contributes
+├── src/extension.ts      # Extension entry point (activates LSP client)
+├── tsconfig.json
+└── README.md
 ```
 
-**What it provides:**
-- `PoloniusFacts`: Datalog-style borrow checker facts
-- `loan_killed_at(loan, point)`: When a borrow is invalidated
-- `loan_invalidated_at(point, loan)`: Conflicting actions at program points
-- `var_used_at(var, point)`: Variable usage tracking
+**Incremental Verification Strategy:**
+- Use `notify` debounced events (default API) to avoid verification spam on rapid edits
+- On file change: parse MIR only for changed function + dependents (inspired by Salsa incremental model from ty/Pyrefly LSP research)
+- Cache verification results keyed by function body hash (use existing `sha2` workspace dep)
+- Run verification on background Tokio task, stream diagnostics via `publishDiagnostics`
 
-**Why this version:**
-- Latest stable (polonius is evolving toward rustc integration)
-- Designed for external tooling consumption
+**What NOT to do:**
+- Don't use WebAssembly for LSP server (adds complexity, harder debugging, no perf benefit for CPU-bound SMT solving)
+- Don't use `napi-rs` for Node.js native addon (wrong abstraction — use LSP protocol boundary instead)
+- Don't re-verify entire crate on every keystroke (implement file-level + function-level caching)
 
-**When to use:**
-- **Use polonius if:** Need to prove properties about borrow lifetimes (e.g., "this borrow never escapes this scope")
-- **Skip polonius if:** Basic ownership reasoning (moved values, immutable borrows) from rustc borrow checker output suffices
+### Z3 bv2int Native Integration
 
-**Current recommendation:** START without polonius. Add only if Phase 3 ownership reasoning proves insufficient.
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| `z3` (Rust bindings) | 0.19+ | High-level Z3 API | Already workspace dep. Provides `Config`, `Params`, `Solver` types for native solver configuration |
+| `z3-sys` | (transitive) | Low-level Z3 C API | Used when high-level bindings don't expose specific features. Direct access to Z3 C API functions |
 
-**Confidence:** MEDIUM (polonius is experimental, but facts generation is stable via `rustc -Znll-facts`)
+**Implementation Approach:**
+- Use `z3::Params` to configure solver tactics programmatically (replaces subprocess CLI flags)
+- Apply `bv2int` tactic via `Solver::set_params()` or tactic combinators
+- Z3 Python precedent: `With('simplify', mul2concat=True)` → Rust: `Params::set_bool("mul2concat", true)`
+- Tactic sequence: `simplify` (with bv2int-friendly options) → `solve-eqs` → `bit-blast` → `sat`
 
-**Source:** [polonius 0.3.0 on crates.io](https://docs.rs/crate/polonius/latest), [Polonius GitHub](https://github.com/rust-lang/polonius)
-
----
-
-### Z3 Floating-Point Theory (No New Dependency)
-
-**Already available via z3 crate 0.19:**
-- `QF_FP` logic (quantifier-free floating-point)
-- `QF_FPBV` logic (floating-point + bitvectors)
-- IEEE 754 operations: add, sub, mul, div, sqrt, fma
-- Rounding modes: RNE, RNA, RTP, RTN, RTZ
-- Special values: +inf, -inf, NaN, +zero, -zero
-
-**SMT-LIB syntax:**
-```smt2
-(declare-const x (_ FloatingPoint 11 53))  ; IEEE 754 double precision
-(assert (fp.gt x (fp.roundToIntegral RNE x)))  ; x > round(x)
-```
-
-**Rust z3 crate API:**
+**Z3 Configuration API:**
 ```rust
-use z3::ast::Float;
-let ctx = z3::Context::new(&z3::Config::new());
-let x = Float::new_const(&ctx, "x", 11, 53);  // double precision
+use z3::{Config, Context, Params, Solver, Tactic};
+
+let cfg = Config::new();
+let ctx = Context::new(&cfg);
+
+// Option 1: Configure via Params
+let mut params = Params::new(&ctx);
+params.set_bool("solver.bv.enable_int2bv", true);  // Enable bv2int rewrites
+let solver = Solver::new(&ctx);
+solver.set_params(&params);
+
+// Option 2: Use tactics (more control)
+let simplify = Tactic::new(&ctx, "simplify");
+let solve_eqs = Tactic::new(&ctx, "solve-eqs");
+let combined = simplify.and_then(&solve_eqs);
+let solver = combined.solver(&ctx);
 ```
 
-**Encoding strategy:**
-1. Rust `f32` -> SMT `(_ FloatingPoint 8 24)` (IEEE 754 single)
-2. Rust `f64` -> SMT `(_ FloatingPoint 11 53)` (IEEE 754 double)
-3. Bit-blast to bitvectors for mixed arithmetic (Z3 handles this internally)
+**Research Note:**
+- Z3 C API exposes `Z3_OP_BV2INT` (unsigned) and `Z3_OP_SBV2INT` (signed) operations
+- SMTLIB2 API: `ubv_to_int`, `sbv_to_int`, `int_to_bv` (recent additions per GitHub issues #1252, #1481)
+- z3 crate 0.19 provides high-level bindings; if missing, drop to `z3_sys` for direct C API calls
+- Configuration: 200+ parameters available via `set_global_param()` or solver-specific `Params`
 
-**Performance note:** FP theory is slower than bitvectors. Z3 reduces FP to BV internally, adding overhead.
+**Integration into solver crate:**
+- Extend `rust-fv-solver` enum to include `Z3Native { config: Z3Config }`
+- Parse CLI flags `--z3-tactic`, `--z3-param` to populate `Z3Config`
+- Route to native API instead of subprocess when `z3-native` feature enabled (already exists)
+- Benchmark: native should be faster (no subprocess overhead, direct memory access)
 
-**Confidence:** HIGH (Z3's FP support is mature, used in production verifiers)
+**What NOT to do:**
+- Don't use `bv2int` indiscriminately (can cause performance regression on bitwise-heavy code)
+- Don't configure globally via `set_global_param()` (breaks isolation if multiple solvers in parallel)
+- Don't assume all Z3 features are exposed in high-level bindings (use `z3_sys` when needed)
 
-**Source:** [SMT-LIB FloatingPoint Theory](https://smt-lib.org/theories-FloatingPoint.shtml), [Z3 Guide: Floating-Point](https://microsoft.github.io/z3guide/docs/theories/Bitvectors/), [IEEE 754 Formal Model (Feb 2026)](https://devel.isa-afp.org/browser_info/current/AFP/IEEE_Floating_Point/document.pdf)
+## Supporting Libraries
 
----
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `dashmap` | 6.x+ | Concurrent hash map for caching | If implementing parallel verification with shared cache. Better than `RwLock<HashMap>` for high contention. Already have `rayon` for parallelism |
+| `salsa` | 0.17+ | Incremental computation framework | If building sophisticated incremental verification (tracks dependencies, auto-invalidates). Large dep (consider later) — start with manual caching |
+| `async-lsp` | 3.x+ | Alternative to tower-lsp | If need more control over LSP loop lifecycle (tower-lsp is opinionated). Consider only if tower-lsp limitations appear |
+| `wasm-bindgen` | 0.2+ | WebAssembly TypeScript bindings | If shipping browser-based verification (future: Rust Playground integration). Not needed for VSCode extension |
 
-### Existing Dependencies: What's Already Sufficient
+## Development Tools
 
-#### rustc_middle::mir (Closures & Trait Objects)
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `@vscode/vsce` | Package VSCode extension | Install globally: `npm install -g @vscode/vsce`. Use `vsce package --target <platform>` for multi-platform |
+| `tsc` (TypeScript) | Compile extension TypeScript | VSCode extension written in TS. Use `tsc --watch` during development |
+| `cargo watch` | Auto-rebuild LSP server on change | Development workflow: `cargo watch -x 'build --bin rust-fv-lsp'` |
+| `rust-analyzer` | VSCode Rust language server | Test LSP server alongside rust-analyzer (different language servers can coexist) |
 
-**Closure representation in MIR:**
-- `TerminatorKind::Call` with `func: Operand` where operand is closure type
-- Closure upvar capture modes: `ByValue`, `ByRef(BorrowKind)`, `ByMutRef`
-- `UpvarDecl` tracks captured variables and their capture kinds
+## Installation
 
-**Encoding strategy:**
-1. Extract closure environment as struct: `struct Closure_env { field1: T1, field2: &T2 }`
-2. Encode as SMT datatype (same as structs)
-3. Closure call -> function call with explicit environment parameter
+### Rust Dependencies (Cargo.toml additions)
 
-**Trait object representation in MIR:**
-- `TerminatorKind::Call` with `func: Operand` of type `dyn Trait`
-- Vtable dispatch via `Rvalue::Ref` to trait object
-- `ProjectionElem::Downcast` for pattern matching on trait objects
+```toml
+# Workspace-level additions
+[workspace.dependencies]
+tower-lsp = "0.20"
+lsp-types = "0.97"
+tokio = { version = "1.47", features = ["full"] }  # LTS until Sept 2026
+notify = "7"
 
-**Encoding strategy (conservative):**
-1. Encode vtable dispatch as SMT uninterpreted function: `(declare-fun vtable_call (TraitObject Method) ReturnType)`
-2. Soundness: Over-approximate (any implementation could be called)
-3. Precision improvement (Phase 6+): Encode all possible implementations if finite
+# For lsp crate
+[dependencies]
+tower-lsp = { workspace = true }
+lsp-types = { workspace = true }
+tokio = { workspace = true }
+notify = { workspace = true }
+rust-fv-driver = { workspace = true }
+rust-fv-analysis = { workspace = true }
 
-**Confidence:** HIGH (MIR representation is stable for closures/traits; encoding is standard)
+# For std crate
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+```
 
-**Source:** [Rust Compiler Dev Guide: Closures](https://rustc-dev-guide.rust-lang.org/closure.html), [MIR Terminator Documentation](https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/terminator/struct.Terminator.html)
+### VSCode Extension Dependencies (package.json)
 
-#### Z3 Quantifiers (Recursive Functions)
-
-**Already supported via z3 crate:**
-- `(declare-fun f (Int) Int)` for function signature
-- `(assert (forall ((x Int)) (=> (> x 0) (< (f x) (f (+ x 1))))))` for properties
-- Quantifier instantiation via E-matching (pattern-based triggers)
-
-**Recursive function encoding strategy:**
-1. **Uninterpreted function approach:** `(declare-fun fib (Int) Int)` + axioms for base/recursive cases
-2. **Termination obligation:** Separate VC proving termination metric decreases
-3. **Induction:** Manual inductive proofs via loop invariants over recursion depth
-
-**Limitations:**
-- Z3 does NOT do automatic induction (per research: "important limitation")
-- User must provide termination metrics (`decreases` clause, Dafny/Verus-style)
-- Mutual recursion: requires well-founded lexicographic ordering
-
-**Confidence:** MEDIUM-HIGH (quantifiers work but require careful trigger design; performance can be poor)
-
-**Source:** [Z3 Guide: Datatypes (recursive types)](https://microsoft.github.io/z3guide/docs/theories/Datatypes/), [SMT quantifiers research](https://fstar-lang.org/tutorial/book/under_the_hood/uth_smt.html)
-
----
-
-## Integration Points
-
-### 1. Recursive Functions
-
-**MIR extraction (driver crate):**
-- Walk `rustc_middle::mir::Body::basic_blocks()` to extract `TerminatorKind::Call`
-- Build call graph: nodes = functions, edges = caller -> callee
-- Use `petgraph::algo::tarjan_scc` to detect recursion cycles
-
-**VCGen (analysis crate):**
-- Non-recursive functions: inline or use function summaries (Phase 3 approach)
-- Recursive functions:
-  1. Require `#[decreases(metric)]` annotation (user-supplied termination metric)
-  2. Generate termination VC: `metric(args_recursive_call) < metric(args_current_call)`
-  3. Encode function as uninterpreted function + axioms for base/recursive cases
-
-**SMT encoding (smtlib crate):**
-- `Command::DeclareFun(name, arg_sorts, return_sort)` for uninterpreted function
-- `Command::Assert(Term::Forall(...))` for axioms encoding function body
-- Separate VC for termination metric
-
-**Pitfall:** Quantifier performance. Mitigation: Require explicit triggers in `#[decreases]` if SMT times out.
-
----
-
-### 2. Closures
-
-**MIR extraction (driver crate):**
-- Extract closure type from `ty::TyKind::Closure(def_id, substs)`
-- Extract upvar capture info from `rustc_middle::ty::ClosureSubsts`
-- Map each upvar to its capture mode (`ByValue`, `ByRef`, `ByMutRef`)
-
-**VCGen (analysis crate):**
-- Model closure environment as struct: `{ captured_var1, captured_var2, ... }`
-- Closure call -> function call with environment as first parameter
-- Borrow rules for captured `&mut` variables follow Phase 4 prophecy model
-
-**SMT encoding (smtlib crate):**
-- Use existing SMT datatype encoding (same as structs)
-- Selector functions for captured variables
-- No new SMT features required
-
-**Pitfall:** Nested closures (closure capturing another closure). Mitigation: Flatten environment transitively.
-
----
-
-### 3. Trait Objects (Dynamic Dispatch)
-
-**MIR extraction (driver crate):**
-- Detect `ty::TyKind::Dynamic(trait_ref, _)` for trait objects
-- Extract vtable dispatch from `Rvalue::Ref` to trait object
-- Track possible implementations via trait solver queries (if finite, e.g., sealed traits)
-
-**VCGen (analysis crate):**
-- **Conservative encoding (initial):** Havoc return value (any implementation could run)
-- **Precise encoding (Phase 6+):** Enumerate all implementations, generate VC for each, verify all paths
-
-**SMT encoding (smtlib crate):**
-- `(declare-fun dyn_call (TraitObject) ReturnType)` uninterpreted function
-- No axioms (conservative: no assumptions about implementation)
-
-**Pitfall:** Imprecision leads to false negatives (cannot verify properties requiring specific implementation). Mitigation: Documentation + sealed trait support.
-
----
-
-### 4. Unsafe Code Verification
-
-**Recommendation:** OUT OF SCOPE for deductive verification. Delegate to Miri.
-
-**Rationale:**
-- Miri (POPL 2026) is state-of-the-art for undefined behavior detection in unsafe Rust
-- Miri detects: out-of-bounds access, use-after-free, alignment violations, data races
-- Deductive verification of unsafe code requires low-level memory models (separation logic, RustBelt), which is research-level complexity
-
-**Integration strategy (complementary tools):**
-- rust-fv verifies safe Rust (functional correctness)
-- Miri verifies unsafe Rust (UB freedom)
-- `cargo verify` runs both: `cargo verify` (rust-fv) + `cargo miri test` (Miri)
-
-**Confidence:** HIGH (Miri is the right tool; reinventing it is not worthwhile)
-
-**Source:** [Miri: Practical UB Detection (POPL 2026)](https://research.ralfj.de/papers/2026-popl-miri.pdf), [Kani verifier approach](https://github.com/model-checking/kani) (bounded model checking for unsafe)
-
----
-
-### 5. Lifetime Reasoning
-
-**MIR borrow checker facts (driver crate):**
-- Access via `rustc -Znll-facts` flag (generates Polonius facts in text format)
-- Parse facts to extract: `borrow_region(loan, region)`, `outlives(region1, region2)`
-
-**VCGen (analysis crate):**
-- **Basic ownership:** Track moved values (value cannot be used after move), immutable borrows (value is read-only during borrow)
-- **Advanced lifetimes (if polonius added):** Encode region outlives constraints as SMT implications
-
-**SMT encoding (smtlib crate):**
-- Model regions as fresh constants: `(declare-const r1 Region)`
-- Outlives: `(assert (outlives r1 r2))` as uninterpreted relation
-- Borrow validity: `(assert (=> (borrow_active loan) (region_alive region)))`
-
-**Decision point:** START without polonius. Add ONLY if Phase 3 basic ownership reasoning cannot express needed properties.
-
-**Confidence:** MEDIUM (basic ownership is well-understood; advanced lifetime reasoning is complex)
-
-**Source:** [Polonius GitHub](https://github.com/rust-lang/polonius), [Polonius Facts Documentation](https://rust-lang.github.io/polonius/generate_inputs.html)
-
----
-
-### 6. Floating-Point Arithmetic
-
-**MIR extraction (driver crate):**
-- Detect `ty::TyKind::Float(FloatTy::F32 | FloatTy::F64)`
-- Extract float ops from `Rvalue::BinaryOp(BinOp::Add | Sub | Mul | Div, ...)`
-
-**VCGen (analysis crate):**
-- Map Rust float ops to SMT-LIB FP ops: `+` -> `fp.add RNE`, `*` -> `fp.mul RNE`
-- Rounding mode: Default to RNE (round-to-nearest, ties-to-even) per IEEE 754
-- Special value handling: NaN propagation, infinity, signed zero
-
-**SMT encoding (smtlib crate):**
-```rust
-// In smtlib/src/sort.rs
-pub enum Sort {
-    // ... existing variants
-    FloatingPoint { exponent: u32, significand: u32 },  // ((_ FloatingPoint e s))
-}
-
-// In smtlib/src/term.rs
-pub enum Term {
-    // ... existing variants
-    FpLiteral(f64),  // Converts to (fp #b0 #b01111111111 #x0000000000000) format
-    FpOp(FpOp, Vec<Term>),  // fp.add, fp.mul, etc.
+```json
+{
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
 }
 ```
-
-**z3 crate API:**
-```rust
-use z3::ast::Float;
-let x = Float::new_const(&ctx, "x", 11, 53);
-let y = Float::new_const(&ctx, "y", 11, 53);
-let sum = Float::add(&ctx, &[&x, &y], z3::ast::RoundingMode::RoundNearestTiesToEven);
-```
-
-**Performance:** FP theory is SLOWER than bitvectors (Z3 internally reduces FP to BV). Expect 2-10x slower solving.
-
-**Confidence:** HIGH (IEEE 754 support in Z3 is mature, SMT-LIB 2.6 standard)
-
-**Source:** [SMT-LIB FloatingPoint Theory](https://smt-lib.org/theories-FloatingPoint.shtml), [IEEE 754 formalization](https://devel.isa-afp.org/browser_info/current/AFP/IEEE_Floating_Point/document.pdf)
-
----
-
-### 7. Concurrency Verification
-
-**Complexity assessment:** VERY HIGH. Recommend Phase 6+ (post-v1.0).
-
-**Two approaches:**
-
-#### Approach A: Symbolic Execution of Interleavings (ESBMC-style)
-- Enumerate all thread interleavings up to context bound
-- Generate separate VC for each interleaving
-- Check data races, deadlocks, assertion violations per interleaving
-- **Tooling:** No new dependencies (encode interleavings as branching in VCGen)
-- **Limitation:** Combinatorial explosion (K threads, N steps -> O(N^K) interleavings)
-
-#### Approach B: Ownership-Based Data Race Freedom (Creusot 0.9.0 / VerusSync-style)
-- Leverage Rust's Send/Sync traits for data race freedom by construction
-- Encode happens-before relation as partial order in SMT
-- Verify atomics via sequential consistency axioms
-- **Tooling:** Requires encoding of Rust's memory model (RustBelt-style)
-- **Limitation:** Only proves data race freedom, not full functional correctness
-
-**Recommendation:** Approach B (ownership-based) aligns better with rust-fv's philosophy. But defer to Phase 6 due to complexity.
-
-**What to add (when Phase 6):**
-- Partial order encoding for happens-before: `(declare-fun hb (Event Event) Bool)`
-- Axioms for partial order: reflexive, transitive, antisymmetric
-- Atomics encoding: `Ordering::SeqCst` -> total order, `Ordering::Relaxed` -> no constraints
-
-**Confidence:** LOW for near-term (needs significant research), MEDIUM for long-term (proven approaches exist)
-
-**Source:** [ESBMC concurrency verification](https://github.com/esbmc/esbmc), [VerusSync (Creusot 0.9.0 devlog)](https://creusot-rs.github.io/devlog/2026-01-19/), [Asterinas formal verification approach](https://asterinas.github.io/2025/02/13/towards-practical-formal-verification-for-a-general-purpose-os-in-rust.html)
-
----
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not Alternative |
 |----------|-------------|-------------|---------------------|
-| **Call graph analysis** | petgraph 0.8.3 | rustc_data_structures::graph::scc | Nightly-only API; couples analysis crate to rustc; petgraph is stable Rust |
-| **Recursive function encoding** | Z3 quantifiers + termination metrics | Bounded unrolling (Kani-style) | Loses completeness; cannot prove unbounded recursion correct; users expect full verification |
-| **Closure encoding** | SMT datatypes for environment | Defunctionalization (convert to function pointers) | More complex; loses type precision; datatype approach mirrors MIR structure |
-| **Trait object encoding** | Uninterpreted functions (conservative) | Enumerate all impls + verify each | Requires whole-program analysis; doesn't scale; phase 6+ feature |
-| **Unsafe verification** | Defer to Miri (complementary tool) | Build separation logic verifier | Years of research effort; Miri already state-of-art; not differentiating for rust-fv |
-| **Lifetime facts** | rustc borrow checker output | polonius crate | Start with simpler rustc output; add polonius ONLY if insufficient |
-| **Floating-point** | Z3 native FP theory | Bit-blast to custom BV encoding | Reinventing Z3's internals; FP theory is standard; no benefit |
-| **Concurrency** | Ownership-based (Phase 6+) | Interleaving enumeration (ESBMC) | Combinatorial explosion; doesn't leverage Rust's ownership; ownership aligns with rust-fv philosophy |
+| LSP Server | `tower-lsp` | `async-lsp` | tower-lsp more popular, better docs, specialized for servers (not clients). async-lsp adds client support we don't need |
+| LSP Server | `tower-lsp` | Custom LSP impl | Reinventing wheel. tower-lsp handles protocol details, lets us focus on verification logic |
+| Async Runtime | `tokio` | `async-std` | tower-lsp requires tokio. Ecosystem momentum behind tokio (1.49+ active development) |
+| File Watching | `notify` | Manual polling | notify provides platform-native watchers (inotify/FSEvents). Used by rust-analyzer (proven reliability) |
+| VSCode Client | `vscode-languageclient` | Manual LSP client | Official Microsoft library, handles edge cases, lifecycle management. No reason to reimplement |
+| Stdlib Contracts | Separate crate | Inline in core | Versioning independence (stdlib evolves slower than tool). Opt-in model (users choose to add dep) |
+| Z3 API | Native bindings | Subprocess only | Native faster (no IPC), more control (tactics, params), same safety (z3 crate is safe wrapper) |
 
----
+## What NOT to Use
 
-## Installation Summary
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| `async-std` for LSP | tower-lsp requires tokio, mixing runtimes causes issues | `tokio` 1.47 LTS |
+| `vsce` (old package) | Deprecated, renamed to `@vscode/vsce` | `@vscode/vsce` 3.6+ |
+| `languageserver-types` | Unmaintained, superseded by `lsp-types` | `lsp-types` 0.97+ |
+| WebAssembly for LSP | Adds build complexity, no perf benefit for SMT solving, harder FFI to Z3 | Native Rust binary via LSP protocol |
+| `napi-rs` | Wrong abstraction — we need LSP protocol boundary, not Node.js addon API | VSCode extension spawns Rust LSP binary |
+| Global Z3 params | Breaks parallel solver isolation | Per-solver `Params` configuration |
+| Polling for file changes | Inefficient, higher latency than OS-native watchers | `notify` crate with platform-specific backends |
 
-### Immediate Additions (for recursive functions + closures + traits + FP)
+## Stack Patterns by Feature
 
-```toml
-# crates/analysis/Cargo.toml
-[dependencies]
-# ... existing dependencies
-petgraph = "0.8.3"  # Call graph analysis for recursion detection
-```
+**Standard Library Contracts:**
+- Create `crates/rust-fv-std/` with external specs
+- Pattern: `#[extern_spec(std::vec::Vec)]` attribute (define in macros crate)
+- Serialization: `serde` for metadata, proc macros for parsing
+- Distribution: Separate crate users opt into
 
-### Optional (only if needed during implementation)
+**Trigger Customization:**
+- Extend `rust-fv-macros` with `#[trigger]` attribute
+- Parse in proc macro, emit metadata, consume in `rust-fv-analysis` during VCGen
+- Pattern matching: Verus-style surface syntax `#[trigger(f(x), g(y))]`
+- Auto mode: `#[trigger(auto)]` delegates to analysis phase
 
-```toml
-# crates/driver/Cargo.toml (nightly-only crate)
-[dependencies]
-# ... existing dependencies
-polonius = { version = "0.3", optional = true }  # Advanced lifetime facts
+**VSCode Extension + LSP:**
+- New crate: `crates/lsp/` implements `tower_lsp::LanguageServer`
+- VSCode extension (TypeScript): `extensions/vscode-rust-fv/`
+- Communication: JSON-RPC over stdio (vscode-languageclient handles protocol)
+- File watching: `notify` for external changes + LSP `didChange` for editor changes
+- Incremental: Cache by function hash, re-verify only changed functions + dependents
 
-[features]
-advanced-lifetimes = ["polonius"]
-```
+**Z3 bv2int Native:**
+- Use existing `z3` workspace dep (0.19+)
+- Configure via `Params` API: `solver.set_params(&params)`
+- Tactic combinators: `simplify.and_then(&solve_eqs).solver(&ctx)`
+- Fallback to `z3_sys` if high-level API missing features
 
-### Already Available (no installation needed)
+## Version Compatibility
 
-- **Z3 floating-point theory:** via z3 crate 0.19+ (already in workspace dependencies)
-- **Z3 quantifiers:** via `ALL` logic (already used for current quantifiers)
-- **SMT datatypes:** via `QF_UFBVDT` (already used for structs/enums)
-- **Uninterpreted functions:** via `UF` theory (already available in Z3)
-- **rustc MIR APIs:** via rustc_middle (already accessed in driver crate)
+| Package A | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `tower-lsp` 0.20 | `tokio` 1.17+ | Requires Tokio runtime, tested with 1.47 LTS |
+| `lsp-types` 0.97 | LSP 3.17 | Proposed 3.17 features via `proposed` feature flag |
+| `vscode-languageclient` 9.x | Node.js 20+ | VSCode extension API, requires modern Node |
+| `z3` 0.19 | Z3 solver 4.13+ | Bindings track Z3 releases, update together |
+| `notify` 7.x | Tokio 1.x | Async file watcher, integrates with tokio runtime |
+| `tokio` 1.47 LTS | Rust 1.70+ | LTS supported until Sept 2026, backported bugfixes |
 
----
-
-## Integration Testing Strategy
-
-### New Test Categories Needed
-
-1. **Recursive functions:**
-   - Simple recursion (factorial, fibonacci)
-   - Mutual recursion (even/odd check)
-   - Termination metric tests (decreases clause violations should fail)
-
-2. **Closures:**
-   - Closure capturing immutable references
-   - Closure capturing mutable references (requires Phase 4 prophecy variables)
-   - Nested closures
-
-3. **Trait objects:**
-   - Sealed trait with finite implementations (precise verification)
-   - Open trait (conservative havoc-based verification)
-
-4. **Floating-point:**
-   - Basic arithmetic (addition, multiplication)
-   - Special values (NaN, infinity)
-   - Rounding mode tests (verify FP is NOT exact like integers)
-
-5. **Lifetimes:**
-   - Basic ownership (moved values)
-   - Immutable borrows (multiple concurrent readers)
-   - Mutable borrows (exclusive access - Phase 4)
-
-### Testing Tools (already in codebase or planned)
-
-- `compiletest_rs`: UI tests for error messages
-- `proptest`: Property-based testing of encodings
-- `criterion`: Performance benchmarks for SMT encoding
-
----
-
-## Performance Considerations
-
-### Expected Performance Impact
-
-| Feature | Expected Overhead | Mitigation |
-|---------|------------------|------------|
-| **Recursive functions** | 2-5x slower (quantifiers) | Explicit triggers in `#[decreases]`; bounded unrolling fallback |
-| **Closures** | <10% overhead (struct encoding) | None needed; closures are lightweight |
-| **Trait objects** | Minimal (havoc is fast) | Conservative encoding is cheap; precise encoding expensive (Phase 6+) |
-| **Floating-point** | 2-10x slower (FP->BV reduction) | Warn users; offer bitvector fallback for bitwise-exact FP |
-| **Lifetimes** | <5% overhead (extra facts) | None needed; mostly analysis-time cost |
-| **Concurrency** | 10-100x slower (interleaving explosion) | Phase 6+ only; ownership-based approach avoids worst case |
-
-### Benchmarking Plan
-
-- Add `recursive_bench.rs` in `crates/analysis/benches/`
-- Measure VC generation time vs. baseline (non-recursive functions)
-- Measure SMT solving time with/without quantifiers
-- Track performance regression in CI
-
----
+**Critical Compatibility:**
+- tower-lsp + tokio: MUST use tokio (not async-std), version 1.17+ required
+- VSCode extension + Node.js: Requires Node.js 20.x+ (per @vscode/vsce docs)
+- z3 crate + Z3 solver: Keep versions aligned (z3 0.19 → Z3 4.13.x)
 
 ## Sources
 
-### High Confidence (Official Documentation & Recent Research)
+### High Confidence (Official Docs + Context7)
+- [z3 crate documentation](https://docs.rs/z3/latest/z3/) — Version 0.19.8, API features
+- [tower-lsp documentation](https://docs.rs/tower-lsp/latest/tower_lsp/) — Version 0.20.0, LanguageServer trait
+- [lsp-types documentation](https://docs.rs/lsp-types/latest/lsp_types/) — Version 0.97.0, diagnostic types
+- [Tokio releases](https://github.com/tokio-rs/tokio/releases) — LTS versions 1.43.x, 1.47.x
+- [Prusti external specifications](https://viperproject.github.io/prusti-dev/user-guide/verify/external.html) — prusti-std pattern
+- [Z3 API reference](https://z3prover.github.io/api/html/group__capi.html) — C API documentation
 
-- [petgraph 0.8.3 on crates.io](https://crates.io/crates/petgraph) - Graph analysis library, latest version
-- [tarjan_scc API documentation](https://docs.rs/petgraph/latest/petgraph/algo/fn.tarjan_scc.html) - SCC algorithm for recursion detection
-- [polonius 0.3.0 on crates.io](https://docs.rs/crate/polonius/latest) - Borrow checker facts
-- [SMT-LIB FloatingPoint Theory](https://smt-lib.org/theories-FloatingPoint.shtml) - IEEE 754 formalization
-- [IEEE 754 Formal Model (Feb 2026)](https://devel.isa-afp.org/browser_info/current/AFP/IEEE_Floating_Point/document.pdf) - Recent formalization
-- [Rust Compiler Dev Guide: MIR](https://rustc-dev-guide.rust-lang.org/mir/index.html) - MIR structure for closures/calls
-- [Rust Compiler Dev Guide: Closures](https://rustc-dev-guide.rust-lang.org/closure.html) - Closure capture inference
-- [MIR Terminator Documentation](https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/terminator/struct.Terminator.html) - Call representation
-- [Z3 Guide: Datatypes](https://microsoft.github.io/z3guide/docs/theories/Datatypes/) - Recursive datatypes limitations
-- [Z3 Rust Bindings](https://github.com/prove-rs/z3.rs) - z3 crate 0.19 API
+### Medium Confidence (Official GitHub/npm)
+- [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) — LSP implementation
+- [notify-rs](https://github.com/notify-rs/notify) — Cross-platform file watching
+- [VSCode Extension Guide](https://code.visualstudio.com/api/language-extensions/language-server-extension-guide) — Official LSP guide
+- [rust-analyzer proc macro support](https://rust-analyzer.github.io/thisweek/2026/01/26/changelog-312.html) — Attribute macro expansion
+- [Z3 tactics summary](https://microsoft.github.io/z3guide/docs/strategies/summary/) — Tactic configuration
 
-### Medium Confidence (Research Papers & Tool Documentation)
-
-- [Miri: Practical UB Detection (POPL 2026)](https://research.ralfj.de/papers/2026-popl-miri.pdf) - Unsafe code verification state-of-art
-- [ESBMC Concurrency Verification](https://github.com/esbmc/esbmc) - Interleaving-based approach
-- [Creusot 0.9.0 Devlog (Jan 2026)](https://creusot-rs.github.io/devlog/2026-01-19/) - VerusSync concurrency verification
-- [Asterinas Formal Verification (Feb 2026)](https://asterinas.github.io/2025/02/13/towards-practical-formal-verification-for-a-general-purpose-os-in-rust.html) - Ownership-based concurrency proofs
-- [SMT Quantifiers Tutorial](https://fstar-lang.org/tutorial/book/under_the_hood/uth_smt.html) - F* use of Z3 quantifiers
-- [Polonius GitHub](https://github.com/rust-lang/polonius) - Borrow checker implementation
-- [VCGen for Recursive Programs](https://www.why3.org/doc/vcgen.html) - Why3's approach to recursion
-
-### Low Confidence (Needs Validation During Implementation)
-
-- Exact trigger patterns for recursive function quantifiers (must experiment with Z3)
-- Polonius necessity for rust-fv's use cases (may not be needed; try without first)
-- Concurrency encoding performance (highly variable based on program structure)
+### Low Confidence (WebSearch, Community)
+- [Verus trigger patterns](https://www.cs.utexas.edu/~hleblanc/pdfs/verus.pdf) — Surface-level trigger selection (academic paper)
+- [Pyrefly incremental verification](https://pyrefly.org/blog/2026/02/06/performance-improvements/) — Incremental type checking strategies
 
 ---
-
-**Research confidence:** MEDIUM-HIGH
-
-**Rationale:** Stack additions are minimal and well-understood (petgraph is standard, Z3 theories are documented, polonius is optional). The complexity is in ENCODING (VCGen + SMT translation), not in dependencies. Concurrency is LOW confidence due to inherent complexity, correctly deferred to Phase 6+.
-
-**Ready for roadmap planning:** YES
-
----
-
-*Research completed: 2026-02-11*
-*Researcher: GSD Project Researcher (Phase 6: Stack Research)*
+*Stack research for: Rust Formal Verification Tooling (v0.3 milestone)*
+*Researched: 2026-02-14*
+*Confidence: HIGH (official docs verified for all core dependencies)*
