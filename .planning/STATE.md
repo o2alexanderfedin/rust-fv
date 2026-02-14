@@ -13,24 +13,24 @@
 ## Current Position
 
 **Phase:** 10 - Unsafe Code Detection
-**Plan:** 2 of 3 complete
-**Status:** In Progress
-**Progress:** [██████████] 97%
+**Plan:** 3 of 3 complete
+**Status:** Complete
+**Progress:** [██████████] 100%
 
 ### Active Work
-- Phase 10 Plan 02 COMPLETE: Unsafe Block Detection
-- Created unsafe_analysis module: detect blocks, classify operations, check contracts
-- Created heap_model module: SMT heap-as-array with null/bounds checks
-- Integrated into VCGen: trusted skip, null-check VCs, bounds-check VCs
-- FromRef provenance skips null-check (no false positives from safe references)
-- Total workspace tests: 2,056 (up from 2,011, +45 new tests)
-- Duration: 99 min 20 sec, 2 tasks (both TDD), 4 files modified
+- Phase 10 Plan 03 COMPLETE: End-to-End Unsafe Verification
+- Created unsafe_verification.rs: 12 e2e tests covering all Phase 10 requirements
+- Fixed SMT logic bug: QF_BV → QF_AUFBV for bounds-check VCs with heap model
+- Fixed type mismatch bug: zero-extend 32-bit offsets to 64-bit for pointer arithmetic
+- All 5 success criteria validated via Z3 (blocks, null-checks, bounds-checks, contracts, trusted)
+- All 7 requirements validated (USF-01 through USF-06, INF-02)
+- Total workspace tests: 2,068 (up from 2,056, +12 new e2e tests)
+- Duration: 6 min 6 sec, 2 tasks, 3 files modified (1 created, 2 bug fixes)
 
 ### Next Steps
-1. Execute Phase 10 Plan 03: End-to-End Unsafe Verification
-2. Execute Phase 10 Plan 03: End-to-End Unsafe Verification
-3. Optional: Add spec parser support for final(*x) nested prophecy syntax
-4. Optional: MIR-based live range computation for precise NLL semantics
+1. Phase 10 complete - ready for Phase 11 (Floating-Point Verification)
+2. Optional: Add spec parser support for final(*x) nested prophecy syntax
+3. Optional: MIR-based live range computation for precise NLL semantics
 
 ## Performance Metrics
 
@@ -143,6 +143,14 @@
 - Files modified: 4 (2 created, 2 modified)
 - New LOC: ~1,142 (unsafe_analysis.rs 350 + heap_model.rs 313 + vcgen.rs 479)
 
+**Phase 10-03 (2026-02-14):**
+- Duration: 6 min
+- Tasks: 2 (Task 1 pre-existing, Task 2 e2e tests)
+- New tests: 12 e2e tests (total: 2,068 workspace)
+- Files modified: 3 (1 created, 2 bug fixes)
+- New LOC: ~610 (unsafe_verification.rs 610)
+- Deviations: 2 auto-fixed bugs (SMT logic + type mismatch)
+
 **v0.2 Targets:**
 - Target LOC: ~57,800 (+14,200 estimated for 7 features)
 - Target test count: 2,000+ (add ~260 tests across features)
@@ -213,7 +221,9 @@
 | Diagnostic VC for missing unsafe contracts | Unannotated unsafe functions produce always-SAT warning VC; flows through normal pipeline; consistent with Phase 6 pattern | Phase 10 |
 | Heap model only for PtrArithmetic | Null checks don't need allocation metadata; reduces SMT overhead for dereference-only code | Phase 10 |
 | Phase 10 P02 | 99 | 2 tasks | 4 files |
-| Phase 10 P02 | 99 | 2 tasks | 4 files |
+| QF_AUFBV logic for bounds-check VCs | Heap model uses uninterpreted functions (heap, allocated, alloc_base, alloc_size); QF_BV doesn't support uninterpreted functions; QF_AUFBV supports Arrays + Uninterpreted Functions + BitVectors | Phase 10 |
+| Zero-extend 32-bit offsets for pointer arithmetic | Offsets typically i32/u32 (32-bit) but pointers are usize (64-bit); bvadd requires matching widths; zero-extension correct for unsigned offsets | Phase 10 |
+| Phase 10 P03 | 6 | 2 tasks | 3 files |
 
 ### In-Progress Todos
 
@@ -289,20 +299,22 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-13T07:57:03Z - Phase 10-02 (Unsafe Block Detection)
-- Completed: Task 1 - Created unsafe_analysis and heap_model modules (f838c7c)
-- Completed: Task 2 - Integrated unsafe analysis into VCGen pipeline (96026bb)
-- Duration: 99 min 20 sec
-- Tests: 2,056 total workspace tests (+45 new), 0 warnings, 0 formatting issues
-- Commits: 2 atomic task commits
-- Summary: .planning/phases/10-unsafe-code-detection/10-02-SUMMARY.md
+**Last session:** 2026-02-14T02:06:47Z - Phase 10-03 (End-to-End Unsafe Verification)
+- Completed: Task 1 - Diagnostics (pre-existing from Phase 10-02)
+- Completed: Task 2 - Created unsafe_verification.rs with 12 e2e tests (4ec428f)
+- Fixed: SMT logic bug (QF_BV → QF_AUFBV) and type mismatch bug (zero-extend offsets)
+- Duration: 6 min 6 sec
+- Tests: 2,068 total workspace tests (+12 new e2e tests), 0 warnings, 0 formatting issues
+- Commits: 1 atomic task commit (Task 2 with bug fixes)
+- Summary: .planning/phases/10-unsafe-code-detection/10-03-SUMMARY.md
 
-**Stopped at:** Completed 10-02-PLAN.md
+**Stopped at:** Completed 10-03-PLAN.md (Phase 10 complete)
 
 **Next session expectations:**
-- Execute Phase 10-03: End-to-End Unsafe Verification
-- Add e2e tests for unsafe code patterns
-- Validate null-check, bounds-check, and trusted function diagnostics
+- Phase 10 complete - all 3 plans executed successfully
+- All 5 success criteria validated via Z3
+- All 7 requirements (USF-01 through USF-06, INF-02) validated
+- Ready for Phase 11 (Floating-Point Verification)
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
