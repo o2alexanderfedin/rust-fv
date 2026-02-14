@@ -1,10 +1,6 @@
 //! Tests for Vec<T> standard library contracts.
 
-use rust_fv_analysis::{
-    contract_db::FunctionSummary,
-    ir::{Contracts, IntTy, SpecExpr, Ty},
-    stdlib_contracts::{ContractSource, StdlibContract, StdlibContractRegistry},
-};
+use rust_fv_analysis::stdlib_contracts::{ContractSource, StdlibContractRegistry};
 
 #[test]
 fn test_register_vec_contracts_populates_registry() {
