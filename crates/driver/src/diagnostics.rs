@@ -47,13 +47,16 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
     let mut colors = ColorGenerator::new();
     let color = colors.next();
 
-    // Use Warning severity for MemorySafety (per USF-06 requirement) and FloatingPointNaN
-    let report_kind =
-        if failure.vc_kind == VcKind::MemorySafety || failure.vc_kind == VcKind::FloatingPointNaN {
-            ReportKind::Warning
-        } else {
-            ReportKind::Error
-        };
+    // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, and Deadlock
+    // DataRaceFreedom, LockInvariant, and ChannelSafety are Errors
+    let report_kind = if failure.vc_kind == VcKind::MemorySafety
+        || failure.vc_kind == VcKind::FloatingPointNaN
+        || failure.vc_kind == VcKind::Deadlock
+    {
+        ReportKind::Warning
+    } else {
+        ReportKind::Error
+    };
 
     let report = Report::build(report_kind, source_file, offset)
         .with_message(format!(
@@ -101,6 +104,21 @@ fn report_text_only(failure: &VerificationFailure) {
 
         if !FLOAT_WARNING_EMITTED.swap(true, Ordering::Relaxed) {
             emit_float_verification_warning();
+            eprintln!();
+        }
+    }
+
+    // Emit bounded concurrency verification warning (once per run)
+    if failure.vc_kind == VcKind::DataRaceFreedom
+        || failure.vc_kind == VcKind::LockInvariant
+        || failure.vc_kind == VcKind::Deadlock
+        || failure.vc_kind == VcKind::ChannelSafety
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static CONCURRENCY_WARNING_EMITTED: AtomicBool = AtomicBool::new(false);
+
+        if !CONCURRENCY_WARNING_EMITTED.swap(true, Ordering::Relaxed) {
+            emit_bounded_concurrency_warning(3, 5); // Default bounds
             eprintln!();
         }
     }
@@ -217,6 +235,27 @@ fn report_text_only(failure: &VerificationFailure) {
     if failure.vc_kind == VcKind::FloatingPointNaN {
         eprintln!();
         eprintln!("{}", format_float_verification_help());
+    }
+
+    // Concurrency-specific diagnostic formatting
+    if failure.vc_kind == VcKind::DataRaceFreedom {
+        eprintln!();
+        eprintln!("{}", format_data_race_help());
+    }
+
+    if failure.vc_kind == VcKind::LockInvariant {
+        eprintln!();
+        eprintln!("{}", format_lock_invariant_help());
+    }
+
+    if failure.vc_kind == VcKind::Deadlock {
+        eprintln!();
+        eprintln!("{}", format_deadlock_help());
+    }
+
+    if failure.vc_kind == VcKind::ChannelSafety {
+        eprintln!();
+        eprintln!("{}", format_channel_safety_help());
     }
 
     if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
@@ -509,6 +548,118 @@ pub fn emit_float_verification_warning() {
             .bold()
     );
     eprintln!("  Consider limiting float verification to functions that need it.");
+}
+
+/// Emit a bounded concurrency verification warning.
+///
+/// Per CON-05 requirement: Warn users that verification is bounded by thread and context switch limits.
+/// This warning should be emitted ONCE per verification run when concurrency VCs are present.
+pub fn emit_bounded_concurrency_warning(max_threads: usize, max_switches: usize) {
+    eprintln!(
+        "{}",
+        format!(
+            "note: Bounded concurrency verification active. Verified up to {} threads and {} context switches.",
+            max_threads, max_switches
+        )
+        .yellow()
+        .bold()
+    );
+    eprintln!(
+        "  May miss bugs in deeper interleavings. Try --max-switches={} for broader coverage.",
+        max_switches * 2
+    );
+}
+
+/// Format a help message for data race detection failures.
+///
+/// Explains what a data race is and how to fix it with synchronization.
+pub fn format_data_race_help() -> String {
+    "data race detected: concurrent accesses to the same memory location are not properly ordered.\n\
+     \n\
+     A data race occurs when:\n\
+     - Two or more threads access the same memory location\n\
+     - At least one access is a write\n\
+     - The accesses are not ordered by happens-before\n\
+     \n\
+     To fix:\n\
+     - Use Mutex or RwLock to protect shared mutable state\n\
+     - Use atomic operations (AtomicI32, AtomicBool, etc.) with appropriate ordering\n\
+     - Ensure proper synchronization establishes happens-before relationships"
+        .to_string()
+}
+
+/// Format a help message for lock invariant violations.
+///
+/// Explains lock invariants and how they must be maintained at release points.
+pub fn format_lock_invariant_help() -> String {
+    "lock invariant violation: the lock invariant does not hold at mutex release.\n\
+     \n\
+     Lock invariants (#[lock_invariant(expr)]) are:\n\
+     - Assumed to hold when acquiring the lock\n\
+     - Must be re-established before releasing the lock\n\
+     - Verified only at release points (not at acquire)\n\
+     \n\
+     To fix:\n\
+     - Ensure the critical section maintains the invariant\n\
+     - Check that all code paths to unlock() satisfy the invariant\n\
+     - Verify the invariant expression accurately captures the mutex-protected property"
+        .to_string()
+}
+
+/// Format a help message for deadlock detection.
+///
+/// Explains deadlock and suggests consistent lock ordering.
+pub fn format_deadlock_help() -> String {
+    "potential deadlock detected: a lock-order cycle exists that may cause threads to wait indefinitely.\n\
+     \n\
+     Deadlock occurs when:\n\
+     - Thread A holds lock X and waits for lock Y\n\
+     - Thread B holds lock Y and waits for lock X\n\
+     - This creates a circular dependency (lock cycle)\n\
+     \n\
+     To fix:\n\
+     - Establish a consistent global lock ordering\n\
+     - Always acquire locks in the same order across all threads\n\
+     - Consider using try_lock() with timeout to break potential deadlocks"
+        .to_string()
+}
+
+/// Format a help message for channel safety violations.
+///
+/// Explains channel safety properties and common violations.
+pub fn format_channel_safety_help() -> String {
+    "channel operation safety violation: send/recv operation may fail or deadlock.\n\
+     \n\
+     Channel safety issues:\n\
+     - Send on closed channel: sender may panic if receiver is dropped\n\
+     - Bounded channel overflow: send on full channel blocks forever if no receiver\n\
+     - Recv on empty closed channel: receiver blocks forever\n\
+     \n\
+     To fix:\n\
+     - Ensure senders and receivers have matching lifetimes\n\
+     - For bounded channels, verify capacity is sufficient\n\
+     - Use try_send/try_recv for non-blocking alternatives\n\
+     - Check channel state with is_disconnected() before operations"
+        .to_string()
+}
+
+/// Format an interleaving trace for data race failures.
+///
+/// Takes interleaving events and formats a step-by-step execution trace.
+#[allow(dead_code)]
+pub fn format_interleaving_trace(events: &[(usize, String)]) -> String {
+    let mut result = "Interleaving trace:\n".to_string();
+    for (step, (thread_id, operation)) in events.iter().enumerate() {
+        result.push_str(&format!(
+            "  {}: Thread {} executes: {}\n",
+            step, thread_id, operation
+        ));
+        // Highlight racy accesses (future enhancement)
+        if operation.contains("WRITE") || operation.contains("READ") {
+            result.push_str(&format!("       ^^^ RACY {}\n", operation));
+        }
+    }
+    result
 }
 
 /// Format a warning for an unsafe block detected during verification.
@@ -1873,5 +2024,142 @@ mod tests {
         };
         // This should emit the performance warning (once)
         report_text_only(&failure);
+    }
+
+    // --- Bounded concurrency verification warning tests ---
+
+    #[test]
+    fn test_emit_bounded_concurrency_warning() {
+        // Test that emit_bounded_concurrency_warning() produces expected output
+        // Note: This writes to stderr, so we're just testing it doesn't panic
+        emit_bounded_concurrency_warning(3, 5);
+    }
+
+    #[test]
+    fn test_bounded_verification_warning_emitted() {
+        // Test that concurrency VCs trigger the bounded verification warning
+        let failure = VerificationFailure {
+            function_name: "concurrent_fn".to_string(),
+            vc_kind: VcKind::DataRaceFreedom,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "data race detected".to_string(),
+        };
+        // This should emit the bounded verification warning (once)
+        report_text_only(&failure);
+    }
+
+    #[test]
+    fn test_format_data_race_help() {
+        let help = format_data_race_help();
+        assert!(help.contains("data race"));
+        assert!(help.contains("happens-before"));
+        assert!(help.contains("Mutex"));
+        assert!(help.contains("atomic"));
+    }
+
+    #[test]
+    fn test_format_lock_invariant_help() {
+        let help = format_lock_invariant_help();
+        assert!(help.contains("lock invariant"));
+        assert!(help.contains("release"));
+        assert!(help.contains("acquire"));
+        assert!(help.contains("#[lock_invariant(expr)]"));
+    }
+
+    #[test]
+    fn test_format_deadlock_help() {
+        let help = format_deadlock_help();
+        assert!(help.contains("deadlock"));
+        assert!(help.contains("lock-order"));
+        assert!(help.contains("cycle"));
+        assert!(help.contains("consistent"));
+    }
+
+    #[test]
+    fn test_format_channel_safety_help() {
+        let help = format_channel_safety_help();
+        assert!(help.contains("channel"));
+        assert!(help.contains("send"));
+        assert!(help.contains("recv"));
+        assert!(help.contains("closed"));
+    }
+
+    #[test]
+    fn test_format_interleaving_trace() {
+        let events = vec![
+            (0, "READ x".to_string()),
+            (1, "WRITE x".to_string()),
+            (0, "READ y".to_string()),
+        ];
+        let trace = format_interleaving_trace(&events);
+        assert!(trace.contains("Thread 0"));
+        assert!(trace.contains("Thread 1"));
+        assert!(trace.contains("READ x"));
+        assert!(trace.contains("WRITE x"));
+        assert!(trace.contains("RACY"));
+    }
+
+    #[test]
+    fn test_vc_kind_description_concurrency() {
+        assert_eq!(
+            vc_kind_description(&VcKind::DataRaceFreedom),
+            "data race detected"
+        );
+        assert_eq!(
+            vc_kind_description(&VcKind::LockInvariant),
+            "lock invariant violation"
+        );
+        assert_eq!(
+            vc_kind_description(&VcKind::Deadlock),
+            "potential deadlock detected"
+        );
+        assert_eq!(
+            vc_kind_description(&VcKind::ChannelSafety),
+            "channel operation safety violation"
+        );
+    }
+
+    #[test]
+    fn test_concurrency_diagnostic_severity() {
+        // DataRaceFreedom should be Error
+        let dr_failure = VerificationFailure {
+            function_name: "test".to_string(),
+            vc_kind: VcKind::DataRaceFreedom,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "data race".to_string(),
+        };
+        report_with_ariadne(&dr_failure, "test.rs", 10);
+
+        // Deadlock should be Warning
+        let dl_failure = VerificationFailure {
+            function_name: "test".to_string(),
+            vc_kind: VcKind::Deadlock,
+            contract_text: None,
+            source_file: None,
+            source_line: None,
+            counterexample: None,
+            message: "deadlock".to_string(),
+        };
+        report_with_ariadne(&dl_failure, "test.rs", 10);
+    }
+
+    #[test]
+    fn test_report_text_only_concurrency_vcs() {
+        let vc_kinds = [
+            VcKind::DataRaceFreedom,
+            VcKind::LockInvariant,
+            VcKind::Deadlock,
+            VcKind::ChannelSafety,
+        ];
+        for vc_kind in vc_kinds {
+            let failure = make_failure(vc_kind, None, None, None, None);
+            report_text_only(&failure);
+        }
     }
 }
