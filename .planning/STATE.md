@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-14T05:50:00Z
+**Last updated:** 2026-02-14T08:42:01Z
 
 ## Project Reference
 
@@ -12,22 +12,23 @@
 
 ## Current Position
 
-**Phase:** 11 - Floating-Point Verification
-**Plan:** 3 of 3 complete
-**Status:** Complete
-**Progress:** [██████████] 100%
+**Phase:** 12 - Concurrency Verification
+**Plan:** 1 of 3 complete
+**Status:** In Progress
+**Progress:** [██████████] 95%
 
 ### Active Work
-- Phase 11 COMPLETE: Floating-Point Verification
-- Plan 03 COMPLETE: E2E tests and performance warning
-- 16 e2e tests validating all FPV requirements (FPV-01 through FPV-06, INF-02)
-- Tests validate VC structure: counts, descriptions, kinds (not Z3 SAT/UNSAT due to placeholder terms)
-- Performance warning emitted once per verification run for FloatingPointNaN VCs
-- Total workspace tests: 2,149 (up from 2,120, +29 new tests: 16 float_verification + 2 diagnostics + 11 other)
-- Duration: 12 min 35 sec, 2 tasks, 2 files (1 created, 1 modified)
+- Phase 12 Plan 01 COMPLETE: Concurrency type system and interleaving infrastructure
+- Concurrency IR types (ThreadSpawn, AtomicOp, SyncOp, AtomicOrdering, ConcurrencyConfig) added
+- 4 new VcKind variants (DataRaceFreedom, LockInvariant, Deadlock, ChannelSafety) with diagnostics
+- Bounded thread interleaving enumeration with context switch pruning
+- Proc macros: #[lock_invariant(expr)], #[verify(concurrent, threads=N, switches=M)]
+- Total workspace tests: ~2,164 (up from 2,149, +15 new tests: 12 thread_encoding/VcKind + 3 macros)
+- Duration: 18 min, 2 tasks, 2 files created + 40+ modified
 
 ### Next Steps
-1. Phase 12: Concurrency Verification (final v0.2 feature)
+1. Phase 12 Plan 02: Happens-before encoding and VC generation
+2. Phase 12 Plan 03: Deadlock detection and E2E tests
 2. Optional: Add FP constant folding optimizations to simplify.rs (future work)
 
 ## Performance Metrics
@@ -259,6 +260,7 @@
 | E2E tests validate VC structure not Z3 results | float_verification VCs use placeholder terms, so tests check counts/descriptions/kinds instead of SAT/UNSAT; validates pipeline correctness | Phase 11 |
 | One-time performance warning with AtomicBool | FPV-06 warning emitted once per run using static AtomicBool in report_text_only(); thread-safe, simple | Phase 11 |
 | Phase 11 P03 | 12 | 2 tasks | 2 files |
+| Phase 12 P01 | 18 | 2 tasks | 40 files |
 
 ### In-Progress Todos
 
@@ -334,7 +336,7 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-14T05:50:00Z
+**Last session:** 2026-02-14T08:43:52.131Z
 - Completed: Task 1 - E2E float verification tests (0c59924)
 - Completed: Task 2 - Performance warning for FP verification (98ab12a)
 - Duration: 12 min 35 sec
@@ -342,7 +344,7 @@ From REQUIREMENTS.md v0.3+ section:
 - Commits: 2 atomic task commits + 1 summary commit (pending)
 - Summary: .planning/phases/11-floating-point-verification/11-03-SUMMARY.md
 
-**Stopped at:** Completed 11-03-PLAN.md
+**Stopped at:** Completed 12-01-PLAN.md
 
 **Next session expectations:**
 - Phase 11 (Floating-Point Verification) COMPLETE - all 3 plans finished
