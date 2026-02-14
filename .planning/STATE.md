@@ -1,6 +1,6 @@
 # Project State: rust-fv
 
-**Last updated:** 2026-02-13T07:57:03Z
+**Last updated:** 2026-02-14T05:24:03Z
 
 ## Project Reference
 
@@ -13,22 +13,23 @@
 ## Current Position
 
 **Phase:** 11 - Floating-Point Verification
-**Plan:** 1 of 3 complete
+**Plan:** 2 of 3 complete
 **Status:** In Progress
-**Progress:** [█████████░] 94%
+**Progress:** [█████████░] 96%
 
 ### Active Work
-- Phase 11 Plan 01 COMPLETE: SMT-LIB FloatingPoint Infrastructure
-- Added 25 FloatingPoint Term variants (6 literals, 1 rounding mode, 7 arithmetic, 5 comparison, 5 predicates, 1 from-bits)
-- Implemented SMT-LIB2 formatting for all FP terms with valid syntax
-- Added VcKind::FloatingPointNaN with comprehensive diagnostics (description, suggestion, help text, Warning severity)
-- Updated 16 files for pattern match exhaustiveness (solver, analysis, tests, benches)
-- Total workspace tests: 2,095 (up from 2,068, +27 new FP tests)
-- Duration: 15 min 44 sec, 2 TDD tasks, 16 files modified
+- Phase 11 Plan 02 COMPLETE: Float Encoding and Verification
+- Replaced FLOAT_UNSUPPORTED with IEEE 754 encoding (FpFromBits with sign/exp/sig extraction)
+- Float constants: FpNaN, FpPosInf, FpNegInf, FpPosZero, FpNegZero for special values
+- Float arithmetic: FpAdd/FpSub/FpMul/FpDiv with RNE rounding mode
+- Float comparisons: FpEq/FpLt/FpLeq/FpGt/FpGeq (IEEE 754 semantics: NaN != NaN, -0.0 == +0.0)
+- Created float_verification.rs module: nan_propagation_vc, infinity_overflow_vc, generate_float_vcs
+- VCGen integration: automatic float VC generation (2 VCs per arithmetic op: NaN + Inf)
+- Total workspace tests: 2,120 (up from 2,095, +25 new tests: 18 encode + 7 float_verification)
+- Duration: 90 min 2 sec, 2 TDD tasks, 4 files (3 modified, 1 created)
 
 ### Next Steps
-1. Phase 11 Plan 02: Float encoding (f32/f64 → FloatingPoint sort, ops → FP terms)
-2. Phase 11 Plan 03: End-to-end float verification tests
+1. Phase 11 Plan 03: End-to-end float verification tests
 3. Optional: Add FP constant folding optimizations to simplify.rs
 
 ## Performance Metrics
@@ -232,6 +233,15 @@
 | Zero-extend 32-bit offsets for pointer arithmetic | Offsets typically i32/u32 (32-bit) but pointers are usize (64-bit); bvadd requires matching widths; zero-extension correct for unsigned offsets | Phase 10 |
 | Phase 10 P03 | 6 | 2 tasks | 3 files |
 | Phase 11 P01 | 15 | 2 tasks | 16 files |
+| RNE rounding mode for float arithmetic | Round to Nearest, ties to Even is IEEE 754 default; provides best accuracy for most applications | Phase 11 |
+| FpFromBits for normal float values | Uses IEEE 754 bit layout (sign, exp, sig); enables precise constant representation | Phase 11 |
+| f32 cast before to_bits() | f32 constants must be cast to f32 before to_bits() to ensure correct 32-bit representation | Phase 11 |
+| Special values use dedicated Terms | FpNaN/FpPosInf/FpNegInf/FpPosZero/FpNegZero instead of FpFromBits; clearer semantics, simpler SMT | Phase 11 |
+| FpEq for float comparisons | IEEE 754 semantics: NaN != NaN, -0.0 == +0.0; distinct from generic Eq | Phase 11 |
+| 2 VCs per float arithmetic op | NaN propagation + Infinity overflow; comparisons 0 VCs (don't produce NaN) | Phase 11 |
+| Float unary Neg produces 0 VCs | Neg preserves NaN/Inf: Neg(NaN)=NaN, Neg(Inf)=-Inf; no safety checks needed | Phase 11 |
+| VcKind::FloatingPointNaN for both NaN and Inf | Reused for both VC types; same diagnostic category (floating-point correctness) | Phase 11 |
+| Phase 11 P02 | 90 | 2 tasks | 4 files |
 
 ### In-Progress Todos
 
@@ -307,22 +317,22 @@ From REQUIREMENTS.md v0.3+ section:
 
 ## Session Continuity
 
-**Last session:** 2026-02-14T03:37:20.001Z
-- Completed: Task 1 - Diagnostics (pre-existing from Phase 10-02)
-- Completed: Task 2 - Created unsafe_verification.rs with 12 e2e tests (4ec428f)
-- Fixed: SMT logic bug (QF_BV → QF_AUFBV) and type mismatch bug (zero-extend offsets)
-- Duration: 6 min 6 sec
-- Tests: 2,068 total workspace tests (+12 new e2e tests), 0 warnings, 0 formatting issues
-- Commits: 1 atomic task commit (Task 2 with bug fixes)
-- Summary: .planning/phases/10-unsafe-code-detection/10-03-SUMMARY.md
+**Last session:** 2026-02-14T05:24:03Z
+- Completed: Task 1 - Float constant and operation encoding (5f542b5)
+- Completed: Task 2 - Float verification module and VCGen integration (d44acef)
+- Duration: 90 min 2 sec
+- Tests: 2,120 total workspace tests (+25 new tests), 0 warnings, 0 formatting issues
+- Commits: 2 atomic task commits + 1 summary commit
+- Summary: .planning/phases/11-floating-point-verification/11-02-SUMMARY.md
 
-**Stopped at:** Completed 11-01-PLAN.md
+**Stopped at:** Completed 11-02-PLAN.md
 
 **Next session expectations:**
-- Phase 10 complete - all 3 plans executed successfully
-- All 5 success criteria validated via Z3
-- All 7 requirements (USF-01 through USF-06, INF-02) validated
-- Ready for Phase 11 (Floating-Point Verification)
+- Phase 11 Plan 02 complete - float encoding and VC generation working
+- FLOAT_UNSUPPORTED completely replaced with IEEE 754 encoding
+- float_verification module generating NaN and Infinity VCs
+- VCGen pipeline automatically includes float VCs
+- Ready for Phase 11 Plan 03 (end-to-end float verification tests)
 
 ---
 *STATE.md initialized: 2026-02-12 for v0.2 milestone*
