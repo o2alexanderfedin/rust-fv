@@ -189,6 +189,46 @@ pub fn trusted(attr: TokenStream, item: TokenStream) -> TokenStream {
     trusted_impl(attr.into(), item.into()).into()
 }
 
+/// Attach a lock invariant to a mutex or rwlock field.
+///
+/// `#[lock_invariant(expr)]` specifies a predicate that must hold whenever the
+/// lock is acquired or released. The invariant is assumed on lock acquisition
+/// and must be re-established before lock release.
+///
+/// # Example
+///
+/// ```ignore
+/// struct Counter {
+///     #[lock_invariant(value >= 0)]
+///     data: Mutex<i32>,
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn lock_invariant(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("lock_invariant", attr, item)
+}
+
+/// Enable concurrency verification for a function with optional configuration.
+///
+/// `#[verify(concurrent)]` enables bounded model checking of concurrent code.
+/// Optional parameters:
+/// - `threads = N`: Maximum number of threads to verify (default: 3)
+/// - `switches = M`: Maximum context switches to explore (default: 5)
+///
+/// # Examples
+///
+/// ```ignore
+/// #[verify(concurrent)]
+/// fn simple_concurrent() { /* ... */ }
+///
+/// #[verify(concurrent, threads = 4, switches = 10)]
+/// fn heavy_concurrent() { /* ... */ }
+/// ```
+#[proc_macro_attribute]
+pub fn verify(attr: TokenStream, item: TokenStream) -> TokenStream {
+    verify_impl(attr.into(), item.into()).into()
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -342,6 +382,78 @@ fn trusted_impl(
     quote::quote! {
         #[doc(hidden)]
         #[doc = #doc_value]
+        #item
+    }
+}
+
+/// Parse and encode `#[verify(concurrent, threads = N, switches = M)]` attributes.
+fn verify_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    use syn::{Expr, Meta, Token, parse::Parser, punctuated::Punctuated};
+
+    // Parse as comma-separated meta items
+    let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
+    let metas = match parser.parse2(attr) {
+        Ok(m) => m,
+        Err(err) => return err.to_compile_error(),
+    };
+
+    let mut doc_attrs = Vec::new();
+
+    for meta in metas {
+        match meta {
+            Meta::Path(path) => {
+                // #[verify(concurrent)]
+                if path.is_ident("concurrent") {
+                    doc_attrs.push("rust_fv::verify::concurrent".to_string());
+                } else {
+                    return syn::Error::new_spanned(path, "Unknown verify option")
+                        .to_compile_error();
+                }
+            }
+            Meta::NameValue(nv) => {
+                // #[verify(threads = N)] or #[verify(switches = M)]
+                if nv.path.is_ident("threads") {
+                    if let Expr::Lit(lit) = &nv.value {
+                        doc_attrs.push(format!(
+                            "rust_fv::verify::threads::{}",
+                            lit.lit.to_token_stream()
+                        ));
+                    } else {
+                        return syn::Error::new_spanned(nv.value, "Expected integer literal")
+                            .to_compile_error();
+                    }
+                } else if nv.path.is_ident("switches") {
+                    if let Expr::Lit(lit) = &nv.value {
+                        doc_attrs.push(format!(
+                            "rust_fv::verify::switches::{}",
+                            lit.lit.to_token_stream()
+                        ));
+                    } else {
+                        return syn::Error::new_spanned(nv.value, "Expected integer literal")
+                            .to_compile_error();
+                    }
+                } else {
+                    return syn::Error::new_spanned(nv.path, "Unknown verify parameter")
+                        .to_compile_error();
+                }
+            }
+            _ => {
+                return syn::Error::new_spanned(meta, "Unsupported syntax in verify attribute")
+                    .to_compile_error();
+            }
+        }
+    }
+
+    // Generate doc attributes for each parsed option
+    let doc_values = doc_attrs;
+    quote::quote! {
+        #(
+            #[doc(hidden)]
+            #[doc = #doc_values]
+        )*
         #item
     }
 }
@@ -894,5 +1006,53 @@ mod tests {
         assert!(result_str.contains("rust_fv::unsafe_requires::x > 0"));
         assert!(result_str.contains("unsafe fn test"));
         assert!(result_str.contains("x * 2"));
+    }
+
+    // --- concurrency annotation tests (Phase 12-01) ---
+
+    #[test]
+    fn test_lock_invariant_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! { value >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            data: Mutex<i32>
+        };
+
+        let result = spec_attribute_impl("lock_invariant", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::lock_invariant::value >= 0"));
+        assert!(result_str.contains("data : Mutex < i32 >"));
+    }
+
+    #[test]
+    fn test_verify_concurrent_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! { concurrent };
+        let item: proc_macro2::TokenStream = quote! {
+            fn concurrent_fn() {}
+        };
+
+        let result = verify_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::verify::concurrent"));
+        assert!(result_str.contains("fn concurrent_fn"));
+    }
+
+    #[test]
+    fn test_verify_threads_switches_embeds_annotations() {
+        let attr: proc_macro2::TokenStream = quote! { concurrent, threads = 4, switches = 8 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn heavy_concurrent() {}
+        };
+
+        let result = verify_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::verify::concurrent"));
+        assert!(result_str.contains("rust_fv::verify::threads::4"));
+        assert!(result_str.contains("rust_fv::verify::switches::8"));
+        assert!(result_str.contains("fn heavy_concurrent"));
     }
 }
