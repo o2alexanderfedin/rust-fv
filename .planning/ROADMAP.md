@@ -177,9 +177,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 12-01-PLAN.md -- Infrastructure: concurrency IR types (ThreadSpawn, AtomicOp, SyncOp), VcKind extensions, thread_encoding module, proc macros, diagnostics
-- [ ] 12-02-PLAN.md -- Core: happens-before encoding (all 5 orderings), data race freedom VCs, lock invariant VCs, deadlock detection, channel verification, VCGen integration
-- [ ] 12-03-PLAN.md -- Integration: end-to-end Z3 concurrency verification tests, bounded verification warning
+- [x] 12-01-PLAN.md -- Infrastructure: concurrency IR types (ThreadSpawn, AtomicOp, SyncOp), VcKind extensions, thread_encoding module, proc macros, diagnostics
+- [x] 12-02-PLAN.md -- Core: happens-before encoding (all 5 orderings), data race freedom VCs, lock invariant VCs, deadlock detection, channel verification, VCGen integration
+- [x] 12-03-PLAN.md -- Integration: end-to-end Z3 concurrency verification tests, bounded verification warning
 
 **Success Criteria:**
 1. Developer enables bounded concurrency verification (configurable max threads/context switches) and verifier enumerates thread interleavings
@@ -205,8 +205,8 @@ Plans:
 | 9. Lifetime Reasoning | v0.2 | 3/3 | Complete | 2026-02-13 |
 | 10. Unsafe Code Detection | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 11. Floating-Point Verification | v0.2 | 3/3 | Complete | 2026-02-14 |
-| 12. Concurrency Verification | v0.2 | 0/3 | Pending | - |
+| 12. Concurrency Verification | v0.2 | 3/3 | Complete | 2026-02-14 |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-02-14 (Phase 12 planned: 3 plans)*
+*Last updated: 2026-02-14 (Phase 12 complete: 3/3 plans)*
