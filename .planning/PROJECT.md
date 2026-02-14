@@ -37,15 +37,23 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Active
 
+#### Current Milestone: v0.3 Production Usability
+
+**Goal:** Make existing verification capabilities production-ready with standard library support, performance tuning, IDE integration, and solver optimization.
+
+**Target features:**
 - [ ] Standard library contracts (Vec, HashMap, Option, Result)
 - [ ] Trigger customization (`#[trigger]`) for quantifier performance
 - [ ] Z3 bv2int native integration
+- [ ] VSCode extension for real-time verification feedback
+- [ ] rust-analyzer integration for inline diagnostics
+
+#### Future
+
 - [ ] Higher-order closures with specification entailments
 - [ ] Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
 - [ ] Async/await verification (Future trait, executor semantics)
 - [ ] Separation logic for heap reasoning
-- [ ] VSCode extension for real-time verification feedback
-- [ ] rust-analyzer integration for inline diagnostics
 
 ### Out of Scope
 
@@ -64,6 +72,7 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Current state:** v0.2 shipped with 2,264 tests, zero warnings, 5-crate workspace (macros/, smtlib/, solver/, analysis/, driver/), 66,133 LOC Rust
 - **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics
 - **Tech debt:** No standard library contracts, no weak memory models, no async/await support
+- **v0.3 focus:** Production usability -- stdlib contracts, trigger customization, IDE integration, bv2int optimization
 
 ## Constraints
 
@@ -95,4 +104,4 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | petgraph for SCC analysis | Mature Tarjan's algorithm; used for recursion and deadlock detection | ✓ Good |
 
 ---
-*Last updated: 2026-02-14 after v0.2 milestone completion*
+*Last updated: 2026-02-14 after v0.3 milestone start*
