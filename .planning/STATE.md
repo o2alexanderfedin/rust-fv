@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 13 - Standard Library Contracts
+**Current focus:** Phase 14 - Incremental Verification
 
 ## Current Position
 
-Phase: 13 of 18 (Standard Library Contracts) -- COMPLETE
-Plan: 5 of 5 (all complete)
-Status: Phase 13 complete, ready for Phase 14
-Last activity: 2026-02-14 — Completed 13-05-PLAN.md (proptest oracle + E2E integration tests)
+Phase: 14 of 18 (Incremental Verification) -- IN PROGRESS
+Plan: 1 of TBD (plan 01 complete)
+Status: Plan 14-01 complete (dual-hash cache + transitive invalidation)
+Last activity: 2026-02-15 — Completed 14-01-PLAN.md (cache infrastructure)
 
-Progress: [█████████████████░░░░░░░] 72% (13/18 phases complete)
+Progress: [█████████████████░░░░░░░] 72% (13/18 phases complete, 14 in progress)
 
 ## Performance Metrics
 
@@ -42,11 +42,11 @@ Progress: [█████████████████░░░░░░
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
-| Phase 13 P01 | 63s | 2 | 7 |
 | Phase 13 P02 | 703s | 2 | 6 |
 | Phase 13 P03 | 107s | 2 | 10 |
 | Phase 13 P04 | 50min | 2 | 8 |
 | Phase 13 P05 | 83min | 2 | 8 |
+| Phase 14 P01 | 738s | 2 | 8 |
 
 *Updated after each plan completion*
 
@@ -72,6 +72,10 @@ Recent decisions affecting current work:
 - [Phase 13]: CLI flag --no-stdlib-contracts provides opt-out via environment variable
 - [Phase 13]: Proptest oracle testing validates all stdlib contract postconditions against real behavior (256 cases each)
 - [Phase 13]: E2E tests prove full verification pipeline works with stdlib contracts (IR -> ContractDB -> VCGen -> Z3)
+- [Phase 14 (14-01)]: Dual-hash cache model (mir_hash + contract_hash) enables precise invalidation granularity
+- [Phase 14 (14-01)]: Age-based eviction (30-day TTL) with lazy cleanup on load (no periodic background task)
+- [Phase 14 (14-01)]: Transitive invalidation via reverse call graph (contract changes cascade to callers)
+- [Phase 14 (14-01)]: Timestamp zero means "keep" for backward compatibility with old cache format
 
 ### Pending Todos
 
@@ -91,12 +95,12 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-14
-Stopped at: Completed 13-05-PLAN.md (Phase 13 complete - all 5 plans done)
+Last session: 2026-02-15
+Stopped at: Completed 14-01-PLAN.md (dual-hash cache + transitive invalidation infrastructure)
 Resume file: None
-Next step: Plan and execute Phase 14
+Next step: Continue Phase 14 (plan 02 and beyond)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-14 after completing 13-05-PLAN.md (Phase 13 complete)*
+*Last updated: 2026-02-15 after completing 14-01-PLAN.md (Phase 14 plan 01)*
