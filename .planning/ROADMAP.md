@@ -65,11 +65,11 @@ Extended formal verification to cover all major Rust language features -- recurs
 **Plans:** 5 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — SMT sequence theory infrastructure + stdlib contract data model
-- [ ] 13-02-PLAN.md — Vec, Option, Result contracts (TDD)
-- [ ] 13-03-PLAN.md — HashMap, Iterator, String/str/slice contracts (TDD)
-- [ ] 13-04-PLAN.md — Contract loading, override mechanism, CLI integration
-- [ ] 13-05-PLAN.md — Oracle tests (proptest) + E2E integration tests
+- [x] 13-01-PLAN.md — SMT sequence theory infrastructure + stdlib contract data model
+- [x] 13-02-PLAN.md — Vec, Option, Result contracts (TDD)
+- [x] 13-03-PLAN.md — HashMap, Iterator, String/str/slice contracts (TDD)
+- [x] 13-04-PLAN.md — Contract loading, override mechanism, CLI integration
+- [x] 13-05-PLAN.md — Oracle tests (proptest) + E2E integration tests
 
 ---
 
@@ -207,7 +207,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 10. Unsafe Code | v0.2 | 3/3 | Complete | 2026-02-13 |
 | 11. Floating Point | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 12. Concurrency | v0.2 | 3/3 | Complete | 2026-02-14 |
-| 13. Standard Library Contracts | v0.3 | 0/TBD | Not started | - |
+| 13. Standard Library Contracts | v0.3 | 5/5 | Complete | 2026-02-15 |
 | 14. Incremental Verification | v0.3 | 0/TBD | Not started | - |
 | 15. Trigger Customization | v0.3 | 0/TBD | Not started | - |
 | 16. VSCode Extension | v0.3 | 0/TBD | Not started | - |
@@ -217,4 +217,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 ---
 
 *Roadmap created: 2026-02-14*
-*Last updated: 2026-02-14 after v0.3 milestone start*
+*Last updated: 2026-02-15 after Phase 13 completion*
