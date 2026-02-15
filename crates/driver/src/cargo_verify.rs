@@ -240,8 +240,9 @@ fn print_usage() {
     eprintln!();
     eprintln!("    JSON mode outputs structured results to stdout for IDE integration.");
     eprintln!();
-    eprintln!("    Caching: Verification results are cached in target/rust-fv-cache/ and reused");
-    eprintln!("    when source code hasn't changed. Use --fresh to force re-verification.");
+    eprintln!("    Caching: Verification results are cached in target/verify-cache/ and reused");
+    eprintln!("    when source code hasn't changed. Use --fresh to bypass cache or");
+    eprintln!("    'cargo verify clean' to permanently delete the cache.");
     eprintln!();
     eprintln!("EXIT CODES:");
     eprintln!("    0  All functions verified successfully");

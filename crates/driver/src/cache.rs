@@ -6,8 +6,8 @@
 //! - All contracts (requires/ensures/invariants)
 //! - MIR debug representation (conservative: any MIR change invalidates)
 //!
-//! Cache is stored in `target/rust-fv-cache/` as JSON files, one per function.
-//! Cleaned by `cargo clean`.
+//! Cache is stored in `target/verify-cache/` as JSON files, one per function.
+//! Cleaned by `cargo clean` or `cargo verify clean`.
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 pub struct VcCache {
     /// Cached entries, keyed by SHA-256 hash
     entries: FxHashMap<[u8; 32], CacheEntry>,
-    /// Directory for cache files (target/rust-fv-cache/)
+    /// Directory for cache files (target/verify-cache/)
     cache_dir: PathBuf,
 }
 
@@ -267,6 +267,7 @@ impl VcCache {
     /// Clear all cache entries (for --fresh flag).
     ///
     /// Removes all in-memory entries and deletes all cache files.
+    #[allow(dead_code)] // Deprecated: --fresh now bypasses cache without clearing
     pub fn clear(&mut self) {
         self.entries.clear();
 

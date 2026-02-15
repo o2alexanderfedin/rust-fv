@@ -55,6 +55,9 @@ pub struct VerificationCallbacks {
     use_simplification: bool,
     /// Whether to disable stdlib contracts
     no_stdlib_contracts: bool,
+    /// Enable verbose output with per-function timing
+    #[allow(dead_code)] // Will be used in Task 2
+    verbose: bool,
 }
 
 impl VerificationCallbacks {
@@ -62,6 +65,9 @@ impl VerificationCallbacks {
     pub fn new(output_format: OutputFormat, jobs: usize, fresh: bool) -> Self {
         // Check for --no-stdlib-contracts environment variable
         let no_stdlib_contracts = std::env::var("RUST_FV_NO_STDLIB_CONTRACTS").is_ok();
+
+        // Check for --verbose flag
+        let verbose = std::env::var("RUST_FV_VERBOSE").is_ok();
 
         Self {
             enabled: true,
@@ -73,6 +79,7 @@ impl VerificationCallbacks {
             fresh,
             use_simplification: true, // Default: enable simplification
             no_stdlib_contracts,
+            verbose,
         }
     }
 
@@ -88,6 +95,7 @@ impl VerificationCallbacks {
             fresh: false,
             use_simplification: true,
             no_stdlib_contracts: false,
+            verbose: false,
         }
     }
 
@@ -291,22 +299,19 @@ impl Callbacks for VerificationCallbacks {
             stdlib_registry.merge_into(&mut contract_db);
         }
 
-        // Determine cache directory (target/rust-fv-cache/)
+        // Determine cache directory (target/verify-cache/)
         let cache_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
-        let cache_path = std::path::PathBuf::from(cache_dir).join("rust-fv-cache");
+        let cache_path = std::path::PathBuf::from(cache_dir).join("verify-cache");
 
         // Load cache
         let mut cache = crate::cache::VcCache::new(cache_path);
         cache.load();
 
-        // Clear cache if --fresh flag is set
-        if self.fresh {
-            cache.clear();
-        }
+        // Note: --fresh no longer clears cache, it just bypasses it for this run
+        // Cache files remain on disk for future runs
 
-        // Collect all functions to verify and build verification tasks
-        let mut tasks = Vec::new();
-        let mut func_infos = Vec::new(); // For call graph
+        // Collect all functions to verify
+        let mut func_infos = Vec::new();
 
         for local_def_id in tcx.hir_body_owners() {
             let def_id = local_def_id.to_def_id();
@@ -333,29 +338,78 @@ impl Callbacks for VerificationCallbacks {
                 contracts.cloned().unwrap_or_default(),
             );
 
-            // Compute cache key
-            let ir_debug = format!("{:?}", ir_func);
-            #[allow(deprecated)] // TODO: Switch to dual-hash approach in future phase
-            let cache_key =
-                crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
-
-            func_infos.push((name.clone(), ir_func.clone()));
-
-            tasks.push(crate::parallel::VerificationTask {
-                name: name.clone(),
-                ir_func,
-                contract_db: std::sync::Arc::new(contract_db.clone()),
-                cache_key,
-            });
+            func_infos.push((name.clone(), ir_func));
         }
 
-        // Build call graph and compute topological order
+        // Build call graph
         let call_graph = rust_fv_analysis::call_graph::CallGraph::from_functions(
             &func_infos
                 .iter()
                 .map(|(n, f)| (n.clone(), f))
                 .collect::<Vec<_>>(),
         );
+
+        // Compute per-function hashes and dependencies
+        let mut func_hashes = std::collections::HashMap::new();
+        for (name, ir_func) in &func_infos {
+            let ir_debug = format!("{:?}", ir_func);
+            let mir_hash = crate::cache::VcCache::compute_mir_hash(name, &ir_debug);
+            let contract_hash = crate::cache::VcCache::compute_contract_hash(name, &ir_func.contracts);
+            func_hashes.insert(name.clone(), (mir_hash, contract_hash));
+        }
+
+        // Determine which functions have changed contracts
+        let all_funcs_with_hashes: Vec<_> = func_hashes
+            .iter()
+            .map(|(name, (_mir_hash, contract_hash))| (name.clone(), *contract_hash))
+            .collect();
+        let changed_contracts = call_graph.changed_contract_functions(
+            &all_funcs_with_hashes,
+            |func_name: &str| {
+                let contracts = rust_fv_analysis::ir::Contracts::default();
+                #[allow(deprecated)]
+                let key = crate::cache::VcCache::compute_key(func_name, &contracts, "");
+                cache.get(&key).map(|entry| entry.contract_hash)
+            },
+        );
+
+        // Build verification tasks with invalidation decisions
+        let mut tasks = Vec::new();
+        for (name, ir_func) in func_infos {
+            let (mir_hash, contract_hash) = func_hashes.get(&name).unwrap();
+
+            // Compute legacy cache key for backward compatibility
+            let ir_debug = format!("{:?}", ir_func);
+            #[allow(deprecated)]
+            let cache_key = crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
+
+            // Get direct dependencies
+            let dependencies = call_graph.direct_callees(&name);
+
+            // Decide whether to verify this function
+            let invalidation_decision = crate::invalidation::decide_verification(
+                &cache,
+                &name,
+                *mir_hash,
+                *contract_hash,
+                self.fresh,
+                &changed_contracts,
+                &dependencies,
+            );
+
+            tasks.push(crate::parallel::VerificationTask {
+                name: name.clone(),
+                ir_func,
+                contract_db: std::sync::Arc::new(contract_db.clone()),
+                cache_key,
+                mir_hash: *mir_hash,
+                contract_hash: *contract_hash,
+                dependencies,
+                invalidation_decision,
+            });
+        }
+
+        // Sort tasks by topological order for bottom-up verification
         let topo_order = call_graph.topological_order();
 
         // Sort tasks by topological order
@@ -629,6 +683,24 @@ mod tests {
         assert!(cb.failures.is_empty());
         assert!(cb.crate_name.is_none());
         assert!(cb.use_simplification);
+        assert!(!cb.verbose);
+    }
+
+    #[test]
+    fn test_callbacks_verbose_flag() {
+        // Verbose is false by default
+        let cb = VerificationCallbacks::new(OutputFormat::Text, 4, false);
+        assert!(!cb.verbose);
+
+        // Test with RUST_FV_VERBOSE set
+        unsafe {
+            std::env::set_var("RUST_FV_VERBOSE", "1");
+        }
+        let cb_verbose = VerificationCallbacks::new(OutputFormat::Json, 2, true);
+        assert!(cb_verbose.verbose);
+        unsafe {
+            std::env::remove_var("RUST_FV_VERBOSE");
+        }
     }
 
     // --- vc_kind_to_string tests ---

@@ -25,8 +25,16 @@ pub struct VerificationTask {
     pub ir_func: Function,
     /// Shared contract database
     pub contract_db: Arc<ContractDatabase>,
-    /// Cache key for this function
+    /// Cache key for this function (legacy combined hash)
     pub cache_key: [u8; 32],
+    /// Hash of MIR body only
+    pub mir_hash: [u8; 32],
+    /// Hash of contracts only
+    pub contract_hash: [u8; 32],
+    /// Direct callees of this function
+    pub dependencies: Vec<String>,
+    /// Invalidation decision (whether to verify and why)
+    pub invalidation_decision: crate::invalidation::InvalidationDecision,
 }
 
 /// Result of verifying a single function.
@@ -41,6 +49,10 @@ pub struct VerificationTaskResult {
     /// Whether this result came from cache
     #[allow(dead_code)] // Used for logging/debugging
     pub from_cache: bool,
+    /// Invalidation reason (Some if re-verified, None if cached)
+    pub invalidation_reason: Option<crate::invalidation::InvalidationReason>,
+    /// Verification duration in milliseconds (None if cached)
+    pub duration_ms: Option<u64>,
 }
 
 /// Verify multiple functions in parallel using Rayon.
@@ -58,7 +70,7 @@ pub fn verify_functions_parallel(
     tasks: Vec<VerificationTask>,
     cache: &mut VcCache,
     jobs: usize,
-    fresh: bool,
+    _fresh: bool, // Deprecated: now handled via InvalidationDecision
     use_simplification: bool,
 ) -> Vec<VerificationTaskResult> {
     // Build Rayon thread pool
@@ -67,10 +79,10 @@ pub fn verify_functions_parallel(
         .build()
         .unwrap();
 
-    // Separate cached and uncached tasks
+    // Separate cached and uncached tasks based on InvalidationDecision
     let (cached_tasks, uncached_tasks): (Vec<_>, Vec<_>) = tasks
         .into_iter()
-        .partition(|task| !fresh && cache.get(&task.cache_key).is_some());
+        .partition(|task| !task.invalidation_decision.should_verify);
 
     // Log cache statistics
     tracing::info!(
@@ -129,20 +141,28 @@ pub fn verify_functions_parallel(
                 results,
                 cache_key: task.cache_key,
                 from_cache: true,
+                invalidation_reason: None,
+                duration_ms: None,
             }
         })
         .collect();
 
-    // Verify uncached tasks in parallel
+    // Verify uncached tasks in parallel with timing
     let new_results: Vec<VerificationTaskResult> = pool.install(|| {
         uncached_tasks
             .par_iter()
-            .map(|task| verify_single(task, use_simplification))
+            .map(|task| {
+                let start = std::time::Instant::now();
+                let mut result = verify_single(task, use_simplification);
+                result.duration_ms = Some(start.elapsed().as_millis() as u64);
+                result.invalidation_reason = task.invalidation_decision.reason.clone();
+                result
+            })
             .collect()
     });
 
-    // Insert new results into cache
-    for result in &new_results {
+    // Insert new results into cache with dual hashes and dependencies
+    for (result, task) in new_results.iter().zip(uncached_tasks.iter()) {
         let all_verified = result.results.iter().all(|r| r.verified);
         let vc_count = result.results.len();
         let verified_count = result.results.iter().filter(|r| r.verified).count();
@@ -163,10 +183,10 @@ pub fn verify_functions_parallel(
                 vc_count,
                 verified_count,
                 message,
-                mir_hash: [0u8; 32],      // TODO: Pass from task
-                contract_hash: [0u8; 32], // TODO: Pass from task
-                timestamp: 0,             // Will be set by insert()
-                dependencies: vec![],     // TODO: Pass from task
+                mir_hash: task.mir_hash,
+                contract_hash: task.contract_hash,
+                timestamp: 0, // Will be set by insert()
+                dependencies: task.dependencies.clone(),
             },
         );
     }
@@ -205,6 +225,8 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 }],
                 cache_key: task.cache_key,
                 from_cache: false,
+                invalidation_reason: None,
+                duration_ms: None,
             };
         }
     };
@@ -278,5 +300,75 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         results,
         cache_key: task.cache_key,
         from_cache: false,
+        invalidation_reason: None, // Will be set by caller
+        duration_ms: None,          // Will be set by caller
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::invalidation::{InvalidationDecision, InvalidationReason};
+
+    #[test]
+    fn test_verification_task_result_with_timing() {
+        let result = VerificationTaskResult {
+            name: "test_func".to_string(),
+            results: vec![],
+            cache_key: [1u8; 32],
+            from_cache: false,
+            invalidation_reason: Some(InvalidationReason::MirChanged),
+            duration_ms: Some(42),
+        };
+
+        assert_eq!(result.name, "test_func");
+        assert!(!result.from_cache);
+        assert_eq!(result.duration_ms, Some(42));
+        assert_eq!(
+            result.invalidation_reason,
+            Some(InvalidationReason::MirChanged)
+        );
+    }
+
+    #[test]
+    fn test_cached_task_no_duration() {
+        let result = VerificationTaskResult {
+            name: "cached_func".to_string(),
+            results: vec![],
+            cache_key: [1u8; 32],
+            from_cache: true,
+            invalidation_reason: None,
+            duration_ms: None,
+        };
+
+        assert!(result.from_cache);
+        assert_eq!(result.duration_ms, None);
+        assert_eq!(result.invalidation_reason, None);
+    }
+
+    #[test]
+    fn test_invalidation_decision_partitioning() {
+        // Test that tasks are correctly partitioned by InvalidationDecision
+        let should_verify = InvalidationDecision::verify(InvalidationReason::Fresh);
+        let should_skip = InvalidationDecision::skip();
+
+        assert!(should_verify.should_verify);
+        assert!(!should_skip.should_verify);
+        assert_eq!(should_verify.reason, Some(InvalidationReason::Fresh));
+        assert_eq!(should_skip.reason, None);
+    }
+
+    #[test]
+    fn test_fresh_invalidation_reason() {
+        let decision = InvalidationDecision::verify(InvalidationReason::Fresh);
+        assert!(decision.should_verify);
+        assert_eq!(decision.reason, Some(InvalidationReason::Fresh));
+    }
+
+    #[test]
+    fn test_mir_changed_invalidation_reason() {
+        let decision = InvalidationDecision::verify(InvalidationReason::MirChanged);
+        assert!(decision.should_verify);
+        assert_eq!(decision.reason, Some(InvalidationReason::MirChanged));
     }
 }
