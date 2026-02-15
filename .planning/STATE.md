@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 14 of 18 (Incremental Verification) -- IN PROGRESS
-Plan: 1 of TBD (plan 01 complete)
-Status: Plan 14-01 complete (dual-hash cache + transitive invalidation)
-Last activity: 2026-02-15 — Completed 14-01-PLAN.md (cache infrastructure)
+Plan: 2 of TBD (plans 01-02 complete)
+Status: Plan 14-02 complete (per-function status output + cache management)
+Last activity: 2026-02-15 — Completed 14-02-PLAN.md (user-visible incremental verification)
 
 Progress: [█████████████████░░░░░░░] 72% (13/18 phases complete, 14 in progress)
 
@@ -47,6 +47,7 @@ Progress: [█████████████████░░░░░░
 | Phase 13 P04 | 50min | 2 | 8 |
 | Phase 13 P05 | 83min | 2 | 8 |
 | Phase 14 P01 | 738s | 2 | 8 |
+| Phase 14 P02 | 478s | 2 | 4 |
 
 *Updated after each plan completion*
 
@@ -76,6 +77,10 @@ Recent decisions affecting current work:
 - [Phase 14 (14-01)]: Age-based eviction (30-day TTL) with lazy cleanup on load (no periodic background task)
 - [Phase 14 (14-01)]: Transitive invalidation via reverse call graph (contract changes cascade to callers)
 - [Phase 14 (14-01)]: Timestamp zero means "keep" for backward compatibility with old cache format
+- [Phase 14 (14-02)]: Invalidation reasons shown for all re-verified functions (not behind verbose flag)
+- [Phase 14 (14-02)]: --verbose flag controls per-function timing only, not invalidation reasons
+- [Phase 14 (14-02)]: [SKIP] status distinguishes cached results from verified results
+- [Phase 14 (14-02)]: Total timing always shown in summary when any functions verified
 
 ### Pending Todos
 
@@ -96,11 +101,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 14-01-PLAN.md (dual-hash cache + transitive invalidation infrastructure)
+Stopped at: Completed 14-02-PLAN.md (per-function status output + cache management)
 Resume file: None
-Next step: Continue Phase 14 (plan 02 and beyond)
+Next step: Continue Phase 14 (plan 03 and beyond)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-15 after completing 14-01-PLAN.md (Phase 14 plan 01)*
+*Last updated: 2026-02-15 after completing 14-02-PLAN.md (Phase 14 plan 02)*
