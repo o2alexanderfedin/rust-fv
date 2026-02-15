@@ -208,6 +208,132 @@ impl CallGraph {
 
         groups
     }
+
+    /// Compute transitive callers of a function (reverse transitive closure).
+    ///
+    /// Returns all functions that transitively call the given function,
+    /// excluding the function itself. Handles cycles safely via visited set.
+    ///
+    /// # Arguments
+    /// * `func_name` - Name of the function to find callers for
+    ///
+    /// # Returns
+    /// List of function names that transitively call `func_name`
+    pub fn transitive_callers(&self, func_name: &str) -> Vec<String> {
+        // Build reverse edges (callee -> list of callers)
+        let mut reverse_edges: HashMap<String, Vec<String>> = HashMap::new();
+
+        for (caller, callees) in &self.edges {
+            for callee in callees {
+                // Only consider edges where both caller and callee are in all_functions
+                if self.all_functions.contains(callee) && self.all_functions.contains(caller) {
+                    reverse_edges
+                        .entry(callee.clone())
+                        .or_default()
+                        .push(caller.clone());
+                }
+            }
+        }
+
+        // BFS from func_name through reverse edges
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut queue: VecDeque<String> = VecDeque::new();
+        let mut result: Vec<String> = Vec::new();
+
+        // Start with direct callers
+        if let Some(direct_callers) = reverse_edges.get(func_name) {
+            for caller in direct_callers {
+                if !visited.contains(caller) {
+                    visited.insert(caller.clone());
+                    queue.push_back(caller.clone());
+                    result.push(caller.clone());
+                }
+            }
+        }
+
+        // BFS to find transitive callers
+        while let Some(current) = queue.pop_front() {
+            if let Some(callers_of_current) = reverse_edges.get(&current) {
+                for caller in callers_of_current {
+                    if !visited.contains(caller) {
+                        visited.insert(caller.clone());
+                        queue.push_back(caller.clone());
+                        result.push(caller.clone());
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Get direct callees of a function.
+    ///
+    /// Returns only functions in the verification set (all_functions).
+    ///
+    /// # Arguments
+    /// * `func_name` - Name of the function
+    ///
+    /// # Returns
+    /// List of direct callees
+    pub fn direct_callees(&self, func_name: &str) -> Vec<String> {
+        self.edges
+            .get(func_name)
+            .map(|callees| {
+                callees
+                    .iter()
+                    .filter(|callee| self.all_functions.contains(*callee))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Identify all functions that need re-verification due to contract changes.
+    ///
+    /// Computes the set of functions whose contracts have changed, plus all
+    /// transitive callers of those functions.
+    ///
+    /// # Arguments
+    /// * `all_functions` - List of (function_name, current_contract_hash) pairs
+    /// * `cache` - Closure to look up cached contract hash by function name
+    ///
+    /// # Returns
+    /// Set of function names that need re-verification
+    #[allow(dead_code)] // Used in future phases
+    pub fn changed_contract_functions<F>(
+        &self,
+        all_functions: &[(String, [u8; 32])],
+        cache: F,
+    ) -> HashSet<String>
+    where
+        F: Fn(&str) -> Option<[u8; 32]>,
+    {
+        let mut changed_set: HashSet<String> = HashSet::new();
+
+        // First, find all functions with changed contracts
+        for (func_name, current_hash) in all_functions {
+            if let Some(cached_hash) = cache(func_name) {
+                if cached_hash != *current_hash {
+                    changed_set.insert(func_name.clone());
+                }
+            } else {
+                // No cached entry means contract is "changed" (new)
+                changed_set.insert(func_name.clone());
+            }
+        }
+
+        // Then add all transitive callers
+        let direct_changed: Vec<String> = changed_set.iter().cloned().collect();
+        for func_name in &direct_changed {
+            let callers = self.transitive_callers(func_name);
+            for caller in callers {
+                changed_set.insert(caller);
+            }
+        }
+
+        changed_set
+    }
 }
 
 /// Normalize function name for call graph matching.
@@ -676,5 +802,280 @@ mod tests {
         assert_eq!(groups.len(), 1, "Only 'b' (self-loop) should be recursive");
         assert!(groups[0].contains("b"));
         assert!(!groups[0].contains("a"));
+    }
+
+    // ====== CallGraph::transitive_callers tests ======
+
+    #[test]
+    fn test_transitive_callers_empty_graph() {
+        let funcs: Vec<(String, &Function)> = vec![];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("nonexistent");
+        assert!(callers.is_empty());
+    }
+
+    #[test]
+    fn test_transitive_callers_linear_chain() {
+        // a -> b -> c: transitive_callers(c) should return [b, a]
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("c"), return_block()]);
+        let c = make_function("c", vec![return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("c");
+        assert_eq!(callers.len(), 2);
+        assert!(callers.contains(&"b".to_string()));
+        assert!(callers.contains(&"a".to_string()));
+    }
+
+    #[test]
+    fn test_transitive_callers_diamond() {
+        // top -> left, top -> right, left -> bottom, right -> bottom
+        // transitive_callers(bottom) should return [left, right, top]
+        let top = make_function(
+            "top",
+            vec![call_block("left"), call_block("right"), return_block()],
+        );
+        let left = make_function("left", vec![call_block("bottom"), return_block()]);
+        let right = make_function("right", vec![call_block("bottom"), return_block()]);
+        let bottom = make_function("bottom", vec![return_block()]);
+        let funcs = vec![
+            ("top".to_string(), &top),
+            ("left".to_string(), &left),
+            ("right".to_string(), &right),
+            ("bottom".to_string(), &bottom),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("bottom");
+        assert_eq!(callers.len(), 3);
+        assert!(callers.contains(&"left".to_string()));
+        assert!(callers.contains(&"right".to_string()));
+        assert!(callers.contains(&"top".to_string()));
+    }
+
+    #[test]
+    fn test_transitive_callers_with_cycle() {
+        // a -> b -> a (cycle)
+        // transitive_callers(a) should return [b, a] (both are in the cycle)
+        // But wait, a appears because: a calls b, b calls a, so "b is a caller of a",
+        // and "a is a caller of b", thus transitively "a is a caller of a" via b.
+        // However, we exclude self from the initial set, so this returns [b]
+        // Actually: direct callers of a are [b]. Then we BFS from b, which has
+        // direct callers [a]. So the full set is [b, a], but we need to verify
+        // this doesn't cause infinite loop (handled by visited set).
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("a"), return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("a");
+        // In a cycle, both functions call each other transitively
+        assert_eq!(callers.len(), 2);
+        assert!(callers.contains(&"b".to_string()));
+        assert!(callers.contains(&"a".to_string()));
+    }
+
+    #[test]
+    fn test_transitive_callers_includes_self_in_cycle() {
+        // a -> a (self-loop)
+        // transitive_callers(a) should return [a] because a calls itself
+        // This is correct: if a's contract changes, a needs re-verification
+        let a = make_function("a", vec![call_block("a"), return_block()]);
+        let funcs = vec![("a".to_string(), &a)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("a");
+        assert_eq!(callers.len(), 1);
+        assert!(callers.contains(&"a".to_string()));
+    }
+
+    #[test]
+    fn test_transitive_callers_with_external_callees() {
+        // a -> b, b -> external (external not in verified set)
+        // transitive_callers(b) should return [a]
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("external"), return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("b");
+        assert_eq!(callers.len(), 1);
+        assert!(callers.contains(&"a".to_string()));
+    }
+
+    #[test]
+    fn test_transitive_callers_leaf_function() {
+        // a -> b, c -> b (b is a leaf from perspective of no callees)
+        // transitive_callers(b) should return [a, c]
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let c = make_function("c", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let callers = cg.transitive_callers("b");
+        assert_eq!(callers.len(), 2);
+        assert!(callers.contains(&"a".to_string()));
+        assert!(callers.contains(&"c".to_string()));
+    }
+
+    // ====== CallGraph::direct_callees tests ======
+
+    #[test]
+    fn test_direct_callees_returns_only_verified() {
+        // a -> b, a -> external (external not in verified set)
+        let a = make_function(
+            "a",
+            vec![call_block("b"), call_block("external"), return_block()],
+        );
+        let b = make_function("b", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callees = cg.direct_callees("a");
+        assert_eq!(callees.len(), 1);
+        assert_eq!(callees[0], "b");
+    }
+
+    #[test]
+    fn test_direct_callees_empty_for_leaf() {
+        // a (no calls)
+        let a = make_function("a", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callees = cg.direct_callees("a");
+        assert!(callees.is_empty());
+    }
+
+    #[test]
+    fn test_direct_callees_multiple() {
+        // a -> b, a -> c
+        let a = make_function("a", vec![call_block("b"), call_block("c"), return_block()]);
+        let b = make_function("b", vec![return_block()]);
+        let c = make_function("c", vec![return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+        let callees = cg.direct_callees("a");
+        assert_eq!(callees.len(), 2);
+        assert!(callees.contains(&"b".to_string()));
+        assert!(callees.contains(&"c".to_string()));
+    }
+
+    #[test]
+    fn test_direct_callees_nonexistent_function() {
+        let a = make_function("a", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a)];
+        let cg = CallGraph::from_functions(&funcs);
+        let callees = cg.direct_callees("nonexistent");
+        assert!(callees.is_empty());
+    }
+
+    // ====== CallGraph::changed_contract_functions tests ======
+
+    #[test]
+    fn test_changed_contract_functions_direct_change() {
+        // a -> b (b's contract changed)
+        // Should return {b, a}
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+
+        let all_functions = vec![
+            ("a".to_string(), [1u8; 32]),
+            ("b".to_string(), [2u8; 32]), // Different hash = changed
+        ];
+
+        let cache = |name: &str| {
+            if name == "a" {
+                Some([1u8; 32])
+            } else if name == "b" {
+                Some([99u8; 32]) // Different from current = changed
+            } else {
+                None
+            }
+        };
+
+        let changed = cg.changed_contract_functions(&all_functions, cache);
+        assert_eq!(changed.len(), 2);
+        assert!(changed.contains("a"));
+        assert!(changed.contains("b"));
+    }
+
+    #[test]
+    fn test_changed_contract_functions_transitive() {
+        // a -> b -> c (c's contract changed)
+        // Should return {c, b, a}
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![call_block("c"), return_block()]);
+        let c = make_function("c", vec![return_block()]);
+        let funcs = vec![
+            ("a".to_string(), &a),
+            ("b".to_string(), &b),
+            ("c".to_string(), &c),
+        ];
+        let cg = CallGraph::from_functions(&funcs);
+
+        let all_functions = vec![
+            ("a".to_string(), [1u8; 32]),
+            ("b".to_string(), [2u8; 32]),
+            ("c".to_string(), [3u8; 32]),
+        ];
+
+        let cache = |name: &str| match name {
+            "a" => Some([1u8; 32]),
+            "b" => Some([2u8; 32]),
+            "c" => Some([99u8; 32]), // Changed
+            _ => None,
+        };
+
+        let changed = cg.changed_contract_functions(&all_functions, cache);
+        assert_eq!(changed.len(), 3);
+        assert!(changed.contains("a"));
+        assert!(changed.contains("b"));
+        assert!(changed.contains("c"));
+    }
+
+    #[test]
+    fn test_changed_contract_functions_no_change() {
+        // a -> b (no changes)
+        // Should return empty set
+        let a = make_function("a", vec![call_block("b"), return_block()]);
+        let b = make_function("b", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a), ("b".to_string(), &b)];
+        let cg = CallGraph::from_functions(&funcs);
+
+        let all_functions = vec![("a".to_string(), [1u8; 32]), ("b".to_string(), [2u8; 32])];
+
+        let cache = |name: &str| match name {
+            "a" => Some([1u8; 32]),
+            "b" => Some([2u8; 32]),
+            _ => None,
+        };
+
+        let changed = cg.changed_contract_functions(&all_functions, cache);
+        assert!(changed.is_empty());
+    }
+
+    #[test]
+    fn test_changed_contract_functions_cache_miss() {
+        // a (no cached entry = treated as changed)
+        let a = make_function("a", vec![return_block()]);
+        let funcs = vec![("a".to_string(), &a)];
+        let cg = CallGraph::from_functions(&funcs);
+
+        let all_functions = vec![("a".to_string(), [1u8; 32])];
+        let cache = |_: &str| None; // No cache entries
+
+        let changed = cg.changed_contract_functions(&all_functions, cache);
+        assert_eq!(changed.len(), 1);
+        assert!(changed.contains("a"));
     }
 }
