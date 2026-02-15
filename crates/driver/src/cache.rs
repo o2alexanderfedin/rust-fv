@@ -34,6 +34,18 @@ pub struct CacheEntry {
     pub verified_count: usize,
     /// Failure message if any VC failed
     pub message: Option<String>,
+    /// Hash of function body only (MIR representation)
+    #[serde(default)]
+    pub mir_hash: [u8; 32],
+    /// Hash of contracts only (requires/ensures/invariants/pure/decreases)
+    #[serde(default)]
+    pub contract_hash: [u8; 32],
+    /// Unix timestamp (UTC) when entry was created
+    #[serde(default)]
+    pub timestamp: i64,
+    /// Function names this function calls (direct dependencies)
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 
 impl VcCache {
@@ -54,6 +66,7 @@ impl VcCache {
     ///
     /// Reads all `.json` files from the cache directory and deserializes them.
     /// Malformed files are silently skipped.
+    /// Entries older than 30 days are evicted (deleted from disk).
     pub fn load(&mut self) {
         if !self.cache_dir.exists() {
             return;
@@ -63,6 +76,10 @@ impl VcCache {
             Ok(rd) => rd,
             Err(_) => return,
         };
+
+        let now = chrono::Utc::now().timestamp();
+        let max_age_seconds = 30 * 24 * 60 * 60; // 30 days
+        let mut evicted_count = 0;
 
         for entry in read_dir.flatten() {
             let path = entry.path();
@@ -96,13 +113,84 @@ impl VcCache {
                 Err(_) => continue,
             };
 
+            // Check age and evict if expired
+            // Note: timestamp == 0 means old cache format (before timestamps were added)
+            // or explicitly set to 0. Treat as "unknown age" and keep it.
+            if entry.timestamp != 0 && now - entry.timestamp > max_age_seconds {
+                let _ = fs::remove_file(&path);
+                evicted_count += 1;
+                continue;
+            }
+
             self.entries.insert(hash, entry);
         }
 
+        if evicted_count > 0 {
+            tracing::info!("Evicted {} expired cache entries", evicted_count);
+        }
         tracing::info!("Loaded {} cache entries", self.entries.len());
     }
 
-    /// Compute cache key for a function.
+    /// Compute hash of function body only (MIR representation).
+    ///
+    /// Hash includes:
+    /// - Function name
+    /// - MIR debug representation (via Debug formatting)
+    #[allow(dead_code)] // Used in future phases
+    pub fn compute_mir_hash(func_name: &str, ir_debug: &str) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(func_name.as_bytes());
+        hasher.update(ir_debug.as_bytes());
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        hash
+    }
+
+    /// Compute hash of contracts only.
+    ///
+    /// Hash includes:
+    /// - Function name
+    /// - All requires specs
+    /// - All ensures specs
+    /// - All invariants
+    /// - Pure flag
+    /// - Decreases clause
+    #[allow(dead_code)] // Used in future phases
+    pub fn compute_contract_hash(
+        func_name: &str,
+        contracts: &rust_fv_analysis::ir::Contracts,
+    ) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(func_name.as_bytes());
+
+        for req in &contracts.requires {
+            hasher.update(b"requires:");
+            hasher.update(req.raw.as_bytes());
+        }
+        for ens in &contracts.ensures {
+            hasher.update(b"ensures:");
+            hasher.update(ens.raw.as_bytes());
+        }
+        for inv in &contracts.invariants {
+            hasher.update(b"invariant:");
+            hasher.update(inv.raw.as_bytes());
+        }
+        if contracts.is_pure {
+            hasher.update(b"pure");
+        }
+        if let Some(ref dec) = contracts.decreases {
+            hasher.update(b"decreases:");
+            hasher.update(dec.raw.as_bytes());
+        }
+
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        hash
+    }
+
+    /// Compute cache key for a function (deprecated).
     ///
     /// The key is a SHA-256 hash of:
     /// - Function name
@@ -112,6 +200,7 @@ impl VcCache {
     /// - MIR debug representation (via Debug formatting)
     ///
     /// This is conservative: any change to the function body or contracts invalidates the cache.
+    #[deprecated(note = "Use compute_mir_hash + compute_contract_hash instead")]
     pub fn compute_key(
         func_name: &str,
         contracts: &rust_fv_analysis::ir::Contracts,
@@ -156,7 +245,13 @@ impl VcCache {
     /// Insert a cache entry both in memory and on disk.
     ///
     /// Persists the entry to `{cache_dir}/{hex_hash}.json`.
-    pub fn insert(&mut self, key: [u8; 32], entry: CacheEntry) {
+    /// Automatically sets the timestamp to the current time if not already set.
+    pub fn insert(&mut self, key: [u8; 32], mut entry: CacheEntry) {
+        // Set timestamp if not already set (for new entries)
+        if entry.timestamp == 0 {
+            entry.timestamp = chrono::Utc::now().timestamp();
+        }
+
         // Write to disk
         let filename = bytes_to_hex(&key);
         let path = self.cache_dir.join(format!("{}.json", filename));
@@ -215,6 +310,7 @@ fn hex_to_bytes(hex: &str) -> Option<[u8; 32]> {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests use deprecated compute_key for backward compatibility testing
 mod tests {
     use super::*;
     use std::path::PathBuf;
@@ -377,6 +473,10 @@ mod tests {
             vc_count: 3,
             verified_count: 3,
             message: None,
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: 0,
+            dependencies: vec![],
         };
 
         cache.insert(key, entry);
@@ -401,6 +501,10 @@ mod tests {
             vc_count: 5,
             verified_count: 2,
             message: Some("postcondition failed".to_string()),
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: 0,
+            dependencies: vec![],
         };
 
         cache.insert(key, entry);
@@ -435,6 +539,10 @@ mod tests {
             vc_count: 1,
             verified_count: 0,
             message: Some("failed".to_string()),
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: 0,
+            dependencies: vec![],
         };
         cache.insert(key, entry1);
 
@@ -443,6 +551,10 @@ mod tests {
             vc_count: 1,
             verified_count: 1,
             message: None,
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: 0,
+            dependencies: vec![],
         };
         cache.insert(key, entry2);
 
@@ -469,6 +581,10 @@ mod tests {
                     vc_count: 2,
                     verified_count: 2,
                     message: None,
+                    mir_hash: [1u8; 32],
+                    contract_hash: [2u8; 32],
+                    timestamp: 0,
+                    dependencies: vec![],
                 },
             );
             cache.insert(
@@ -478,6 +594,10 @@ mod tests {
                     vc_count: 3,
                     verified_count: 1,
                     message: Some("overflow".to_string()),
+                    mir_hash: [3u8; 32],
+                    contract_hash: [4u8; 32],
+                    timestamp: 0,
+                    dependencies: vec![],
                 },
             );
         }
@@ -533,7 +653,7 @@ mod tests {
         let filename = "a".repeat(64);
         fs::write(dir.join(format!("{}.json", filename)), "not valid json").unwrap();
 
-        // Write a valid entry
+        // Write a valid entry with recent timestamp
         let valid_key = [0xbb; 32];
         let valid_filename = bytes_to_hex(&valid_key);
         let valid_entry = CacheEntry {
@@ -541,6 +661,10 @@ mod tests {
             vc_count: 1,
             verified_count: 1,
             message: None,
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: chrono::Utc::now().timestamp(),
+            dependencies: vec![],
         };
         fs::write(
             dir.join(format!("{}.json", valid_filename)),
@@ -582,6 +706,10 @@ mod tests {
             vc_count: 1,
             verified_count: 1,
             message: None,
+            mir_hash: [1u8; 32],
+            contract_hash: [2u8; 32],
+            timestamp: 0,
+            dependencies: vec![],
         };
         fs::write(
             dir.join("short.json"),
@@ -611,6 +739,10 @@ mod tests {
                 vc_count: 1,
                 verified_count: 1,
                 message: None,
+                mir_hash: [1u8; 32],
+                contract_hash: [2u8; 32],
+                timestamp: 0,
+                dependencies: vec![],
             },
         );
         cache.insert(
@@ -620,6 +752,10 @@ mod tests {
                 vc_count: 2,
                 verified_count: 2,
                 message: None,
+                mir_hash: [3u8; 32],
+                contract_hash: [4u8; 32],
+                timestamp: 0,
+                dependencies: vec![],
             },
         );
 
@@ -669,6 +805,10 @@ mod tests {
                 vc_count: 1,
                 verified_count: 1,
                 message: None,
+                mir_hash: [1u8; 32],
+                contract_hash: [2u8; 32],
+                timestamp: 0,
+                dependencies: vec![],
             },
         );
 
@@ -827,5 +967,318 @@ mod tests {
 
         let key = VcCache::compute_key("func", &contracts, "ir");
         assert_eq!(key.len(), 32); // SHA-256 = 32 bytes
+    }
+
+    // ====== Dual-hash tests ======
+
+    #[test]
+    fn test_compute_mir_hash_deterministic() {
+        let hash1 = VcCache::compute_mir_hash("my_func", "ir_debug_repr");
+        let hash2 = VcCache::compute_mir_hash("my_func", "ir_debug_repr");
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_mir_hash_changes_with_body() {
+        let hash1 = VcCache::compute_mir_hash("my_func", "ir_v1");
+        let hash2 = VcCache::compute_mir_hash("my_func", "ir_v2");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_mir_hash_changes_with_name() {
+        let hash1 = VcCache::compute_mir_hash("func_a", "same_ir");
+        let hash2 = VcCache::compute_mir_hash("func_b", "same_ir");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_contract_hash_deterministic() {
+        let contracts = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let hash1 = VcCache::compute_contract_hash("my_func", &contracts);
+        let hash2 = VcCache::compute_contract_hash("my_func", &contracts);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_contract_hash_changes_with_contracts() {
+        let contracts1 = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let contracts2 = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 1".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let hash1 = VcCache::compute_contract_hash("func", &contracts1);
+        let hash2 = VcCache::compute_contract_hash("func", &contracts2);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_contract_hash_pure_flag() {
+        let contracts_pure = rust_fv_analysis::ir::Contracts {
+            requires: vec![],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: true,
+            decreases: None,
+        };
+
+        let contracts_not_pure = rust_fv_analysis::ir::Contracts {
+            requires: vec![],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let hash1 = VcCache::compute_contract_hash("func", &contracts_pure);
+        let hash2 = VcCache::compute_contract_hash("func", &contracts_not_pure);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_contract_hash_includes_decreases() {
+        let contracts_with_dec = rust_fv_analysis::ir::Contracts {
+            requires: vec![],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: Some(rust_fv_analysis::ir::SpecExpr {
+                raw: "n".to_string(),
+            }),
+        };
+
+        let contracts_without_dec = rust_fv_analysis::ir::Contracts {
+            requires: vec![],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let hash1 = VcCache::compute_contract_hash("func", &contracts_with_dec);
+        let hash2 = VcCache::compute_contract_hash("func", &contracts_without_dec);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_mir_hash_unchanged_when_contracts_change() {
+        let contracts1 = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let contracts2 = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 1".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        // MIR hash should be the same regardless of contracts
+        let mir_hash1 = VcCache::compute_mir_hash("func", "same_ir");
+        let mir_hash2 = VcCache::compute_mir_hash("func", "same_ir");
+        assert_eq!(mir_hash1, mir_hash2);
+
+        // But contract hash should differ
+        let contract_hash1 = VcCache::compute_contract_hash("func", &contracts1);
+        let contract_hash2 = VcCache::compute_contract_hash("func", &contracts2);
+        assert_ne!(contract_hash1, contract_hash2);
+    }
+
+    #[test]
+    fn test_contract_hash_unchanged_when_body_changes() {
+        let contracts = rust_fv_analysis::ir::Contracts {
+            requires: vec![rust_fv_analysis::ir::SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        // Contract hash should be the same regardless of IR
+        let contract_hash1 = VcCache::compute_contract_hash("func", &contracts);
+        let contract_hash2 = VcCache::compute_contract_hash("func", &contracts);
+        assert_eq!(contract_hash1, contract_hash2);
+
+        // But MIR hash should differ
+        let mir_hash1 = VcCache::compute_mir_hash("func", "ir_v1");
+        let mir_hash2 = VcCache::compute_mir_hash("func", "ir_v2");
+        assert_ne!(mir_hash1, mir_hash2);
+    }
+
+    // ====== Age-based eviction tests ======
+
+    #[test]
+    fn test_age_based_eviction_removes_old_entries() {
+        let dir = temp_cache_dir("eviction_old");
+        let mut cache = VcCache::new(dir.clone());
+
+        // Insert an entry with old timestamp (31 days ago)
+        let old_timestamp = chrono::Utc::now().timestamp() - (31 * 24 * 60 * 60);
+        let key = [0xaa; 32];
+        cache.insert(
+            key,
+            CacheEntry {
+                verified: true,
+                vc_count: 1,
+                verified_count: 1,
+                message: None,
+                mir_hash: [1u8; 32],
+                contract_hash: [2u8; 32],
+                timestamp: old_timestamp,
+                dependencies: vec![],
+            },
+        );
+
+        // Verify file exists
+        let filename = bytes_to_hex(&key);
+        let path = dir.join(format!("{}.json", filename));
+        assert!(path.exists());
+
+        // Load cache - should evict the old entry
+        let mut fresh_cache = VcCache::new(dir.clone());
+        fresh_cache.load();
+
+        // Entry should not be loaded
+        assert!(fresh_cache.get(&key).is_none());
+
+        // File should be deleted
+        assert!(!path.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_age_based_eviction_keeps_recent_entries() {
+        let dir = temp_cache_dir("eviction_recent");
+        let mut cache = VcCache::new(dir.clone());
+
+        // Insert an entry with recent timestamp (1 day ago)
+        let recent_timestamp = chrono::Utc::now().timestamp() - (24 * 60 * 60); // 1 day ago
+        let key = [0xbb; 32];
+        cache.insert(
+            key,
+            CacheEntry {
+                verified: true,
+                vc_count: 1,
+                verified_count: 1,
+                message: None,
+                mir_hash: [1u8; 32],
+                contract_hash: [2u8; 32],
+                timestamp: recent_timestamp,
+                dependencies: vec![],
+            },
+        );
+
+        // Load cache - should keep the recent entry
+        let mut fresh_cache = VcCache::new(dir.clone());
+        fresh_cache.load();
+
+        // Entry should be loaded
+        assert!(fresh_cache.get(&key).is_some());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ====== Backward compatibility tests ======
+
+    #[test]
+    fn test_backward_compatibility_old_cache_format() {
+        let dir = temp_cache_dir("backward_compat");
+        fs::create_dir_all(&dir).unwrap();
+
+        // Manually create an old-format cache entry (without new fields)
+        let old_entry_json = r#"{
+            "verified": true,
+            "vc_count": 3,
+            "verified_count": 3,
+            "message": null
+        }"#;
+
+        let key = [0xcc; 32];
+        let filename = bytes_to_hex(&key);
+        let path = dir.join(format!("{}.json", filename));
+        fs::write(&path, old_entry_json).unwrap();
+
+        // Load cache
+        let mut cache = VcCache::new(dir.clone());
+        cache.load();
+
+        // Entry should be loaded with default values for new fields
+        let entry = cache.get(&key).unwrap();
+        assert!(entry.verified);
+        assert_eq!(entry.vc_count, 3);
+        assert_eq!(entry.verified_count, 3);
+        assert_eq!(entry.mir_hash, [0u8; 32]); // default
+        assert_eq!(entry.contract_hash, [0u8; 32]); // default
+        assert_eq!(entry.timestamp, 0); // default
+        assert_eq!(entry.dependencies, Vec::<String>::new()); // default
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_insert_sets_timestamp_automatically() {
+        let dir = temp_cache_dir("auto_timestamp");
+        let mut cache = VcCache::new(dir.clone());
+
+        let before = chrono::Utc::now().timestamp();
+
+        let key = [0xdd; 32];
+        cache.insert(
+            key,
+            CacheEntry {
+                verified: true,
+                vc_count: 1,
+                verified_count: 1,
+                message: None,
+                mir_hash: [1u8; 32],
+                contract_hash: [2u8; 32],
+                timestamp: 0, // Will be set automatically
+                dependencies: vec![],
+            },
+        );
+
+        let after = chrono::Utc::now().timestamp();
+
+        let entry = cache.get(&key).unwrap();
+        assert!(entry.timestamp >= before);
+        assert!(entry.timestamp <= after);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -163,6 +163,10 @@ pub fn verify_functions_parallel(
                 vc_count,
                 verified_count,
                 message,
+                mir_hash: [0u8; 32],      // TODO: Pass from task
+                contract_hash: [0u8; 32], // TODO: Pass from task
+                timestamp: 0,             // Will be set by insert()
+                dependencies: vec![],     // TODO: Pass from task
             },
         );
     }

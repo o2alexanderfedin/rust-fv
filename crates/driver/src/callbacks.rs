@@ -335,6 +335,7 @@ impl Callbacks for VerificationCallbacks {
 
             // Compute cache key
             let ir_debug = format!("{:?}", ir_func);
+            #[allow(deprecated)] // TODO: Switch to dual-hash approach in future phase
             let cache_key =
                 crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
 

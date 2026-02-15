@@ -26,6 +26,7 @@ mod cache;
 mod callbacks;
 mod cargo_verify;
 mod diagnostics;
+mod invalidation;
 mod json_output;
 mod mir_converter;
 mod output;

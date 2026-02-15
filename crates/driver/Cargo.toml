@@ -27,3 +27,4 @@ rustc-hash = { workspace = true }
 rayon = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
