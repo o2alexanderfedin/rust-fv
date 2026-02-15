@@ -301,7 +301,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         cache_key: task.cache_key,
         from_cache: false,
         invalidation_reason: None, // Will be set by caller
-        duration_ms: None,          // Will be set by caller
+        duration_ms: None,         // Will be set by caller
     }
 }
 

@@ -20,6 +20,11 @@ use crate::output;
 /// # Arguments
 /// * `args` - Arguments after "verify" (e.g., `--timeout 30`)
 pub fn run_cargo_verify(args: &[String]) -> i32 {
+    // Check for clean subcommand
+    if args.first().map(|s| s.as_str()) == Some("clean") {
+        return run_cargo_verify_clean();
+    }
+
     // Check for --help
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_usage();
@@ -62,6 +67,9 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse no-stdlib-contracts flag from args (default: false)
     let no_stdlib_contracts = parse_no_stdlib_contracts(args);
 
+    // Parse verbose flag from args (default: false)
+    let verbose = parse_verbose(args);
+
     // Build the cargo check command with our driver as RUSTC
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
@@ -90,6 +98,10 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
         cmd.env("RUST_FV_NO_STDLIB_CONTRACTS", "1");
     }
 
+    if verbose {
+        cmd.env("RUST_FV_VERBOSE", "1");
+    }
+
     // Forward any extra args (e.g., --package, --lib, etc.)
     for arg in args {
         if !arg.starts_with("--timeout")
@@ -97,6 +109,7 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
             && !arg.starts_with("--fresh")
             && !arg.starts_with("--jobs")
             && !arg.starts_with("--no-stdlib-contracts")
+            && !arg.starts_with("--verbose")
         {
             cmd.arg(arg);
         }
@@ -211,20 +224,64 @@ fn parse_no_stdlib_contracts(args: &[String]) -> bool {
     args.iter().any(|a| a == "--no-stdlib-contracts")
 }
 
+/// Parse --verbose flag from arguments.
+fn parse_verbose(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--verbose" || a == "-v")
+}
+
+/// Run the `cargo verify clean` subcommand.
+///
+/// Deletes the verification cache directory (target/verify-cache/).
+fn run_cargo_verify_clean() -> i32 {
+    let cache_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+    let cache_path = std::path::PathBuf::from(cache_dir).join("verify-cache");
+
+    if !cache_path.exists() {
+        eprintln!("Cache directory does not exist: {}", cache_path.display());
+        return 0;
+    }
+
+    match std::fs::remove_dir_all(&cache_path) {
+        Ok(()) => {
+            eprintln!(
+                "{}",
+                format!("Removed cache directory: {}", cache_path.display())
+                    .green()
+                    .bold()
+            );
+            0
+        }
+        Err(e) => {
+            eprintln!(
+                "{} Failed to remove cache directory: {e}",
+                "error:".red().bold()
+            );
+            1
+        }
+    }
+}
+
 /// Print usage information.
 fn print_usage() {
     eprintln!("rust-fv: Formal verification for Rust");
     eprintln!();
     eprintln!("USAGE:");
     eprintln!("    cargo verify [OPTIONS]");
+    eprintln!("    cargo verify clean");
+    eprintln!();
+    eprintln!("SUBCOMMANDS:");
+    eprintln!("    clean    Delete verification cache (target/verify-cache/)");
     eprintln!();
     eprintln!("OPTIONS:");
     eprintln!("    --timeout <SECONDS>         Verification timeout per function (default: 30)");
     eprintln!("    --output-format <FORMAT>    Output format: text or json (default: text)");
-    eprintln!("    --fresh                     Force re-verification, bypassing cache");
+    eprintln!(
+        "    --fresh                     Force re-verification, bypassing cache (keeps cache files)"
+    );
     eprintln!(
         "    --jobs <N>                  Number of parallel verification threads (default: num_cpus/2)"
     );
+    eprintln!("    --verbose, -v               Show per-function timing information");
     eprintln!("    --no-stdlib-contracts       Disable standard library contracts");
     eprintln!("    --help, -h                  Print this help message");
     eprintln!();
@@ -235,6 +292,7 @@ fn print_usage() {
     eprintln!();
     eprintln!("    Results are displayed with colored status (text mode):");
     eprintln!("      [OK]      - All verification conditions verified");
+    eprintln!("      [SKIP]    - Verification skipped (cached result)");
     eprintln!("      [FAIL]    - At least one verification condition failed");
     eprintln!("      [TIMEOUT] - Verification timed out");
     eprintln!();
@@ -907,5 +965,78 @@ version = "0.1.0"
     fn test_parse_no_stdlib_contracts_not_present() {
         let args: Vec<String> = vec!["--timeout".into(), "30".into(), "--lib".into()];
         assert!(!parse_no_stdlib_contracts(&args));
+    }
+
+    // --- parse_verbose tests ---
+
+    #[test]
+    fn test_parse_verbose_default() {
+        let args: Vec<String> = vec![];
+        assert!(!parse_verbose(&args));
+    }
+
+    #[test]
+    fn test_parse_verbose_long_form() {
+        let args: Vec<String> = vec!["--verbose".into()];
+        assert!(parse_verbose(&args));
+    }
+
+    #[test]
+    fn test_parse_verbose_short_form() {
+        let args: Vec<String> = vec!["-v".into()];
+        assert!(parse_verbose(&args));
+    }
+
+    #[test]
+    fn test_parse_verbose_among_other_args() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "30".into(),
+            "--verbose".into(),
+            "--lib".into(),
+        ];
+        assert!(parse_verbose(&args));
+    }
+
+    #[test]
+    fn test_parse_verbose_not_present() {
+        let args: Vec<String> = vec!["--timeout".into(), "30".into(), "--lib".into()];
+        assert!(!parse_verbose(&args));
+    }
+
+    #[test]
+    fn test_parse_verbose_multiple_forms() {
+        let args: Vec<String> = vec!["-v".into(), "--verbose".into()];
+        assert!(parse_verbose(&args));
+    }
+
+    // --- cargo verify clean tests ---
+
+    #[test]
+    fn test_clean_command_detection() {
+        // Test that "clean" as first arg is recognized
+        let args: Vec<String> = vec!["clean".into()];
+        assert_eq!(args.first().map(|s| s.as_str()), Some("clean"));
+    }
+
+    #[test]
+    fn test_clean_command_with_extra_args() {
+        // Test that "clean" is recognized even with extra args
+        let args: Vec<String> = vec!["clean".into(), "--extra".into()];
+        assert_eq!(args.first().map(|s| s.as_str()), Some("clean"));
+    }
+
+    #[test]
+    fn test_run_cargo_verify_clean_nonexistent_dir() {
+        // Test cleaning when cache directory doesn't exist
+        // Uses environment variable to point to a non-existent location
+        unsafe {
+            std::env::set_var("CARGO_TARGET_DIR", "/tmp/nonexistent-rust-fv-test-dir");
+        }
+        let exit_code = run_cargo_verify_clean();
+        unsafe {
+            std::env::remove_var("CARGO_TARGET_DIR");
+        }
+        assert_eq!(exit_code, 0); // Should succeed even if dir doesn't exist
     }
 }

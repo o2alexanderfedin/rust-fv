@@ -35,12 +35,22 @@ pub struct VerificationResult {
     pub vc_location: rust_fv_analysis::vcgen::VcLocation,
 }
 
+/// Metadata for per-function verification.
+#[derive(Debug, Clone)]
+struct FunctionMetadata {
+    invalidation_reason: Option<crate::invalidation::InvalidationReason>,
+    duration_ms: Option<u64>,
+    from_cache: bool,
+}
+
 /// Callbacks that perform verification after analysis.
 pub struct VerificationCallbacks {
     /// Whether verification is enabled
     enabled: bool,
     /// Collected results
     results: Vec<VerificationResult>,
+    /// Per-function metadata (invalidation reasons, timing)
+    func_metadata: std::collections::HashMap<String, FunctionMetadata>,
     /// Output format (Text or Json)
     output_format: OutputFormat,
     /// Structured failure information for diagnostics
@@ -56,7 +66,6 @@ pub struct VerificationCallbacks {
     /// Whether to disable stdlib contracts
     no_stdlib_contracts: bool,
     /// Enable verbose output with per-function timing
-    #[allow(dead_code)] // Will be used in Task 2
     verbose: bool,
 }
 
@@ -72,6 +81,7 @@ impl VerificationCallbacks {
         Self {
             enabled: true,
             results: Vec::new(),
+            func_metadata: std::collections::HashMap::new(),
             output_format,
             failures: Vec::new(),
             crate_name: None,
@@ -88,6 +98,7 @@ impl VerificationCallbacks {
         Self {
             enabled: false,
             results: Vec::new(),
+            func_metadata: std::collections::HashMap::new(),
             output_format: OutputFormat::Text,
             failures: Vec::new(),
             crate_name: None,
@@ -102,7 +113,7 @@ impl VerificationCallbacks {
     /// Print verification results to stderr using colored output.
     ///
     /// Groups per-VC results by function name and produces a single
-    /// per-function line with OK/FAIL/TIMEOUT status.
+    /// per-function line with OK/FAIL/TIMEOUT/SKIP status.
     pub fn print_results(&self) {
         let crate_name = self.crate_name.as_deref().unwrap_or("unknown");
         // Group results by function name
@@ -123,6 +134,27 @@ impl VerificationCallbacks {
                 let verified_count = vcs.iter().filter(|r| r.verified).count();
                 let all_ok = verified_count == vc_count;
 
+                // Get metadata for this function
+                let metadata = self.func_metadata.get(&name);
+                let is_cached = metadata.map(|m| m.from_cache).unwrap_or(false);
+                let duration_ms = metadata.and_then(|m| m.duration_ms);
+
+                // Map invalidation reason to human-readable string
+                let invalidation_reason = metadata.and_then(|m| {
+                    m.invalidation_reason.as_ref().map(|reason| {
+                        use crate::invalidation::InvalidationReason;
+                        match reason {
+                            InvalidationReason::MirChanged => "body changed".to_string(),
+                            InvalidationReason::ContractChanged { dependency } => {
+                                format!("contract of {} changed", dependency)
+                            }
+                            InvalidationReason::Fresh => "fresh run".to_string(),
+                            InvalidationReason::CacheMiss => "not in cache".to_string(),
+                            InvalidationReason::Expired => "cache expired".to_string(),
+                        }
+                    })
+                });
+
                 // Collect first failure message
                 let fail_msg = vcs.iter().find(|r| !r.verified).map(|r| {
                     let mut msg = r.condition.clone();
@@ -132,7 +164,9 @@ impl VerificationCallbacks {
                     msg
                 });
 
-                let status = if all_ok {
+                let status = if is_cached {
+                    output::VerificationStatus::Skipped
+                } else if all_ok {
                     output::VerificationStatus::Ok
                 } else if vcs
                     .iter()
@@ -149,6 +183,8 @@ impl VerificationCallbacks {
                     message: fail_msg,
                     vc_count,
                     verified_count,
+                    invalidation_reason,
+                    duration_ms,
                 }
             })
             .collect();
@@ -158,8 +194,8 @@ impl VerificationCallbacks {
 
         match self.output_format {
             OutputFormat::Text => {
-                // Print summary table
-                output::print_verification_results(&func_results);
+                // Print summary table with verbose flag
+                output::print_verification_results(&func_results, self.verbose);
 
                 // Print detailed diagnostics for each failure
                 for failure in &self.failures {
@@ -175,6 +211,7 @@ impl VerificationCallbacks {
                             output::VerificationStatus::Ok => "ok",
                             output::VerificationStatus::Fail => "fail",
                             output::VerificationStatus::Timeout => "timeout",
+                            output::VerificationStatus::Skipped => "skipped",
                         };
 
                         // Collect failures for this function
@@ -354,7 +391,8 @@ impl Callbacks for VerificationCallbacks {
         for (name, ir_func) in &func_infos {
             let ir_debug = format!("{:?}", ir_func);
             let mir_hash = crate::cache::VcCache::compute_mir_hash(name, &ir_debug);
-            let contract_hash = crate::cache::VcCache::compute_contract_hash(name, &ir_func.contracts);
+            let contract_hash =
+                crate::cache::VcCache::compute_contract_hash(name, &ir_func.contracts);
             func_hashes.insert(name.clone(), (mir_hash, contract_hash));
         }
 
@@ -363,15 +401,13 @@ impl Callbacks for VerificationCallbacks {
             .iter()
             .map(|(name, (_mir_hash, contract_hash))| (name.clone(), *contract_hash))
             .collect();
-        let changed_contracts = call_graph.changed_contract_functions(
-            &all_funcs_with_hashes,
-            |func_name: &str| {
+        let changed_contracts =
+            call_graph.changed_contract_functions(&all_funcs_with_hashes, |func_name: &str| {
                 let contracts = rust_fv_analysis::ir::Contracts::default();
                 #[allow(deprecated)]
                 let key = crate::cache::VcCache::compute_key(func_name, &contracts, "");
                 cache.get(&key).map(|entry| entry.contract_hash)
-            },
-        );
+            });
 
         // Build verification tasks with invalidation decisions
         let mut tasks = Vec::new();
@@ -381,7 +417,8 @@ impl Callbacks for VerificationCallbacks {
             // Compute legacy cache key for backward compatibility
             let ir_debug = format!("{:?}", ir_func);
             #[allow(deprecated)]
-            let cache_key = crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
+            let cache_key =
+                crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
 
             // Get direct dependencies
             let dependencies = call_graph.direct_callees(&name);
@@ -439,6 +476,16 @@ impl Callbacks for VerificationCallbacks {
 
         // Collect results and failures
         for task_result in task_results {
+            // Store per-function metadata
+            self.func_metadata.insert(
+                task_result.name.clone(),
+                FunctionMetadata {
+                    invalidation_reason: task_result.invalidation_reason.clone(),
+                    duration_ms: task_result.duration_ms,
+                    from_cache: task_result.from_cache,
+                },
+            );
+
             for result in task_result.results {
                 // Build structured failure if this VC failed
                 if !result.verified
