@@ -32,6 +32,9 @@ mod mir_converter;
 mod output;
 mod parallel;
 
+#[cfg(test)]
+mod bench_incremental;
+
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
