@@ -88,11 +88,14 @@ Plans:
   4. Benchmark suite demonstrates 20-30x speedup compared to full re-verification
   5. Incremental verification never produces different results than full verification (cache invalidation is sound)
 
-**Plans**: TBD
+NOTE: Success criteria #3 is OVERRIDDEN by user decision -- cache VC results only, no Z3 push/pop persistence.
+
+**Plans:** 3 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
+- [ ] 14-01-PLAN.md — Dual-hash cache infrastructure + transitive invalidation engine
+- [ ] 14-02-PLAN.md — Pipeline integration, per-function status, cargo verify clean
+- [ ] 14-03-PLAN.md — Benchmark suite + incremental correctness tests
 
 ---
 
@@ -208,7 +211,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 11. Floating Point | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 12. Concurrency | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 13. Standard Library Contracts | v0.3 | 5/5 | Complete | 2026-02-15 |
-| 14. Incremental Verification | v0.3 | 0/TBD | Not started | - |
+| 14. Incremental Verification | v0.3 | 0/3 | Not started | - |
 | 15. Trigger Customization | v0.3 | 0/TBD | Not started | - |
 | 16. VSCode Extension | v0.3 | 0/TBD | Not started | - |
 | 17. rust-analyzer Integration | v0.3 | 0/TBD | Not started | - |
@@ -217,4 +220,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 ---
 
 *Roadmap created: 2026-02-14*
-*Last updated: 2026-02-15 after Phase 13 completion*
+*Last updated: 2026-02-15 after Phase 14 planning*
