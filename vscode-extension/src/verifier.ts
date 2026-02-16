@@ -42,23 +42,40 @@ export interface JsonSummary {
 }
 
 /**
+ * Result of running verification including both report and raw output.
+ */
+export interface VerificationResult {
+  report: JsonVerificationReport;
+  stderr: string;
+  stdout: string;
+}
+
+/**
  * Run cargo verify --output-format json and parse the result.
  *
  * @param crateRoot - The directory containing Cargo.toml
  * @param cancelToken - VSCode cancellation token for abort support
  * @param timeout - Verification timeout in milliseconds
- * @returns Promise resolving to JsonVerificationReport
+ * @param z3Path - Optional path to Z3 binary (passed via RUST_FV_Z3_PATH env var)
+ * @returns Promise resolving to VerificationResult with report and raw output
  */
 export function runVerification(
   crateRoot: string,
   cancelToken: vscode.CancellationToken,
-  timeout: number
-): Promise<JsonVerificationReport> {
+  timeout: number,
+  z3Path?: string
+): Promise<VerificationResult> {
   return new Promise((resolve, reject) => {
+    // Prepare environment with Z3 path if provided
+    const env = { ...process.env };
+    if (z3Path) {
+      env.RUST_FV_Z3_PATH = z3Path;
+    }
+
     const cargoVerify: ChildProcess = spawn(
       'cargo',
       ['verify', '--output-format', 'json'],
-      { cwd: crateRoot }
+      { cwd: crateRoot, env }
     );
 
     let stdout = '';
@@ -84,7 +101,7 @@ export function runVerification(
       // cargo verify returns non-zero on verification failures, but still outputs valid JSON
       try {
         const report: JsonVerificationReport = JSON.parse(stdout);
-        resolve(report);
+        resolve({ report, stderr, stdout });
       } catch (e) {
         reject(new Error(`Invalid JSON output from cargo verify: ${e}\nStdout: ${stdout}\nStderr: ${stderr}`));
       }

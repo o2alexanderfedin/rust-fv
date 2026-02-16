@@ -75,6 +75,8 @@
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "vsce package",
+    "package:all": "bash scripts/package.sh",
+    "download-z3": "bash scripts/download-z3.sh",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

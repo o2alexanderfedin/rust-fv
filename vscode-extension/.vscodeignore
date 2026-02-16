@@ -1,8 +1,23 @@
+# Source files - exclude
 src/
-node_modules/
-.gitignore
 tsconfig.json
 esbuild.js
-*.vsix
+
+# Development files - exclude
+node_modules/
+.gitignore
 .vscode/
 .DS_Store
+*.vsix
+
+# Build output - INCLUDE (don't exclude)
+!dist/
+
+# Z3 binaries - INCLUDE (don't exclude)
+!bin/
+
+# Resources - INCLUDE (don't exclude)
+!resources/
+
+# Scripts - exclude (for developers only)
+scripts/

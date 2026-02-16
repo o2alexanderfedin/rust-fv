@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { runVerification, checkCargoVerifyInstalled, JsonVerificationReport } from './verifier';
+import { runVerification, checkCargoVerifyInstalled, JsonVerificationReport, VerificationResult } from './verifier';
 import { convertToDiagnostics } from './diagnostics';
 import { createStatusBar, showVerifying, showSuccess, showFailure, showCancelled } from './statusBar';
 import { isEnabled, isAutoVerifyEnabled, getTimeout } from './config';
+import { createOutputPanels, updateStructuredOutput, updateRawOutput, showSmtLib } from './outputPanel';
+import { getZ3Path, ensureZ3Executable, isZ3Available } from './z3';
+import { createVerifiedDecorationType, updateGutterDecorations, clearGutterDecorations } from './gutterDecorations';
 
 /**
  * Tracks the current verification state for cancellation support.
@@ -15,9 +18,18 @@ interface VerificationState {
 let diagnosticCollection: vscode.DiagnosticCollection;
 let statusBarItem: vscode.StatusBarItem;
 let currentVerification: VerificationState | undefined;
+let structuredOutputChannel: vscode.OutputChannel;
+let rawOutputChannel: vscode.OutputChannel;
+let lastCrateRoot: string | undefined; // For SMT-LIB command
+let verifiedDecorationType: vscode.TextEditorDecorationType;
+let lastVerificationReport: JsonVerificationReport | undefined;
+let extensionContext: vscode.ExtensionContext;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('rust-fv extension activated');
+
+  // Store context for use in verification
+  extensionContext = context;
 
   // Create diagnostic collection for verification errors
   diagnosticCollection = vscode.languages.createDiagnosticCollection('rust-fv');
@@ -26,6 +38,18 @@ export function activate(context: vscode.ExtensionContext) {
   // Create status bar item
   statusBarItem = createStatusBar();
   context.subscriptions.push(statusBarItem);
+
+  // Create output panels
+  [structuredOutputChannel, rawOutputChannel] = createOutputPanels();
+  context.subscriptions.push(structuredOutputChannel);
+  context.subscriptions.push(rawOutputChannel);
+
+  // Create gutter decoration type for verified functions
+  verifiedDecorationType = createVerifiedDecorationType(context);
+  context.subscriptions.push(verifiedDecorationType);
+
+  // Check Z3 availability and ensure it's executable
+  checkZ3Availability(context);
 
   // Check if cargo-verify is installed on first activation
   checkCargoVerifyOnStartup(context);
@@ -62,8 +86,22 @@ export function activate(context: vscode.ExtensionContext) {
         currentVerification = undefined;
       }
 
+      // Clear gutter decorations before starting new verification
+      if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'rust') {
+        clearGutterDecorations(vscode.window.activeTextEditor, verifiedDecorationType);
+      }
+
       // Start new verification
       await startVerification(crateRoot);
+    })
+  );
+
+  // Register editor change listener to reapply decorations
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (editor && editor.document.languageId === 'rust' && lastVerificationReport) {
+        updateGutterDecorations(editor, lastVerificationReport, verifiedDecorationType);
+      }
     })
   );
 
@@ -79,22 +117,26 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Stub commands for Plan 02 implementation
+  // Output panel commands
   context.subscriptions.push(
     vscode.commands.registerCommand('rust-fv.showOutput', () => {
-      vscode.window.showInformationMessage('Output panel coming in Plan 02');
+      structuredOutputChannel.show(true);
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rust-fv.toggleRawOutput', () => {
-      vscode.window.showInformationMessage('Raw output toggle coming in Plan 02');
+      rawOutputChannel.show(true);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('rust-fv.showSmtLib', () => {
-      vscode.window.showInformationMessage('SMT-LIB viewer coming in Plan 02');
+    vscode.commands.registerCommand('rust-fv.showSmtLib', async () => {
+      if (!lastCrateRoot) {
+        vscode.window.showInformationMessage('No verification run yet. Save a Rust file to trigger verification.');
+        return;
+      }
+      await showSmtLib(lastCrateRoot);
     })
   );
 }
@@ -112,6 +154,31 @@ export function deactivate() {
   // Dispose status bar
   if (statusBarItem) {
     statusBarItem.dispose();
+  }
+}
+
+/**
+ * Check if Z3 is available and warn if not.
+ */
+function checkZ3Availability(context: vscode.ExtensionContext): void {
+  const z3Path = getZ3Path(context);
+
+  if (!isZ3Available(z3Path)) {
+    // Z3 not found - this can happen in dev mode or if download-z3.sh wasn't run
+    const configuredPath = vscode.workspace.getConfiguration('rust-fv').get<string>('z3Path');
+
+    if (configuredPath && configuredPath.trim() !== '') {
+      // User configured a path, but it doesn't exist
+      vscode.window.showWarningMessage(
+        `Z3 not found at configured path: ${z3Path}. Please check rust-fv.z3Path setting.`
+      );
+    } else {
+      // No bundled Z3 (likely dev mode)
+      console.warn('rust-fv: Z3 binary not bundled. Set rust-fv.z3Path or run scripts/download-z3.sh');
+    }
+  } else {
+    // Z3 exists - ensure it's executable
+    ensureZ3Executable(z3Path);
   }
 }
 
@@ -191,15 +258,26 @@ async function startVerification(crateRoot: string): Promise<void> {
   const cancelTokenSource = new vscode.CancellationTokenSource();
   currentVerification = { cancelTokenSource };
 
+  // Store crate root for SMT-LIB command
+  lastCrateRoot = crateRoot;
+
   // Update status bar to show verification is running
   showVerifying(statusBarItem);
 
   try {
     const timeout = getTimeout();
-    const report = await runVerification(crateRoot, cancelTokenSource.token, timeout);
+
+    // Get Z3 path to pass to cargo verify
+    let z3Path: string | undefined;
+    const resolvedPath = getZ3Path(extensionContext);
+    if (isZ3Available(resolvedPath)) {
+      z3Path = resolvedPath;
+    }
+
+    const result: VerificationResult = await runVerification(crateRoot, cancelTokenSource.token, timeout, z3Path);
 
     // Convert report to diagnostics
-    const diagnosticsByFile = convertToDiagnostics(report, crateRoot);
+    const diagnosticsByFile = convertToDiagnostics(result.report, crateRoot);
 
     // Clear old diagnostics
     diagnosticCollection.clear();
@@ -210,11 +288,24 @@ async function startVerification(crateRoot: string): Promise<void> {
       diagnosticCollection.set(fileUri, diagnostics);
     }
 
+    // Update output panels
+    updateStructuredOutput(result.report);
+    updateRawOutput(result.stderr, result.stdout);
+
+    // Store last verification report for gutter decorations
+    lastVerificationReport = result.report;
+
+    // Update gutter decorations for verified functions
+    const activeEditor = vscode.window.activeTextEditor;
+    if (activeEditor && activeEditor.document.languageId === 'rust') {
+      updateGutterDecorations(activeEditor, result.report, verifiedDecorationType);
+    }
+
     // Update status bar based on results
-    if (report.summary.fail > 0 || report.summary.timeout > 0) {
-      showFailure(statusBarItem, report.summary);
+    if (result.report.summary.fail > 0 || result.report.summary.timeout > 0) {
+      showFailure(statusBarItem, result.report.summary);
     } else {
-      showSuccess(statusBarItem, report.summary);
+      showSuccess(statusBarItem, result.report.summary);
     }
   } catch (error) {
     if (error instanceof Error) {
