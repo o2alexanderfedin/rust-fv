@@ -211,7 +211,7 @@ async function checkCargoVerifyOnStartup(context: vscode.ExtensionContext) {
     if (action === 'Install via Cargo') {
       const terminal = vscode.window.createTerminal('Rust FV Setup');
       terminal.show();
-      terminal.sendText('cargo install --path . && echo "cargo-verify installed successfully!"');
+      terminal.sendText('cargo install --path crates/driver && echo "cargo-verify installed successfully!"');
     }
   }
 
