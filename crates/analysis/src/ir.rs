@@ -453,6 +453,21 @@ pub struct ProphecyInfo {
     pub deref_level: u32,
 }
 
+/// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
+///
+/// Each `TriggerHint` represents one trigger set (conjunction of patterns).
+/// Multiple `TriggerHint`s on the same quantifier form a disjunction (OR):
+/// the solver will instantiate the quantifier when ANY trigger set matches.
+///
+/// Within a single trigger set, ALL terms must match simultaneously for
+/// the solver to trigger instantiation (conjunction/AND semantics).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggerHint {
+    /// Terms in this trigger set (all must match for instantiation).
+    /// Stored as SMT Term representations of the trigger expressions.
+    pub terms: Vec<rust_fv_smtlib::term::Term>,
+}
+
 /// A specification expression (parsed from attribute strings).
 /// For Phase 1 we store the raw string and interpret simple expressions.
 #[derive(Debug, Clone)]

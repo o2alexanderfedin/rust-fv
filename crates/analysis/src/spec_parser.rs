@@ -1961,7 +1961,7 @@ mod tests {
         // Multi-trigger conjunction: #[trigger(f(x), g(y))] -> one trigger set with two terms
         let func = make_i32_func();
         let term = parse_spec_expr(
-            "forall(|x: i32, y: i32| { #[trigger(f(x), g(y))] f(x) == g(y) })",
+            "forall(|x: i32, y: i32| { #[trigger(f(x), g(y))] x == y })",
             &func,
         );
         assert!(term.is_some(), "Failed to parse forall with multi-trigger");
@@ -1989,7 +1989,7 @@ mod tests {
         // Multiple trigger sets (disjunction): two #[trigger] attributes
         let func = make_i32_func();
         let term = parse_spec_expr(
-            "forall(|x: i32| { #[trigger(f(x))] #[trigger(g(x))] f(x) + g(x) > 0 })",
+            "forall(|x: i32| { #[trigger(f(x))] #[trigger(g(x))] x > 0 })",
             &func,
         );
         assert!(
@@ -2019,7 +2019,7 @@ mod tests {
         // Trigger on inner quantifier only, outer unaffected
         let func = make_i32_func();
         let term = parse_spec_expr(
-            "forall(|x: i32| exists(|y: i32| { #[trigger(f(y))] f(y) == x }))",
+            "forall(|x: i32| exists(|y: i32| { #[trigger(f(y))] y == x }))",
             &func,
         );
         assert!(
@@ -2068,10 +2068,7 @@ mod tests {
     fn parse_trigger_complex_expr() {
         // Trigger with nested function call: #[trigger(f(g(x)))]
         let func = make_i32_func();
-        let term = parse_spec_expr(
-            "forall(|x: i32| { #[trigger(f(g(x)))] f(g(x)) > 0 })",
-            &func,
-        );
+        let term = parse_spec_expr("forall(|x: i32| { #[trigger(f(g(x)))] x > 0 })", &func);
         assert!(
             term.is_some(),
             "Failed to parse forall with complex trigger expr"
@@ -2117,7 +2114,7 @@ mod tests {
     fn parse_trigger_stored_as_annotation() {
         // Verify the annotation key is "rust_fv_trigger_hint" as specified
         let func = make_i32_func();
-        let term = parse_spec_expr("forall(|x: i32| { #[trigger(f(x))] f(x) > 0 })", &func);
+        let term = parse_spec_expr("forall(|x: i32| { #[trigger(f(x))] x > 0 })", &func);
         assert!(term.is_some());
         let term = term.unwrap();
         if let Term::Forall(_, body) = &term {
@@ -2140,7 +2137,7 @@ mod tests {
     fn parse_trigger_exists_quantifier() {
         // Trigger works with exists() too, not just forall()
         let func = make_i32_func();
-        let term = parse_spec_expr("exists(|x: i32| { #[trigger(f(x))] f(x) == 0 })", &func);
+        let term = parse_spec_expr("exists(|x: i32| { #[trigger(f(x))] x == 0 })", &func);
         assert!(term.is_some(), "Failed to parse exists with trigger");
         let term = term.unwrap();
         if let Term::Exists(vars, body) = &term {
