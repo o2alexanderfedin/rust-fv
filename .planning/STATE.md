@@ -6,22 +6,22 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 15 - Trigger Customization
+**Current focus:** Phase 16 - VSCode Extension
 
 ## Current Position
 
-Phase: 15 of 18 (Trigger Customization) -- COMPLETE
-Plan: 3 of 3 (all plans complete)
-Status: Phase 15 complete (Trigger customization pipeline with validation and integration tests)
-Last activity: 2026-02-16 — Completed 15-03-PLAN.md (Trigger pipeline integration)
+Phase: 16 of 18 (VSCode Extension) -- IN PROGRESS
+Plan: 1 of 3
+Status: VSCode extension core implemented with on-save verification and inline diagnostics
+Last activity: 2026-02-16 — Completed 16-01-PLAN.md (VSCode extension verification loop)
 
-Progress: [███████████████████░░░░░] 83% (15/18 phases complete)
+Progress: [███████████████████░░░░░] 83% (15/18 phases complete, 1/3 plans in Phase 16)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 49 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 11 plans)
-- Average duration: 900 seconds (v0.3)
+- Total plans completed: 50 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 12 plans)
+- Average duration: 850 seconds (v0.3)
 - Total execution time: 5 days (v0.1: 2 days, v0.2: 3 days, v0.3: 1 day)
 
 **By Milestone:**
@@ -30,20 +30,18 @@ Progress: [███████████████████░░░░
 |-----------|--------|-------|----------|
 | v0.1 POC | 5 | 17 | 2 days |
 | v0.2 Advanced | 7 | 21 | 3 days |
-| v0.3 Usability | 6 | 11/TBD | In progress |
+| v0.3 Usability | 6 | 12/TBD | In progress |
 
 **Recent Trend:**
 - v0.1 average: 8.5 plans/day
 - v0.2 average: 7.0 plans/day
-- v0.3 current: 11 plans (avg 900s duration)
-- Trend: Accelerating (improved efficiency with integration testing patterns)
+- v0.3 current: 12 plans (avg 850s duration)
+- Trend: Accelerating (improved efficiency with integration testing patterns and focused implementations)
 
 **Recent Executions:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
-| Phase 13 P04 | 50min | 2 | 8 |
-| Phase 13 P05 | 83min | 2 | 8 |
 | Phase 14 P01 | 738s | 2 | 8 |
 | Phase 14 P02 | 478s | 2 | 4 |
 | Phase 14 P03 | 71min | 2 | 4 |
@@ -51,6 +49,7 @@ Progress: [███████████████████░░░░
 | Phase 15 P01 | 751s | 2 | 6 |
 | Phase 15 P02 | 814s | 1 | 2 |
 | Phase 15 P03 | 530s | 2 | 4 |
+| Phase 16 P01 | 145s | 2 | 5 |
 
 *Updated after each plan completion*
 
@@ -99,6 +98,10 @@ Recent decisions affecting current work:
 - [Phase 15 (15-03)]: Validation errors propagate through Result type
 - [Phase 15 (15-03)]: describe_quantifier_triggers for verbose mode output
 - [Phase 15 (15-03)]: extract_manual_triggers strips rust_fv_trigger_hint annotations
+- [Phase 16 (16-01)]: Whole-crate verification scope (matches cargo check pattern, relies on incremental cache)
+- [Phase 16 (16-01)]: Fresh spawn per save (simpler lifecycle than persistent background process)
+- [Phase 16 (16-01)]: DiagnosticSeverity.Error for verification failures (not Warning - same visual weight as rustc)
+- [Phase 16 (16-01)]: Counterexamples formatted inline in diagnostic tooltip (not separate related information yet)
 
 ### Pending Todos
 
@@ -119,11 +122,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed Phase 15 (Trigger Customization) - all 3 plans complete
+Stopped at: Completed 16-01-PLAN.md (VSCode extension verification loop)
 Resume file: None
-Next step: Begin Phase 16 or next major feature
+Next step: Continue Phase 16 - Plan 02 (Output panels and SMT-LIB viewer)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing 15-03-PLAN.md (Phase 15 plan 03 - PHASE COMPLETE)*
+*Last updated: 2026-02-16 after completing 16-01-PLAN.md (Phase 16 plan 01)*
