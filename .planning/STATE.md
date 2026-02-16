@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 15 of 18 (Trigger Customization) -- IN PROGRESS
-Plan: 1 of 3 (plan 01 complete)
-Status: Plan 15-01 complete (Trigger validation engine and diagnostics)
-Last activity: 2026-02-16 — Completed 15-01-PLAN.md (TriggerValidator + V015-V018 diagnostics)
+Plan: 2 of 3 (plans 01-02 complete)
+Status: Plan 15-02 complete (Trigger hint IR types and spec parser test fixes)
+Last activity: 2026-02-16 — Completed 15-02-PLAN.md (TriggerHint IR type + trigger test corrections)
 
 Progress: [██████████████████░░░░░░] 78% (14/18 phases complete, 15 in progress)
 
@@ -49,6 +49,7 @@ Progress: [██████████████████░░░░░
 | Phase 14 P03 | 71min | 2 | 4 |
 | Phase 14 P04 | 326s | 2 | 3 |
 | Phase 15 P01 | 751s | 2 | 6 |
+| Phase 15 P02 | 814s | 1 | 2 |
 
 *Updated after each plan completion*
 
@@ -91,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase 15 (15-01)]: Self-instantiation detection via recursive function name matching (not symbolic substitution)
 - [Phase 15 (15-01)]: Catch-all interpreted symbol detection for unrecognized Term variants
 - [Phase 15 (15-01)]: format_trigger_error returns String for testability and composability
+- [Phase 15 (15-02)]: TriggerHint stored as Vec<Term> in IR, separate from SMT Term layer
+- [Phase 15 (15-02)]: Test bodies use bound variable expressions, not unresolved function calls
 
 ### Pending Todos
 
@@ -111,11 +114,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 15-01-PLAN.md (Trigger validation engine and diagnostics)
+Stopped at: Completed 15-02-PLAN.md (TriggerHint IR type + trigger test corrections)
 Resume file: None
-Next step: Continue Phase 15 (plan 02 - trigger annotation parsing)
+Next step: Continue Phase 15 (plan 03 - trigger integration with encode_quantifier and VCGen)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing 15-01-PLAN.md (Phase 15 plan 01)*
+*Last updated: 2026-02-16 after completing 15-02-PLAN.md (Phase 15 plan 02)*
