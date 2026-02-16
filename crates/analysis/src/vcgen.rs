@@ -2808,8 +2808,22 @@ fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
     let term =
         spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))?;
 
-    // Annotate quantifiers with trigger patterns
-    Some(crate::encode_quantifier::annotate_quantifier(term))
+    // Annotate quantifiers with trigger patterns (validation happens here)
+    // On validation error, log and return None (spec parsing fails)
+    match crate::encode_quantifier::annotate_quantifier(term) {
+        Ok(annotated_term) => Some(annotated_term),
+        Err(trigger_error) => {
+            // Trigger validation error - log it and fail spec parsing
+            tracing::error!(
+                "Trigger validation failed in function {}: {:?}",
+                func.name,
+                trigger_error
+            );
+            // TODO: In a full implementation, we'd propagate this error to the driver
+            // for proper diagnostic formatting. For now, we log and fail parsing.
+            None
+        }
+    }
 }
 
 /// Parse a simple specification expression into an SMT-LIB term.

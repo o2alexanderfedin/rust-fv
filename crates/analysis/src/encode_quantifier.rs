@@ -14,6 +14,8 @@ use std::collections::HashSet;
 
 use rust_fv_smtlib::term::Term;
 
+use crate::trigger_validation::{TriggerValidationError, TriggerValidator};
+
 /// Infer trigger patterns for a quantifier body.
 ///
 /// A valid trigger must:
@@ -319,59 +321,202 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
     }
 }
 
-/// Annotate a quantifier term with inferred trigger patterns.
+/// Annotate a quantifier term with inferred trigger patterns or validate manual trigger hints.
 ///
-/// If the term is Term::Forall or Term::Exists, infers triggers and wraps
-/// the body with Term::Annotated if triggers are found. If no triggers can
-/// be inferred, logs a warning and returns the term unchanged.
-pub fn annotate_quantifier(term: Term) -> Term {
+/// If the term is Term::Forall or Term::Exists:
+/// - Checks for manual trigger hints (rust_fv_trigger_hint annotations)
+/// - If manual hints found: validates them and returns error if invalid, or uses them if valid
+/// - If no manual hints: infers triggers automatically (existing behavior)
+///
+/// Returns error if manual trigger validation fails.
+pub fn annotate_quantifier(term: Term) -> Result<Term, TriggerValidationError> {
     match term {
-        Term::Forall(vars, body) => {
-            let var_names: Vec<String> = vars.iter().map(|(name, _)| name.clone()).collect();
-            let triggers = infer_triggers(&body, &var_names);
-
-            if triggers.is_empty() {
-                tracing::warn!(
-                    "No trigger pattern found for forall quantifier over variables: {:?}",
-                    var_names
-                );
-                Term::Forall(vars, body)
-            } else {
-                // Annotate the body with :pattern
-                let annotated_body = Term::Annotated(
-                    body,
-                    vec![(
-                        "pattern".to_string(),
-                        triggers.into_iter().flatten().collect(),
-                    )],
-                );
-                Term::Forall(vars, Box::new(annotated_body))
-            }
-        }
-        Term::Exists(vars, body) => {
-            let var_names: Vec<String> = vars.iter().map(|(name, _)| name.clone()).collect();
-            let triggers = infer_triggers(&body, &var_names);
-
-            if triggers.is_empty() {
-                tracing::warn!(
-                    "No trigger pattern found for exists quantifier over variables: {:?}",
-                    var_names
-                );
-                Term::Exists(vars, body)
-            } else {
-                // Annotate the body with :pattern
-                let annotated_body = Term::Annotated(
-                    body,
-                    vec![(
-                        "pattern".to_string(),
-                        triggers.into_iter().flatten().collect(),
-                    )],
-                );
-                Term::Exists(vars, Box::new(annotated_body))
-            }
-        }
-        other => other, // Not a quantifier, return as-is
+        Term::Forall(vars, body) => annotate_forall(vars, *body),
+        Term::Exists(vars, body) => annotate_exists(vars, *body),
+        other => Ok(other), // Not a quantifier, return as-is
     }
+}
+
+fn annotate_forall(
+    vars: Vec<(String, rust_fv_smtlib::sort::Sort)>,
+    body: Term,
+) -> Result<Term, TriggerValidationError> {
+    let var_names: Vec<String> = vars.iter().map(|(name, _)| name.clone()).collect();
+
+    // Check if body has manual trigger hints (rust_fv_trigger_hint annotations)
+    if let Some((manual_triggers, stripped_body)) = extract_manual_triggers(&body) {
+        // Validate manual triggers
+        let validator = TriggerValidator::default();
+        validator.validate(&manual_triggers, &vars, &stripped_body)?;
+
+        // Valid manual triggers: use them (FULL REPLACE, not merge)
+        let trigger_terms: Vec<Term> = manual_triggers.into_iter().flatten().collect();
+        let annotated_body = Term::Annotated(
+            Box::new(stripped_body),
+            vec![("pattern".to_string(), trigger_terms)],
+        );
+        Ok(Term::Forall(vars, Box::new(annotated_body)))
+    } else {
+        // No manual hints: use auto-inference (existing behavior)
+        let triggers = infer_triggers(&body, &var_names);
+
+        if triggers.is_empty() {
+            tracing::warn!(
+                "No trigger pattern found for forall quantifier over variables: {:?}",
+                var_names
+            );
+            Ok(Term::Forall(vars, Box::new(body)))
+        } else {
+            let annotated_body = Term::Annotated(
+                Box::new(body),
+                vec![(
+                    "pattern".to_string(),
+                    triggers.into_iter().flatten().collect(),
+                )],
+            );
+            Ok(Term::Forall(vars, Box::new(annotated_body)))
+        }
+    }
+}
+
+fn annotate_exists(
+    vars: Vec<(String, rust_fv_smtlib::sort::Sort)>,
+    body: Term,
+) -> Result<Term, TriggerValidationError> {
+    let var_names: Vec<String> = vars.iter().map(|(name, _)| name.clone()).collect();
+
+    // Check if body has manual trigger hints (rust_fv_trigger_hint annotations)
+    if let Some((manual_triggers, stripped_body)) = extract_manual_triggers(&body) {
+        // Validate manual triggers
+        let validator = TriggerValidator::default();
+        validator.validate(&manual_triggers, &vars, &stripped_body)?;
+
+        // Valid manual triggers: use them (FULL REPLACE, not merge)
+        let trigger_terms: Vec<Term> = manual_triggers.into_iter().flatten().collect();
+        let annotated_body = Term::Annotated(
+            Box::new(stripped_body),
+            vec![("pattern".to_string(), trigger_terms)],
+        );
+        Ok(Term::Exists(vars, Box::new(annotated_body)))
+    } else {
+        // No manual hints: use auto-inference (existing behavior)
+        let triggers = infer_triggers(&body, &var_names);
+
+        if triggers.is_empty() {
+            tracing::warn!(
+                "No trigger pattern found for exists quantifier over variables: {:?}",
+                var_names
+            );
+            Ok(Term::Exists(vars, Box::new(body)))
+        } else {
+            let annotated_body = Term::Annotated(
+                Box::new(body),
+                vec![(
+                    "pattern".to_string(),
+                    triggers.into_iter().flatten().collect(),
+                )],
+            );
+            Ok(Term::Exists(vars, Box::new(annotated_body)))
+        }
+    }
+}
+
+/// Extract manual trigger hints from a quantifier body.
+///
+/// Returns Some((trigger_sets, stripped_body)) if manual hints found, None otherwise.
+/// The stripped_body has rust_fv_trigger_hint annotations removed.
+fn extract_manual_triggers(body: &Term) -> Option<(Vec<Vec<Term>>, Term)> {
+    if let Term::Annotated(inner_body, annotations) = body {
+        let mut trigger_sets = Vec::new();
+        let mut remaining_annotations = Vec::new();
+
+        for (key, terms) in annotations {
+            if key == "rust_fv_trigger_hint" {
+                // Each rust_fv_trigger_hint annotation is one trigger set
+                trigger_sets.push(terms.clone());
+            } else {
+                // Keep other annotations
+                remaining_annotations.push((key.clone(), terms.clone()));
+            }
+        }
+
+        if !trigger_sets.is_empty() {
+            // Strip trigger hint annotations from body
+            let stripped_body = if remaining_annotations.is_empty() {
+                *inner_body.clone()
+            } else {
+                Term::Annotated(inner_body.clone(), remaining_annotations)
+            };
+            Some((trigger_sets, stripped_body))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+/// Generate human-readable trigger information for verbose mode.
+///
+/// Returns a description of triggers used for this quantifier:
+/// - If manual trigger override: shows the manual triggers
+/// - If auto-inferred: shows the auto-inferred triggers
+/// - If no triggers: returns empty string
+pub fn describe_quantifier_triggers(term: &Term) -> Option<String> {
+    match term {
+        Term::Forall(vars, body) | Term::Exists(vars, body) => {
+            let var_names: Vec<String> = vars.iter().map(|(name, _)| name.clone()).collect();
+            let quantifier_type = if matches!(term, Term::Forall(_, _)) {
+                "forall"
+            } else {
+                "exists"
+            };
+
+            // Check for manual triggers
+            if let Some((manual_triggers, _)) = extract_manual_triggers(body) {
+                let trigger_desc = format_trigger_sets_for_verbose(&manual_triggers);
+                Some(format!(
+                    "{} [{}]: manual trigger override: {}",
+                    quantifier_type,
+                    var_names.join(", "),
+                    trigger_desc
+                ))
+            } else {
+                // Check for auto-inferred triggers
+                let triggers = infer_triggers(body, &var_names);
+                if !triggers.is_empty() {
+                    let trigger_desc = format_trigger_sets_for_verbose(&triggers);
+                    Some(format!(
+                        "{} [{}]: auto-inferred triggers: {}",
+                        quantifier_type,
+                        var_names.join(", "),
+                        trigger_desc
+                    ))
+                } else {
+                    Some(format!(
+                        "{} [{}]: no triggers (may cause solver issues)",
+                        quantifier_type,
+                        var_names.join(", ")
+                    ))
+                }
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Format trigger sets in a human-readable way for verbose output.
+fn format_trigger_sets_for_verbose(sets: &[Vec<Term>]) -> String {
+    use crate::trigger_validation::format_term_compact;
+
+    let set_strs: Vec<String> = sets
+        .iter()
+        .map(|set| {
+            let terms: Vec<String> = set.iter().map(format_term_compact).collect();
+            format!("{{ {} }}", terms.join(", "))
+        })
+        .collect();
+    set_strs.join("; ")
 }
 
 #[cfg(test)]
@@ -455,7 +600,7 @@ mod tests {
         );
         let forall_term = Term::Forall(vec![("x".to_string(), Sort::Int)], Box::new(body));
 
-        let annotated = annotate_quantifier(forall_term);
+        let annotated = annotate_quantifier(forall_term).expect("Should succeed");
 
         // Check that it's still a Forall
         if let Term::Forall(_vars, body) = annotated {
@@ -481,7 +626,7 @@ mod tests {
         );
         let forall_term = Term::Forall(vec![("x".to_string(), Sort::Int)], Box::new(body.clone()));
 
-        let annotated = annotate_quantifier(forall_term);
+        let annotated = annotate_quantifier(forall_term).expect("Should succeed");
 
         // Should return unchanged (no annotation)
         if let Term::Forall(_vars, result_body) = annotated {
@@ -602,7 +747,7 @@ mod tests {
         );
         let exists_term = Term::Exists(vec![("x".to_string(), Sort::Int)], Box::new(body));
 
-        let annotated = annotate_quantifier(exists_term);
+        let annotated = annotate_quantifier(exists_term).expect("Should succeed");
 
         if let Term::Exists(_vars, body) = annotated {
             if let Term::Annotated(_, annotations) = &*body {
@@ -626,7 +771,7 @@ mod tests {
         );
         let exists_term = Term::Exists(vec![("x".to_string(), Sort::Int)], Box::new(body));
 
-        let annotated = annotate_quantifier(exists_term);
+        let annotated = annotate_quantifier(exists_term).expect("Should succeed");
 
         if let Term::Exists(_vars, result_body) = annotated {
             assert!(
@@ -643,7 +788,7 @@ mod tests {
     #[test]
     fn test_annotate_non_quantifier_passthrough() {
         let term = Term::BoolLit(true);
-        let result = annotate_quantifier(term.clone());
+        let result = annotate_quantifier(term.clone()).expect("Should succeed");
         // Should return as-is
         assert!(matches!(result, Term::BoolLit(true)));
     }
@@ -651,7 +796,7 @@ mod tests {
     #[test]
     fn test_annotate_const_passthrough() {
         let term = Term::Const("x".to_string());
-        let result = annotate_quantifier(term);
+        let result = annotate_quantifier(term).expect("Should succeed");
         assert!(matches!(result, Term::Const(_)));
     }
 
@@ -1891,7 +2036,7 @@ mod tests {
             Box::new(body),
         );
 
-        let annotated = annotate_quantifier(forall_term);
+        let annotated = annotate_quantifier(forall_term).expect("Should succeed");
 
         if let Term::Forall(vars, body) = annotated {
             assert_eq!(vars.len(), 2);
@@ -1916,7 +2061,7 @@ mod tests {
             Box::new(body),
         );
 
-        let annotated = annotate_quantifier(exists_term);
+        let annotated = annotate_quantifier(exists_term).expect("Should succeed");
 
         if let Term::Exists(vars, result_body) = annotated {
             assert_eq!(vars.len(), 2);

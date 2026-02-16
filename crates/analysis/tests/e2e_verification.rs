@@ -1905,7 +1905,8 @@ fn test_quantifier_full_pipeline() {
     }
 
     // Apply trigger annotation
-    let annotated_term = rust_fv_analysis::encode_quantifier::annotate_quantifier(term);
+    let annotated_term = rust_fv_analysis::encode_quantifier::annotate_quantifier(term)
+        .expect("Trigger annotation should succeed");
 
     // Verify it's still a Forall (no trigger expected since no function app)
     match annotated_term {
