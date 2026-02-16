@@ -115,11 +115,12 @@ Plans:
   4. Manual triggers override automatic inference when present, falling back to auto-inference on validation failure
   5. Error messages provide concrete examples of good triggers when validation fails
 
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 15-01: TBD
-- [ ] 15-02: TBD
+- [ ] 15-01-PLAN.md — Trigger validation engine (TDD) + Rustc-style diagnostics (V015-V018)
+- [ ] 15-02-PLAN.md — Trigger annotation parsing in spec_parser + IR propagation (TDD)
+- [ ] 15-03-PLAN.md — Pipeline integration, verbose mode, and integration tests
 
 ---
 
