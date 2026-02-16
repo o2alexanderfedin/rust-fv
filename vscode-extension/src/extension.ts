@@ -204,11 +204,14 @@ async function checkCargoVerifyOnStartup(context: vscode.ExtensionContext) {
   if (!installed) {
     const action = await vscode.window.showWarningMessage(
       'cargo-verify is not installed. The Rust FV extension requires cargo-verify to function.',
-      'Install Instructions'
+      'Install via Cargo',
+      'Dismiss'
     );
 
-    if (action === 'Install Instructions') {
-      vscode.env.openExternal(vscode.Uri.parse('https://github.com/hapyy/rust-fv#installation'));
+    if (action === 'Install via Cargo') {
+      const terminal = vscode.window.createTerminal('Rust FV Setup');
+      terminal.show();
+      terminal.sendText('cargo install --path . && echo "cargo-verify installed successfully!"');
     }
   }
 
