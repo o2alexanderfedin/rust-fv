@@ -115,7 +115,7 @@ Plans:
   4. Manual triggers override automatic inference when present, falling back to auto-inference on validation failure
   5. Error messages provide concrete examples of good triggers when validation fails
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 15-01-PLAN.md — Trigger validation engine (TDD) + Rustc-style diagnostics (V015-V018)
@@ -214,7 +214,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 12. Concurrency | v0.2 | 3/3 | Complete | 2026-02-14 |
 | 13. Standard Library Contracts | v0.3 | 5/5 | Complete | 2026-02-15 |
 | 14. Incremental Verification | v0.3 | 0/3 | Not started | - |
-| 15. Trigger Customization | v0.3 | 0/TBD | Not started | - |
+| 15. Trigger Customization | v0.3 | Complete    | 2026-02-16 | - |
 | 16. VSCode Extension | v0.3 | 0/TBD | Not started | - |
 | 17. rust-analyzer Integration | v0.3 | 0/TBD | Not started | - |
 | 18. bv2int Optimization | v0.3 | 0/TBD | Not started | - |
