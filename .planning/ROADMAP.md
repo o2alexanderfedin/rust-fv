@@ -90,12 +90,13 @@ Plans:
 
 NOTE: Success criteria #3 is OVERRIDDEN by user decision -- cache VC results only, no Z3 push/pop persistence.
 
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 Plans:
 - [ ] 14-01-PLAN.md — Dual-hash cache infrastructure + transitive invalidation engine
 - [ ] 14-02-PLAN.md — Pipeline integration, per-function status, cargo verify clean
 - [ ] 14-03-PLAN.md — Benchmark suite + incremental correctness tests
+- [ ] 14-04-PLAN.md — E2E performance benchmark on real 1000-line codebase (gap closure)
 
 ---
 
