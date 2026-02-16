@@ -1,0 +1,10 @@
+[package]
+name = "e2e-bench"
+version = "0.1.0"
+edition = "2021"
+
+# NOT a workspace member - this is a standalone test fixture for E2E benchmarking
+# It will be compiled by `cargo verify` as an external crate during performance tests
+
+[dependencies]
+# Intentionally empty - this is a pure Rust crate for formal verification benchmarking
