@@ -822,6 +822,117 @@ fn parse_bitvec_value(value: &str) -> Option<String> {
     None
 }
 
+/// Format a trigger validation error as a Rustc-style diagnostic.
+///
+/// Produces error messages with error codes V015-V018 following Rustc conventions:
+/// - V015: Interpreted symbol in trigger
+/// - V016: Self-instantiation loop
+/// - V017: Incomplete variable coverage
+/// - V018: Too many trigger sets
+///
+/// Will be called from the verification pipeline in Plan 15-03 integration.
+#[allow(dead_code)]
+pub fn format_trigger_error(
+    error: &rust_fv_analysis::trigger_validation::TriggerValidationError,
+    function_name: &str,
+) -> String {
+    use rust_fv_analysis::trigger_validation::{
+        TriggerValidationError, format_term_compact, format_trigger_sets,
+    };
+
+    match error {
+        TriggerValidationError::InterpretedSymbol {
+            trigger,
+            symbol,
+            auto_inferred,
+        } => {
+            let trigger_str = format_term_compact(trigger);
+            let mut output = format!(
+                "error[V015]: trigger contains interpreted symbol `{}`\n",
+                symbol
+            );
+            output.push_str(&format!(
+                "  {}: trigger `{}` uses interpreted operator\n",
+                "reason", trigger_str
+            ));
+            if !auto_inferred.is_empty() {
+                output.push_str(&format!(
+                    "  {}: Auto-inference suggests: {} instead\n",
+                    "suggestion",
+                    format_trigger_sets(auto_inferred)
+                ));
+            }
+            output.push_str("  note: Triggers must be uninterpreted function applications.\n");
+            output.push_str(&format!(
+                "  help: for more information about trigger requirements in `{}`\n",
+                function_name
+            ));
+            output
+        }
+        TriggerValidationError::SelfInstantiation {
+            trigger,
+            loop_example,
+        } => {
+            let trigger_str = format_term_compact(trigger);
+            let mut output = "error[V016]: trigger causes self-instantiation loop\n".to_string();
+            output.push_str(&format!(
+                "  {}: trigger `{}` self-instantiates\n",
+                "reason", trigger_str
+            ));
+            output.push_str(&format!("  {}: {}\n", "loop", loop_example));
+            output.push_str(
+                "  note: Avoid triggers where instantiation creates new matching terms.\n",
+            );
+            output.push_str(&format!(
+                "  help: for more information about trigger safety in `{}`\n",
+                function_name
+            ));
+            output
+        }
+        TriggerValidationError::IncompleteCoverage {
+            trigger,
+            missing_vars,
+        } => {
+            let trigger_str = format_term_compact(trigger);
+            let missing_str = missing_vars.join(", ");
+            let mut output = format!(
+                "error[V017]: trigger does not cover bound variables: {}\n",
+                missing_str
+            );
+            output.push_str(&format!(
+                "  {}: trigger `{}` missing variables\n",
+                "reason", trigger_str
+            ));
+            output.push_str(
+                "  note: Each trigger (or trigger set) must reference all quantified variables.\n",
+            );
+            output.push_str(&format!(
+                "  help: Consider adding a multi-trigger that includes: {}\n",
+                missing_str
+            ));
+            output.push_str(&format!(
+                "  help: for more information about trigger coverage in `{}`\n",
+                function_name
+            ));
+            output
+        }
+        TriggerValidationError::TooManyTriggers { count, limit } => {
+            let mut output = format!(
+                "error[V018]: too many trigger hints ({} exceeds limit of {})\n",
+                count, limit
+            );
+            output.push_str(
+                "  note: Excessive triggers harm solver performance. Typical quantifiers need 1-3 trigger sets.\n",
+            );
+            output.push_str(&format!(
+                "  help: for more information about trigger limits in `{}`\n",
+                function_name
+            ));
+            output
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2161,5 +2272,118 @@ mod tests {
             let failure = make_failure(vc_kind, None, None, None, None);
             report_text_only(&failure);
         }
+    }
+
+    // --- Trigger validation diagnostics tests (V015-V018) ---
+
+    #[test]
+    fn test_format_trigger_error_interpreted_symbol() {
+        use rust_fv_analysis::trigger_validation::TriggerValidationError;
+        use rust_fv_smtlib::term::Term;
+
+        let error = TriggerValidationError::InterpretedSymbol {
+            trigger: Term::BvAdd(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            ),
+            symbol: "+".to_string(),
+            auto_inferred: vec![vec![Term::App(
+                "f".to_string(),
+                vec![Term::Const("x".to_string()), Term::Const("y".to_string())],
+            )]],
+        };
+        let output = format_trigger_error(&error, "test_fn");
+        assert!(output.contains("V015"), "Should contain error code V015");
+        assert!(output.contains("+"), "Should contain symbol name");
+        assert!(output.contains("interpreted"), "Should mention interpreted");
+        assert!(output.contains("suggestion"), "Should contain suggestion");
+        assert!(
+            output.contains("uninterpreted"),
+            "Should mention uninterpreted"
+        );
+    }
+
+    #[test]
+    fn test_format_trigger_error_self_instantiation() {
+        use rust_fv_analysis::trigger_validation::TriggerValidationError;
+        use rust_fv_smtlib::term::Term;
+
+        let error = TriggerValidationError::SelfInstantiation {
+            trigger: Term::App(
+                "f".to_string(),
+                vec![Term::App(
+                    "f".to_string(),
+                    vec![Term::Const("x".to_string())],
+                )],
+            ),
+            loop_example: "(f((f(x)))) -> (f((f((f(x)))))) -> (f((f((f((f(x))))))))  -> ..."
+                .to_string(),
+        };
+        let output = format_trigger_error(&error, "test_fn");
+        assert!(output.contains("V016"), "Should contain error code V016");
+        assert!(
+            output.contains("self-instantiation"),
+            "Should mention self-instantiation"
+        );
+        assert!(output.contains("loop"), "Should contain loop example");
+        assert!(output.contains("->"), "Should show loop chain");
+    }
+
+    #[test]
+    fn test_format_trigger_error_incomplete_coverage() {
+        use rust_fv_analysis::trigger_validation::TriggerValidationError;
+        use rust_fv_smtlib::term::Term;
+
+        let error = TriggerValidationError::IncompleteCoverage {
+            trigger: Term::App("f".to_string(), vec![Term::Const("x".to_string())]),
+            missing_vars: vec!["y".to_string()],
+        };
+        let output = format_trigger_error(&error, "test_fn");
+        assert!(output.contains("V017"), "Should contain error code V017");
+        assert!(output.contains("y"), "Should contain missing variable name");
+        assert!(output.contains("cover"), "Should mention coverage");
+        assert!(
+            output.contains("multi-trigger"),
+            "Should suggest multi-trigger"
+        );
+    }
+
+    #[test]
+    fn test_format_trigger_error_too_many() {
+        use rust_fv_analysis::trigger_validation::TriggerValidationError;
+
+        let error = TriggerValidationError::TooManyTriggers {
+            count: 15,
+            limit: 10,
+        };
+        let output = format_trigger_error(&error, "test_fn");
+        assert!(output.contains("V018"), "Should contain error code V018");
+        assert!(output.contains("15"), "Should contain actual count");
+        assert!(output.contains("10"), "Should contain limit");
+        assert!(output.contains("performance"), "Should mention performance");
+    }
+
+    #[test]
+    fn test_format_trigger_error_interpreted_no_suggestion() {
+        use rust_fv_analysis::trigger_validation::TriggerValidationError;
+        use rust_fv_smtlib::term::Term;
+
+        // InterpretedSymbol with empty auto_inferred
+        let error = TriggerValidationError::InterpretedSymbol {
+            trigger: Term::Eq(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            ),
+            symbol: "==".to_string(),
+            auto_inferred: vec![],
+        };
+        let output = format_trigger_error(&error, "my_func");
+        assert!(output.contains("V015"));
+        assert!(output.contains("=="));
+        // Should NOT contain suggestion since auto_inferred is empty
+        assert!(
+            !output.contains("suggestion"),
+            "Should not show suggestion when no alternatives"
+        );
     }
 }
