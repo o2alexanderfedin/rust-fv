@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.vsix
+bin/z3-*
+.DS_Store
