@@ -139,11 +139,12 @@ Plans:
   4. Extension is published to VSCode marketplace with configuration for enable/disable, timeout, and Z3 path
   5. File changes trigger re-verification automatically with debouncing to avoid typing latency
 
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 16-01: TBD
-- [ ] 16-02: TBD
+- [ ] 16-01-PLAN.md — Extension scaffolding + core verification loop with diagnostics and status bar
+- [ ] 16-02-PLAN.md — Output panel with structured failure reports, SMT-LIB command, and gutter decorations
+- [ ] 16-03-PLAN.md — Z3 bundling, packaging scripts, auto-install prompt, and marketplace preparation
 
 ---
 
@@ -215,11 +216,11 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 13. Standard Library Contracts | v0.3 | 5/5 | Complete | 2026-02-15 |
 | 14. Incremental Verification | v0.3 | 0/3 | Not started | - |
 | 15. Trigger Customization | v0.3 | Complete    | 2026-02-16 | - |
-| 16. VSCode Extension | v0.3 | 0/TBD | Not started | - |
+| 16. VSCode Extension | v0.3 | 0/3 | Not started | - |
 | 17. rust-analyzer Integration | v0.3 | 0/TBD | Not started | - |
 | 18. bv2int Optimization | v0.3 | 0/TBD | Not started | - |
 
 ---
 
 *Roadmap created: 2026-02-14*
-*Last updated: 2026-02-15 after Phase 14 planning*
+*Last updated: 2026-02-16 after Phase 16 planning*
