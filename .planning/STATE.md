@@ -6,22 +6,22 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 14 - Incremental Verification
+**Current focus:** Phase 15 - Trigger Customization
 
 ## Current Position
 
-Phase: 14 of 18 (Incremental Verification) -- IN PROGRESS
-Plan: 4 of TBD (plans 01-04 complete)
-Status: Plan 14-04 complete (E2E performance benchmark gap closure)
-Last activity: 2026-02-16 — Completed 14-04-PLAN.md (E2E performance tests proving <1s incremental re-verification)
+Phase: 15 of 18 (Trigger Customization) -- IN PROGRESS
+Plan: 1 of 3 (plan 01 complete)
+Status: Plan 15-01 complete (Trigger validation engine and diagnostics)
+Last activity: 2026-02-16 — Completed 15-01-PLAN.md (TriggerValidator + V015-V018 diagnostics)
 
-Progress: [█████████████████░░░░░░░] 72% (13/18 phases complete, 14 in progress)
+Progress: [██████████████████░░░░░░] 78% (14/18 phases complete, 15 in progress)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 9 plans)
-- Average duration: 1021 seconds (v0.3)
+- Total plans completed: 48 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 10 plans)
+- Average duration: 994 seconds (v0.3)
 - Total execution time: 5 days (v0.1: 2 days, v0.2: 3 days, v0.3: 1 day)
 
 **By Milestone:**
@@ -30,12 +30,12 @@ Progress: [█████████████████░░░░░░
 |-----------|--------|-------|----------|
 | v0.1 POC | 5 | 17 | 2 days |
 | v0.2 Advanced | 7 | 21 | 3 days |
-| v0.3 Usability | 6 | 9/TBD | In progress |
+| v0.3 Usability | 6 | 10/TBD | In progress |
 
 **Recent Trend:**
 - v0.1 average: 8.5 plans/day
 - v0.2 average: 7.0 plans/day
-- v0.3 current: 9 plans (avg 1021s duration)
+- v0.3 current: 10 plans (avg 994s duration)
 - Trend: Accelerating (improved efficiency with E2E testing patterns)
 
 **Recent Executions:**
@@ -48,6 +48,7 @@ Progress: [█████████████████░░░░░░
 | Phase 14 P02 | 478s | 2 | 4 |
 | Phase 14 P03 | 71min | 2 | 4 |
 | Phase 14 P04 | 326s | 2 | 3 |
+| Phase 15 P01 | 751s | 2 | 6 |
 
 *Updated after each plan completion*
 
@@ -87,6 +88,9 @@ Recent decisions affecting current work:
 - [Phase 14]: Standalone test fixture crate (not workspace member) for realistic E2E testing
 - [Phase 14]: cfg_attr contract syntax for rustc compatibility in test fixture
 - [Phase 14]: E2E tests marked #[ignore] - require full toolchain and solvers
+- [Phase 15 (15-01)]: Self-instantiation detection via recursive function name matching (not symbolic substitution)
+- [Phase 15 (15-01)]: Catch-all interpreted symbol detection for unrecognized Term variants
+- [Phase 15 (15-01)]: format_trigger_error returns String for testability and composability
 
 ### Pending Todos
 
@@ -107,11 +111,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 14-04-PLAN.md (E2E performance benchmark gap closure)
+Stopped at: Completed 15-01-PLAN.md (Trigger validation engine and diagnostics)
 Resume file: None
-Next step: Continue Phase 14 (plan 05 if exists, or move to Phase 15)
+Next step: Continue Phase 15 (plan 02 - trigger annotation parsing)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing 14-04-PLAN.md (Phase 14 plan 04)*
+*Last updated: 2026-02-16 after completing 15-01-PLAN.md (Phase 15 plan 01)*
