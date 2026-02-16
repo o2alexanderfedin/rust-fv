@@ -11,17 +11,17 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 16 of 18 (VSCode Extension) -- IN PROGRESS
-Plan: 1 of 3
-Status: VSCode extension core implemented with on-save verification and inline diagnostics
-Last activity: 2026-02-16 — Completed 16-01-PLAN.md (VSCode extension verification loop)
+Plan: 2 of 3
+Status: Output panels with structured failure reports, SMT-LIB viewer, and gutter decorations complete
+Last activity: 2026-02-16 — Completed 16-02-PLAN.md (Output panels and gutter decorations)
 
-Progress: [███████████████████░░░░░] 83% (15/18 phases complete, 1/3 plans in Phase 16)
+Progress: [███████████████████░░░░░] 84% (15/18 phases complete, 2/3 plans in Phase 16)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 50 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 12 plans)
-- Average duration: 850 seconds (v0.3)
+- Total plans completed: 51 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 13 plans)
+- Average duration: 800 seconds (v0.3)
 - Total execution time: 5 days (v0.1: 2 days, v0.2: 3 days, v0.3: 1 day)
 
 **By Milestone:**
@@ -30,12 +30,12 @@ Progress: [███████████████████░░░░
 |-----------|--------|-------|----------|
 | v0.1 POC | 5 | 17 | 2 days |
 | v0.2 Advanced | 7 | 21 | 3 days |
-| v0.3 Usability | 6 | 12/TBD | In progress |
+| v0.3 Usability | 6 | 13/TBD | In progress |
 
 **Recent Trend:**
 - v0.1 average: 8.5 plans/day
 - v0.2 average: 7.0 plans/day
-- v0.3 current: 12 plans (avg 850s duration)
+- v0.3 current: 13 plans (avg 800s duration)
 - Trend: Accelerating (improved efficiency with integration testing patterns and focused implementations)
 
 **Recent Executions:**
@@ -50,6 +50,7 @@ Progress: [███████████████████░░░░
 | Phase 15 P02 | 814s | 1 | 2 |
 | Phase 15 P03 | 530s | 2 | 4 |
 | Phase 16 P01 | 145s | 2 | 5 |
+| Phase 16 P02 | 427s | 2 | 5 |
 
 *Updated after each plan completion*
 
@@ -102,6 +103,10 @@ Recent decisions affecting current work:
 - [Phase 16 (16-01)]: Fresh spawn per save (simpler lifecycle than persistent background process)
 - [Phase 16 (16-01)]: DiagnosticSeverity.Error for verification failures (not Warning - same visual weight as rustc)
 - [Phase 16 (16-01)]: Counterexamples formatted inline in diagnostic tooltip (not separate related information yet)
+- [Phase 16 (16-02)]: Structured output channel shown by default (not raw output - better UX)
+- [Phase 16 (16-02)]: SMT-LIB viewer reads from target/verify/ filesystem (not embedded in JSON - keeps payloads small)
+- [Phase 16 (16-02)]: Gutter decorations use regex function matching (JSON lacks source_line for passing functions)
+- [Phase 16 (16-02)]: Decorations persist across editor tab switches (lastVerificationReport + onDidChangeActiveTextEditor)
 
 ### Pending Todos
 
@@ -122,11 +127,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 16-01-PLAN.md (VSCode extension verification loop)
+Stopped at: Completed 16-02-PLAN.md (Output panels and gutter decorations)
 Resume file: None
-Next step: Continue Phase 16 - Plan 02 (Output panels and SMT-LIB viewer)
+Next step: Continue Phase 16 - Plan 03 (Z3 bundling and publishing)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing 16-01-PLAN.md (Phase 16 plan 01)*
+*Last updated: 2026-02-16 after completing 16-02-PLAN.md (Phase 16 plan 02)*
