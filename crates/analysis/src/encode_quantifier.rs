@@ -48,7 +48,7 @@ pub fn infer_triggers(body: &Term, bound_vars: &[String]) -> Vec<Vec<Term>> {
 }
 
 /// Collect all free variables (Term::Const) in a term.
-fn free_variables(term: &Term) -> HashSet<String> {
+pub fn free_variables(term: &Term) -> HashSet<String> {
     let mut vars = HashSet::new();
     collect_free_variables(term, &mut vars);
     vars

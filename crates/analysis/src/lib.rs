@@ -20,5 +20,6 @@ pub mod simplify;
 pub mod spec_parser;
 pub mod stdlib_contracts;
 pub mod trait_analysis;
+pub mod trigger_validation;
 pub mod unsafe_analysis;
 pub mod vcgen;

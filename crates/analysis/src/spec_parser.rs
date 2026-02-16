@@ -88,6 +88,16 @@ fn convert_expr_with_bounds(
 
         Expr::Cast(cast_expr) => convert_cast(cast_expr, func, in_old, bound_vars),
 
+        Expr::Block(block_expr) => {
+            // Block expressions: { expr } -- convert the single expression inside
+            // Used by quantifier closures with trigger attributes: { #[trigger(f(x))] body }
+            if let Some(syn::Stmt::Expr(inner_expr, _)) = block_expr.block.stmts.last() {
+                convert_expr_with_bounds(inner_expr, func, in_old, in_int_mode, bound_vars)
+            } else {
+                None
+            }
+        }
+
         _ => None, // Unsupported expression kind
     }
 }
@@ -544,7 +554,11 @@ fn convert_quantifier(
         let mut new_bound_vars = bound_vars.to_vec();
         new_bound_vars.extend(sorted_vars.clone());
 
-        // Convert body with new bound vars
+        // Extract trigger hints from #[trigger(...)] attributes on the body
+        let trigger_hints =
+            extract_trigger_hints(&closure_expr.body, func, in_int_mode, &new_bound_vars);
+
+        // Convert body with new bound vars (strip trigger attrs handled by convert_expr)
         let body = convert_expr_with_bounds(
             &closure_expr.body,
             func,
@@ -553,14 +567,248 @@ fn convert_quantifier(
             &new_bound_vars,
         )?;
 
+        // Wrap body with trigger annotations if any triggers were found
+        let final_body = if trigger_hints.is_empty() {
+            body
+        } else {
+            let annotations: Vec<(String, Vec<Term>)> = trigger_hints
+                .into_iter()
+                .map(|hint| ("rust_fv_trigger_hint".to_string(), hint))
+                .collect();
+            Term::Annotated(Box::new(body), annotations)
+        };
+
         // Return the quantifier
         if is_forall {
-            Some(Term::Forall(sorted_vars, Box::new(body)))
+            Some(Term::Forall(sorted_vars, Box::new(final_body)))
         } else {
-            Some(Term::Exists(sorted_vars, Box::new(body)))
+            Some(Term::Exists(sorted_vars, Box::new(final_body)))
         }
     } else {
         None
+    }
+}
+
+/// Extract trigger hints from `#[trigger(...)]` attributes on a closure body expression.
+///
+/// Supports two forms:
+/// - Block body: `{ #[trigger(f(x))] #[trigger(g(x))] expr }` -- attributes on first expr in block
+/// - Non-block body: `#[trigger(f(x))] (expr)` -- attributes on the body expr itself
+///
+/// Each `#[trigger(term1, term2)]` attribute produces one trigger set (Vec<Term>).
+/// Multiple `#[trigger]` attributes produce multiple trigger sets (disjunction).
+fn extract_trigger_hints(
+    body: &Expr,
+    func: &Function,
+    in_int_mode: bool,
+    bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Vec<Vec<Term>> {
+    let attrs = collect_trigger_attrs(body);
+    let mut trigger_sets = Vec::new();
+
+    for attr in attrs {
+        if let syn::Meta::List(meta_list) = &attr.meta {
+            // Check that the path is "trigger"
+            if meta_list.path.segments.len() == 1 && meta_list.path.segments[0].ident == "trigger" {
+                // Parse the token stream inside #[trigger(...)]
+                let tokens = &meta_list.tokens;
+                if tokens.is_empty() {
+                    continue; // Empty trigger #[trigger()] is ignored
+                }
+
+                // Parse the trigger expressions from the token stream
+                let trigger_terms =
+                    parse_trigger_token_stream(tokens, func, in_int_mode, bound_vars);
+                if !trigger_terms.is_empty() {
+                    trigger_sets.push(trigger_terms);
+                }
+            }
+        }
+    }
+
+    trigger_sets
+}
+
+/// Collect `#[trigger(...)]` attributes from a body expression.
+///
+/// Looks at:
+/// 1. Block body: attributes on the first expression statement in the block
+/// 2. Non-block body: attributes on the body expression directly (e.g., Paren, Call)
+fn collect_trigger_attrs(body: &Expr) -> Vec<&syn::Attribute> {
+    let attrs: &[syn::Attribute] = match body {
+        Expr::Block(block_expr) => {
+            // Look at the first expression in the block for attributes
+            if let Some(syn::Stmt::Expr(expr, _)) = block_expr.block.stmts.first() {
+                get_expr_attrs(expr)
+            } else {
+                return Vec::new();
+            }
+        }
+        _ => get_expr_attrs(body),
+    };
+
+    attrs
+        .iter()
+        .filter(|attr| {
+            if let syn::Meta::List(meta_list) = &attr.meta {
+                meta_list.path.segments.len() == 1 && meta_list.path.segments[0].ident == "trigger"
+            } else {
+                false
+            }
+        })
+        .collect()
+}
+
+/// Get the attributes slice from any expression type.
+fn get_expr_attrs(expr: &Expr) -> &[syn::Attribute] {
+    match expr {
+        Expr::Binary(e) => {
+            // For binary expressions like `f(x) > 0`, the attr is on the LHS
+            // Check the left side for trigger attrs
+            get_expr_attrs(&e.left)
+        }
+        Expr::Call(e) => &e.attrs,
+        Expr::Path(e) => &e.attrs,
+        Expr::Paren(e) => &e.attrs,
+        Expr::Lit(e) => &e.attrs,
+        Expr::Unary(e) => &e.attrs,
+        Expr::Field(e) => &e.attrs,
+        Expr::MethodCall(e) => &e.attrs,
+        Expr::Block(e) => &e.attrs,
+        _ => &[],
+    }
+}
+
+/// Parse a trigger token stream like `f(x)` or `f(x), g(y)` into Terms.
+///
+/// Comma-separated expressions in a single `#[trigger(...)]` form a multi-trigger
+/// (conjunction). Each expression is parsed as a Rust expression and converted to a Term.
+fn parse_trigger_token_stream(
+    tokens: &proc_macro2::TokenStream,
+    func: &Function,
+    in_int_mode: bool,
+    bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Vec<Term> {
+    // Parse the tokens as comma-separated expressions
+    // Strategy: try to parse as a full expression first, then split by commas if needed
+    let token_str = tokens.to_string();
+
+    // Split by top-level commas (not inside parentheses)
+    let expr_strs = split_trigger_exprs(&token_str);
+
+    let mut terms = Vec::new();
+    for expr_str in expr_strs {
+        let trimmed = expr_str.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        // Parse each trigger expression as a Rust expression
+        if let Ok(expr) = syn::parse_str::<Expr>(trimmed) {
+            // Convert to a Term using trigger-specific conversion
+            // Trigger terms are function applications - unresolved function names
+            // become App terms
+            if let Some(term) = convert_trigger_expr(&expr, func, in_int_mode, bound_vars) {
+                terms.push(term);
+            }
+        }
+    }
+
+    terms
+}
+
+/// Split a trigger expression string by top-level commas (respecting parentheses).
+fn split_trigger_exprs(s: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0;
+
+    for ch in s.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                result.push(current.clone());
+                current.clear();
+            }
+            _ => {
+                current.push(ch);
+            }
+        }
+    }
+
+    if !current.trim().is_empty() {
+        result.push(current);
+    }
+
+    result
+}
+
+/// Convert a trigger expression to an SMT Term.
+///
+/// Trigger expressions are typically function applications like `f(x)` or `f(g(x))`.
+/// Unknown function names (not in the function context) are treated as uninterpreted
+/// function applications (Term::App).
+fn convert_trigger_expr(
+    expr: &Expr,
+    func: &Function,
+    in_int_mode: bool,
+    bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Option<Term> {
+    match expr {
+        Expr::Call(call_expr) => {
+            // Function call: f(x) or f(g(x))
+            if let Expr::Path(path) = &*call_expr.func
+                && path.path.segments.len() == 1
+            {
+                let func_name = path.path.segments[0].ident.to_string();
+
+                // Convert arguments
+                let mut args = Vec::new();
+                for arg in &call_expr.args {
+                    let arg_term = convert_trigger_expr(arg, func, in_int_mode, bound_vars)?;
+                    args.push(arg_term);
+                }
+
+                return Some(Term::App(func_name, args));
+            }
+            None
+        }
+        Expr::Path(path_expr) => {
+            // Simple variable reference like `x`
+            if path_expr.path.segments.len() == 1 {
+                let ident = path_expr.path.segments[0].ident.to_string();
+
+                // Check if it's a bound variable
+                for (name, _) in bound_vars {
+                    if *name == ident {
+                        return Some(Term::Const(ident));
+                    }
+                }
+
+                // Try to resolve as a function variable
+                if let Some(name) = resolve_variable_name(&ident, func) {
+                    return Some(Term::Const(name));
+                }
+
+                // Unknown identifier in trigger context - treat as a constant
+                Some(Term::Const(ident))
+            } else {
+                None
+            }
+        }
+        Expr::Paren(paren_expr) => {
+            convert_trigger_expr(&paren_expr.expr, func, in_int_mode, bound_vars)
+        }
+        _ => {
+            // For other expressions, fall back to the regular expression converter
+            convert_expr_with_bounds(expr, func, false, in_int_mode, bound_vars)
+        }
     }
 }
 
@@ -1670,6 +1918,253 @@ mod tests {
 
         // Should produce normal comparison, not a closure call
         assert!(matches!(term, Term::BvSGt(_, _)));
+    }
+
+    // -----------------------------------------------------------------------
+    // Trigger annotation parsing tests (Phase 15-02)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_trigger_single() {
+        // forall(|x: i32| { #[trigger(f(x))] x > 0 })
+        // The trigger f(x) should appear as a Term::Annotated on the body
+        let func = make_i32_func();
+        let term = parse_spec_expr("forall(|x: i32| { #[trigger(f(x))] x > 0 })", &func);
+        assert!(term.is_some(), "Failed to parse forall with trigger");
+        let term = term.unwrap();
+        if let Term::Forall(vars, body) = &term {
+            assert_eq!(vars.len(), 1);
+            assert_eq!(vars[0].0, "x");
+            // Body should be Annotated with trigger hint
+            if let Term::Annotated(inner_body, annotations) = &**body {
+                // Should have one trigger set
+                assert_eq!(annotations.len(), 1);
+                assert_eq!(annotations[0].0, "rust_fv_trigger_hint");
+                // The trigger term should be an unresolved function application
+                assert_eq!(annotations[0].1.len(), 1);
+                // The inner body should be the comparison
+                assert!(
+                    matches!(&**inner_body, Term::BvSGt(_, _)),
+                    "Expected BvSGt body, got {:?}",
+                    inner_body
+                );
+            } else {
+                panic!("Expected Annotated body with trigger, got {body:?}");
+            }
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_multi_trigger() {
+        // Multi-trigger conjunction: #[trigger(f(x), g(y))] -> one trigger set with two terms
+        let func = make_i32_func();
+        let term = parse_spec_expr(
+            "forall(|x: i32, y: i32| { #[trigger(f(x), g(y))] f(x) == g(y) })",
+            &func,
+        );
+        assert!(term.is_some(), "Failed to parse forall with multi-trigger");
+        let term = term.unwrap();
+        if let Term::Forall(vars, body) = &term {
+            assert_eq!(vars.len(), 2);
+            if let Term::Annotated(_, annotations) = &**body {
+                assert_eq!(annotations.len(), 1, "Expected one trigger set");
+                assert_eq!(annotations[0].0, "rust_fv_trigger_hint");
+                assert_eq!(
+                    annotations[0].1.len(),
+                    2,
+                    "Expected two terms in trigger set"
+                );
+            } else {
+                panic!("Expected Annotated body, got {body:?}");
+            }
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_multiple_sets() {
+        // Multiple trigger sets (disjunction): two #[trigger] attributes
+        let func = make_i32_func();
+        let term = parse_spec_expr(
+            "forall(|x: i32| { #[trigger(f(x))] #[trigger(g(x))] f(x) + g(x) > 0 })",
+            &func,
+        );
+        assert!(
+            term.is_some(),
+            "Failed to parse forall with multiple trigger sets"
+        );
+        let term = term.unwrap();
+        if let Term::Forall(vars, body) = &term {
+            assert_eq!(vars.len(), 1);
+            if let Term::Annotated(_, annotations) = &**body {
+                assert_eq!(annotations.len(), 2, "Expected two trigger sets");
+                assert_eq!(annotations[0].0, "rust_fv_trigger_hint");
+                assert_eq!(annotations[1].0, "rust_fv_trigger_hint");
+                // Each set has one term
+                assert_eq!(annotations[0].1.len(), 1);
+                assert_eq!(annotations[1].1.len(), 1);
+            } else {
+                panic!("Expected Annotated body with two trigger sets, got {body:?}");
+            }
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_nested_quantifier() {
+        // Trigger on inner quantifier only, outer unaffected
+        let func = make_i32_func();
+        let term = parse_spec_expr(
+            "forall(|x: i32| exists(|y: i32| { #[trigger(f(y))] f(y) == x }))",
+            &func,
+        );
+        assert!(
+            term.is_some(),
+            "Failed to parse nested quantifier with trigger"
+        );
+        let term = term.unwrap();
+        if let Term::Forall(_, outer_body) = &term {
+            // Outer body should NOT be Annotated (no trigger on outer)
+            if let Term::Exists(_, inner_body) = &**outer_body {
+                // Inner body SHOULD be Annotated (trigger on inner)
+                assert!(
+                    matches!(&**inner_body, Term::Annotated(_, _)),
+                    "Expected inner quantifier body to be Annotated, got {:?}",
+                    inner_body
+                );
+            } else {
+                panic!("Expected Exists, got {outer_body:?}");
+            }
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_no_trigger_backward_compat() {
+        // Existing forall without trigger still works identically
+        let func = make_i32_func();
+        let term = parse_spec_expr("forall(|x: i32| x > 0)", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        if let Term::Forall(vars, body) = &term {
+            assert_eq!(vars.len(), 1);
+            // Body should NOT be Annotated (no triggers)
+            assert!(
+                !matches!(&**body, Term::Annotated(_, _)),
+                "Expected non-annotated body for no-trigger case, got {body:?}"
+            );
+            assert!(matches!(&**body, Term::BvSGt(_, _)));
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_complex_expr() {
+        // Trigger with nested function call: #[trigger(f(g(x)))]
+        let func = make_i32_func();
+        let term = parse_spec_expr(
+            "forall(|x: i32| { #[trigger(f(g(x)))] f(g(x)) > 0 })",
+            &func,
+        );
+        assert!(
+            term.is_some(),
+            "Failed to parse forall with complex trigger expr"
+        );
+        let term = term.unwrap();
+        if let Term::Forall(_, body) = &term {
+            if let Term::Annotated(_, annotations) = &**body {
+                assert_eq!(annotations.len(), 1);
+                assert_eq!(annotations[0].1.len(), 1);
+                // The trigger should be a nested App
+                let trigger_term = &annotations[0].1[0];
+                assert!(
+                    matches!(trigger_term, Term::App(name, _) if name == "f"),
+                    "Expected App('f', ...) trigger, got {trigger_term:?}"
+                );
+            } else {
+                panic!("Expected Annotated body, got {body:?}");
+            }
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_empty_is_ignored() {
+        // #[trigger()] with no expressions inside should be ignored (no trigger stored)
+        let func = make_i32_func();
+        let term = parse_spec_expr("forall(|x: i32| { #[trigger()] x > 0 })", &func);
+        assert!(term.is_some(), "Failed to parse forall with empty trigger");
+        let term = term.unwrap();
+        if let Term::Forall(_, body) = &term {
+            // Empty trigger should be ignored - body should NOT be Annotated
+            assert!(
+                !matches!(&**body, Term::Annotated(_, _)),
+                "Expected non-annotated body for empty trigger, got {body:?}"
+            );
+        } else {
+            panic!("Expected Forall, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_stored_as_annotation() {
+        // Verify the annotation key is "rust_fv_trigger_hint" as specified
+        let func = make_i32_func();
+        let term = parse_spec_expr("forall(|x: i32| { #[trigger(f(x))] f(x) > 0 })", &func);
+        assert!(term.is_some());
+        let term = term.unwrap();
+        if let Term::Forall(_, body) = &term {
+            if let Term::Annotated(_, annotations) = &**body {
+                for (key, _) in annotations {
+                    assert_eq!(
+                        key, "rust_fv_trigger_hint",
+                        "Trigger annotation key must be 'rust_fv_trigger_hint'"
+                    );
+                }
+            } else {
+                panic!("Expected Annotated body");
+            }
+        } else {
+            panic!("Expected Forall");
+        }
+    }
+
+    #[test]
+    fn parse_trigger_exists_quantifier() {
+        // Trigger works with exists() too, not just forall()
+        let func = make_i32_func();
+        let term = parse_spec_expr("exists(|x: i32| { #[trigger(f(x))] f(x) == 0 })", &func);
+        assert!(term.is_some(), "Failed to parse exists with trigger");
+        let term = term.unwrap();
+        if let Term::Exists(vars, body) = &term {
+            assert_eq!(vars.len(), 1);
+            assert!(
+                matches!(&**body, Term::Annotated(_, _)),
+                "Expected Annotated body for exists with trigger"
+            );
+        } else {
+            panic!("Expected Exists, got {term:?}");
+        }
+    }
+
+    #[test]
+    fn parse_backward_compat_parse_spec_expr() {
+        // All existing tests should still pass - parse_spec_expr returns same results
+        let func = make_i32_func();
+        // Verify a few key existing behaviors are unchanged
+        assert!(parse_spec_expr("result > 0", &func).is_some());
+        assert!(parse_spec_expr("result == _1 + _2", &func).is_some());
+        assert!(parse_spec_expr("forall(|x: i32| x > 0)", &func).is_some());
+        assert!(parse_spec_expr("exists(|x: i32| x == 0)", &func).is_some());
+        assert!(parse_spec_expr("old(_1) + 1", &func).is_some());
+        assert!(parse_spec_expr("", &func).is_none());
     }
 
     // ====== Trait method call recognition tests (Phase 8-02) ======

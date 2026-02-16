@@ -1344,6 +1344,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "petgraph",
+ "proc-macro2",
  "proptest",
  "rust-fv-smtlib",
  "rust-fv-solver",
