@@ -216,11 +216,11 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 13. Standard Library Contracts | v0.3 | 5/5 | Complete | 2026-02-15 |
 | 14. Incremental Verification | v0.3 | 0/3 | Not started | - |
 | 15. Trigger Customization | v0.3 | Complete    | 2026-02-16 | - |
-| 16. VSCode Extension | v0.3 | 0/3 | Not started | - |
+| 16. VSCode Extension | v0.3 | 3/3 | Complete | 2026-02-16 |
 | 17. rust-analyzer Integration | v0.3 | 0/TBD | Not started | - |
 | 18. bv2int Optimization | v0.3 | 0/TBD | Not started | - |
 
 ---
 
 *Roadmap created: 2026-02-14*
-*Last updated: 2026-02-16 after Phase 16 planning*
+*Last updated: 2026-02-16 after Phase 16 completion*

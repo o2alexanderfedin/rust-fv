@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 16 - VSCode Extension
+**Current focus:** Phase 17 - rust-analyzer Integration
 
 ## Current Position
 
-Phase: 16 of 18 (VSCode Extension) -- IN PROGRESS
-Plan: 2 of 3
-Status: Output panels with structured failure reports, SMT-LIB viewer, and gutter decorations complete
-Last activity: 2026-02-16 — Completed 16-02-PLAN.md (Output panels and gutter decorations)
+Phase: 16 of 18 (VSCode Extension) -- COMPLETE
+Plan: 3 of 3
+Status: Phase 16 complete - VSCode extension with diagnostics, status bar, output panels, gutter decorations, Z3 bundling, and auto-install
+Last activity: 2026-02-16 — Completed 16-03-PLAN.md (Z3 bundling and marketplace preparation)
 
-Progress: [███████████████████░░░░░] 84% (15/18 phases complete, 2/3 plans in Phase 16)
+Progress: [████████████████████░░░░] 89% (16/18 phases complete)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [███████████████████░░░░
 | Phase 15 P03 | 530s | 2 | 4 |
 | Phase 16 P01 | 145s | 2 | 5 |
 | Phase 16 P02 | 427s | 2 | 5 |
+| Phase 16 P03 | ~600s | 2 | 6 |
 
 *Updated after each plan completion*
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 16 (16-02)]: SMT-LIB viewer reads from target/verify/ filesystem (not embedded in JSON - keeps payloads small)
 - [Phase 16 (16-02)]: Gutter decorations use regex function matching (JSON lacks source_line for passing functions)
 - [Phase 16 (16-02)]: Decorations persist across editor tab switches (lastVerificationReport + onDidChangeActiveTextEditor)
+- [Phase 16 (16-03)]: Z3 binary bundled per platform with config override priority
+- [Phase 16 (16-03)]: Terminal-based cargo install prompt (not URL-based)
+- [Phase 16 (16-03)]: Workspace-aware install path (crates/driver, not root virtual manifest)
 
 ### Pending Todos
 
@@ -127,11 +131,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 16-02-PLAN.md (Output panels and gutter decorations)
+Stopped at: Completed Phase 16 (VSCode Extension) - all 3 plans done
 Resume file: None
-Next step: Continue Phase 16 - Plan 03 (Z3 bundling and publishing)
+Next step: Phase 17 - rust-analyzer Integration
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing 16-02-PLAN.md (Phase 16 plan 02)*
+*Last updated: 2026-02-16 after completing Phase 16 (VSCode Extension)*
