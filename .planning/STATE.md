@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 18 of 18 (bv2int Optimization)
-Plan: 1 of 3 complete
-Status: Completed 18-01 (bv2int core encoding infrastructure)
-Last activity: 2026-02-17 — Completed 18-01-PLAN.md (bv2int core encoding infrastructure)
+Plan: 2 of 3 complete
+Status: Completed 18-02 (differential testing and equivalence caching)
+Last activity: 2026-02-17 — Completed 18-02-PLAN.md (differential testing and equivalence caching)
 
 Progress: [█████████████████████░░░] 94% (17/18 phases, 1/3 plans in phase 18)
 
@@ -56,6 +56,7 @@ Progress: [█████████████████████░░
 | Phase 17 P02 | 201s | 2 | 5 |
 
 | Phase 18 P01 | 174s | 1 | 4 |
+| Phase 18 P02 | 428s | 1 | 8 |
 
 *Updated after each plan completion*
 
@@ -125,6 +126,10 @@ Recent decisions affecting current work:
 - [Phase 18]: Entire-function rejection for any bitwise/shift op (conservative, predictable, avoids complex per-expression tracking)
 - [Phase 18]: #[fv::no_bv2int] encoded as magic requires string to avoid new IR field and 30+ test fixture updates
 - [Phase 18]: RFC 0560 wrapping: unsigned uses modulo (mod result 2^N), signed uses nested ITE two's complement chain
+- [Phase 18 (18-02)]: SolverInterface trait in differential.rs (not solver crate) -- keeps equivalence testing self-contained, no binary dependency for unit tests
+- [Phase 18 (18-02)]: generate_vcs_with_mode delegates to generate_vcs for Bitvector mode -- zero duplication, guaranteed parity
+- [Phase 18 (18-02)]: Post-hoc logic replacement (replace_script_logic) swaps QF_BV to QF_LIA/QF_NIA -- minimally invasive, no threading through 15+ generation functions
+- [Phase 18 (18-02)]: CacheEntry derives Default -- enables ..Default::default() in struct literals, required by all callers after new fields added
 
 ### Pending Todos
 
@@ -145,11 +150,11 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 18-01-PLAN.md (bv2int core encoding infrastructure)
+Stopped at: Completed 18-02-PLAN.md (differential testing and equivalence caching)
 Resume file: None
-Next step: 18-02 (differential testing) or 18-03 (CLI integration)
+Next step: 18-03 (CLI integration)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-17 after completing 18-01 (bv2int core encoding infrastructure)*
+*Last updated: 2026-02-17 after completing 18-02 (differential testing and equivalence caching)*
