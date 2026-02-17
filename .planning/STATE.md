@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 17 of 18 (rust-analyzer Integration)
-Plan: 1 of 2
-Status: Completed 17-01 (rustc-compatible JSON diagnostics and --message-format flag)
-Last activity: 2026-02-17 — Completed 17-01-PLAN.md (rustc-compatible JSON diagnostics)
+Plan: 2 of 2
+Status: Completed 17-02 (rust-analyzer mode integration)
+Last activity: 2026-02-16 — Completed 17-02-PLAN.md (rust-analyzer flycheck integration)
 
-Progress: [████████████████████░░░░] 89% (16/18 phases complete)
+Progress: [█████████████████████░░░] 94% (17/18 phases complete)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [████████████████████░░░
 | Phase 16 P02 | 427s | 2 | 5 |
 | Phase 16 P03 | ~600s | 2 | 6 |
 | Phase 17 P01 | 413s | 2 | 4 |
+| Phase 17 P02 | 201s | 2 | 5 |
 
 *Updated after each plan completion*
 
@@ -115,6 +116,10 @@ Recent decisions affecting current work:
 - [Phase 17 (17-01)]: --message-format=json separate from --output-format (IDE rustc-compat vs machine-readable)
 - [Phase 17 (17-01)]: Subprocess stdout capture when --message-format=json (pipe instead of inherit)
 - [Phase 17 (17-01)]: Summary diagnostic level: "note" for all-pass, "warning" for failures
+- [Phase 17]: Callback pattern for RA mode switching (RaModeCallbacks avoids circular imports)
+- [Phase 17]: Leave overrideCommand in place on extension deactivation (user expectation)
+- [Phase 17]: Workspace-scoped overrideCommand configuration (not global)
+- [Phase 17]: Diagnostic-based gutter inference in RA mode (verified = no diagnostics in function body)
 
 ### Pending Todos
 
@@ -134,12 +139,12 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: Completed 17-01-PLAN.md (rustc-compatible JSON diagnostics)
+Last session: 2026-02-16
+Stopped at: Completed 17-02-PLAN.md (rust-analyzer flycheck integration)
 Resume file: None
-Next step: Phase 17 Plan 02 - rust-analyzer settings generation
+Next step: Phase 18 or release preparation
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing Phase 16 (VSCode Extension)*
+*Last updated: 2026-02-16 after completing Phase 17 (rust-analyzer Integration)*
