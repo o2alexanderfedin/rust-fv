@@ -6,7 +6,8 @@ import { createStatusBar, showVerifying, showSuccess, showFailure, showCancelled
 import { isEnabled, isAutoVerifyEnabled, getTimeout } from './config';
 import { createOutputPanels, updateStructuredOutput, updateRawOutput, showSmtLib } from './outputPanel';
 import { getZ3Path, ensureZ3Executable, isZ3Available } from './z3';
-import { createVerifiedDecorationType, updateGutterDecorations, clearGutterDecorations } from './gutterDecorations';
+import { createVerifiedDecorationType, updateGutterDecorations, updateGutterDecorationsFromDiagnostics, clearGutterDecorations } from './gutterDecorations';
+import { initRustAnalyzerMode, getCurrentMode, VerificationMode } from './raMode';
 
 /**
  * Tracks the current verification state for cancellation support.
@@ -54,9 +55,14 @@ export function activate(context: vscode.ExtensionContext) {
   // Check if cargo-verify is installed on first activation
   checkCargoVerifyOnStartup(context);
 
-  // Register on-save verification handler
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument(async (document) => {
+  // --- Standalone on-save handler (can be enabled/disabled by RA mode) ---
+  let onSaveDisposable: vscode.Disposable | undefined;
+
+  function registerOnSaveHandler(): void {
+    if (onSaveDisposable) {
+      return; // Already registered
+    }
+    onSaveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.languageId !== 'rust') {
         return;
       }
@@ -93,13 +99,74 @@ export function activate(context: vscode.ExtensionContext) {
 
       // Start new verification
       await startVerification(crateRoot);
+    });
+    context.subscriptions.push(onSaveDisposable);
+  }
+
+  function unregisterOnSaveHandler(): void {
+    if (onSaveDisposable) {
+      onSaveDisposable.dispose();
+      onSaveDisposable = undefined;
+    }
+  }
+
+  // --- Initialize RA mode integration ---
+  initRustAnalyzerMode(context, {
+    enableStandaloneOnSave: registerOnSaveHandler,
+    disableStandaloneOnSave: unregisterOnSaveHandler,
+    clearStandaloneDiagnostics: () => diagnosticCollection.clear(),
+  });
+
+  // Only register standalone on-save if not in RA mode
+  if (getCurrentMode() !== VerificationMode.RustAnalyzer) {
+    registerOnSaveHandler();
+  }
+
+  // --- Listen for diagnostic changes to update gutter decorations in RA mode ---
+  context.subscriptions.push(
+    vscode.languages.onDidChangeDiagnostics((e) => {
+      if (getCurrentMode() !== VerificationMode.RustAnalyzer) {
+        return;
+      }
+
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.languageId !== 'rust') {
+        return;
+      }
+
+      // Check if any changed URIs match the active editor
+      const activeUri = editor.document.uri.toString();
+      const relevant = e.uris.some((uri) => uri.toString() === activeUri);
+      if (!relevant) {
+        return;
+      }
+
+      // Get all diagnostics for this file and filter to rust-fv
+      const allDiags = vscode.languages.getDiagnostics(editor.document.uri);
+      const rustfvDiags = allDiags.filter((d) => d.source === 'rust-fv');
+
+      // Update gutter decorations from RA diagnostic changes
+      updateGutterDecorationsFromDiagnostics(editor, rustfvDiags, verifiedDecorationType);
+
+      // Update status bar based on RA-mode diagnostics
+      updateStatusBarFromDiagnostics(rustfvDiags);
     })
   );
 
   // Register editor change listener to reapply decorations
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (editor && editor.document.languageId === 'rust' && lastVerificationReport) {
+      if (!editor || editor.document.languageId !== 'rust') {
+        return;
+      }
+
+      if (getCurrentMode() === VerificationMode.RustAnalyzer) {
+        // In RA mode: update from current diagnostics
+        const allDiags = vscode.languages.getDiagnostics(editor.document.uri);
+        const rustfvDiags = allDiags.filter((d) => d.source === 'rust-fv');
+        updateGutterDecorationsFromDiagnostics(editor, rustfvDiags, verifiedDecorationType);
+      } else if (lastVerificationReport) {
+        // In standalone mode: update from last report
         updateGutterDecorations(editor, lastVerificationReport, verifiedDecorationType);
       }
     })
@@ -154,6 +221,43 @@ export function deactivate() {
   // Dispose status bar
   if (statusBarItem) {
     statusBarItem.dispose();
+  }
+
+  // Note: We intentionally leave rust-analyzer.check.overrideCommand in place
+  // on deactivation. Removing it would be surprising since the user explicitly
+  // enabled it. It only gets removed when the user disables via setting.
+}
+
+/**
+ * Update status bar based on rust-fv diagnostics in RA mode.
+ *
+ * In RA mode, we don't have a JsonVerificationReport -- we infer status
+ * from the diagnostic collection that rust-analyzer publishes.
+ *
+ * @param rustfvDiagnostics - Diagnostics filtered to source 'rust-fv'
+ */
+function updateStatusBarFromDiagnostics(rustfvDiagnostics: vscode.Diagnostic[]): void {
+  const failureCount = rustfvDiagnostics.filter(
+    (d) => d.severity === vscode.DiagnosticSeverity.Error
+  ).length;
+
+  if (failureCount === 0) {
+    statusBarItem.text = '$(check) Verified (RA mode)';
+    statusBarItem.tooltip = 'rust-analyzer: All verification conditions proved';
+    statusBarItem.command = 'rust-fv.showOutput';
+    statusBarItem.backgroundColor = undefined;
+    statusBarItem.show();
+
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      statusBarItem.hide();
+    }, 5000);
+  } else {
+    statusBarItem.text = `$(x) ${failureCount} verification failure${failureCount === 1 ? '' : 's'} (RA mode)`;
+    statusBarItem.tooltip = 'rust-analyzer: Click to see failure details';
+    statusBarItem.command = 'rust-fv.showOutput';
+    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+    statusBarItem.show();
   }
 }
 

@@ -76,6 +76,63 @@ export function clearGutterDecorations(
 }
 
 /**
+ * Update gutter decorations based on diagnostic presence (for RA mode).
+ *
+ * In RA mode, we don't have a JsonVerificationReport. Instead, rust-analyzer
+ * publishes diagnostics from cargo verify. We infer verified functions as those
+ * whose definitions have no rust-fv diagnostics in their body.
+ *
+ * @param editor - The text editor to decorate
+ * @param rustfvDiagnostics - Diagnostics filtered to source 'rust-fv'
+ * @param decorationType - The decoration type to apply
+ */
+export function updateGutterDecorationsFromDiagnostics(
+  editor: vscode.TextEditor,
+  rustfvDiagnostics: vscode.Diagnostic[],
+  decorationType: vscode.TextEditorDecorationType
+): void {
+  const doc = editor.document;
+
+  // Find all function definitions in the document
+  const fnRegex = /\bfn\s+(\w+)\s*[<(]/;
+  const allFunctions: { name: string; line: number }[] = [];
+
+  for (let i = 0; i < doc.lineCount; i++) {
+    const lineText = doc.lineAt(i).text;
+    const match = fnRegex.exec(lineText);
+    if (match) {
+      allFunctions.push({ name: match[1], line: i });
+    }
+  }
+
+  if (allFunctions.length === 0) {
+    editor.setDecorations(decorationType, []);
+    return;
+  }
+
+  // Determine which functions have diagnostics in their body
+  const verifiedDecorations: vscode.DecorationOptions[] = [];
+
+  for (let i = 0; i < allFunctions.length; i++) {
+    const fn = allFunctions[i];
+    const nextFnLine = i + 1 < allFunctions.length ? allFunctions[i + 1].line : doc.lineCount;
+
+    const hasDiagnosticInBody = rustfvDiagnostics.some(
+      (d) => d.range.start.line >= fn.line && d.range.start.line < nextFnLine
+    );
+
+    if (!hasDiagnosticInBody) {
+      verifiedDecorations.push({
+        range: new vscode.Range(fn.line, 0, fn.line, 0),
+        hoverMessage: `Verified: ${fn.name}`,
+      });
+    }
+  }
+
+  editor.setDecorations(decorationType, verifiedDecorations);
+}
+
+/**
  * Find the line number where a function is defined.
  *
  * Searches for function signatures matching the pattern:
