@@ -697,26 +697,19 @@ impl Callbacks for VerificationCallbacks {
                     && let (Some(bv_ms), Some(int_ms)) =
                         (record.bitvec_time_ms, record.bv2int_time_ms)
                 {
-                    let speedup = record.speedup_factor.unwrap_or(1.0);
-                    let direction = if speedup >= 1.0 {
-                        format!("{:.1}x faster", speedup)
-                    } else {
-                        format!("{:.1}x slower", speedup)
-                    };
+                    // Use output module's formatted timing display
                     eprintln!(
-                        "[rust-fv] bv2int `{}`: bitvector: {}ms, bv2int: {}ms ({})",
-                        record.func_name, bv_ms, int_ms, direction
+                        "{}",
+                        output::format_bv2int_timing(&record.func_name, bv_ms, int_ms)
                     );
-                    // Emit slowdown warning when bv2int is much slower
-                    let threshold = self.bv2int_threshold;
-                    if speedup < 1.0 / threshold {
-                        eprintln!(
-                            "[rust-fv] warning: bv2int is {:.1}x slower than bitvector for \
-                             `{}` (threshold: {}x) -- consider #[fv::no_bv2int]",
-                            1.0 / speedup,
-                            record.func_name,
-                            threshold
-                        );
+                    // Check and emit slowdown warning
+                    let speedup = record.speedup_factor.unwrap_or(1.0);
+                    if let Some(warning) = output::check_slowdown_warning(
+                        &record.func_name,
+                        speedup,
+                        self.bv2int_threshold,
+                    ) {
+                        eprintln!("{warning}");
                     }
                 }
             }

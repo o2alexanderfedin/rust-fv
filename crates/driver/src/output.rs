@@ -158,6 +158,184 @@ pub fn print_header(crate_name: &str, crate_path: &str) {
     );
 }
 
+/// Print the bv2int summary report table.
+///
+/// Output format:
+/// ```text
+/// bv2int Report:
+///   Function          | Encoding  | BV Time | Int Time | Speedup
+///   ---------------------------------------------------------------
+///   add_integers      | Integer   |   120ms |     40ms | 3.0x faster
+///   bitwise_and_mask  | Bitvector |       - |        - | ineligible: uses bitwise `&`
+/// ```
+///
+/// Sorted by speedup factor descending (eligible functions first, then ineligible).
+pub fn print_bv2int_report(records: &[crate::callbacks::Bv2intFunctionRecord]) {
+    if records.is_empty() {
+        return;
+    }
+
+    // Convert to Bv2intFunctionReport for structured access
+    let reports: Vec<Bv2intFunctionReport> = records
+        .iter()
+        .map(Bv2intFunctionReport::from_record)
+        .collect();
+
+    eprintln!();
+    eprintln!("{}", "bv2int Report:".bold());
+    eprintln!(
+        "  {:<30} | {:<9} | {:>7} | {:>8} | Speedup / Status",
+        "Function", "Encoding", "BV Time", "Int Time"
+    );
+    eprintln!("  {}", "-".repeat(80));
+
+    // Sort: eligible (by speedup desc) before ineligible
+    let mut sorted: Vec<&Bv2intFunctionReport> = reports.iter().collect();
+    sorted.sort_by(|a, b| {
+        match (a.eligible, b.eligible) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (true, true) => {
+                // Both eligible: sort by speedup descending
+                let sa = a.speedup_factor.unwrap_or(1.0);
+                let sb = b.speedup_factor.unwrap_or(1.0);
+                sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+            }
+            (false, false) => a.func_name.cmp(&b.func_name),
+        }
+    });
+
+    for report in sorted {
+        let bv_time = report
+            .bitvec_time_ms
+            .map(|ms| format!("{ms}ms"))
+            .unwrap_or_else(|| "-".to_string());
+        let int_time = report
+            .bv2int_time_ms
+            .map(|ms| format!("{ms}ms"))
+            .unwrap_or_else(|| "-".to_string());
+
+        let status = if report.eligible {
+            match report.speedup_factor {
+                Some(s) if s >= 1.5 => format!("{:.1}x faster", s).green().to_string(),
+                Some(s) if s < 0.5 => format!("{:.1}x slower", 1.0 / s).red().to_string(),
+                Some(s) if s >= 1.0 => format!("{:.1}x faster", s).yellow().to_string(),
+                Some(s) => format!("{:.1}x slower", 1.0 / s).yellow().to_string(),
+                None => "pending".dimmed().to_string(),
+            }
+        } else {
+            let reason = report.skip_reason.as_deref().unwrap_or("ineligible");
+            format!("skip: {reason}").dimmed().to_string()
+        };
+
+        eprintln!(
+            "  {:<30} | {:<9} | {:>7} | {:>8} | {}",
+            // Truncate long names
+            if report.func_name.len() > 30 {
+                format!("...{}", &report.func_name[report.func_name.len() - 27..])
+            } else {
+                report.func_name.clone()
+            },
+            report.encoding_used,
+            bv_time,
+            int_time,
+            status,
+        );
+    }
+    eprintln!();
+}
+
+/// Per-function bv2int report entry for structured output.
+///
+/// A flattened view of `Bv2intFunctionRecord` suitable for report formatting.
+/// Holds all fields needed to render one row in the bv2int summary table.
+#[derive(Debug, Clone)]
+pub struct Bv2intFunctionReport {
+    /// Function qualified name.
+    pub func_name: String,
+    /// Encoding actually used for this function ("Integer" or "Bitvector").
+    pub encoding_used: String,
+    /// Bitvector solver time in milliseconds (None if not measured).
+    pub bitvec_time_ms: Option<u64>,
+    /// Integer solver time in milliseconds (None if not measured).
+    pub bv2int_time_ms: Option<u64>,
+    /// Speedup factor: bitvec_ms / bv2int_ms (None if not measured).
+    pub speedup_factor: Option<f64>,
+    /// Whether the function was statically eligible for bv2int.
+    pub eligible: bool,
+    /// Human-readable reason when ineligible (None if eligible).
+    pub skip_reason: Option<String>,
+}
+
+impl Bv2intFunctionReport {
+    /// Build a report from a `Bv2intFunctionRecord`.
+    pub fn from_record(record: &crate::callbacks::Bv2intFunctionRecord) -> Self {
+        Self {
+            func_name: record.func_name.clone(),
+            encoding_used: if record.bv2int_used {
+                "Integer".to_string()
+            } else {
+                "Bitvector".to_string()
+            },
+            bitvec_time_ms: record.bitvec_time_ms,
+            bv2int_time_ms: record.bv2int_time_ms,
+            speedup_factor: record.speedup_factor,
+            eligible: record.eligible,
+            skip_reason: record.skip_reason.clone(),
+        }
+    }
+}
+
+/// Format a per-function bv2int timing comparison string.
+///
+/// # Examples
+/// ```text
+/// "bitvector: 120ms, bv2int: 40ms (3.0x faster)"
+/// "bitvector: 40ms, bv2int: 120ms (3.0x slower)"
+/// ```
+pub fn format_bv2int_timing(func_name: &str, bv_ms: u64, int_ms: u64) -> String {
+    let speedup = if int_ms == 0 {
+        f64::INFINITY
+    } else {
+        bv_ms as f64 / int_ms as f64
+    };
+    let direction = if speedup >= 1.0 {
+        format!("{speedup:.1}x faster")
+    } else {
+        format!("{:.1}x slower", 1.0 / speedup)
+    };
+    format!(
+        "[rust-fv] bv2int `{func_name}`: bitvector: {bv_ms}ms, bv2int: {int_ms}ms ({direction})"
+    )
+}
+
+/// Check whether a bv2int slowdown warning should be emitted.
+///
+/// Returns `Some(warning_message)` when `speedup < 1.0 / threshold`, which
+/// means bv2int is more than `threshold` times slower than bitvector encoding.
+///
+/// # Arguments
+/// * `func_name` - Function name (used in warning message)
+/// * `speedup_factor` - Ratio: bitvec_time / bv2int_time (< 1.0 means slower)
+/// * `threshold` - Slowdown threshold (default 2.0: warn when 2x+ slower)
+pub fn check_slowdown_warning(
+    func_name: &str,
+    speedup_factor: f64,
+    threshold: f64,
+) -> Option<String> {
+    if speedup_factor < 1.0 / threshold {
+        Some(format!(
+            "[rust-fv] warning: bv2int is {:.1}x slower than bitvector for `{}` \
+             (threshold: {}x) -- consider #[fv::no_bv2int]",
+            1.0 / speedup_factor,
+            func_name,
+            threshold
+        ))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,5 +607,205 @@ mod tests {
             duration_ms: Some(150),
         }];
         print_verification_results(&results, false);
+    }
+
+    // --- format_bv2int_timing tests ---
+
+    #[test]
+    fn test_format_bv2int_timing_faster() {
+        let s = format_bv2int_timing("add", 120, 40);
+        assert!(s.contains("bitvector: 120ms"));
+        assert!(s.contains("bv2int: 40ms"));
+        assert!(s.contains("faster"));
+        assert!(s.contains("add"));
+    }
+
+    #[test]
+    fn test_format_bv2int_timing_slower() {
+        let s = format_bv2int_timing("my_fn", 40, 120);
+        assert!(s.contains("bitvector: 40ms"));
+        assert!(s.contains("bv2int: 120ms"));
+        assert!(s.contains("slower"));
+    }
+
+    #[test]
+    fn test_format_bv2int_timing_equal_speed() {
+        let s = format_bv2int_timing("equal_fn", 100, 100);
+        assert!(s.contains("bitvector: 100ms"));
+        assert!(s.contains("bv2int: 100ms"));
+        // speedup = 1.0 → "1.0x faster"
+        assert!(s.contains("faster"));
+    }
+
+    #[test]
+    fn test_format_bv2int_timing_zero_int_time() {
+        // Zero int time → infinity speedup → "faster"
+        let s = format_bv2int_timing("fast_fn", 100, 0);
+        assert!(s.contains("faster"));
+    }
+
+    // --- check_slowdown_warning tests ---
+
+    #[test]
+    fn test_check_slowdown_warning_none_when_fast() {
+        // bv2int is 3x faster (speedup = 3.0), threshold = 2.0 → no warning
+        let warning = check_slowdown_warning("fast_fn", 3.0, 2.0);
+        assert!(warning.is_none());
+    }
+
+    #[test]
+    fn test_check_slowdown_warning_none_when_equal() {
+        // speedup = 1.0 (same speed), threshold = 2.0 → no warning
+        let warning = check_slowdown_warning("even_fn", 1.0, 2.0);
+        assert!(warning.is_none());
+    }
+
+    #[test]
+    fn test_check_slowdown_warning_none_just_below_threshold() {
+        // speedup = 0.6 (slightly slower but within 2x), threshold = 2.0
+        // 0.6 >= 1.0/2.0 = 0.5 → no warning
+        let warning = check_slowdown_warning("almost_fn", 0.6, 2.0);
+        assert!(warning.is_none());
+    }
+
+    #[test]
+    fn test_check_slowdown_warning_triggered_at_threshold() {
+        // speedup = 0.4 (2.5x slower), threshold = 2.0
+        // 0.4 < 1.0/2.0 = 0.5 → warning
+        let warning = check_slowdown_warning("slow_fn", 0.4, 2.0);
+        assert!(warning.is_some());
+        let w = warning.unwrap();
+        assert!(w.contains("slow_fn"));
+        assert!(w.contains("threshold: 2"));
+        assert!(w.contains("slower"));
+    }
+
+    #[test]
+    fn test_check_slowdown_warning_message_contains_function_name() {
+        let warning = check_slowdown_warning("my_function", 0.1, 2.0);
+        assert!(warning.is_some());
+        assert!(warning.unwrap().contains("my_function"));
+    }
+
+    #[test]
+    fn test_check_slowdown_warning_custom_threshold() {
+        // threshold = 5.0: only warn when 5x+ slower
+        // speedup = 0.3 (3.3x slower) → no warning with threshold 5.0
+        let warning = check_slowdown_warning("fn1", 0.3, 5.0);
+        assert!(warning.is_none());
+        // speedup = 0.1 (10x slower) → warning with threshold 5.0
+        let warning = check_slowdown_warning("fn2", 0.1, 5.0);
+        assert!(warning.is_some());
+    }
+
+    // --- Bv2intFunctionReport tests ---
+
+    #[test]
+    fn test_bv2int_function_report_from_record_integer_encoding() {
+        let record = crate::callbacks::Bv2intFunctionRecord {
+            func_name: "my_fn".to_string(),
+            eligible: true,
+            skip_reason: None,
+            bv2int_used: true,
+            bitvec_time_ms: Some(100),
+            bv2int_time_ms: Some(30),
+            speedup_factor: Some(3.33),
+        };
+        let report = Bv2intFunctionReport::from_record(&record);
+        assert_eq!(report.func_name, "my_fn");
+        assert_eq!(report.encoding_used, "Integer");
+        assert_eq!(report.bitvec_time_ms, Some(100));
+        assert_eq!(report.bv2int_time_ms, Some(30));
+        assert!(report.eligible);
+        assert!(report.skip_reason.is_none());
+    }
+
+    #[test]
+    fn test_bv2int_function_report_from_record_bitvector_encoding() {
+        let record = crate::callbacks::Bv2intFunctionRecord {
+            func_name: "bw_fn".to_string(),
+            eligible: false,
+            skip_reason: Some("uses bitwise &".to_string()),
+            bv2int_used: false,
+            bitvec_time_ms: None,
+            bv2int_time_ms: None,
+            speedup_factor: None,
+        };
+        let report = Bv2intFunctionReport::from_record(&record);
+        assert_eq!(report.encoding_used, "Bitvector");
+        assert!(!report.eligible);
+        assert_eq!(report.skip_reason.as_deref(), Some("uses bitwise &"));
+    }
+
+    // --- print_bv2int_report smoke test ---
+
+    #[test]
+    fn test_print_bv2int_report_empty() {
+        let records: Vec<crate::callbacks::Bv2intFunctionRecord> = vec![];
+        // Should not panic
+        print_bv2int_report(&records);
+    }
+
+    #[test]
+    fn test_print_bv2int_report_single_eligible() {
+        let records = vec![crate::callbacks::Bv2intFunctionRecord {
+            func_name: "add_integers".to_string(),
+            eligible: true,
+            skip_reason: None,
+            bv2int_used: true,
+            bitvec_time_ms: Some(120),
+            bv2int_time_ms: Some(40),
+            speedup_factor: Some(3.0),
+        }];
+        // Should not panic
+        print_bv2int_report(&records);
+    }
+
+    #[test]
+    fn test_print_bv2int_report_ineligible_with_reason() {
+        let records = vec![crate::callbacks::Bv2intFunctionRecord {
+            func_name: "bitwise_and_mask".to_string(),
+            eligible: false,
+            skip_reason: Some("uses bitwise `&` at line 12".to_string()),
+            bv2int_used: false,
+            bitvec_time_ms: None,
+            bv2int_time_ms: None,
+            speedup_factor: None,
+        }];
+        print_bv2int_report(&records);
+    }
+
+    #[test]
+    fn test_print_bv2int_report_mixed() {
+        let records = vec![
+            crate::callbacks::Bv2intFunctionRecord {
+                func_name: "fast_fn".to_string(),
+                eligible: true,
+                skip_reason: None,
+                bv2int_used: true,
+                bitvec_time_ms: Some(200),
+                bv2int_time_ms: Some(50),
+                speedup_factor: Some(4.0),
+            },
+            crate::callbacks::Bv2intFunctionRecord {
+                func_name: "slow_fn".to_string(),
+                eligible: true,
+                skip_reason: None,
+                bv2int_used: true,
+                bitvec_time_ms: Some(50),
+                bv2int_time_ms: Some(200),
+                speedup_factor: Some(0.25),
+            },
+            crate::callbacks::Bv2intFunctionRecord {
+                func_name: "ineligible_fn".to_string(),
+                eligible: false,
+                skip_reason: Some("uses bitwise |".to_string()),
+                bv2int_used: false,
+                bitvec_time_ms: None,
+                bv2int_time_ms: None,
+                speedup_factor: None,
+            },
+        ];
+        print_bv2int_report(&records);
     }
 }

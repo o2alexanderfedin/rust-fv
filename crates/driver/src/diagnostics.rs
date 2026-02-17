@@ -292,6 +292,67 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
     }
 }
 
+/// Report a bv2int encoding divergence diagnostic.
+///
+/// Called when bitvector and integer encodings disagree on the satisfiability
+/// of a verification condition. This is a soundness error — the divergence
+/// means bv2int cannot be safely used for this function.
+pub fn report_bv2int_divergence(
+    func_name: &str,
+    bv_outcome: &str,
+    int_outcome: &str,
+    counterexample: Option<&str>,
+) {
+    eprintln!(
+        "{}",
+        format!(
+            "error[V002]: encoding divergence detected in `{}`",
+            func_name
+        )
+        .red()
+        .bold()
+    );
+    eprintln!(
+        "  {}: bitvector says {}, bv2int says {}",
+        "divergence".bold(),
+        bv_outcome,
+        int_outcome
+    );
+    eprintln!(
+        "  {}: falling back to bitvector encoding for this function",
+        "note".bold()
+    );
+    if let Some(cx) = counterexample {
+        eprintln!("  {}: {}", "counterexample".bold(), cx);
+    }
+    eprintln!(
+        "  {}: add #[fv::no_bv2int] to opt out permanently, or report this as a bv2int bug",
+        "help".cyan().bold()
+    );
+    eprintln!();
+}
+
+/// Report a bv2int ineligibility diagnostic (warning severity).
+///
+/// Emitted per-function when --bv2int is active but the function cannot use
+/// integer encoding. Actionable: explains the specific disqualifying operation.
+pub fn report_bv2int_ineligibility(func_name: &str, reason: &str) {
+    eprintln!(
+        "{}",
+        format!(
+            "warning[V003]: function `{}` not eligible for bv2int",
+            func_name
+        )
+        .yellow()
+    );
+    eprintln!("  {}: {}", "reason".bold(), reason);
+    eprintln!(
+        "  {}: using bitvector encoding for this function",
+        "note".bold()
+    );
+    eprintln!();
+}
+
 /// Suggest a fix for common verification failure patterns.
 pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
     match vc_kind {
@@ -2385,5 +2446,29 @@ mod tests {
             !output.contains("suggestion"),
             "Should not show suggestion when no alternatives"
         );
+    }
+
+    // --- bv2int diagnostic tests ---
+
+    #[test]
+    fn test_report_bv2int_divergence_does_not_panic() {
+        // Smoke test: ensure report_bv2int_divergence runs without panicking
+        report_bv2int_divergence("my_fn", "UNSAT", "SAT", None);
+    }
+
+    #[test]
+    fn test_report_bv2int_divergence_with_counterexample_does_not_panic() {
+        report_bv2int_divergence("fn_name", "SAT", "UNSAT", Some("x = 5, y = 0"));
+    }
+
+    #[test]
+    fn test_report_bv2int_ineligibility_does_not_panic() {
+        // Smoke test: ensure report_bv2int_ineligibility runs without panicking
+        report_bv2int_ineligibility("bitwise_fn", "uses bitwise `&` at line 42");
+    }
+
+    #[test]
+    fn test_report_bv2int_ineligibility_shift_op() {
+        report_bv2int_ineligibility("shift_fn", "uses shift `<<` at line 7");
     }
 }
