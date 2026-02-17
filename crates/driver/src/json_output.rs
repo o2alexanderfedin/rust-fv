@@ -2,10 +2,10 @@
 ///
 /// Enables IDE/rust-analyzer integration by producing machine-readable
 /// verification results via --output-format json.
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Complete verification report in JSON format.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonVerificationReport {
     pub crate_name: String,
     pub functions: Vec<JsonFunctionResult>,
@@ -13,7 +13,7 @@ pub struct JsonVerificationReport {
 }
 
 /// Per-function verification result in JSON format.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonFunctionResult {
     pub name: String,
     /// "ok", "fail", "timeout"
@@ -24,7 +24,7 @@ pub struct JsonFunctionResult {
 }
 
 /// A single verification failure in JSON format.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonFailure {
     /// "precondition", "postcondition", "overflow", etc.
     pub vc_kind: String,
@@ -37,14 +37,14 @@ pub struct JsonFailure {
 }
 
 /// Variable assignment in a counterexample.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonAssignment {
     pub variable: String,
     pub value: String,
 }
 
 /// Summary of all verification results.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonSummary {
     pub total: usize,
     pub ok: usize,

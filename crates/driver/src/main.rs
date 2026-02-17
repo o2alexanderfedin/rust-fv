@@ -31,6 +31,7 @@ mod json_output;
 mod mir_converter;
 mod output;
 mod parallel;
+mod rustc_json;
 
 #[cfg(test)]
 mod bench_incremental;

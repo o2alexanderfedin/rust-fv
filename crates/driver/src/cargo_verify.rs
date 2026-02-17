@@ -13,7 +13,9 @@ use std::process::{Command, Stdio};
 
 use colored::Colorize;
 
+use crate::json_output::JsonVerificationReport;
 use crate::output;
+use crate::rustc_json;
 
 /// Run the cargo verify subcommand.
 ///
@@ -28,6 +30,15 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Check for --help
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_usage();
+        return 0;
+    }
+
+    // Check for --version
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        eprintln!(
+            "rust-fv {}",
+            option_env!("CARGO_PKG_VERSION").unwrap_or("0.1.0")
+        );
         return 0;
     }
 
@@ -70,19 +81,35 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse verbose flag from args (default: false)
     let verbose = parse_verbose(args);
 
+    // Parse message-format from args (default: None -- rustc-compatible JSON for IDE integration)
+    let message_format = parse_message_format(args);
+
+    // When message-format=json, force JSON output internally so we can convert
+    let effective_output_format = if message_format.as_deref() == Some("json") {
+        "json".to_string()
+    } else {
+        output_format.clone()
+    };
+
     // Build the cargo check command with our driver as RUSTC
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
         .env("RUSTC", &driver_path)
         .env("RUST_FV_VERIFY", "1")
-        .stderr(Stdio::inherit())
-        .stdout(Stdio::inherit());
+        .stderr(Stdio::inherit());
+
+    // When message-format=json, capture stdout to convert to rustc format
+    if message_format.as_deref() == Some("json") {
+        cmd.stdout(Stdio::piped());
+    } else {
+        cmd.stdout(Stdio::inherit());
+    }
 
     if timeout > 0 {
         cmd.env("RUST_FV_TIMEOUT", timeout.to_string());
     }
 
-    if output_format == "json" {
+    if effective_output_format == "json" {
         cmd.env("RUST_FV_OUTPUT_FORMAT", "json");
     }
 
@@ -103,34 +130,71 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     }
 
     // Forward any extra args (e.g., --package, --lib, etc.)
+    // Skip rust-fv-specific flags that cargo check doesn't understand
+    let mut skip_next = false;
     for arg in args {
-        if !arg.starts_with("--timeout")
-            && !arg.starts_with("--output-format")
-            && !arg.starts_with("--fresh")
-            && !arg.starts_with("--jobs")
-            && !arg.starts_with("--no-stdlib-contracts")
-            && !arg.starts_with("--verbose")
-        {
-            cmd.arg(arg);
+        if skip_next {
+            skip_next = false;
+            continue;
         }
+        if arg == "--message-format"
+            || arg == "--output-format"
+            || arg == "--timeout"
+            || arg == "--jobs"
+        {
+            skip_next = true;
+            continue;
+        }
+        if arg.starts_with("--timeout")
+            || arg.starts_with("--output-format")
+            || arg.starts_with("--fresh")
+            || arg.starts_with("--jobs")
+            || arg.starts_with("--no-stdlib-contracts")
+            || arg.starts_with("--verbose")
+            || arg.starts_with("--message-format")
+            || arg == "-v"
+            || arg == "--version"
+            || arg == "-V"
+        {
+            continue;
+        }
+        cmd.arg(arg);
     }
 
-    if output_format != "json" {
+    if effective_output_format != "json" {
         eprintln!("{}", "Running verification...".dimmed());
     }
 
-    match cmd.status() {
-        Ok(status) => {
-            if status.success() {
-                0
-            } else {
-                // cargo check failed -- could be compilation error or verification failure
-                1
+    if message_format.as_deref() == Some("json") {
+        // Capture stdout and convert to rustc-compatible JSON diagnostics
+        match cmd.output() {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                // Try to parse the JSON verification report from stdout
+                if let Some(report) = parse_json_report_from_output(&stdout) {
+                    rustc_json::emit_rustc_diagnostics(&report);
+                }
+                if output.status.success() { 0 } else { 1 }
+            }
+            Err(e) => {
+                eprintln!("{} Failed to run cargo check: {e}", "error:".red().bold());
+                2
             }
         }
-        Err(e) => {
-            eprintln!("{} Failed to run cargo check: {e}", "error:".red().bold());
-            2
+    } else {
+        match cmd.status() {
+            Ok(status) => {
+                if status.success() {
+                    0
+                } else {
+                    // cargo check failed -- could be compilation error or verification failure
+                    1
+                }
+            }
+            Err(e) => {
+                eprintln!("{} Failed to run cargo check: {e}", "error:".red().bold());
+                2
+            }
         }
     }
 }
@@ -229,6 +293,70 @@ fn parse_verbose(args: &[String]) -> bool {
     args.iter().any(|a| a == "--verbose" || a == "-v")
 }
 
+/// Parse --message-format FORMAT from arguments.
+///
+/// This is separate from `--output-format` which controls the existing
+/// `JsonVerificationReport` format. `--message-format json` produces
+/// rustc-compatible diagnostics for rust-analyzer integration.
+fn parse_message_format(args: &[String]) -> Option<String> {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--message-format" {
+            return args.get(i + 1).cloned();
+        }
+        if let Some(val) = arg.strip_prefix("--message-format=") {
+            if val.is_empty() {
+                return None;
+            }
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
+/// Parse JSON verification report from captured subprocess output.
+///
+/// The driver (rustc replacement) writes the JSON report to stdout
+/// when `RUST_FV_OUTPUT_FORMAT=json`. This function extracts it.
+fn parse_json_report_from_output(stdout: &str) -> Option<JsonVerificationReport> {
+    // The output may contain cargo's own output mixed in.
+    // Try to find and parse the JSON report -- it's the pretty-printed
+    // JSON object that starts with { and contains "crate_name".
+    // Try parsing the whole output first (simple case).
+    if let Ok(report) = serde_json::from_str::<JsonVerificationReport>(stdout) {
+        return Some(report);
+    }
+
+    // Try to find a JSON object in the output by looking for balanced braces
+    let trimmed = stdout.trim();
+    if let Some(start) = trimmed.find('{') {
+        // Find the matching closing brace
+        let bytes = trimmed.as_bytes();
+        let mut depth = 0;
+        let mut end = start;
+        for (i, &b) in bytes[start..].iter().enumerate() {
+            match b {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = start + i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if depth == 0 {
+            let json_str = &trimmed[start..=end];
+            if let Ok(report) = serde_json::from_str::<JsonVerificationReport>(json_str) {
+                return Some(report);
+            }
+        }
+    }
+
+    None
+}
+
 /// Run the `cargo verify clean` subcommand.
 ///
 /// Deletes the verification cache directory (target/verify-cache/).
@@ -283,6 +411,13 @@ fn print_usage() {
     );
     eprintln!("    --verbose, -v               Show per-function timing information");
     eprintln!("    --no-stdlib-contracts       Disable standard library contracts");
+    eprintln!(
+        "    --message-format <FORMAT>   Output format for IDE integration: json (default: none)"
+    );
+    eprintln!(
+        "                                Use 'json' for rust-analyzer compatible diagnostics"
+    );
+    eprintln!("    --version, -V               Print version information");
     eprintln!("    --help, -h                  Print this help message");
     eprintln!();
     eprintln!("DESCRIPTION:");
@@ -1038,5 +1173,103 @@ version = "0.1.0"
             std::env::remove_var("CARGO_TARGET_DIR");
         }
         assert_eq!(exit_code, 0); // Should succeed even if dir doesn't exist
+    }
+
+    // --- parse_message_format tests ---
+
+    #[test]
+    fn test_parse_message_format_default() {
+        let args: Vec<String> = vec![];
+        assert_eq!(parse_message_format(&args), None);
+    }
+
+    #[test]
+    fn test_parse_message_format_json_separate() {
+        let args: Vec<String> = vec!["--message-format".into(), "json".into()];
+        assert_eq!(parse_message_format(&args), Some("json".to_string()));
+    }
+
+    #[test]
+    fn test_parse_message_format_json_equals() {
+        let args: Vec<String> = vec!["--message-format=json".into()];
+        assert_eq!(parse_message_format(&args), Some("json".to_string()));
+    }
+
+    #[test]
+    fn test_parse_message_format_among_other_args() {
+        let args: Vec<String> = vec![
+            "--timeout".into(),
+            "30".into(),
+            "--message-format".into(),
+            "json".into(),
+            "--lib".into(),
+        ];
+        assert_eq!(parse_message_format(&args), Some("json".to_string()));
+    }
+
+    #[test]
+    fn test_parse_message_format_missing_value() {
+        // --message-format is last arg, no value follows
+        let args: Vec<String> = vec!["--message-format".into()];
+        assert_eq!(parse_message_format(&args), None);
+    }
+
+    #[test]
+    fn test_parse_message_format_empty_value() {
+        let args: Vec<String> = vec!["--message-format=".into()];
+        assert_eq!(parse_message_format(&args), None);
+    }
+
+    // --- parse_json_report_from_output tests ---
+
+    #[test]
+    fn test_parse_json_report_valid() {
+        use crate::json_output::{JsonSummary, JsonVerificationReport};
+        let report = JsonVerificationReport {
+            crate_name: "test".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+        };
+        let json = serde_json::to_string_pretty(&report).unwrap();
+        let parsed = parse_json_report_from_output(&json);
+        assert!(parsed.is_some());
+        assert_eq!(parsed.unwrap().crate_name, "test");
+    }
+
+    #[test]
+    fn test_parse_json_report_with_prefix() {
+        use crate::json_output::{JsonSummary, JsonVerificationReport};
+        let report = JsonVerificationReport {
+            crate_name: "embedded".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 1,
+                ok: 1,
+                fail: 0,
+                timeout: 0,
+            },
+        };
+        let json = serde_json::to_string_pretty(&report).unwrap();
+        let output = format!("Some cargo output\n{}\n", json);
+        let parsed = parse_json_report_from_output(&output);
+        assert!(parsed.is_some());
+        assert_eq!(parsed.unwrap().crate_name, "embedded");
+    }
+
+    #[test]
+    fn test_parse_json_report_empty_output() {
+        let parsed = parse_json_report_from_output("");
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn test_parse_json_report_invalid_json() {
+        let parsed = parse_json_report_from_output("not json at all");
+        assert!(parsed.is_none());
     }
 }
