@@ -67,6 +67,18 @@
           "type": "boolean",
           "default": false,
           "description": "Enable verbose logging"
+        },
+        "rust-analyzer.rustfv.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable rust-fv verification diagnostics via rust-analyzer",
+          "scope": "window"
+        },
+        "rust-analyzer.rustfv.autoVerifyOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run cargo verify on file save via rust-analyzer flycheck",
+          "scope": "window"
         }
       }
     }

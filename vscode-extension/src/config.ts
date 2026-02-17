@@ -27,3 +27,21 @@ export function isVerbose(): boolean {
 export function isAutoVerifyEnabled(): boolean {
   return getConfig().get<boolean>('autoVerifyOnSave', true);
 }
+
+/**
+ * rust-analyzer mode configuration helpers.
+ *
+ * These control RA-mode integration separately from standalone settings.
+ */
+
+export function getRaConfig(): vscode.WorkspaceConfiguration {
+  return vscode.workspace.getConfiguration('rust-analyzer.rustfv');
+}
+
+export function isRaEnabled(): boolean {
+  return getRaConfig().get<boolean>('enable', true);
+}
+
+export function isRaAutoVerifyEnabled(): boolean {
+  return getRaConfig().get<boolean>('autoVerifyOnSave', true);
+}
