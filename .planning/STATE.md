@@ -2,20 +2,20 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-14)
+See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 18 - bv2int Optimization
+**Current focus:** v0.3 milestone complete — planning v0.4
 
 ## Current Position
 
-Phase: 18 of 18 (bv2int Optimization)
-Plan: 3 of 3 complete
-Status: Completed 18-03 (CLI integration, bv2int pipeline, output formatting)
-Last activity: 2026-02-17 — Completed 18-03-PLAN.md (CLI integration and bv2int pipeline)
+Milestone: v0.3 Production Usability — COMPLETE
+Phases: 18/18 complete (Phases 1-18)
+Status: All phases shipped. v0.3 archived. Ready for v0.4 planning.
+Last activity: 2026-02-17 — Completed v0.3 milestone (bv2int optimization + milestone archive)
 
-Progress: [████████████████████████] 100% (18/18 phases, 3/3 plans in phase 18)
+Progress: [████████████████████████] 100% (v0.3 complete)
 
 ## Performance Metrics
 

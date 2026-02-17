@@ -34,26 +34,23 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - ✓ Unsafe code detection with heap-as-array model, null/bounds checks, `#[trusted]` -- v0.2
 - ✓ IEEE 754 floating-point verification with SMT FPA theory -- v0.2
 - ✓ Bounded concurrency verification with happens-before, data races, deadlock detection -- v0.2
+- ✓ Standard library contracts (Vec, HashMap, Option, Result, Iterator) with SMT Seq theory, proptest oracle validation, zero-config loading -- v0.3
+- ✓ Incremental verification with <1s re-verification via dual-hash MIR+contract cache, transitive invalidation, 20-30x speedup -- v0.3
+- ✓ Manual trigger customization (`#[trigger(expr)]`) with self-instantiation detection and interpreted symbol warnings -- v0.3
+- ✓ VSCode extension with inline diagnostics, status bar, output panel, SMT-LIB viewer, gutter decorations, Z3 bundling -- v0.3
+- ✓ rust-analyzer integration with `--message-format=json`, flycheck via `overrideCommand`, diagnostic deduplication -- v0.3
+- ✓ bv2int optimization with `--bv2int`/env activation, differential testing, `--bv2int-report` summary, slowdown warnings -- v0.3
 
 ### Active
 
-#### Current Milestone: v0.3 Production Usability
-
-**Goal:** Make existing verification capabilities production-ready with standard library support, performance tuning, IDE integration, and solver optimization.
-
-**Target features:**
-- [ ] Standard library contracts (Vec, HashMap, Option, Result)
-- [ ] Trigger customization (`#[trigger]`) for quantifier performance
-- [ ] Z3 bv2int native integration
-- [ ] VSCode extension for real-time verification feedback
-- [ ] rust-analyzer integration for inline diagnostics
-
-#### Future
+#### Future (v0.4+)
 
 - [ ] Higher-order closures with specification entailments
 - [ ] Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
 - [ ] Async/await verification (Future trait, executor semantics)
 - [ ] Separation logic for heap reasoning
+- [ ] Counterexample generation with concrete failure values
+- [ ] Multiple SMT solver backends (CVC5, Yices)
 
 ### Out of Scope
 
@@ -69,10 +66,10 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.2 shipped with 2,264 tests, zero warnings, 5-crate workspace (macros/, smtlib/, solver/, analysis/, driver/), 66,133 LOC Rust
-- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics
-- **Tech debt:** No standard library contracts, no weak memory models, no async/await support
-- **v0.3 focus:** Production usability -- stdlib contracts, trigger customization, IDE integration, bv2int optimization
+- **Current state:** v0.3 shipped with 1,613 lib tests, zero warnings, 6-crate workspace + VSCode extension, 82,642 LOC Rust + TypeScript
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics; stdlib contracts cover Tier 1 only (Vec/HashMap/Option/Result/Iterator)
+- **Tech debt:** Pre-existing doc test failures in stdlib_contracts/option.rs (26 doc tests, `self` parameter issue); no weak memory models; no async/await
+- **v0.4 focus:** Advanced verification features — counterexample generation, higher-order closures, weak memory models, multiple SMT backends
 
 ## Constraints
 
@@ -102,6 +99,20 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | IEEE 754 FPA theory for floats | Exact semantics; 2-10x slower but correct | ✓ Good |
 | Bounded concurrency with happens-before | State explosion mitigation; sequential consistency first | ✓ Good |
 | petgraph for SCC analysis | Mature Tarjan's algorithm; used for recursion and deadlock detection | ✓ Good |
+| SMT Seq sort for stdlib (Phase 13) | Native sequence operations vs array encoding; Vec/String/slice modeling | ✓ Good |
+| StdlibContractRegistry with enable flag (Phase 13) | Supports --no-stdlib-contracts opt-out; zero-config default | ✓ Good |
+| Dual-hash cache (MIR+contract, Phase 14) | Precise invalidation granularity; age-based eviction (30-day TTL) | ✓ Good |
+| Transitive invalidation via reverse call graph (Phase 14) | Contract changes cascade to callers; sound incremental verification | ✓ Good |
+| Self-instantiation detection via name matching (Phase 15) | Catch-all for infinite trigger loops; conservative approach | ✓ Good |
+| TriggerHint as Vec<Term> in IR (Phase 15) | Stored separately from SMT Term layer; clean layer separation | ✓ Good |
+| Whole-crate verification scope in VSCode (Phase 16) | Matches cargo check pattern; relies on incremental cache for speed | ✓ Good |
+| Fresh spawn per save (Phase 16) | Simpler lifecycle than persistent background process | ✓ Good |
+| SMT-LIB viewer reads from filesystem (Phase 16) | Keeps JSON payloads small; files in target/verify/ | ✓ Good |
+| --message-format=json separate from --output-format (Phase 17) | IDE rustc-compat vs machine-readable; orthogonal concerns | ✓ Good |
+| Workspace-scoped overrideCommand (Phase 17) | Not global; workspace-aware RA mode | ✓ Good |
+| Entire-function rejection for bitwise/shift (Phase 18) | Conservative bv2int applicability; avoids complex per-expression tracking | ✓ Good |
+| SolverInterface trait in differential.rs (Phase 18) | Self-contained equivalence testing; no binary dependency for unit tests | ✓ Good |
+| Post-hoc logic replacement for bv2int (Phase 18) | Swaps QF_BV to QF_LIA/QF_NIA; minimal invasiveness | ✓ Good |
 
 ---
-*Last updated: 2026-02-14 after v0.3 milestone start*
+*Last updated: 2026-02-17 after v0.3 milestone completion*
