@@ -10,10 +10,50 @@ use rustc_driver::Callbacks;
 use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
 
+use rust_fv_analysis::differential::{SolverInterface, VcOutcome};
+use rust_fv_smtlib::script::Script;
+
 use crate::diagnostics;
 use crate::json_output;
 use crate::mir_converter;
 use crate::output;
+
+/// Adapter that wraps the Z3 CLI solver to implement `SolverInterface`.
+///
+/// Used by `test_encoding_equivalence` to run both bitvector and integer
+/// VCs through the same solver and compare outcomes.
+struct Z3SolverAdapter {
+    solver: rust_fv_solver::Z3Solver,
+}
+
+impl Z3SolverAdapter {
+    /// Create a new adapter, returning None if the solver cannot be initialized.
+    fn try_new() -> Option<Self> {
+        rust_fv_solver::Z3Solver::with_default_config()
+            .ok()
+            .map(|solver| Self { solver })
+    }
+}
+
+impl SolverInterface for Z3SolverAdapter {
+    fn check(&self, script: &Script) -> VcOutcome {
+        let script_text = script.to_string();
+        match self.solver.check_sat_raw(&script_text) {
+            Ok(rust_fv_solver::SolverResult::Unsat) => VcOutcome::Unsat,
+            Ok(rust_fv_solver::SolverResult::Sat(model)) => {
+                let model_str = model.map(|m| {
+                    m.assignments
+                        .iter()
+                        .map(|(k, v)| format!("{k} = {v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                });
+                VcOutcome::Sat(model_str)
+            }
+            Ok(rust_fv_solver::SolverResult::Unknown(_)) | Err(_) => VcOutcome::Unknown,
+        }
+    }
+}
 
 /// Output format for verification results.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +83,25 @@ struct FunctionMetadata {
     from_cache: bool,
 }
 
+/// Per-function bv2int result collected during verification.
+#[derive(Debug, Clone)]
+pub struct Bv2intFunctionRecord {
+    /// Function name
+    pub func_name: String,
+    /// Whether the function was eligible for bv2int
+    pub eligible: bool,
+    /// Reason ineligible (None if eligible)
+    pub skip_reason: Option<String>,
+    /// Whether bv2int encoding was actually used
+    pub bv2int_used: bool,
+    /// Bitvector encoding time in ms (Some when timing available)
+    pub bitvec_time_ms: Option<u64>,
+    /// Integer encoding time in ms (Some when timing available)
+    pub bv2int_time_ms: Option<u64>,
+    /// Speedup factor (bv_time / int_time; >1.0 means faster with bv2int)
+    pub speedup_factor: Option<f64>,
+}
+
 /// Callbacks that perform verification after analysis.
 pub struct VerificationCallbacks {
     /// Whether verification is enabled
@@ -67,6 +126,14 @@ pub struct VerificationCallbacks {
     no_stdlib_contracts: bool,
     /// Enable verbose output with per-function timing
     verbose: bool,
+    /// Enable bv2int optimization mode
+    bv2int_enabled: bool,
+    /// Show bv2int summary report after verification
+    bv2int_report: bool,
+    /// Slowdown warning threshold (warn when bv2int is >N times slower)
+    bv2int_threshold: f64,
+    /// Per-function bv2int results (populated when bv2int_enabled or bv2int_report)
+    bv2int_records: Vec<Bv2intFunctionRecord>,
 }
 
 impl VerificationCallbacks {
@@ -77,6 +144,18 @@ impl VerificationCallbacks {
 
         // Check for --verbose flag
         let verbose = std::env::var("RUST_FV_VERBOSE").is_ok();
+
+        // Check for bv2int flags (set by cargo_verify via env vars)
+        let bv2int_enabled = std::env::var("RUST_FV_BV2INT")
+            .map(|v| v == "1")
+            .unwrap_or(false);
+        let bv2int_report = std::env::var("RUST_FV_BV2INT_REPORT")
+            .map(|v| v == "1")
+            .unwrap_or(false);
+        let bv2int_threshold = std::env::var("RUST_FV_BV2INT_THRESHOLD")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(2.0);
 
         Self {
             enabled: true,
@@ -90,6 +169,10 @@ impl VerificationCallbacks {
             use_simplification: true, // Default: enable simplification
             no_stdlib_contracts,
             verbose,
+            bv2int_enabled,
+            bv2int_report,
+            bv2int_threshold,
+            bv2int_records: Vec::new(),
         }
     }
 
@@ -107,6 +190,10 @@ impl VerificationCallbacks {
             use_simplification: true,
             no_stdlib_contracts: false,
             verbose: false,
+            bv2int_enabled: false,
+            bv2int_report: false,
+            bv2int_threshold: 2.0,
+            bv2int_records: Vec::new(),
         }
     }
 
@@ -409,9 +496,90 @@ impl Callbacks for VerificationCallbacks {
                 cache.get(&key).map(|entry| entry.contract_hash)
             });
 
+        // Perform bv2int eligibility analysis and differential testing when enabled.
+        // When --bv2int-report requested without --bv2int: emit candidate list.
+        // When --bv2int enabled: check per-function eligibility, emit warnings for
+        // ineligible functions, and record equivalence results.
+        if self.bv2int_enabled || self.bv2int_report {
+            for (name, ir_func) in &func_infos {
+                match rust_fv_analysis::bv2int::is_bv2int_eligible(ir_func) {
+                    Ok(()) => {
+                        // Eligible — run differential test if bv2int enabled and solver available
+                        let (bitvec_time_ms, bv2int_time_ms, speedup_factor) =
+                            if self.bv2int_enabled {
+                                run_differential_test(name, ir_func, &contract_db)
+                            } else {
+                                (None, None, None)
+                            };
+
+                        // Report divergence if detected (speedup None with divergence logged)
+                        self.bv2int_records.push(Bv2intFunctionRecord {
+                            func_name: name.clone(),
+                            eligible: true,
+                            skip_reason: None,
+                            bv2int_used: self.bv2int_enabled,
+                            bitvec_time_ms,
+                            bv2int_time_ms,
+                            speedup_factor,
+                        });
+                    }
+                    Err(reason) => {
+                        // Ineligible — emit warning when bv2int explicitly requested
+                        if self.bv2int_enabled && self.output_format == OutputFormat::Text {
+                            diagnostics::report_bv2int_ineligibility(name, &reason.to_string());
+                        }
+                        self.bv2int_records.push(Bv2intFunctionRecord {
+                            func_name: name.clone(),
+                            eligible: false,
+                            skip_reason: Some(reason.to_string()),
+                            bv2int_used: false,
+                            bitvec_time_ms: None,
+                            bv2int_time_ms: None,
+                            speedup_factor: None,
+                        });
+                    }
+                }
+            }
+
+            // When --bv2int-report is requested without --bv2int: print candidate list
+            if self.bv2int_report && !self.bv2int_enabled {
+                let eligible: Vec<&str> = self
+                    .bv2int_records
+                    .iter()
+                    .filter(|r| r.eligible)
+                    .map(|r| r.func_name.as_str())
+                    .collect();
+                let ineligible: Vec<(&str, &str)> = self
+                    .bv2int_records
+                    .iter()
+                    .filter(|r| !r.eligible)
+                    .map(|r| (r.func_name.as_str(), r.skip_reason.as_deref().unwrap_or("")))
+                    .collect();
+
+                eprintln!();
+                eprintln!("[rust-fv] bv2int candidates (eligible based on static analysis):");
+                if eligible.is_empty() {
+                    eprintln!("  (no eligible functions found)");
+                } else {
+                    eprintln!("  eligible: {}", eligible.join(", "));
+                    eprintln!(
+                        "  (use --bv2int to enable: cargo verify --bv2int {})",
+                        eligible.join(", ")
+                    );
+                }
+                if !ineligible.is_empty() {
+                    eprintln!("  ineligible:");
+                    for (name, reason) in &ineligible {
+                        eprintln!("    {}: {}", name, reason);
+                    }
+                }
+                eprintln!();
+            }
+        }
+
         // Build verification tasks with invalidation decisions
         let mut tasks = Vec::new();
-        for (name, ir_func) in func_infos {
+        for (name, ir_func) in func_infos.into_iter() {
             let (mir_hash, contract_hash) = func_hashes.get(&name).unwrap();
 
             // Compute legacy cache key for backward compatibility
@@ -521,6 +689,44 @@ impl Callbacks for VerificationCallbacks {
             }
         }
 
+        // Emit bv2int timing info and report when --bv2int is active
+        if self.bv2int_enabled && self.output_format == OutputFormat::Text {
+            for record in &self.bv2int_records {
+                if record.eligible
+                    && record.bv2int_used
+                    && let (Some(bv_ms), Some(int_ms)) =
+                        (record.bitvec_time_ms, record.bv2int_time_ms)
+                {
+                    let speedup = record.speedup_factor.unwrap_or(1.0);
+                    let direction = if speedup >= 1.0 {
+                        format!("{:.1}x faster", speedup)
+                    } else {
+                        format!("{:.1}x slower", speedup)
+                    };
+                    eprintln!(
+                        "[rust-fv] bv2int `{}`: bitvector: {}ms, bv2int: {}ms ({})",
+                        record.func_name, bv_ms, int_ms, direction
+                    );
+                    // Emit slowdown warning when bv2int is much slower
+                    let threshold = self.bv2int_threshold;
+                    if speedup < 1.0 / threshold {
+                        eprintln!(
+                            "[rust-fv] warning: bv2int is {:.1}x slower than bitvector for \
+                             `{}` (threshold: {}x) -- consider #[fv::no_bv2int]",
+                            1.0 / speedup,
+                            record.func_name,
+                            threshold
+                        );
+                    }
+                }
+            }
+        }
+
+        // Emit full bv2int report table when --bv2int-report is set with --bv2int
+        if self.bv2int_report && self.bv2int_enabled && self.output_format == OutputFormat::Text {
+            crate::output::print_bv2int_report(&self.bv2int_records);
+        }
+
         rustc_driver::Compilation::Stop // stop before codegen — we only verify, don't compile
     }
 }
@@ -620,6 +826,87 @@ fn extract_doc_value(attr: &rustc_hir::Attribute) -> Option<String> {
         return Some(value.to_string());
     }
     None
+}
+
+/// Run differential equivalence test for a single eligible function.
+///
+/// Generates VCs in both bitvector and integer modes, then runs them
+/// through Z3 to compare outcomes and collect timing.
+///
+/// Returns `(bitvec_time_ms, bv2int_time_ms, speedup_factor)` when a solver
+/// is available, or `(None, None, None)` when Z3 is not found.
+fn run_differential_test(
+    name: &str,
+    ir_func: &rust_fv_analysis::ir::Function,
+    contract_db: &rust_fv_analysis::contract_db::ContractDatabase,
+) -> (Option<u64>, Option<u64>, Option<f64>) {
+    use rust_fv_analysis::bv2int::EncodingMode;
+
+    // Try to create a solver; gracefully degrade when Z3 is unavailable.
+    let Some(adapter) = Z3SolverAdapter::try_new() else {
+        return (None, None, None);
+    };
+
+    // Generate VCs in both modes
+    let bv_vcs = rust_fv_analysis::vcgen::generate_vcs_with_mode(
+        ir_func,
+        Some(contract_db),
+        EncodingMode::Bitvector,
+    );
+    let int_vcs = rust_fv_analysis::vcgen::generate_vcs_with_mode(
+        ir_func,
+        Some(contract_db),
+        EncodingMode::Integer,
+    );
+
+    let bv_scripts: Vec<_> = bv_vcs
+        .conditions
+        .iter()
+        .map(|vc| vc.script.clone())
+        .collect();
+    let int_scripts: Vec<_> = int_vcs
+        .conditions
+        .iter()
+        .map(|vc| vc.script.clone())
+        .collect();
+
+    let result = rust_fv_analysis::differential::test_encoding_equivalence(
+        name,
+        &bv_scripts,
+        &int_scripts,
+        &adapter,
+    );
+
+    if !result.equivalent {
+        let bv_str = if result.bitvec_time_ms > 0 {
+            "SAT/UNSAT"
+        } else {
+            "unknown"
+        };
+        let int_str = if result.bv2int_time_ms > 0 {
+            "SAT/UNSAT"
+        } else {
+            "unknown"
+        };
+        diagnostics::report_bv2int_divergence(
+            name,
+            bv_str,
+            int_str,
+            result.counterexample.as_deref(),
+        );
+        // Return timing even for divergent results (useful for analysis)
+        return (
+            Some(result.bitvec_time_ms),
+            Some(result.bv2int_time_ms),
+            Some(result.speedup_factor),
+        );
+    }
+
+    (
+        Some(result.bitvec_time_ms),
+        Some(result.bv2int_time_ms),
+        Some(result.speedup_factor),
+    )
 }
 
 /// Convert VcKind to a JSON-friendly string.

@@ -81,6 +81,11 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
     // Parse verbose flag from args (default: false)
     let verbose = parse_verbose(args);
 
+    // Parse bv2int flags from args / env vars
+    let bv2int_enabled = parse_bv2int_flag(args);
+    let bv2int_report = parse_bv2int_report_flag(args);
+    let bv2int_threshold = parse_bv2int_threshold(args);
+
     // Parse message-format from args (default: None -- rustc-compatible JSON for IDE integration)
     let message_format = parse_message_format(args);
 
@@ -129,6 +134,16 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
         cmd.env("RUST_FV_VERBOSE", "1");
     }
 
+    if bv2int_enabled {
+        cmd.env("RUST_FV_BV2INT", "1");
+    }
+
+    if bv2int_report {
+        cmd.env("RUST_FV_BV2INT_REPORT", "1");
+    }
+
+    cmd.env("RUST_FV_BV2INT_THRESHOLD", bv2int_threshold.to_string());
+
     // Forward any extra args (e.g., --package, --lib, etc.)
     // Skip rust-fv-specific flags that cargo check doesn't understand
     let mut skip_next = false;
@@ -152,6 +167,7 @@ pub fn run_cargo_verify(args: &[String]) -> i32 {
             || arg.starts_with("--no-stdlib-contracts")
             || arg.starts_with("--verbose")
             || arg.starts_with("--message-format")
+            || arg.starts_with("--bv2int")
             || arg == "-v"
             || arg == "--version"
             || arg == "-V"
@@ -293,6 +309,55 @@ fn parse_verbose(args: &[String]) -> bool {
     args.iter().any(|a| a == "--verbose" || a == "-v")
 }
 
+/// Parse --bv2int flag from arguments.
+///
+/// If the CLI flag is absent, falls back to the `RUST_FV_BV2INT` environment variable.
+/// CLI flag takes precedence over the environment variable.
+fn parse_bv2int_flag(args: &[String]) -> bool {
+    if args.iter().any(|a| a == "--bv2int") {
+        return true;
+    }
+    std::env::var("RUST_FV_BV2INT")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
+/// Parse --bv2int-report flag from arguments.
+///
+/// When set (with or without --bv2int), outputs a summary table of all functions
+/// with their encoding, timing, and speedup after verification.
+fn parse_bv2int_report_flag(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--bv2int-report")
+}
+
+/// Parse --bv2int-threshold N from arguments.
+///
+/// Controls the slowdown warning threshold: a warning is emitted when bv2int is
+/// more than `N` times slower than bitvector encoding. Default: 2.0.
+/// Falls back to `RUST_FV_BV2INT_THRESHOLD` env var if the flag is absent.
+fn parse_bv2int_threshold(args: &[String]) -> f64 {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--bv2int-threshold"
+            && let Some(val) = args.get(i + 1)
+            && let Ok(f) = val.parse::<f64>()
+        {
+            return f;
+        }
+        if let Some(val) = arg.strip_prefix("--bv2int-threshold=")
+            && let Ok(f) = val.parse::<f64>()
+        {
+            return f;
+        }
+    }
+    // Fallback to env var
+    if let Ok(val) = std::env::var("RUST_FV_BV2INT_THRESHOLD")
+        && let Ok(f) = val.parse::<f64>()
+    {
+        return f;
+    }
+    2.0 // default: warn when bv2int is 2x slower
+}
+
 /// Parse --message-format FORMAT from arguments.
 ///
 /// This is separate from `--output-format` which controls the existing
@@ -417,6 +482,26 @@ fn print_usage() {
     eprintln!(
         "                                Use 'json' for rust-analyzer compatible diagnostics"
     );
+    eprintln!(
+        "    --bv2int                    Enable bv2int optimization (integer arithmetic encoding)"
+    );
+    eprintln!(
+        "                                Eligible functions use QF_LIA/QF_NIA instead of QF_BV"
+    );
+    eprintln!(
+        "                                Also enabled by RUST_FV_BV2INT=1 env var (CLI takes precedence)"
+    );
+    eprintln!(
+        "    --bv2int-report             Show bv2int summary table (encoding, timing, speedup)"
+    );
+    eprintln!(
+        "                                Without --bv2int: lists eligible candidate functions"
+    );
+    eprintln!("    --bv2int-threshold <N>      Slowdown warning threshold (default: 2.0)");
+    eprintln!("                                Warn when bv2int is N times slower than bitvector");
+    eprintln!(
+        "                                Also configurable via RUST_FV_BV2INT_THRESHOLD env var"
+    );
     eprintln!("    --version, -V               Print version information");
     eprintln!("    --help, -h                  Print this help message");
     eprintln!();
@@ -436,6 +521,25 @@ fn print_usage() {
     eprintln!("    Caching: Verification results are cached in target/verify-cache/ and reused");
     eprintln!("    when source code hasn't changed. Use --fresh to bypass cache or");
     eprintln!("    'cargo verify clean' to permanently delete the cache.");
+    eprintln!();
+    eprintln!("ENVIRONMENT VARIABLES:");
+    eprintln!("    RUST_FV_BV2INT=1            Enable bv2int optimization (same as --bv2int)");
+    eprintln!(
+        "    RUST_FV_BV2INT_THRESHOLD=N  Slowdown warning threshold (same as --bv2int-threshold)"
+    );
+    eprintln!("    RUST_FV_VERIFY=1            Enable verification mode (set automatically)");
+    eprintln!(
+        "    RUST_FV_TIMEOUT=N           Timeout in seconds (set automatically from --timeout)"
+    );
+    eprintln!(
+        "    RUST_FV_OUTPUT_FORMAT=json  JSON output (set automatically from --output-format)"
+    );
+    eprintln!(
+        "    RUST_FV_FRESH=1             Force re-verification (set automatically from --fresh)"
+    );
+    eprintln!("    RUST_FV_JOBS=N              Parallel threads (set automatically from --jobs)");
+    eprintln!("    RUST_FV_VERBOSE=1           Verbose output (set automatically from --verbose)");
+    eprintln!("    RUST_FV_NO_STDLIB_CONTRACTS=1  Disable stdlib contracts");
     eprintln!();
     eprintln!("EXIT CODES:");
     eprintln!("    0  All functions verified successfully");
@@ -1173,6 +1277,134 @@ version = "0.1.0"
             std::env::remove_var("CARGO_TARGET_DIR");
         }
         assert_eq!(exit_code, 0); // Should succeed even if dir doesn't exist
+    }
+
+    // --- parse_bv2int_flag tests ---
+    //
+    // These tests manipulate RUST_FV_BV2INT or RUST_FV_BV2INT_THRESHOLD env vars.
+    // ENV_MUTEX serializes all env var mutations to prevent data races between
+    // parallel test threads.
+    static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn test_parse_bv2int_flag_not_present() {
+        // Make sure env var is not set for this test
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT") };
+        let args: Vec<String> = vec![];
+        assert!(!parse_bv2int_flag(&args));
+    }
+
+    #[test]
+    fn test_parse_bv2int_flag_cli_flag() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT") };
+        let args: Vec<String> = vec!["--bv2int".into()];
+        assert!(parse_bv2int_flag(&args));
+    }
+
+    #[test]
+    fn test_parse_bv2int_flag_env_var() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::set_var("RUST_FV_BV2INT", "1") };
+        let args: Vec<String> = vec![];
+        let result = parse_bv2int_flag(&args);
+        unsafe { std::env::remove_var("RUST_FV_BV2INT") };
+        assert!(result);
+    }
+
+    #[test]
+    fn test_parse_bv2int_flag_cli_takes_precedence() {
+        // CLI flag present, env var not set -- still true
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT") };
+        let args: Vec<String> = vec!["--bv2int".into()];
+        assert!(parse_bv2int_flag(&args));
+    }
+
+    #[test]
+    fn test_parse_bv2int_flag_env_var_not_1() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::set_var("RUST_FV_BV2INT", "0") };
+        let args: Vec<String> = vec![];
+        let result = parse_bv2int_flag(&args);
+        unsafe { std::env::remove_var("RUST_FV_BV2INT") };
+        assert!(!result);
+    }
+
+    // --- parse_bv2int_report_flag tests ---
+
+    #[test]
+    fn test_parse_bv2int_report_flag_not_present() {
+        let args: Vec<String> = vec![];
+        assert!(!parse_bv2int_report_flag(&args));
+    }
+
+    #[test]
+    fn test_parse_bv2int_report_flag_present() {
+        let args: Vec<String> = vec!["--bv2int-report".into()];
+        assert!(parse_bv2int_report_flag(&args));
+    }
+
+    #[test]
+    fn test_parse_bv2int_report_flag_among_other_args() {
+        let args: Vec<String> = vec!["--bv2int".into(), "--bv2int-report".into()];
+        assert!(parse_bv2int_report_flag(&args));
+    }
+
+    // --- parse_bv2int_threshold tests ---
+
+    #[test]
+    fn test_parse_bv2int_threshold_default() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        let args: Vec<String> = vec![];
+        assert_eq!(parse_bv2int_threshold(&args), 2.0);
+    }
+
+    #[test]
+    fn test_parse_bv2int_threshold_cli_separate() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        let args: Vec<String> = vec!["--bv2int-threshold".into(), "3.5".into()];
+        assert!((parse_bv2int_threshold(&args) - 3.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_bv2int_threshold_cli_equals() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        let args: Vec<String> = vec!["--bv2int-threshold=5.0".into()];
+        assert!((parse_bv2int_threshold(&args) - 5.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_bv2int_threshold_env_var() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::set_var("RUST_FV_BV2INT_THRESHOLD", "4.0") };
+        let args: Vec<String> = vec![];
+        let result = parse_bv2int_threshold(&args);
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        assert!((result - 4.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_bv2int_threshold_cli_over_env() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::set_var("RUST_FV_BV2INT_THRESHOLD", "4.0") };
+        let args: Vec<String> = vec!["--bv2int-threshold=1.5".into()];
+        let result = parse_bv2int_threshold(&args);
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        // CLI value should win
+        assert!((result - 1.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_bv2int_threshold_invalid_falls_back_to_default() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::remove_var("RUST_FV_BV2INT_THRESHOLD") };
+        let args: Vec<String> = vec!["--bv2int-threshold".into(), "not_a_number".into()];
+        assert_eq!(parse_bv2int_threshold(&args), 2.0);
     }
 
     // --- parse_message_format tests ---
