@@ -123,7 +123,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+0 pending.
 
 ### Blockers/Concerns
 
