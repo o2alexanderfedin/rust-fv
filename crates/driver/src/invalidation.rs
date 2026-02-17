@@ -225,6 +225,7 @@ mod tests {
                 contract_hash,
                 timestamp: chrono::Utc::now().timestamp(),
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -268,6 +269,7 @@ mod tests {
                 contract_hash: old_contract_hash,
                 timestamp: chrono::Utc::now().timestamp(),
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -315,6 +317,7 @@ mod tests {
                 contract_hash,
                 timestamp: chrono::Utc::now().timestamp(),
                 dependencies: vec!["helper".to_string()],
+                ..Default::default()
             },
         );
 
@@ -366,6 +369,7 @@ mod tests {
                 contract_hash,
                 timestamp: old_timestamp,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -407,6 +411,7 @@ mod tests {
                 contract_hash,
                 timestamp: chrono::Utc::now().timestamp(),
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 

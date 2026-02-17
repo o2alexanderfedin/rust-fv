@@ -149,6 +149,7 @@ fn incremental_body_change_same_result() {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -250,6 +251,7 @@ fn incremental_contract_change_transitive_invalidation() {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec!["b".to_string(), "c".to_string()], // Track dependencies
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -308,6 +310,7 @@ fn incremental_no_change_all_cached() {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -368,6 +371,7 @@ fn fresh_flag_bypasses_cache() {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -430,6 +434,7 @@ fn expired_cache_triggers_reverification() {
         contract_hash,
         timestamp: old_timestamp,
         dependencies: vec![],
+        ..Default::default()
     };
 
     #[allow(deprecated)]

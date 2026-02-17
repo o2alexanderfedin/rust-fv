@@ -6,6 +6,7 @@ pub mod closure_analysis;
 pub mod concurrency;
 pub mod contract_db;
 pub mod defunctionalize;
+pub mod differential;
 pub mod encode_prophecy;
 pub mod encode_quantifier;
 pub mod encode_sort;

@@ -187,6 +187,7 @@ pub fn verify_functions_parallel(
                 contract_hash: task.contract_hash,
                 timestamp: 0, // Will be set by insert()
                 dependencies: task.dependencies.clone(),
+                ..Default::default()
             },
         );
     }

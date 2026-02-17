@@ -220,6 +220,7 @@ pub fn bench_full_verification(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         // Use combined hash for cache key (backward compatible)
@@ -265,6 +266,7 @@ pub fn bench_incremental_body_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -317,6 +319,7 @@ pub fn bench_incremental_body_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
         cache.insert(key, entry);
     }
@@ -359,6 +362,7 @@ pub fn bench_incremental_contract_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -413,6 +417,7 @@ pub fn bench_incremental_contract_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
         cache.insert(key, entry);
     }
@@ -454,6 +459,7 @@ pub fn bench_incremental_no_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
 
         #[allow(deprecated)]
@@ -494,6 +500,7 @@ pub fn bench_incremental_no_change(n: usize) -> BenchmarkResult {
             contract_hash,
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
         cache.insert(key, entry);
     }

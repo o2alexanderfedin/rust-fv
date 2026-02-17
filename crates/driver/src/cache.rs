@@ -24,7 +24,7 @@ pub struct VcCache {
 }
 
 /// Cached verification result for a single function.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CacheEntry {
     /// Overall verification result (true = all VCs verified)
     pub verified: bool,
@@ -46,6 +46,58 @@ pub struct CacheEntry {
     /// Function names this function calls (direct dependencies)
     #[serde(default)]
     pub dependencies: Vec<String>,
+    /// Whether bv2int encoding equivalence has been tested for this function.
+    ///
+    /// Defaults to `false` for backward compatibility with cache entries written
+    /// before Phase 18 (no bv2int fields present).
+    #[serde(default)]
+    pub bv2int_equiv_tested: bool,
+    /// Solver time for bitvector-encoded VCs, in milliseconds (if tested).
+    #[serde(default)]
+    pub bv2int_bitvec_time_ms: Option<u64>,
+    /// Solver time for integer-encoded VCs, in milliseconds (if tested).
+    #[serde(default)]
+    pub bv2int_int_time_ms: Option<u64>,
+    /// Speedup factor (bitvec_time / bv2int_time) from the last equivalence test.
+    #[serde(default)]
+    pub bv2int_speedup: Option<f64>,
+}
+
+impl CacheEntry {
+    /// Store bv2int equivalence result into this cache entry.
+    ///
+    /// Call this after running `test_encoding_equivalence`. Sets
+    /// `bv2int_equiv_tested = true` and records timing.
+    #[allow(dead_code)] // Used in Phase 18-03 CLI integration
+    pub fn store_equivalence_result(
+        &mut self,
+        bitvec_time_ms: u64,
+        bv2int_time_ms: u64,
+        speedup_factor: f64,
+    ) {
+        self.bv2int_equiv_tested = true;
+        self.bv2int_bitvec_time_ms = Some(bitvec_time_ms);
+        self.bv2int_int_time_ms = Some(bv2int_time_ms);
+        self.bv2int_speedup = Some(speedup_factor);
+    }
+
+    /// Retrieve bv2int equivalence timing if tested.
+    ///
+    /// Returns `None` if equivalence has not been tested (or cache entry predates bv2int).
+    #[allow(dead_code)] // Used in Phase 18-03 CLI integration
+    pub fn get_equivalence_result(&self) -> Option<(u64, u64, f64)> {
+        if !self.bv2int_equiv_tested {
+            return None;
+        }
+        match (
+            self.bv2int_bitvec_time_ms,
+            self.bv2int_int_time_ms,
+            self.bv2int_speedup,
+        ) {
+            (Some(bv), Some(int), Some(s)) => Some((bv, int, s)),
+            _ => None,
+        }
+    }
 }
 
 impl VcCache {
@@ -478,6 +530,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: 0,
             dependencies: vec![],
+            ..Default::default()
         };
 
         cache.insert(key, entry);
@@ -506,6 +559,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: 0,
             dependencies: vec![],
+            ..Default::default()
         };
 
         cache.insert(key, entry);
@@ -544,6 +598,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: 0,
             dependencies: vec![],
+            ..Default::default()
         };
         cache.insert(key, entry1);
 
@@ -556,6 +611,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: 0,
             dependencies: vec![],
+            ..Default::default()
         };
         cache.insert(key, entry2);
 
@@ -586,6 +642,7 @@ mod tests {
                     contract_hash: [2u8; 32],
                     timestamp: 0,
                     dependencies: vec![],
+                    ..Default::default()
                 },
             );
             cache.insert(
@@ -599,6 +656,7 @@ mod tests {
                     contract_hash: [4u8; 32],
                     timestamp: 0,
                     dependencies: vec![],
+                    ..Default::default()
                 },
             );
         }
@@ -666,6 +724,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: chrono::Utc::now().timestamp(),
             dependencies: vec![],
+            ..Default::default()
         };
         fs::write(
             dir.join(format!("{}.json", valid_filename)),
@@ -711,6 +770,7 @@ mod tests {
             contract_hash: [2u8; 32],
             timestamp: 0,
             dependencies: vec![],
+            ..Default::default()
         };
         fs::write(
             dir.join("short.json"),
@@ -744,6 +804,7 @@ mod tests {
                 contract_hash: [2u8; 32],
                 timestamp: 0,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
         cache.insert(
@@ -757,6 +818,7 @@ mod tests {
                 contract_hash: [4u8; 32],
                 timestamp: 0,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -810,6 +872,7 @@ mod tests {
                 contract_hash: [2u8; 32],
                 timestamp: 0,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -1162,6 +1225,7 @@ mod tests {
                 contract_hash: [2u8; 32],
                 timestamp: old_timestamp,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -1202,6 +1266,7 @@ mod tests {
                 contract_hash: [2u8; 32],
                 timestamp: recent_timestamp,
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -1271,6 +1336,7 @@ mod tests {
                 contract_hash: [2u8; 32],
                 timestamp: 0, // Will be set automatically
                 dependencies: vec![],
+                ..Default::default()
             },
         );
 
@@ -1279,6 +1345,110 @@ mod tests {
         let entry = cache.get(&key).unwrap();
         assert!(entry.timestamp >= before);
         assert!(entry.timestamp <= after);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ====== bv2int equivalence field tests ======
+
+    #[test]
+    fn test_bv2int_fields_default_to_false_and_none() {
+        let entry = CacheEntry::default();
+        assert!(!entry.bv2int_equiv_tested);
+        assert!(entry.bv2int_bitvec_time_ms.is_none());
+        assert!(entry.bv2int_int_time_ms.is_none());
+        assert!(entry.bv2int_speedup.is_none());
+    }
+
+    #[test]
+    fn test_store_equivalence_result() {
+        let mut entry = CacheEntry::default();
+        entry.store_equivalence_result(120, 40, 3.0);
+
+        assert!(entry.bv2int_equiv_tested);
+        assert_eq!(entry.bv2int_bitvec_time_ms, Some(120));
+        assert_eq!(entry.bv2int_int_time_ms, Some(40));
+        assert_eq!(entry.bv2int_speedup, Some(3.0));
+    }
+
+    #[test]
+    fn test_get_equivalence_result_when_not_tested() {
+        let entry = CacheEntry::default();
+        assert!(entry.get_equivalence_result().is_none());
+    }
+
+    #[test]
+    fn test_get_equivalence_result_when_tested() {
+        let mut entry = CacheEntry::default();
+        entry.store_equivalence_result(100, 50, 2.0);
+
+        let result = entry.get_equivalence_result();
+        assert!(result.is_some());
+        let (bv, int, s) = result.unwrap();
+        assert_eq!(bv, 100);
+        assert_eq!(int, 50);
+        assert_eq!(s, 2.0);
+    }
+
+    #[test]
+    fn test_backward_compatibility_old_cache_format_bv2int_fields() {
+        let dir = temp_cache_dir("bv2int_backward_compat");
+        fs::create_dir_all(&dir).unwrap();
+
+        // Old-format cache entry without bv2int fields
+        let old_entry_json = r#"{
+            "verified": true,
+            "vc_count": 2,
+            "verified_count": 2,
+            "message": null
+        }"#;
+
+        let key = [0xee; 32];
+        let filename = bytes_to_hex(&key);
+        let path = dir.join(format!("{}.json", filename));
+        fs::write(&path, old_entry_json).unwrap();
+
+        let mut cache = VcCache::new(dir.clone());
+        cache.load();
+
+        let entry = cache.get(&key).unwrap();
+        // bv2int fields should default to false/None
+        assert!(!entry.bv2int_equiv_tested);
+        assert!(entry.bv2int_bitvec_time_ms.is_none());
+        assert!(entry.bv2int_int_time_ms.is_none());
+        assert!(entry.bv2int_speedup.is_none());
+        // Original fields intact
+        assert!(entry.verified);
+        assert_eq!(entry.vc_count, 2);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_bv2int_fields_persisted_to_disk() {
+        let dir = temp_cache_dir("bv2int_persisted");
+        let mut cache = VcCache::new(dir.clone());
+
+        let key = [0xff; 32];
+        let mut entry = CacheEntry {
+            verified: true,
+            vc_count: 1,
+            verified_count: 1,
+            timestamp: chrono::Utc::now().timestamp(),
+            ..Default::default()
+        };
+        entry.store_equivalence_result(200, 80, 2.5);
+        cache.insert(key, entry);
+
+        // Reload from disk
+        let mut fresh_cache = VcCache::new(dir.clone());
+        fresh_cache.load();
+
+        let loaded = fresh_cache.get(&key).unwrap();
+        assert!(loaded.bv2int_equiv_tested);
+        assert_eq!(loaded.bv2int_bitvec_time_ms, Some(200));
+        assert_eq!(loaded.bv2int_int_time_ms, Some(80));
+        assert_eq!(loaded.bv2int_speedup, Some(2.5));
 
         let _ = fs::remove_dir_all(&dir);
     }

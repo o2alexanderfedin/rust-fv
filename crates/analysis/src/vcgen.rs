@@ -692,6 +692,173 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
     }
 }
 
+/// Generate verification conditions with a specific encoding mode.
+///
+/// When `mode` is `EncodingMode::Bitvector`, this is equivalent to `generate_vcs`.
+/// When `mode` is `EncodingMode::Integer`, integer types are declared as `Int` sort
+/// and the SMT logic is set to `QF_LIA` (linear integer arithmetic) or `QF_NIA`
+/// (nonlinear, when multiplication is present).
+///
+/// The existing `generate_vcs` remains unchanged for backward compatibility.
+/// Use this function when comparing bv2int encoding equivalence in differential testing.
+pub fn generate_vcs_with_mode(
+    func: &Function,
+    contract_db: Option<&ContractDatabase>,
+    mode: crate::bv2int::EncodingMode,
+) -> FunctionVCs {
+    use crate::bv2int::EncodingMode;
+
+    if mode == EncodingMode::Bitvector {
+        return generate_vcs(func, contract_db);
+    }
+
+    // Integer mode: collect declarations using encode_type_with_mode
+    tracing::info!(
+        function = %func.name,
+        "Generating verification conditions (integer encoding mode)"
+    );
+
+    // For integer mode, generate VCs using existing pipeline but with Int-sort declarations.
+    // The key difference from bitvector mode is the variable declarations use Sort::Int.
+    // We use a modified collect_declarations that respects the encoding mode.
+    let mut conditions = Vec::new();
+
+    let datatype_declarations = collect_datatype_declarations(func);
+
+    let prophecies = crate::encode_prophecy::detect_prophecies(func);
+    let mut declarations = collect_declarations_with_mode(func, mode);
+
+    if !prophecies.is_empty() {
+        let mut prophecy_decls = crate::encode_prophecy::prophecy_declarations(&prophecies);
+        declarations.append(&mut prophecy_decls);
+    }
+
+    let closure_infos = crate::closure_analysis::extract_closure_info(func);
+    for closure_info in &closure_infos {
+        let mut closure_decls =
+            crate::defunctionalize::encode_closure_as_uninterpreted(closure_info);
+        declarations.append(&mut closure_decls);
+    }
+
+    let paths = enumerate_paths(func);
+
+    // Generate overflow VCs
+    for path in &paths {
+        for ov in &path.overflow_vcs {
+            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
+            conditions.append(&mut vc);
+        }
+    }
+
+    // Generate assert terminator VCs
+    let mut assert_vcs =
+        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
+    conditions.append(&mut assert_vcs);
+
+    // Generate contract VCs
+    let mut contract_vcs = generate_contract_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        contract_db,
+    );
+    conditions.append(&mut contract_vcs);
+
+    // Generate call-site precondition VCs
+    if let Some(db) = contract_db {
+        let mut call_vcs =
+            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        conditions.append(&mut call_vcs);
+    }
+
+    // Swap QF_BV logic to QF_LIA/QF_NIA in all generated scripts
+    let has_nonlinear = func_has_multiplication(func);
+    let int_logic = if has_nonlinear { "QF_NIA" } else { "QF_LIA" };
+    let conditions = conditions
+        .into_iter()
+        .map(|mut vc| {
+            vc.script = replace_script_logic(vc.script, int_logic);
+            vc
+        })
+        .collect();
+
+    tracing::info!(
+        function = %func.name,
+        logic = int_logic,
+        "Integer-mode verification condition generation complete"
+    );
+
+    FunctionVCs {
+        function_name: func.name.clone(),
+        conditions,
+    }
+}
+
+/// Collect variable declarations using mode-aware type encoding.
+///
+/// In `EncodingMode::Integer`, integer types (`Int(_)`, `Uint(_)`) are declared as
+/// `Sort::Int` instead of `Sort::BitVec(N)`.
+fn collect_declarations_with_mode(
+    func: &Function,
+    mode: crate::bv2int::EncodingMode,
+) -> Vec<Command> {
+    use crate::bv2int::encode_type_with_mode;
+
+    let mut decls = Vec::new();
+
+    let sort = encode_type_with_mode(&func.return_local.ty, mode);
+    decls.push(Command::DeclareConst(func.return_local.name.clone(), sort));
+
+    for param in &func.params {
+        let sort = encode_type_with_mode(&param.ty, mode);
+        decls.push(Command::DeclareConst(param.name.clone(), sort));
+    }
+
+    for local in &func.locals {
+        let sort = encode_type_with_mode(&local.ty, mode);
+        decls.push(Command::DeclareConst(local.name.clone(), sort));
+    }
+
+    decls
+}
+
+/// Returns `true` if the function contains a multiplication operation.
+///
+/// Used to select `QF_NIA` (nonlinear) vs `QF_LIA` (linear) logic.
+fn func_has_multiplication(func: &Function) -> bool {
+    for bb in &func.basic_blocks {
+        for stmt in &bb.statements {
+            if let Statement::Assign(
+                _,
+                Rvalue::BinaryOp(BinOp::Mul, _, _) | Rvalue::CheckedBinaryOp(BinOp::Mul, _, _),
+            ) = stmt
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Replace the `SetLogic` command in a script with a new logic string.
+///
+/// Used to switch from `QF_BV` to `QF_LIA`/`QF_NIA` in integer-encoded VCs.
+fn replace_script_logic(script: Script, new_logic: &str) -> Script {
+    let commands: Vec<Command> = script
+        .commands()
+        .iter()
+        .map(|cmd| {
+            if let Command::SetLogic(_) = cmd {
+                Command::SetLogic(new_logic.to_string())
+            } else {
+                cmd.clone()
+            }
+        })
+        .collect();
+    Script::with_commands(commands)
+}
+
 /// Generate verification conditions for a potentially generic function via monomorphization.
 ///
 /// For generic functions, this generates separate VCs for each concrete type instantiation
