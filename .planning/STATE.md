@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 18 of 18 (bv2int Optimization)
-Plan: 2 of 3 complete
-Status: Completed 18-02 (differential testing and equivalence caching)
-Last activity: 2026-02-17 — Completed 18-02-PLAN.md (differential testing and equivalence caching)
+Plan: 3 of 3 complete
+Status: Completed 18-03 (CLI integration, bv2int pipeline, output formatting)
+Last activity: 2026-02-17 — Completed 18-03-PLAN.md (CLI integration and bv2int pipeline)
 
-Progress: [█████████████████████░░░] 94% (17/18 phases, 1/3 plans in phase 18)
+Progress: [████████████████████████] 100% (18/18 phases, 3/3 plans in phase 18)
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [█████████████████████░░
 
 | Phase 18 P01 | 174s | 1 | 4 |
 | Phase 18 P02 | 428s | 1 | 8 |
+| Phase 18 P03 | 1063s | 2 | 4 |
 
 *Updated after each plan completion*
 
@@ -130,6 +131,10 @@ Recent decisions affecting current work:
 - [Phase 18 (18-02)]: generate_vcs_with_mode delegates to generate_vcs for Bitvector mode -- zero duplication, guaranteed parity
 - [Phase 18 (18-02)]: Post-hoc logic replacement (replace_script_logic) swaps QF_BV to QF_LIA/QF_NIA -- minimally invasive, no threading through 15+ generation functions
 - [Phase 18 (18-02)]: CacheEntry derives Default -- enables ..Default::default() in struct literals, required by all callers after new fields added
+- [Phase 18 (18-03)]: Z3SolverAdapter in callbacks.rs (not solver crate) -- keeps differential testing wiring local, no circular deps
+- [Phase 18 (18-03)]: run_differential_test returns (None, None, None) when Z3 unavailable -- graceful degradation, no hard failure
+- [Phase 18 (18-03)]: ENV_MUTEX serializes bv2int env var tests -- fixes pre-existing flaky race between RUST_FV_BV2INT tests
+- [Phase 18 (18-03)]: callbacks.rs uses output::format_bv2int_timing and check_slowdown_warning -- DRY, consistent formatting
 
 ### Pending Todos
 
@@ -150,11 +155,11 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 18-02-PLAN.md (differential testing and equivalence caching)
+Stopped at: Completed 18-03-PLAN.md (CLI integration, bv2int pipeline, output formatting)
 Resume file: None
-Next step: 18-03 (CLI integration)
+Next step: Phase 18 complete — all 3 plans done
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-17 after completing 18-02 (differential testing and equivalence caching)*
+*Last updated: 2026-02-17 after completing 18-03 (CLI integration and bv2int pipeline)*
