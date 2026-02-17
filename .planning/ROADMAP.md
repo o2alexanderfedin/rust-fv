@@ -163,11 +163,11 @@ Plans:
   4. Diagnostics from rust-fv are visually distinguished from rustc diagnostics
   5. User can disable rust-fv integration via rust-analyzer settings
 
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 17-01: TBD
-- [ ] 17-02: TBD
+- [ ] 17-01-PLAN.md — Rustc-compatible JSON diagnostic output for cargo verify (--message-format=json)
+- [ ] 17-02-PLAN.md — VSCode extension RA mode detection, overrideCommand, deduplication, gutter updates
 
 ---
 
@@ -217,10 +217,10 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 14. Incremental Verification | v0.3 | 0/3 | Not started | - |
 | 15. Trigger Customization | v0.3 | Complete    | 2026-02-16 | - |
 | 16. VSCode Extension | v0.3 | 3/3 | Complete | 2026-02-16 |
-| 17. rust-analyzer Integration | v0.3 | 0/TBD | Not started | - |
+| 17. rust-analyzer Integration | v0.3 | 0/2 | Not started | - |
 | 18. bv2int Optimization | v0.3 | 0/TBD | Not started | - |
 
 ---
 
 *Roadmap created: 2026-02-14*
-*Last updated: 2026-02-16 after Phase 16 completion*
+*Last updated: 2026-02-16 after Phase 17 planning*
