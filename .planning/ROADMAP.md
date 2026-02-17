@@ -186,11 +186,12 @@ Plans:
   4. Performance regression tests detect cases where bv2int causes slowdowns (>2x slower triggers warning)
   5. Documentation clearly explains when/how to use bv2int and known limitations
 
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 18-01: TBD
-- [ ] 18-02: TBD
+- [ ] 18-01-PLAN.md — Core bv2int encoding infrastructure (EncodingMode, applicability analysis, integer encoding with overflow guards)
+- [ ] 18-02-PLAN.md — Differential testing engine and equivalence caching
+- [ ] 18-03-PLAN.md — CLI/env integration, --bv2int-report, pipeline wiring, output formatting
 
 ---
 
@@ -218,7 +219,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17 → 18
 | 15. Trigger Customization | v0.3 | Complete    | 2026-02-16 | - |
 | 16. VSCode Extension | v0.3 | 3/3 | Complete | 2026-02-16 |
 | 17. rust-analyzer Integration | v0.3 | 0/2 | Not started | - |
-| 18. bv2int Optimization | v0.3 | 0/TBD | Not started | - |
+| 18. bv2int Optimization | v0.3 | 0/3 | Not started | - |
 
 ---
 
