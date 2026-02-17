@@ -9,7 +9,7 @@ use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
-use rust_fv_solver::{SolverConfig, SolverError, SolverResult, Z3Solver};
+use rust_fv_solver::{SolverConfig, SolverError, SolverKind, SolverResult, Z3Solver};
 
 // ---- Helper ----
 
@@ -269,7 +269,8 @@ fn script_with_explicit_check_sat_no_duplicate() {
 fn timeout_with_short_limit() {
     // Use a very hard problem with an extremely short timeout to trigger timeout/unknown.
     // Alternatively, we just verify the timeout flag is passed correctly.
-    let config = SolverConfig::new(PathBuf::from("/opt/homebrew/bin/z3")).with_timeout(1); // 1ms
+    let config =
+        SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3")).with_timeout(1); // 1ms
     let solver = Z3Solver::new(config);
 
     // A problem that might timeout with 1ms limit (nonlinear integer arithmetic)
@@ -300,7 +301,8 @@ fn timeout_with_short_limit() {
 #[test]
 fn normal_timeout_succeeds() {
     // Verify that a reasonable timeout doesn't interfere with solvable problems
-    let config = SolverConfig::new(PathBuf::from("/opt/homebrew/bin/z3")).with_timeout(30000); // 30s
+    let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3"))
+        .with_timeout(30000); // 30s
     let solver = Z3Solver::new(config);
 
     let result = solver
@@ -323,13 +325,13 @@ fn normal_timeout_succeeds() {
 
 #[test]
 fn error_missing_binary() {
-    let config = SolverConfig::new(PathBuf::from("/nonexistent/path/z3"));
+    let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/nonexistent/path/z3"));
     let solver = Z3Solver::new(config);
 
     let result = solver.check_sat_raw("(check-sat)");
     assert!(result.is_err());
     match result.unwrap_err() {
-        SolverError::NotFound(path) => {
+        SolverError::NotFound(_kind, path) => {
             assert_eq!(path, PathBuf::from("/nonexistent/path/z3"));
         }
         other => panic!("Expected NotFound, got: {other:?}"),
@@ -361,7 +363,7 @@ fn with_default_config_succeeds() {
 
 #[test]
 fn config_extra_args() {
-    let config = SolverConfig::new(PathBuf::from("/opt/homebrew/bin/z3"))
+    let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3"))
         .with_extra_args(vec!["-v:0".to_string()]);
     let solver = Z3Solver::new(config);
 
