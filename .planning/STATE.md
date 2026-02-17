@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Phase 17 - rust-analyzer Integration
+**Current focus:** Phase 18 - bv2int Optimization
 
 ## Current Position
 
-Phase: 17 of 18 (rust-analyzer Integration)
-Plan: 2 of 2
-Status: Completed 17-02 (rust-analyzer mode integration)
-Last activity: 2026-02-16 — Completed 17-02-PLAN.md (rust-analyzer flycheck integration)
+Phase: 18 of 18 (bv2int Optimization)
+Plan: 1 of 3 complete
+Status: Completed 18-01 (bv2int core encoding infrastructure)
+Last activity: 2026-02-17 — Completed 18-01-PLAN.md (bv2int core encoding infrastructure)
 
-Progress: [█████████████████████░░░] 94% (17/18 phases complete)
+Progress: [█████████████████████░░░] 94% (17/18 phases, 1/3 plans in phase 18)
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Progress: [█████████████████████░░
 | Phase 16 P03 | ~600s | 2 | 6 |
 | Phase 17 P01 | 413s | 2 | 4 |
 | Phase 17 P02 | 201s | 2 | 5 |
+
+| Phase 18 P01 | 174s | 1 | 4 |
 
 *Updated after each plan completion*
 
@@ -120,6 +122,9 @@ Recent decisions affecting current work:
 - [Phase 17]: Leave overrideCommand in place on extension deactivation (user expectation)
 - [Phase 17]: Workspace-scoped overrideCommand configuration (not global)
 - [Phase 17]: Diagnostic-based gutter inference in RA mode (verified = no diagnostics in function body)
+- [Phase 18]: Entire-function rejection for any bitwise/shift op (conservative, predictable, avoids complex per-expression tracking)
+- [Phase 18]: #[fv::no_bv2int] encoded as magic requires string to avoid new IR field and 30+ test fixture updates
+- [Phase 18]: RFC 0560 wrapping: unsigned uses modulo (mod result 2^N), signed uses nested ITE two's complement chain
 
 ### Pending Todos
 
@@ -139,12 +144,12 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 17-02-PLAN.md (rust-analyzer flycheck integration)
+Last session: 2026-02-17
+Stopped at: Completed 18-01-PLAN.md (bv2int core encoding infrastructure)
 Resume file: None
-Next step: Phase 18 or release preparation
+Next step: 18-02 (differential testing) or 18-03 (CLI integration)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-16 after completing Phase 17 (rust-analyzer Integration)*
+*Last updated: 2026-02-17 after completing 18-01 (bv2int core encoding infrastructure)*
