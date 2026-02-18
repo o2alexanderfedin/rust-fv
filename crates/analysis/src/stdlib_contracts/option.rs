@@ -45,7 +45,7 @@ pub fn register_option_contracts(registry: &mut StdlibContractRegistry) {
 
 /// Contract for `Option::is_some`.
 ///
-/// ```rust
+/// ```text
 /// pub fn is_some(&self) -> bool
 /// ```
 ///
@@ -77,7 +77,7 @@ fn option_is_some_contract() -> StdlibContract {
 
 /// Contract for `Option::is_none`.
 ///
-/// ```rust
+/// ```text
 /// pub fn is_none(&self) -> bool
 /// ```
 ///
@@ -109,7 +109,7 @@ fn option_is_none_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap`.
 ///
-/// ```rust
+/// ```text
 /// pub fn unwrap(self) -> T
 /// ```
 ///
@@ -144,7 +144,7 @@ fn option_unwrap_contract() -> StdlibContract {
 
 /// Contract for `Option::map`.
 ///
-/// ```rust
+/// ```text
 /// pub fn map<U, F>(self, f: F) -> Option<U>
 /// where F: FnOnce(T) -> U
 /// ```
@@ -181,7 +181,7 @@ fn option_map_contract() -> StdlibContract {
 
 /// Contract for `Option::and_then`.
 ///
-/// ```rust
+/// ```text
 /// pub fn and_then<U, F>(self, f: F) -> Option<U>
 /// where F: FnOnce(T) -> Option<U>
 /// ```
@@ -213,7 +213,7 @@ fn option_and_then_contract() -> StdlibContract {
 
 /// Contract for `Option::ok_or`.
 ///
-/// ```rust
+/// ```text
 /// pub fn ok_or<E>(self, err: E) -> Result<T, E>
 /// ```
 ///
@@ -249,7 +249,7 @@ fn option_ok_or_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap_or`.
 ///
-/// ```rust
+/// ```text
 /// pub fn unwrap_or(self, default: T) -> T
 /// ```
 ///
@@ -285,7 +285,7 @@ fn option_unwrap_or_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap_or_else`.
 ///
-/// ```rust
+/// ```text
 /// pub fn unwrap_or_else<F>(self, f: F) -> T
 /// where F: FnOnce() -> T
 /// ```

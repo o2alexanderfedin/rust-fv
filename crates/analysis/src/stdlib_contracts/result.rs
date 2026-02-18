@@ -48,7 +48,7 @@ pub fn register_result_contracts(registry: &mut StdlibContractRegistry) {
 
 /// Contract for `Result::is_ok`.
 ///
-/// ```rust
+/// ```text
 /// pub fn is_ok(&self) -> bool
 /// ```
 ///
@@ -80,7 +80,7 @@ fn result_is_ok_contract() -> StdlibContract {
 
 /// Contract for `Result::is_err`.
 ///
-/// ```rust
+/// ```text
 /// pub fn is_err(&self) -> bool
 /// ```
 ///
@@ -112,7 +112,7 @@ fn result_is_err_contract() -> StdlibContract {
 
 /// Contract for `Result::unwrap`.
 ///
-/// ```rust
+/// ```text
 /// pub fn unwrap(self) -> T
 /// ```
 ///
@@ -147,7 +147,7 @@ fn result_unwrap_contract() -> StdlibContract {
 
 /// Contract for `Result::unwrap_err`.
 ///
-/// ```rust
+/// ```text
 /// pub fn unwrap_err(self) -> E
 /// ```
 ///
@@ -182,7 +182,7 @@ fn result_unwrap_err_contract() -> StdlibContract {
 
 /// Contract for `Result::map`.
 ///
-/// ```rust
+/// ```text
 /// pub fn map<U, F>(self, f: F) -> Result<U, E>
 /// where F: FnOnce(T) -> U
 /// ```
@@ -219,7 +219,7 @@ fn result_map_contract() -> StdlibContract {
 
 /// Contract for `Result::map_err`.
 ///
-/// ```rust
+/// ```text
 /// pub fn map_err<F, O>(self, f: F) -> Result<T, O>
 /// where F: FnOnce(E) -> O
 /// ```
@@ -256,7 +256,7 @@ fn result_map_err_contract() -> StdlibContract {
 
 /// Contract for `Result::and_then`.
 ///
-/// ```rust
+/// ```text
 /// pub fn and_then<U, F>(self, f: F) -> Result<U, E>
 /// where F: FnOnce(T) -> Result<U, E>
 /// ```
@@ -288,7 +288,7 @@ fn result_and_then_contract() -> StdlibContract {
 
 /// Contract for `Result::ok`.
 ///
-/// ```rust
+/// ```text
 /// pub fn ok(self) -> Option<T>
 /// ```
 ///
@@ -324,7 +324,7 @@ fn result_ok_contract() -> StdlibContract {
 
 /// Contract for `Result::err`.
 ///
-/// ```rust
+/// ```text
 /// pub fn err(self) -> Option<E>
 /// ```
 ///

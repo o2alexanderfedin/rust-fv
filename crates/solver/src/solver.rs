@@ -3,28 +3,29 @@ use std::process::{Command, Stdio};
 
 use rust_fv_smtlib::script::Script;
 
-use crate::config::SolverConfig;
+use crate::config::{SolverConfig, SolverKind};
 use crate::error::SolverError;
 use crate::parser::parse_solver_output;
 use crate::result::SolverResult;
 
-/// Z3 SMT solver interface.
+/// Generic CLI-based SMT solver interface.
 ///
-/// Communicates with Z3 by spawning it as a subprocess and piping SMT-LIB2 text.
+/// Communicates with any SMT-LIB2 compatible solver (Z3, CVC5, Yices)
+/// by spawning it as a subprocess and piping SMT-LIB2 text.
 #[derive(Debug)]
-pub struct Z3Solver {
+pub struct CliSolver {
     config: SolverConfig,
 }
 
-impl Z3Solver {
-    /// Create a new `Z3Solver` with the given configuration.
+impl CliSolver {
+    /// Create a new `CliSolver` with the given configuration.
     pub fn new(config: SolverConfig) -> Self {
         Self { config }
     }
 
-    /// Create a `Z3Solver` with auto-detected Z3 location and default settings.
-    pub fn with_default_config() -> Result<Self, SolverError> {
-        let config = SolverConfig::auto_detect()?;
+    /// Create a `CliSolver` with auto-detected solver location.
+    pub fn with_default_config_for(kind: SolverKind) -> Result<Self, SolverError> {
+        let config = SolverConfig::auto_detect_for(kind)?;
         Ok(Self { config })
     }
 
@@ -33,10 +34,15 @@ impl Z3Solver {
         &self.config
     }
 
+    /// Get the solver kind.
+    pub fn kind(&self) -> SolverKind {
+        self.config.kind
+    }
+
     /// Check satisfiability of a Script.
     ///
-    /// Formats the script to SMT-LIB2 text using `Display`, appends `(check-sat)`
-    /// and `(get-model)` if not already present, and runs Z3.
+    /// Formats the script to SMT-LIB2 text, appends `(check-sat)`
+    /// and `(get-model)` if not already present, and runs the solver.
     pub fn check_sat(&self, script: &Script) -> Result<SolverResult, SolverError> {
         // Format the script commands to SMT-LIB2
         let mut smtlib = format_script(script);
@@ -55,40 +61,34 @@ impl Z3Solver {
     pub fn check_sat_raw(&self, smtlib: &str) -> Result<SolverResult, SolverError> {
         self.config.validate()?;
 
-        let mut args = vec!["-in".to_string()];
+        let args = self.config.build_args();
+        let solver_name = self.config.kind.to_string();
 
-        // Add timeout flag if configured
-        if self.config.timeout_ms > 0 {
-            args.push(format!("-t:{}", self.config.timeout_ms));
-        }
-
-        // Add extra arguments
-        args.extend(self.config.extra_args.iter().cloned());
-
-        // Spawn Z3 process
-        let mut child = Command::new(&self.config.z3_path)
+        // Spawn solver process
+        let mut child = Command::new(&self.config.solver_path)
             .args(&args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| SolverError::ProcessError(format!("Failed to start Z3: {e}")))?;
+            .map_err(|e| {
+                SolverError::ProcessError(format!("Failed to start {solver_name}: {e}"))
+            })?;
 
         // Write SMT-LIB to stdin
         {
-            let stdin = child
-                .stdin
-                .as_mut()
-                .ok_or_else(|| SolverError::ProcessError("Failed to open Z3 stdin".to_string()))?;
+            let stdin = child.stdin.as_mut().ok_or_else(|| {
+                SolverError::ProcessError(format!("Failed to open {solver_name} stdin"))
+            })?;
             stdin.write_all(smtlib.as_bytes()).map_err(|e| {
-                SolverError::ProcessError(format!("Failed to write to Z3 stdin: {e}"))
+                SolverError::ProcessError(format!("Failed to write to {solver_name} stdin: {e}"))
             })?;
         }
 
-        // Wait for Z3 to finish and collect output
-        let output = child
-            .wait_with_output()
-            .map_err(|e| SolverError::ProcessError(format!("Failed to wait for Z3: {e}")))?;
+        // Wait for solver to finish and collect output
+        let output = child.wait_with_output().map_err(|e| {
+            SolverError::ProcessError(format!("Failed to wait for {solver_name}: {e}"))
+        })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -99,6 +99,17 @@ impl Z3Solver {
         }
 
         parse_solver_output(&stdout, &stderr)
+    }
+}
+
+/// Backward-compatible type alias for Z3-specific solver.
+pub type Z3Solver = CliSolver;
+
+/// Convenience constructors for Z3Solver (backward compatibility).
+impl CliSolver {
+    /// Create a Z3 solver with auto-detected location and default settings.
+    pub fn with_default_config() -> Result<Self, SolverError> {
+        Self::with_default_config_for(SolverKind::Z3)
     }
 }
 
