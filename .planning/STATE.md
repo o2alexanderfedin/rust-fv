@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** Between milestones — v0.3 complete, ready to plan v0.4
+**Current focus:** v0.4 Full Rust Verification — defining requirements
 
 ## Current Position
 
-Milestone: v0.3 Production Usability — COMPLETE (archived 2026-02-19)
-Phases: 18/18 complete (Phases 1-18)
-Status: All milestones shipped (v0.1, v0.2, v0.3). ROADMAP.md archived. Ready for v0.4 planning.
-Last activity: 2026-02-19 — Finalized v0.3 milestone archival (updated v0.3-ROADMAP.md, deleted ROADMAP.md)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-19 — Milestone v0.4 started
 
-Progress: [████████████████████████] 100% (v0.3 complete)
+Progress: [░░░░░░░░░░░░░░░░░░░░░░░░] 0% (v0.4 starting)
 
 ## Performance Metrics
 
@@ -154,12 +154,12 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: Completed 18-03-PLAN.md (CLI integration, bv2int pipeline, output formatting)
+Last session: 2026-02-19
+Stopped at: Milestone v0.4 started — requirements being defined
 Resume file: None
-Next step: Phase 18 complete — all 3 plans done
+Next step: Complete requirements → create roadmap → /gsd:plan-phase 19
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-17 after completing 18-03 (CLI integration and bv2int pipeline)*
+*Last updated: 2026-02-19 after starting v0.4 milestone*

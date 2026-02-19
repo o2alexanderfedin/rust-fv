@@ -43,14 +43,13 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Active
 
-#### Future (v0.4+)
+#### Current Milestone: v0.4 Full Rust Verification
 
-- [ ] Higher-order closures with specification entailments
-- [ ] Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
-- [ ] Async/await verification (Future trait, executor semantics)
-- [ ] Separation logic for heap reasoning
 - [ ] Counterexample generation with concrete failure values
-- [ ] Multiple SMT solver backends (CVC5, Yices)
+- [ ] Async/await verification (Future trait, executor semantics)
+- [ ] Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
+- [ ] Higher-order closures with specification entailments
+- [ ] Separation logic for heap reasoning
 
 ### Out of Scope
 
@@ -66,10 +65,13 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.3 shipped with 1,613 lib tests, zero warnings, 6-crate workspace + VSCode extension, 82,642 LOC Rust + TypeScript
-- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics; stdlib contracts cover Tier 1 only (Vec/HashMap/Option/Result/Iterator)
-- **Tech debt:** Pre-existing doc test failures in stdlib_contracts/option.rs (26 doc tests, `self` parameter issue); no weak memory models; no async/await
-- **v0.4 focus:** Advanced verification features — counterexample generation, higher-order closures, weak memory models, multiple SMT backends
+- **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
+- **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
+- **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
+- **Current state:** v0.3 shipped with 1,613 lib tests, zero warnings, 6-crate workspace + VSCode extension, 82,642 LOC Rust + TypeScript; multi-solver support (Z3/CVC5/Yices) added post-v0.3
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors, sequential consistency only for atomics; no async/await; no separation logic; no weak memory models
+- **Tech debt:** Pre-existing doc test failures in stdlib_contracts/option.rs (26 doc tests, `self` parameter issue)
+- **v0.4 focus:** Full Rust verification — counterexample generation, async/await, weak memory models, higher-order closures, separation logic for heap reasoning
 
 ## Constraints
 
@@ -114,5 +116,16 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | SolverInterface trait in differential.rs (Phase 18) | Self-contained equivalence testing; no binary dependency for unit tests | ✓ Good |
 | Post-hoc logic replacement for bv2int (Phase 18) | Swaps QF_BV to QF_LIA/QF_NIA; minimal invasiveness | ✓ Good |
 
+## Current Milestone: v0.4 Full Rust Verification
+
+**Goal:** Complete Rust verification coverage — every major language feature verifiable with no exceptions and no compromises.
+
+**Target features:**
+- Counterexample generation with concrete failure values
+- Async/await verification (Future trait, executor semantics)
+- Weak memory models (Relaxed, Acquire, Release atomics beyond SeqCst)
+- Higher-order closures with specification entailments
+- Separation logic for heap reasoning
+
 ---
-*Last updated: 2026-02-17 after v0.3 milestone completion*
+*Last updated: 2026-02-19 after v0.4 milestone started*
