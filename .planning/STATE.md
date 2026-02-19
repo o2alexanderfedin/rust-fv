@@ -2,18 +2,18 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-17)
+See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.3 milestone complete — planning v0.4
+**Current focus:** Between milestones — v0.3 complete, ready to plan v0.4
 
 ## Current Position
 
-Milestone: v0.3 Production Usability — COMPLETE
+Milestone: v0.3 Production Usability — COMPLETE (archived 2026-02-19)
 Phases: 18/18 complete (Phases 1-18)
-Status: All phases shipped. v0.3 archived. Ready for v0.4 planning.
-Last activity: 2026-02-17 — Completed v0.3 milestone (bv2int optimization + milestone archive)
+Status: All milestones shipped (v0.1, v0.2, v0.3). ROADMAP.md archived. Ready for v0.4 planning.
+Last activity: 2026-02-19 — Finalized v0.3 milestone archival (updated v0.3-ROADMAP.md, deleted ROADMAP.md)
 
 Progress: [████████████████████████] 100% (v0.3 complete)
 
