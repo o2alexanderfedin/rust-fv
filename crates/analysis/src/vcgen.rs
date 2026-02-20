@@ -700,6 +700,12 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         }
     }
 
+    // HOF-01 / HOF-02: Generate fn_spec entailment VCs if any are declared
+    if !func.contracts.fn_specs.is_empty() {
+        let hof_vcs = crate::hof_vcgen::generate_fn_spec_vcs(func, &func.contracts.fn_specs);
+        conditions.extend(hof_vcs);
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),
