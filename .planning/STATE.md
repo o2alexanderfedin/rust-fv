@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 21 (Weak Memory Models) COMPLETE
+**Current focus:** v0.4 Full Rust Verification — Phase 22 (Higher-Order Closures) IN PROGRESS
 
 ## Current Position
 
-Phase: 21 of 23 (Weak Memory Models)
-Plan: 3 complete (3/3 plans done)
-Status: Complete
-Last activity: 2026-02-19 — Plan 21-03 complete (RC11 litmus tests: 9 canonical C11 litmus tests all passing)
+Phase: 22 of 23 (Higher-Order Closures)
+Plan: 1 complete (1/3 plans done)
+Status: In Progress
+Last activity: 2026-02-20 — Plan 22-01 complete (fn_spec macro+IR+extraction triangle, HOF-01+HOF-02)
 
-Progress: [█████████████████████░░░] 87% (19/23 phases complete, Phase 22 next)
+Progress: [█████████████████████░░░] 87% (19/23 phases complete, Phase 22 in progress)
 
 ## Performance Metrics
 
@@ -49,6 +49,8 @@ Progress: [█████████████████████░░
 | Phase 21 P02 | 353 | 2 tasks | 2 files |
 | Phase 21 P02 | 353 | 2 tasks | 2 files |
 | Phase 21 P03 | 976 | 2 tasks | 2 files |
+| Phase 22 P01 | 1719 | 2 tasks | 32 files |
+| Phase 22 P01 | 1719 | 2 tasks | 32 files |
 
 ## Accumulated Context
 
@@ -89,6 +91,10 @@ Recent decisions relevant to v0.4:
 - [Phase 21]: Litmus tests use custom SMT scripts (not generate_rc11_vcs) to pin specific forbidden executions with fixed rf choices
 - [Phase 21]: Violation-detection semantics for coherence VCs: assert hb∧eco (violation), UNSAT=RC11 holds, SAT=coherence issue
 - [Phase 21]: Initial-store-first axiom added to rc11.rs: mo(init) < mo(store) for all real stores per location
+- [Phase 22]: Token-level fat-arrow scanning (not syn::parse_str) to handle => in fn_spec clauses — syn rejects fat-arrow as binary op
+- [Phase 22]: %% as pre/post separator in fn_spec doc attributes to avoid :: collisions in expression content
+- [Phase 22]: Token-level fat-arrow scanning (not syn::parse_str) to handle => in fn_spec clauses — syn rejects fat-arrow as binary op
+- [Phase 22]: %% as pre/post separator in fn_spec doc attributes to avoid :: collisions in expression content
 
 ### Pending Todos
 
@@ -103,10 +109,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: Completed 21-03-PLAN.md — RC11 litmus tests (9 canonical C11 litmus tests, all passing, WMM-02+WMM-03)
+Last session: 2026-02-20
+Stopped at: Completed 22-01-PLAN.md — fn_spec macro+IR+extraction triangle (HOF-01+HOF-02)
 Resume file: None
-Next step: Execute Phase 22 (Async Verification)
+Next step: Execute Phase 22 Plan 02 (VCGen for HOF closure entailment)
 
 ---
 
