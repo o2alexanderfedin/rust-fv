@@ -202,7 +202,13 @@ Plans:
   2. Developer sees typed Rust value (e.g. `i32: 5`, `bool: false`) not raw hex bitvector in the counterexample output
   3. Developer sees counterexample values annotated inline at the failing source line via ariadne span labels in terminal output
   4. `--output-format=json` output includes a structured `counterexample` field on verification failure consumable by machine tools
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 19-01-PLAN.md — Data foundation: VcOutcome structured pairs, IR source_names, ghost detection, source location plumbing (CEX-01)
+- [ ] 19-02-PLAN.md — Typed value rendering module cex_render.rs: bitvec→decimal, struct/enum/ptr/array display (CEX-02)
+- [ ] 19-03-PLAN.md — Ariadne multi-label wiring: source file read + per-variable span Labels at spec use sites (CEX-03)
+- [ ] 19-04-PLAN.md — JSON schema extension: JsonCounterexample struct + VSCode TypeScript interface update (CEX-04)
 
 ### Phase 20: Separation Logic
 **Goal**: Developers can prove aliasing freedom and heap ownership properties for raw pointer code using separation logic predicates
