@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 22 (Higher-Order Closures) IN PROGRESS
+**Current focus:** v0.4 Full Rust Verification — Phase 22 (Higher-Order Closures) COMPLETE → Phase 23 (Async/Await) next
 
 ## Current Position
 
-Phase: 22 of 23 (Higher-Order Closures)
-Plan: 2 complete (2/3 plans done)
-Status: In Progress
-Last activity: 2026-02-20 — Plan 22-02 complete (HOF VCGen engine: hof_vcgen.rs + generate_fn_spec_vcs wired into generate_vcs)
+Phase: 22 of 23 (Higher-Order Closures) — COMPLETE
+Plan: 3 complete (3/3 plans done)
+Status: Phase Complete
+Last activity: 2026-02-20 — Plan 22-03 complete (HOF TDD validation: 6 Z3 entailment tests, HOF-01 + HOF-02 confirmed sound)
 
-Progress: [█████████████████████░░░] 87% (19/23 phases complete, Phase 22 in progress)
+Progress: [█████████████████████░░░] 91% (20/23 phases complete, Phase 23 pending)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█████████████████████░░
 | Phase 21 P03 | 976 | 2 tasks | 2 files |
 | Phase 22 P01 | 1719 | 2 tasks | 32 files |
 | Phase 22 P02 | 916 | 2 tasks | 3 files |
+| Phase 22 P03 | 104 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions relevant to v0.4:
 - [Phase 22-02]: FnOnce uses identical Fn path — no env_before/after, single-call VC per RESEARCH.md Pattern 6
 - [Phase 22-02]: Sort::Uninterpreted for closure environment sort — opaque in fn_spec context
 - [Phase 22-02]: substitute_result() does post-parse substitution of result -> closure_app term
+- [Phase 22-03]: Axiom injection pattern: commands_without_check_sat() + push axiom Assert + push CheckSat — clean test augmentation without modifying generate_fn_spec_vcs() API
+- [Phase 22-03]: encode_type_for_auflia() replaces encode_type() for AUFLIA safety — BitVec sorts are invalid in AUFLIA, all integers map to Sort::Int
 
 ### Pending Todos
 
@@ -113,11 +116,11 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 22-02-PLAN.md — HOF VCGen engine (hof_vcgen.rs + generate_fn_spec_vcs wired into generate_vcs)
+Stopped at: Completed 22-03-PLAN.md — HOF TDD validation (6 Z3 entailment tests for HOF-01/HOF-02, Phase 22 complete)
 Resume file: None
-Next step: Execute Phase 22 Plan 03 (if exists, else Phase 23)
+Next step: Execute Phase 23 (Async/Await Verification) — validate coroutine MIR shape first
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-20 after 22-02 HOF VCGen engine*
+*Last updated: 2026-02-20 after 22-03 HOF TDD validation — Phase 22 complete*
