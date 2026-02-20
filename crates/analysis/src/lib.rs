@@ -14,6 +14,7 @@ pub mod encode_term;
 pub mod float_verification;
 pub mod ghost_predicate_db;
 pub mod heap_model;
+pub mod hof_vcgen;
 pub mod ir;
 pub mod lifetime_analysis;
 pub mod monomorphize;
