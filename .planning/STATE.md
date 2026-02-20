@@ -6,7 +6,7 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 20 (Separation Logic) Plan 2 complete
+**Current focus:** v0.4 Full Rust Verification — Phase 20 (Separation Logic) Plan 1 formally documented
 
 ## Current Position
 
@@ -42,6 +42,7 @@ Progress: [████████████████░░░░░░░
 | Phase 19 P04 | 155 | 2 tasks | 7 files |
 | Phase 19 P03 | 484 | 2 tasks | 3 files |
 | Phase 20 P02 | 34 | 2 tasks | 5 files |
+| Phase 20 P01 | 10 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions relevant to v0.4:
 - [Phase 19-04]: TypeScript interfaces in verifier.ts mirror Rust struct field names exactly (type: string maps to Rust ty: String via serde rename)
 - [Phase 19]: ariadne multi-label wiring: source_names/locals/params threaded through VerificationTaskResult to VerificationFailure; report_with_ariadne uses Source::from with disk-read source text and render_counterexample for typed Labels
 - [Phase 20-02]: extract_ghost_predicates() as separate function (not modifying extract_contracts return type); ghost_pred_db as pub field on VerificationCallbacks; let-chain collapsible-if pattern for doc attr matching
+- [Phase 20]: Separate heap domain (not byte-array model) for sep_logic to avoid conflict with heap_model.rs
+- [Phase 20]: Default pointee_bits to 64 when RawPtr inner type cannot be resolved — conservative fallback
+- [Phase 20]: perm array uses Bool (not fractional permissions) — sufficient for Plan 01 pts_to ownership semantics
 
 ### Pending Todos
 
@@ -80,9 +84,9 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 20-02-PLAN.md — ghost predicate infrastructure wired
+Stopped at: Completed 20-01-PLAN.md — separation heap domain and pts_to encoder documented
 Resume file: None
-Next step: /gsd:execute-phase 20 plan 03 (spec parser wiring for ghost predicates)
+Next step: /gsd:execute-phase 20 (continue with plan 03 or 04)
 
 ---
 
