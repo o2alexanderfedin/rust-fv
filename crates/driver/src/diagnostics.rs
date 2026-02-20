@@ -5,7 +5,7 @@
 /// - Colored arrows pointing to failing spec
 /// - Counterexample with concrete variable values
 /// - Fix suggestions for common failure patterns
-use ariadne::{ColorGenerator, Label, Report, ReportKind};
+use ariadne::{ColorGenerator, Label, Report, ReportKind, Source};
 use colored::Colorize;
 use rust_fv_analysis::vcgen::VcKind;
 
@@ -17,12 +17,18 @@ pub struct VerificationFailure {
     pub source_file: Option<String>,
     pub source_line: Option<usize>,
     /// Source column number (1-based, when available).
-    #[allow(dead_code)] // Will be used by future ariadne/diagnostics enhancement
     pub source_column: Option<usize>,
     pub counterexample: Option<Vec<(String, String)>>,
     /// Structured counterexample (v2 schema) with typed variables.
     /// Populated when solver returns SAT with model and IR type info is available.
     pub counterexample_v2: Option<crate::json_output::JsonCounterexample>,
+    /// SSA-name → source-name mapping from IR debug info (e.g. `"_1"` → `"x"`).
+    /// Used by ariadne span label rendering to show human-readable variable names.
+    pub source_names: std::collections::HashMap<String, String>,
+    /// Typed local variables from the IR function, for `cex_render` type-dispatch.
+    pub locals: Vec<rust_fv_analysis::ir::Local>,
+    /// Typed parameter locals from the IR function, for `cex_render` type-dispatch.
+    pub params: Vec<rust_fv_analysis::ir::Local>,
     pub message: String,
 }
 
@@ -41,20 +47,35 @@ pub fn report_verification_failure(failure: &VerificationFailure) {
 }
 
 /// Report failure using ariadne with source file context.
+///
+/// Reads the source file from disk and uses ariadne multi-label rendering to
+/// display counterexample values annotated at variable use sites in the spec.
+/// Falls back to `report_text_only` if the source file cannot be read.
 fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_line: usize) {
-    // For now, ariadne requires reading the actual source file.
-    // In a real rustc driver integration, we'd have access to the source map.
-    // For this phase, we'll implement ariadne support but acknowledge that
-    // source_file/source_line aren't yet populated by the driver.
+    // Read source file from disk; fall back to text-only if unreadable.
+    let source_text = match std::fs::read_to_string(source_file) {
+        Ok(text) => text,
+        Err(_) => {
+            report_text_only(failure);
+            return;
+        }
+    };
 
-    // Calculate offset (0-based) from line number
-    let offset = source_line.saturating_sub(1);
+    // Compute byte offset for the start of the failing line (0-based line index).
+    let line_idx = source_line.saturating_sub(1);
+    let line_start: usize = source_text
+        .lines()
+        .take(line_idx)
+        .map(|l| l.len() + 1) // +1 for the newline character
+        .sum();
+    // Apply column offset if available (1-based column → 0-based byte offset within line).
+    let byte_offset = if let Some(col) = failure.source_column {
+        line_start + col.saturating_sub(1)
+    } else {
+        line_start
+    };
 
-    let mut colors = ColorGenerator::new();
-    let color = colors.next();
-
-    // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, and Deadlock
-    // DataRaceFreedom, LockInvariant, and ChannelSafety are Errors
+    // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, and Deadlock.
     let report_kind = if failure.vc_kind == VcKind::MemorySafety
         || failure.vc_kind == VcKind::FloatingPointNaN
         || failure.vc_kind == VcKind::Deadlock
@@ -64,41 +85,101 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         ReportKind::Error
     };
 
-    let report = Report::build(report_kind, source_file, offset)
+    let mut colors = ColorGenerator::new();
+
+    // Build initial report with the primary span at the failing line.
+    let primary_color = colors.next();
+    let mut report = Report::build(report_kind, source_file, byte_offset)
         .with_message(format!(
             "verification failed: {}",
             vc_kind_description(&failure.vc_kind)
         ))
         .with_label(
-            Label::new((source_file, offset..offset + 1))
+            Label::new((source_file, byte_offset..byte_offset + 1))
                 .with_message(failure.message.clone())
-                .with_color(color),
+                .with_color(primary_color),
         );
 
-    let report = if let Some(ref contract) = failure.contract_text {
-        report.with_note(format!("contract: {}", contract))
+    // Add contract note if available.
+    if let Some(ref contract) = failure.contract_text {
+        report = report.with_note(format!("contract: {}", contract));
+    }
+
+    // Render typed counterexample variables via cex_render.
+    let cex_vars = if let Some(ref cx) = failure.counterexample {
+        crate::cex_render::render_counterexample(
+            cx,
+            &failure.source_names,
+            &failure.locals,
+            &failure.params,
+        )
     } else {
-        report
+        Vec::new()
     };
 
-    let report = if let Some(ref cx) = failure.counterexample {
-        report.with_help(format_counterexample(cx))
-    } else {
-        report
-    };
+    // Add per-variable Labels at their use sites in the spec line.
+    // Search for each variable name in source_text starting from the failing line.
+    let search_base = &source_text[byte_offset.min(source_text.len())..];
+    for var in &cex_vars {
+        let var_color = colors.next();
 
-    let _report = if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
-        report.with_help(suggestion)
-    } else {
-        report
-    };
+        if let Some(initial) = &var.initial {
+            // Two-value variable: add (initial) label at param site (search backward from line start)
+            // and (at failure) label at the failing spec line.
+            // For the initial label, search backward from line_start for the param name.
+            let before_line = &source_text[..line_start.min(source_text.len())];
+            if let Some(init_rel) = before_line.rfind(var.name.as_str()) {
+                let init_end = init_rel + var.name.len();
+                report = report.with_label(
+                    Label::new((source_file, init_rel..init_end))
+                        .with_message(format!(
+                            "{} (initial): {} = {}",
+                            var.name, var.ty, initial.display
+                        ))
+                        .with_color(var_color),
+                );
+            }
 
-    // For now, we can't actually read source files, so we skip eprint for ariadne.
-    // When integrated with rustc driver, we'd use the real source map:
-    // _report.finish().eprint((source_file, Source::from(source_text))).unwrap();
+            // at-failure label at the spec line.
+            let at_failure_display = var
+                .at_failure
+                .as_ref()
+                .map(|v| v.display.as_str())
+                .unwrap_or(var.display.as_str());
+            if let Some(rel_pos) = search_base.find(var.name.as_str()) {
+                let abs_pos = byte_offset + rel_pos;
+                let abs_end = abs_pos + var.name.len();
+                report = report.with_label(
+                    Label::new((source_file, abs_pos..abs_end))
+                        .with_message(format!(
+                            "{} (at failure): {} = {}",
+                            var.name, var.ty, at_failure_display
+                        ))
+                        .with_color(var_color),
+                );
+            }
+        } else if let Some(rel_pos) = search_base.find(var.name.as_str()) {
+            // Single-value variable: one label at the spec line.
+            let abs_pos = byte_offset + rel_pos;
+            let abs_end = abs_pos + var.name.len();
+            report = report.with_label(
+                Label::new((source_file, abs_pos..abs_end))
+                    .with_message(format!("{}: {} = {}", var.name, var.ty, var.display))
+                    .with_color(var_color),
+            );
+        }
+    }
 
-    // Fall back to text for now
-    report_text_only(failure);
+    // Add fix suggestion if available.
+    if let Some(suggestion) = suggest_fix(&failure.vc_kind) {
+        report = report.with_help(suggestion);
+    }
+
+    // Emit ariadne report with actual source text.
+    report
+        .finish()
+        .eprint((source_file, Source::from(&source_text)))
+        .unwrap_or(());
 }
 
 /// Report failure using colored text output (no source file access).
@@ -1355,6 +1436,9 @@ mod tests {
             source_column: None,
             counterexample,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "test failure message".to_string(),
         }
     }
@@ -1670,6 +1754,9 @@ mod tests {
                 ("_2".to_string(), "#x00000001".to_string()),
             ]),
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "i32 addition may overflow".to_string(),
         };
         report_verification_failure(&failure);
@@ -1686,6 +1773,9 @@ mod tests {
             source_column: None,
             counterexample: Some(vec![("_1".to_string(), "-1".to_string())]),
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "postcondition 'result >= 0' not proven".to_string(),
         };
         report_verification_failure(&failure);
@@ -1702,6 +1792,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "assertion might fail".to_string(),
         };
         report_verification_failure(&failure);
@@ -1976,6 +2069,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "FnOnce closure called more than once".to_string(),
         };
         report_text_only(&failure);
@@ -2141,6 +2237,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "null-check failed for _1".to_string(),
         };
         report_text_only(&failure);
@@ -2157,6 +2256,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "bounds-check failed for ptr".to_string(),
         };
         report_text_only(&failure);
@@ -2173,6 +2275,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "no safety contracts found".to_string(),
         };
         report_text_only(&failure);
@@ -2191,6 +2296,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "null-check failed".to_string(),
         };
         // This should use ReportKind::Warning instead of Error
@@ -2218,6 +2326,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "NaN propagation check failed".to_string(),
         };
         // This should emit the performance warning (once)
@@ -2245,6 +2356,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "data race detected".to_string(),
         };
         // This should emit the bounded verification warning (once)
@@ -2334,6 +2448,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "data race".to_string(),
         };
         report_with_ariadne(&dr_failure, "test.rs", 10);
@@ -2348,6 +2465,9 @@ mod tests {
             source_column: None,
             counterexample: None,
             counterexample_v2: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
             message: "deadlock".to_string(),
         };
         report_with_ariadne(&dl_failure, "test.rs", 10);

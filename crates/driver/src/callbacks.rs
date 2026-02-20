@@ -687,9 +687,12 @@ impl Callbacks for VerificationCallbacks {
                         contract_text: result.vc_location.contract_text.clone(),
                         source_file: result.vc_location.source_file.clone(),
                         source_line: result.vc_location.source_line,
-                        source_column: None,
+                        source_column: result.vc_location.source_column,
                         counterexample,
                         counterexample_v2,
+                        source_names: task_result.source_names.clone(),
+                        locals: task_result.locals.clone(),
+                        params: task_result.params.clone(),
                         message: result.condition.clone(),
                     });
                 }

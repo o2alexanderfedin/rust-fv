@@ -59,6 +59,13 @@ pub struct VerificationTaskResult {
     pub invalidation_reason: Option<crate::invalidation::InvalidationReason>,
     /// Verification duration in milliseconds (None if cached)
     pub duration_ms: Option<u64>,
+    /// SSA-name → source-name mapping for ariadne span label rendering.
+    /// Populated from `ir::Function.source_names` when IR is available.
+    pub source_names: std::collections::HashMap<String, String>,
+    /// Typed local variables for `cex_render` type-dispatch in diagnostics.
+    pub locals: Vec<rust_fv_analysis::ir::Local>,
+    /// Typed parameter locals for `cex_render` type-dispatch in diagnostics.
+    pub params: Vec<rust_fv_analysis::ir::Local>,
 }
 
 /// Verify multiple functions in parallel using Rayon.
@@ -153,6 +160,9 @@ pub fn verify_functions_parallel(
                 from_cache: true,
                 invalidation_reason: None,
                 duration_ms: None,
+                source_names: task.ir_func.source_names.clone(),
+                locals: task.ir_func.locals.clone(),
+                params: task.ir_func.params.clone(),
             }
         })
         .collect();
@@ -240,6 +250,9 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 from_cache: false,
                 invalidation_reason: None,
                 duration_ms: None,
+                source_names: task.ir_func.source_names.clone(),
+                locals: task.ir_func.locals.clone(),
+                params: task.ir_func.params.clone(),
             };
         }
     };
@@ -334,6 +347,9 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         from_cache: false,
         invalidation_reason: None, // Will be set by caller
         duration_ms: None,         // Will be set by caller
+        source_names: task.ir_func.source_names.clone(),
+        locals: task.ir_func.locals.clone(),
+        params: task.ir_func.params.clone(),
     }
 }
 
@@ -413,6 +429,9 @@ mod tests {
             from_cache: false,
             invalidation_reason: Some(InvalidationReason::MirChanged),
             duration_ms: Some(42),
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
         };
 
         assert_eq!(result.name, "test_func");
@@ -433,6 +452,9 @@ mod tests {
             from_cache: true,
             invalidation_reason: None,
             duration_ms: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
         };
 
         assert!(result.from_cache);
