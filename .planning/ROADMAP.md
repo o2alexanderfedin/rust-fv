@@ -279,5 +279,5 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 19. Counterexample Generation | 4/4 | Complete    | 2026-02-20 | - |
 | 20. Separation Logic | 4/4 | Complete    | 2026-02-20 | - |
 | 21. Weak Memory Models | 3/3 | Complete    | 2026-02-20 | - |
-| 22. Higher-Order Closures | 1/3 | In Progress|  | - |
+| 22. Higher-Order Closures | 1/3 | Complete    | 2026-02-20 | - |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
