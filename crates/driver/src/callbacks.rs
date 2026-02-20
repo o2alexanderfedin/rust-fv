@@ -11,6 +11,7 @@ use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
 
 use rust_fv_analysis::differential::{SolverInterface, VcOutcome};
+use rust_fv_analysis::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabase};
 use rust_fv_smtlib::script::Script;
 
 use crate::diagnostics;
@@ -134,6 +135,9 @@ pub struct VerificationCallbacks {
     bv2int_threshold: f64,
     /// Per-function bv2int results (populated when bv2int_enabled or bv2int_report)
     bv2int_records: Vec<Bv2intFunctionRecord>,
+    /// Ghost predicate database populated from #[ghost_predicate] doc attributes.
+    /// Available after after_analysis() for use by the spec parser (Plan 03).
+    pub ghost_pred_db: GhostPredicateDatabase,
 }
 
 impl VerificationCallbacks {
@@ -173,6 +177,7 @@ impl VerificationCallbacks {
             bv2int_report,
             bv2int_threshold,
             bv2int_records: Vec::new(),
+            ghost_pred_db: GhostPredicateDatabase::new(),
         }
     }
 
@@ -194,6 +199,7 @@ impl VerificationCallbacks {
             bv2int_report: false,
             bv2int_threshold: 2.0,
             bv2int_records: Vec::new(),
+            ghost_pred_db: GhostPredicateDatabase::new(),
         }
     }
 
@@ -390,6 +396,9 @@ impl Callbacks for VerificationCallbacks {
 
         // Extract contracts from HIR attributes
         let contracts_map = extract_contracts(tcx);
+
+        // Extract ghost predicates from HIR doc attributes and store on self
+        self.ghost_pred_db = extract_ghost_predicates(tcx);
 
         // Build the contract database for inter-procedural verification
         let mut contract_db = rust_fv_analysis::contract_db::ContractDatabase::new();
@@ -811,6 +820,50 @@ fn extract_contracts(
     }
 
     map
+}
+
+/// Extract ghost predicates from HIR doc attributes.
+///
+/// Scans all HIR body owners for doc attributes matching the format
+/// `rust_fv::ghost_predicate::name::params::body` (emitted by the
+/// `#[ghost_predicate]` proc-macro) and populates a [`GhostPredicateDatabase`].
+///
+/// The format after stripping the `rust_fv::ghost_predicate::` prefix is:
+/// `fn_name::param1,param2::body_tokens`
+fn extract_ghost_predicates(tcx: TyCtxt<'_>) -> GhostPredicateDatabase {
+    let mut ghost_predicate_db = GhostPredicateDatabase::new();
+
+    for local_def_id in tcx.hir_body_owners() {
+        let hir_id = tcx.local_def_id_to_hir_id(local_def_id);
+        let attrs = tcx.hir_attrs(hir_id);
+
+        for attr in attrs {
+            if let Some(doc) = extract_doc_value(attr)
+                && let Some(pred_spec) = doc.strip_prefix("rust_fv::ghost_predicate::")
+            {
+                // Format after prefix: "fn_name::param1,param2::body_tokens"
+                let parts: Vec<&str> = pred_spec.splitn(3, "::").collect();
+                if parts.len() == 3 {
+                    let pred_name = parts[0].to_string();
+                    let param_names: Vec<String> = parts[1]
+                        .split(',')
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string())
+                        .collect();
+                    let body_raw = parts[2].to_string();
+                    ghost_predicate_db.insert(
+                        pred_name,
+                        GhostPredicate {
+                            param_names,
+                            body_raw,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    ghost_predicate_db
 }
 
 /// Extract the string value from a `#[doc = "..."]` attribute.

@@ -17,7 +17,8 @@
 use rust_fv_smtlib::term::Term;
 use syn::{BinOp as SynBinOp, Expr, Lit, UnOp as SynUnOp};
 
-use crate::ir::{Function, Ty};
+use crate::ir::{Function, IntTy, Ty, UintTy};
+use crate::sep_logic;
 
 /// Parse a specification expression string into an SMT Term.
 ///
@@ -509,6 +510,32 @@ fn convert_call(
                 return convert_final_value(&call_expr.args[0], func, bound_vars);
             }
 
+            "pts_to" => {
+                // pts_to(ptr, value) — raw pointer ownership predicate
+                if call_expr.args.len() != 2 {
+                    tracing::warn!("pts_to() requires exactly 2 arguments: pts_to(ptr, val)");
+                    return None;
+                }
+                let ptr_term = convert_expr_with_bounds(
+                    &call_expr.args[0],
+                    func,
+                    false,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                let val_term = convert_expr_with_bounds(
+                    &call_expr.args[1],
+                    func,
+                    false,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                // Determine pointee bit width from pointer parameter type.
+                // Default to 64 bits if type cannot be resolved (conservative).
+                let pointee_bits = resolve_pointee_bits(&call_expr.args[0], func).unwrap_or(64);
+                return Some(sep_logic::encode_pts_to(ptr_term, val_term, pointee_bits));
+            }
+
             _ => {
                 // Unknown function call
                 return None;
@@ -517,6 +544,36 @@ fn convert_call(
     }
 
     // Not a known function call
+    None
+}
+
+/// Resolve the pointee bit width for a `pts_to(ptr, val)` call from the pointer argument type.
+///
+/// Looks up the first argument name in `func.params` to find a param with `Ty::RawPtr(inner, _)`,
+/// then maps the inner type to a bit width.
+/// Returns `None` if the type cannot be resolved (caller should use a default).
+fn resolve_pointee_bits(arg: &Expr, func: &Function) -> Option<u32> {
+    // Arg must be a simple path expression
+    if let Expr::Path(path_expr) = arg
+        && path_expr.path.segments.len() == 1
+    {
+        let ident = path_expr.path.segments[0].ident.to_string();
+        // Look for a param named `ident` with a RawPtr type
+        for param in &func.params {
+            if param.name == ident
+                && let Ty::RawPtr(inner, _) = &param.ty
+            {
+                return match inner.as_ref() {
+                    Ty::Int(IntTy::I8) | Ty::Uint(UintTy::U8) => Some(8),
+                    Ty::Int(IntTy::I16) | Ty::Uint(UintTy::U16) => Some(16),
+                    Ty::Int(IntTy::I32) | Ty::Uint(UintTy::U32) => Some(32),
+                    Ty::Int(IntTy::I64) | Ty::Uint(UintTy::U64) => Some(64),
+                    Ty::Bool => Some(8),
+                    _ => None,
+                };
+            }
+        }
+    }
     None
 }
 
@@ -2155,6 +2212,78 @@ mod tests {
         } else {
             panic!("Expected Exists, got {term:?}");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // pts_to predicate parsing tests (Phase 20-01)
+    // -----------------------------------------------------------------------
+
+    fn make_raw_ptr_func() -> Function {
+        use crate::ir::Mutability;
+        Function {
+            name: "test_pts_to".to_string(),
+            params: vec![
+                Local::new(
+                    "p",
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                ),
+                Local::new("v", Ty::Int(IntTy::I32)),
+            ],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_pts_to_parse_basic() {
+        let func = make_raw_ptr_func();
+        let term = parse_spec_expr("pts_to(p, v)", &func);
+        assert!(term.is_some(), "pts_to(p, v) should parse successfully");
+        let term = term.unwrap();
+        // pts_to encodes as Term::And([Select(perm, ptr), Eq(...)])
+        assert!(
+            matches!(term, Term::And(_)),
+            "pts_to must produce Term::And, got {term:?}"
+        );
+        if let Term::And(arms) = &term {
+            assert_eq!(arms.len(), 2, "pts_to And must have exactly 2 arms");
+            // First arm: Select(perm, ptr)
+            assert!(
+                matches!(&arms[0], Term::Select(arr, _) if matches!(arr.as_ref(), Term::Const(n) if n == "perm")),
+                "First arm must be Select(perm, ...), got {:?}",
+                arms[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_pts_to_wrong_arity() {
+        let func = make_raw_ptr_func();
+        // pts_to with only 1 argument must return None (warn and bail)
+        let term = parse_spec_expr("pts_to(p)", &func);
+        assert!(
+            term.is_none(),
+            "pts_to with wrong arity must return None, got {term:?}"
+        );
     }
 
     #[test]
