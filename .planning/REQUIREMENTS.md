@@ -19,7 +19,7 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 - [ ] **SEP-01**: User can write `pts_to(p, v)` ownership predicate in `#[requires]`/`#[ensures]` to specify raw pointer ownership
 - [ ] **SEP-02**: User can write separating conjunction (`H1 * H2`) in specs to prove disjoint ownership and aliasing freedom
 - [ ] **SEP-03**: Frame rule is automatically applied during function calls so unchanged heap portions are not required to be manually re-specified
-- [ ] **SEP-04**: User can define recursive heap predicates via `#[ghost_predicate]` (e.g. `linked_list(p, n)`) with bounded unfolding (depth 3)
+- [x] **SEP-04**: User can define recursive heap predicates via `#[ghost_predicate]` (e.g. `linked_list(p, n)`) with bounded unfolding (depth 3)
 
 ### Weak Memory Models
 
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEP-01 | Phase 20 | Pending |
 | SEP-02 | Phase 20 | Pending |
 | SEP-03 | Phase 20 | Pending |
-| SEP-04 | Phase 20 | Pending |
+| SEP-04 | Phase 20 | Complete |
 | WMM-01 | Phase 21 | Pending |
 | WMM-02 | Phase 21 | Pending |
 | WMM-03 | Phase 21 | Pending |
