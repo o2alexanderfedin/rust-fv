@@ -45,6 +45,7 @@ use crate::encode_term::{
 };
 use crate::ir::*;
 use crate::ownership::{OwnershipConstraint, classify_argument, generate_ownership_constraints};
+use crate::sep_logic;
 use crate::spec_parser;
 
 /// A verification condition with metadata for error reporting.
@@ -1685,6 +1686,15 @@ fn generate_contract_vcs(
             script.push(Command::Assert(Term::Or(path_conds)));
         }
 
+        // Sep-logic: if the function's contracts mention pts_to, upgrade to QF_AUFBV
+        // and prepend sep-heap declarations so the solver can interpret the heap arrays.
+        if has_sep_logic_spec(&func.contracts) {
+            prepend_sep_heap_decls(&mut script);
+            // No frame forall in postcondition VCs (no call site), so use QF_AUFBV
+            let new_logic = sep_logic::sep_logic_smt_logic(false);
+            script = replace_script_logic(script, new_logic);
+        }
+
         // Negate postcondition and check if SAT (= postcondition violated)
         if let Some(post_term) = parse_spec(&post.raw, func) {
             script.push(Command::Comment(format!(
@@ -1892,6 +1902,37 @@ fn build_arg_substitutions(
     subs
 }
 
+/// Check whether a function's contracts contain separation-logic predicates.
+///
+/// A cheap syntactic check: returns `true` if any `requires` or `ensures`
+/// raw string contains the substring `"pts_to("`. This is sufficient for Phase 20
+/// to determine whether sep-heap declarations and frame axioms are needed.
+fn has_sep_logic_spec(contracts: &Contracts) -> bool {
+    contracts.requires.iter().any(|s| s.raw.contains("pts_to("))
+        || contracts.ensures.iter().any(|s| s.raw.contains("pts_to("))
+}
+
+/// Prepend sep-heap SMT declarations to a script.
+///
+/// Inserts `declare_sep_heap()` and `declare_heapval_accessor(64)` commands
+/// immediately after the `SetLogic` command (which is always the first command).
+fn prepend_sep_heap_decls(script: &mut Script) {
+    let mut sep_decls: Vec<Command> = sep_logic::declare_sep_heap();
+    sep_decls.push(sep_logic::declare_heapval_accessor(64));
+
+    // Insert after SetLogic (index 0)
+    let commands: Vec<Command> = script.commands().to_vec();
+    let mut new_commands = Vec::with_capacity(commands.len() + sep_decls.len());
+    if let Some((first, rest)) = commands.split_first() {
+        new_commands.push(first.clone());
+        new_commands.extend(sep_decls);
+        new_commands.extend_from_slice(rest);
+    } else {
+        new_commands.extend(sep_decls);
+    }
+    *script = Script::with_commands(new_commands);
+}
+
 /// Generate call-site precondition VCs for inter-procedural verification.
 ///
 /// For each call site on each path, if the callee has preconditions in the
@@ -1981,6 +2022,49 @@ fn generate_call_site_vcs(
                 // If there's a path condition, assume it
                 if let Some(ref cond) = call_site.path_condition {
                     script.push(Command::Assert(cond.clone()));
+                }
+
+                // Sep-logic frame rule: if callee has pts_to in contracts, emit frame axiom
+                // and upgrade SMT logic to AUFBV (arrays + bitvectors + quantifiers).
+                if has_sep_logic_spec(&callee_summary.contracts) {
+                    // 1. Prepend sep-heap declarations after SetLogic
+                    prepend_sep_heap_decls(&mut script);
+
+                    // 2. Snapshot sep_heap before the call (sep_heap_pre = sep_heap)
+                    script.push(Command::DeclareFun(
+                        "sep_heap_pre".to_string(),
+                        vec![],
+                        rust_fv_smtlib::sort::Sort::Array(
+                            Box::new(rust_fv_smtlib::sort::Sort::BitVec(64)),
+                            Box::new(rust_fv_smtlib::sort::Sort::Uninterpreted(
+                                "HeapVal".to_string(),
+                            )),
+                        ),
+                    ));
+                    script.push(Command::Assert(Term::Eq(
+                        Box::new(Term::Const("sep_heap_pre".to_string())),
+                        Box::new(Term::Const("sep_heap".to_string())),
+                    )));
+
+                    // 3. Extract footprint from callee's requires terms and emit frame axiom
+                    let mut footprint_ptrs = Vec::new();
+                    for req in &callee_summary.contracts.requires {
+                        if let Some(req_term) = parse_spec(&req.raw, &callee_func_context) {
+                            let fp = sep_logic::extract_pts_to_footprint(&req_term);
+                            footprint_ptrs.extend(fp);
+                        }
+                    }
+                    // Substitute callee param names with caller arg terms in footprint
+                    let footprint_substituted: Vec<Term> = footprint_ptrs
+                        .iter()
+                        .map(|t| substitute_term(t, &arg_subs))
+                        .collect();
+                    let frame_axiom = sep_logic::build_frame_axiom(&footprint_substituted);
+                    script.push(Command::Assert(frame_axiom));
+
+                    // 4. Upgrade SMT logic from QF_BV to AUFBV (frame forall needs quantifiers)
+                    let new_logic = sep_logic::sep_logic_smt_logic(true);
+                    script = replace_script_logic(script, new_logic);
                 }
 
                 // Assert that the callee's precondition CAN be violated (negate it)
@@ -7732,6 +7816,125 @@ mod tests {
         assert!(
             vcs.iter()
                 .any(|vc| vc.description.contains("Bounded verification"))
+        );
+    }
+
+    // === Phase 20-03: Sep-logic call site VC tests ===
+
+    /// Build a caller function that calls a callee named "write_ptr" with one RawPtr arg.
+    fn make_sep_logic_caller() -> Function {
+        use crate::ir::Mutability;
+
+        // bb0: call write_ptr(_1) -> bb1
+        let bb0 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "write_ptr".to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_0"),
+                target: 1,
+            },
+        };
+        let bb1 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        };
+
+        Function {
+            name: "caller".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![bb0, bb1],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_sep_logic_call_site_vc_uses_aufbv() {
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        use crate::ir::Mutability;
+
+        // Build callee summary: write_ptr requires pts_to(_1, _2)
+        let callee_contracts = Contracts {
+            requires: vec![SpecExpr {
+                raw: "pts_to(_1, _2)".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+        };
+
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "write_ptr".to_string(),
+            FunctionSummary {
+                contracts: callee_contracts,
+                param_names: vec!["_1".to_string(), "_2".to_string()],
+                param_types: vec![
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                    Ty::Int(IntTy::I32),
+                ],
+                return_ty: Ty::Unit,
+            },
+        );
+
+        let caller = make_sep_logic_caller();
+        let result = generate_vcs(&caller, Some(&contract_db));
+
+        // Find the call-site precondition VC(s)
+        let call_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::Precondition)
+            .collect();
+
+        assert!(
+            !call_vcs.is_empty(),
+            "Expected at least one Precondition VC for sep-logic call site, got VCs: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{}: {:?}", vc.description, vc.location.vc_kind))
+                .collect::<Vec<_>>(),
+        );
+
+        // The VC script must use AUFBV logic (frame forall requires quantifiers)
+        let vc = &call_vcs[0];
+        let script_str = vc.script.to_string();
+
+        assert!(
+            script_str.contains("AUFBV"),
+            "Sep-logic call-site VC must use AUFBV logic, got script:\n{}",
+            script_str
+        );
+
+        // The VC script must declare sep_heap
+        assert!(
+            script_str.contains("sep_heap"),
+            "Sep-logic call-site VC must declare sep_heap, got script:\n{}",
+            script_str
         );
     }
 }
