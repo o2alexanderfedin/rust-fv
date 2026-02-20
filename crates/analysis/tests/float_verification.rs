@@ -77,6 +77,7 @@ fn build_float_add_function(param_ty: FloatTy) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -116,6 +117,7 @@ fn build_float_mul_function(param_ty: FloatTy) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -155,6 +157,7 @@ fn build_float_div_function(param_ty: FloatTy) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -194,6 +197,7 @@ fn build_float_comparison_function(op: BinOp, param_ty: FloatTy) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -249,6 +253,7 @@ fn build_multi_float_ops_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -284,6 +289,7 @@ fn build_float_constant_function(value: f64, param_ty: FloatTy) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -323,6 +329,7 @@ fn build_float_div_zero_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -808,6 +815,7 @@ fn test_safe_function_no_float_vcs() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Generate VCs

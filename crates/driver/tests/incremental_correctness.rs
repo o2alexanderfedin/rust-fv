@@ -58,6 +58,7 @@ fn make_function(name: &str, basic_blocks: Vec<BasicBlock>, contracts: Contracts
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 

@@ -476,6 +476,7 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -551,6 +552,7 @@ fn make_even(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -626,6 +628,7 @@ fn make_odd(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -741,6 +744,7 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -1045,6 +1049,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1134,6 +1139,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1292,6 +1298,7 @@ fn snd_recursive_without_decreases_rejected() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

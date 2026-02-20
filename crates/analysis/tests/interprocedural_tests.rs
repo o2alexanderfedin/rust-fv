@@ -412,6 +412,7 @@ fn make_caller_function(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -694,6 +695,7 @@ fn test_call_site_postcondition_assumed() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -816,6 +818,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -933,6 +936,7 @@ fn test_call_chain_no_blowup() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1012,6 +1016,7 @@ fn test_call_without_contracts_treated_as_opaque() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 

@@ -355,6 +355,13 @@ pub struct Function {
     /// Concurrency verification configuration.
     /// None if concurrency verification not enabled.
     pub concurrency_config: Option<ConcurrencyConfig>,
+    /// Mapping from SSA local name (e.g. `"_1"`) to the Rust source name
+    /// (e.g. `"x"`), populated from `rustc`'s `var_debug_info`.
+    ///
+    /// Used by counterexample rendering to display human-readable variable
+    /// names instead of MIR indices. Empty when no debug info is available
+    /// (e.g. in unit-test IR constructions or release builds).
+    pub source_names: std::collections::HashMap<String, String>,
 }
 
 impl Function {
@@ -928,6 +935,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(func.is_generic());
     }
@@ -957,6 +965,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(!func.is_generic());
     }
@@ -991,6 +1000,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1023,6 +1033,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1052,6 +1063,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1081,6 +1093,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1113,6 +1126,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1687,6 +1701,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -1782,6 +1797,7 @@ mod tests {
                 max_threads: 4,
                 max_context_switches: 10,
             }),
+            source_names: std::collections::HashMap::new(),
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -1790,5 +1806,74 @@ mod tests {
         assert!(config.verify_concurrency);
         assert_eq!(config.max_threads, 4);
         assert_eq!(config.max_context_switches, 10);
+    }
+
+    // ====== source_names field tests (Phase 19) ======
+
+    /// Verify that Function carries a source_names field of type HashMap<String,String>.
+    #[test]
+    fn function_source_names_field_exists_and_is_empty_by_default() {
+        let func = Function {
+            name: "test_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+        };
+        assert!(func.source_names.is_empty());
+    }
+
+    /// Verify that source_names can carry SSA-index-to-source-name mappings.
+    #[test]
+    fn function_source_names_stores_ssa_mappings() {
+        let mut names = std::collections::HashMap::new();
+        names.insert("_1".to_string(), "x".to_string());
+        names.insert("_2".to_string(), "y".to_string());
+
+        let func = Function {
+            name: "test_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: names,
+        };
+        assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
+        assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
     }
 }

@@ -35,6 +35,12 @@ pub struct VerificationTask {
     pub dependencies: Vec<String>,
     /// Invalidation decision (whether to verify and why)
     pub invalidation_decision: crate::invalidation::InvalidationDecision,
+    /// Pre-built source location map: `(block_idx, stmt_idx)` → `(file, line, col)`.
+    ///
+    /// Built in `after_analysis` from MIR `SourceInfo` spans while `TyCtxt`
+    /// is still live. Used by the parallel worker to fill `VcLocation` fields
+    /// after VcGen runs. Empty map means no source info available.
+    pub source_locations: std::collections::HashMap<(usize, usize), (String, usize, usize)>,
 }
 
 /// Result of verifying a single function.
@@ -111,6 +117,7 @@ pub fn verify_functions_parallel(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::Postcondition,
                     },
@@ -130,6 +137,7 @@ pub fn verify_functions_parallel(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::Postcondition,
                     },
@@ -220,6 +228,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::PanicFreedom,
                     },
@@ -233,7 +242,23 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
     };
 
     // Generate VCs with inter-procedural support
-    let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&task.ir_func, Some(&task.contract_db));
+    let mut func_vcs =
+        rust_fv_analysis::vcgen::generate_vcs(&task.ir_func, Some(&task.contract_db));
+
+    // Fill source locations from the pre-built map (populated in after_analysis
+    // while TyCtxt was live). Locations with source_file already set are skipped.
+    if !task.source_locations.is_empty() {
+        for vc in &mut func_vcs.conditions {
+            if vc.location.source_file.is_none() {
+                let key = (vc.location.block, vc.location.statement);
+                if let Some((file, line, col)) = task.source_locations.get(&key) {
+                    vc.location.source_file = Some(file.clone());
+                    vc.location.source_line = Some(*line);
+                    vc.location.source_column = Some(*col);
+                }
+            }
+        }
+    }
 
     let mut results = Vec::new();
 
@@ -259,19 +284,14 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 });
             }
             Ok(rust_fv_solver::SolverResult::Sat(model)) => {
-                let cx_str = model.as_ref().map(|m| {
-                    m.assignments
-                        .iter()
-                        .map(|(k, v)| format!("{k} = {v}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                });
+                // Pass structured pairs directly — no string serialization needed
+                let cx_pairs = model.map(|m| m.assignments);
 
                 results.push(VerificationResult {
                     function_name: task.name.clone(),
                     condition: vc.description.clone(),
                     verified: false,
-                    counterexample: cx_str,
+                    counterexample: cx_pairs,
                     vc_location: vc.location.clone(),
                 });
             }

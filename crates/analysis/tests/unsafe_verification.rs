@@ -84,6 +84,7 @@ fn make_unsafe_function(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -596,6 +597,7 @@ fn test_safe_function_no_unsafe_vcs() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Generate VCs

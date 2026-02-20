@@ -32,6 +32,9 @@ pub struct JsonFailure {
     pub contract: Option<String>,
     pub source_file: Option<String>,
     pub source_line: Option<usize>,
+    /// Source column number (1-based, when available).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_column: Option<usize>,
     pub counterexample: Option<Vec<JsonAssignment>>,
     pub suggestion: Option<String>,
 }
@@ -105,6 +108,7 @@ mod tests {
             contract: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             suggestion: None,
         };
@@ -127,6 +131,7 @@ mod tests {
             contract: Some("x > 0".to_string()),
             source_file: Some("src/lib.rs".to_string()),
             source_line: Some(42),
+            source_column: None,
             counterexample: Some(vec![
                 JsonAssignment {
                     variable: "x".to_string(),
@@ -180,6 +185,7 @@ mod tests {
                 contract: Some("result > 0".to_string()),
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 counterexample: None,
                 suggestion: Some("Check return paths".to_string()),
             }],
@@ -214,6 +220,7 @@ mod tests {
                         contract: None,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         counterexample: None,
                         suggestion: None,
                     }],
@@ -300,6 +307,7 @@ mod tests {
                         contract: None,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         counterexample: None,
                         suggestion: Some("Use checked_add".to_string()),
                     }],
@@ -331,6 +339,7 @@ mod tests {
                     contract: Some("x > 0".to_string()),
                     source_file: Some("src/lib.rs".to_string()),
                     source_line: Some(42),
+                    source_column: None,
                     counterexample: Some(vec![
                         JsonAssignment {
                             variable: "x".to_string(),
@@ -393,6 +402,7 @@ mod tests {
                         contract: None,
                         source_file: Some("src/lib.rs".to_string()),
                         source_line: Some(10),
+                        source_column: None,
                         counterexample: Some(vec![JsonAssignment {
                             variable: "n".to_string(),
                             value: "2147483647".to_string(),
@@ -405,6 +415,7 @@ mod tests {
                         contract: Some("result >= 0".to_string()),
                         source_file: Some("src/lib.rs".to_string()),
                         source_line: Some(15),
+                        source_column: None,
                         counterexample: None,
                         suggestion: Some("Check return paths".to_string()),
                     },
@@ -414,6 +425,7 @@ mod tests {
                         contract: None,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         counterexample: Some(vec![JsonAssignment {
                             variable: "d".to_string(),
                             value: "0".to_string(),
@@ -464,6 +476,7 @@ mod tests {
                     contract: Some("x < y\n&& y < z".to_string()),
                     source_file: Some("src/path with spaces/lib.rs".to_string()),
                     source_line: Some(1),
+                    source_column: None,
                     counterexample: None,
                     suggestion: None,
                 }],

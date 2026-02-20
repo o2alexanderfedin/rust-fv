@@ -483,6 +483,7 @@ fn test_copy_semantics_preserved() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -609,6 +610,7 @@ fn test_shared_borrow_preserved() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -740,6 +742,7 @@ fn test_mutable_borrow_havoced() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -877,6 +880,7 @@ fn test_move_semantics_value_consumed() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1083,6 +1087,7 @@ fn test_mixed_ownership_call() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1212,6 +1217,7 @@ fn test_ownership_with_postcondition_assumption() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1346,6 +1352,7 @@ fn test_no_ownership_without_contract_db() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1446,6 +1453,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         }
     };
@@ -1661,6 +1669,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1822,6 +1831,7 @@ fn test_preservation_constraint_smt_encoding() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 

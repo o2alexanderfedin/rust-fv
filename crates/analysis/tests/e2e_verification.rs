@@ -64,6 +64,7 @@ fn make_add_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -795,6 +796,7 @@ fn make_max_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -1002,6 +1004,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -1123,6 +1126,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -1318,6 +1322,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -1449,6 +1454,7 @@ fn test_single_branch_overflow_check() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     };
 
@@ -1884,6 +1890,7 @@ fn test_quantifier_full_pipeline() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -2003,6 +2010,7 @@ fn test_generic_max_i32_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Register i32 instantiation
@@ -2116,6 +2124,7 @@ fn test_generic_max_u64_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2229,6 +2238,7 @@ fn test_generic_max_wrong_postcondition() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Register i32 instantiation
@@ -2326,6 +2336,7 @@ fn test_generic_multiple_instantiations() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2422,6 +2433,7 @@ fn test_generic_no_instantiations_warning() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2496,6 +2508,7 @@ fn test_prophecy_increment_mut_ref() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2566,6 +2579,7 @@ fn test_prophecy_no_mutation_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2662,6 +2676,7 @@ fn test_prophecy_conditional_mutation() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2735,6 +2750,7 @@ fn test_prophecy_basic() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

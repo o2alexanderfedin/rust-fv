@@ -228,6 +228,7 @@ mod tests {
                     contract: Some("result > 0".to_string()),
                     source_file: Some("src/lib.rs".to_string()),
                     source_line: Some(5),
+                    source_column: None,
                     counterexample: Some(vec![
                         JsonAssignment {
                             variable: "x".to_string(),
@@ -265,6 +266,7 @@ mod tests {
                     contract: None,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     counterexample: None,
                     suggestion: None,
                 }],
@@ -302,6 +304,7 @@ mod tests {
                             contract: Some("result >= 0".to_string()),
                             source_file: Some("src/lib.rs".to_string()),
                             source_line: Some(10),
+                            source_column: None,
                             counterexample: None,
                             suggestion: None,
                         },
@@ -311,6 +314,7 @@ mod tests {
                             contract: None,
                             source_file: Some("src/lib.rs".to_string()),
                             source_line: Some(12),
+                            source_column: None,
                             counterexample: Some(vec![JsonAssignment {
                                 variable: "n".to_string(),
                                 value: "2147483647".to_string(),
@@ -330,6 +334,7 @@ mod tests {
                         contract: Some("x > 0".to_string()),
                         source_file: Some("src/utils.rs".to_string()),
                         source_line: Some(25),
+                        source_column: None,
                         counterexample: Some(vec![JsonAssignment {
                             variable: "x".to_string(),
                             value: "0".to_string(),

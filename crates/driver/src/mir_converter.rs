@@ -1,13 +1,45 @@
-use rustc_hir::def_id::LocalDefId;
 /// Convert `rustc` MIR to our verification IR.
 ///
 /// This is the thin translation layer between the compiler's internal
 /// representation and our stable, testable IR. When `rustc` internals
 /// change, only this module needs updating.
+use rustc_hir::def_id::LocalDefId;
 use rustc_middle::mir;
+use rustc_middle::mir::VarDebugInfoContents;
 use rustc_middle::ty::{self, TyCtxt};
 
 use rust_fv_analysis::ir;
+
+/// Build a map from SSA local name (e.g. `"_1"`) to the Rust source name
+/// (e.g. `"x"`) by scanning `var_debug_info` entries in a MIR body.
+///
+/// Only direct, non-projected place entries are harvested:
+/// - `VarDebugInfoContents::Place(p)` where `p.projection.is_empty()` → inserted
+/// - Composite/const entries (non-empty projection or const value) → skipped
+///
+/// This helper is extracted into a standalone function so that it can be
+/// tested independently without constructing a full `TyCtxt`.
+pub fn build_source_names(body: &mir::Body<'_>) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for info in body.var_debug_info.iter() {
+        if let VarDebugInfoContents::Place(p) = &info.value
+            && p.projection.is_empty()
+        {
+            let ssa_name = format!("_{}", p.local.as_usize());
+            map.insert(ssa_name, info.name.to_string());
+        }
+    }
+    map
+}
+
+/// Determine whether a local is ghost based on its source name.
+///
+/// A local whose debug name starts with `"__ghost_"` is considered
+/// specification-only (ghost). This convention is enforced by the
+/// `#[ghost]` proc-macro which prefixes ghost parameters.
+fn is_ghost_local(source_name: &str) -> bool {
+    source_name.starts_with("__ghost_")
+}
 
 /// Convert a rustc MIR body to our IR Function.
 pub fn convert_mir(
@@ -19,6 +51,9 @@ pub fn convert_mir(
     let def_id = local_def_id.to_def_id();
     let name = tcx.def_path_str(def_id);
 
+    // Build source name map from var_debug_info (SSA index → Rust variable name).
+    let source_names = build_source_names(body);
+
     // Convert return type (local _0)
     let return_ty = convert_ty(body.local_decls[mir::Local::ZERO].ty);
     let return_local = ir::Local {
@@ -27,28 +62,38 @@ pub fn convert_mir(
         is_ghost: false,
     };
 
-    // Convert parameters
+    // Convert parameters, marking ghost locals based on debug name prefix.
     let params: Vec<ir::Local> = body
         .args_iter()
         .map(|local| {
             let decl = &body.local_decls[local];
+            let ssa_name = format!("_{}", local.as_usize());
+            let ghost = source_names
+                .get(&ssa_name)
+                .map(|n| is_ghost_local(n))
+                .unwrap_or(false);
             ir::Local {
-                name: format!("_{}", local.as_usize()),
+                name: ssa_name,
                 ty: convert_ty(decl.ty),
-                is_ghost: false,
+                is_ghost: ghost,
             }
         })
         .collect();
 
-    // Convert other locals (temporaries)
+    // Convert other locals (temporaries), marking ghost locals.
     let locals: Vec<ir::Local> = body
         .vars_and_temps_iter()
         .map(|local| {
             let decl = &body.local_decls[local];
+            let ssa_name = format!("_{}", local.as_usize());
+            let ghost = source_names
+                .get(&ssa_name)
+                .map(|n| is_ghost_local(n))
+                .unwrap_or(false);
             ir::Local {
-                name: format!("_{}", local.as_usize()),
+                name: ssa_name,
                 ty: convert_ty(decl.ty),
-                is_ghost: false,
+                is_ghost: ghost,
             }
         })
         .collect();
@@ -83,6 +128,7 @@ pub fn convert_mir(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names,
     }
 }
 

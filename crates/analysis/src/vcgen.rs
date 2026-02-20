@@ -68,6 +68,11 @@ pub struct VcLocation {
     pub source_file: Option<String>,
     /// Source line number (1-based, when available)
     pub source_line: Option<usize>,
+    /// Source column number (1-based, when available).
+    ///
+    /// Populated by `fill_vc_locations` in the driver when MIR `SourceInfo`
+    /// spans are available. `None` in unit-test contexts.
+    pub source_column: Option<usize>,
     /// The specific contract text that failed (e.g., "result > 0")
     pub contract_text: Option<String>,
     /// What kind of verification condition this is
@@ -324,6 +329,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some("add #[decreases(expr)] annotation".to_string()),
                         vc_kind: VcKind::Termination,
                     },
@@ -385,6 +391,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some("FnOnce closures can only be called once".to_string()),
                     vc_kind: VcKind::ClosureContract,
                 },
@@ -484,6 +491,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: Some(
                     "add #[unsafe_requires], #[unsafe_ensures], or #[trusted]".to_string(),
                 ),
@@ -560,6 +568,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(format!("{} != null", ptr_local)),
                         vc_kind: VcKind::MemorySafety,
                     },
@@ -621,6 +630,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(format!(
                             "offset {} within allocation bounds",
                             offset_local
@@ -1454,6 +1464,7 @@ fn generate_overflow_vc(
                 statement: ov.stmt_idx,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: None,
                 vc_kind: VcKind::from_overflow_op(ov.op),
             },
@@ -1547,6 +1558,7 @@ fn generate_assert_terminator_vcs(
                     statement: usize::MAX,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::Assertion,
                 },
@@ -1695,6 +1707,7 @@ fn generate_contract_vcs(
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some(post.raw.clone()),
                     vc_kind: VcKind::Postcondition,
                 },
@@ -1991,6 +2004,7 @@ fn generate_call_site_vcs(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(pre.raw.clone()),
                         vc_kind: VcKind::Precondition,
                     },
@@ -2187,6 +2201,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
     }
 }
 
@@ -2375,6 +2390,7 @@ fn generate_loop_invariant_vcs(
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                 vc_kind: VcKind::LoopInvariantInit,
             },
@@ -2492,6 +2508,7 @@ fn generate_loop_invariant_vcs(
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                 vc_kind: VcKind::LoopInvariantPreserve,
             },
@@ -2571,6 +2588,7 @@ fn generate_loop_invariant_vcs(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                         vc_kind: VcKind::LoopInvariantExit,
                     },
@@ -3375,6 +3393,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                             statement: 0,
                             source_file: None,
                             source_line: None,
+                            source_column: None,
                             contract_text: Some(invariant_spec.raw.clone()),
                             vc_kind: VcKind::LockInvariant,
                         },
@@ -3459,6 +3478,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::ChannelSafety,
                 };
@@ -3478,6 +3498,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::ChannelSafety,
                 };
@@ -3517,6 +3538,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
             statement: 0,
             source_file: None,
             source_line: None,
+            source_column: None,
             contract_text: Some("Bounded concurrency verification enabled".to_string()),
             vc_kind: VcKind::DataRaceFreedom,
         },
@@ -3581,6 +3603,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         }
     }
@@ -3669,6 +3692,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         }
     }
@@ -3832,6 +3856,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -3888,6 +3913,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -4478,6 +4504,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -4514,6 +4541,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -4561,6 +4589,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -4608,6 +4637,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -4642,6 +4672,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4671,6 +4702,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4700,6 +4732,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4825,6 +4858,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -5011,6 +5045,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5052,6 +5087,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5093,6 +5129,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5170,6 +5207,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         }
     }
@@ -5346,6 +5384,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5435,6 +5474,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -5472,6 +5512,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -5577,6 +5618,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5626,6 +5668,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5666,6 +5709,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5706,6 +5750,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5744,6 +5789,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -5823,6 +5869,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         }
     }
@@ -5884,6 +5931,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -5945,6 +5993,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -6139,6 +6188,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -6188,6 +6238,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -6237,6 +6288,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -6286,6 +6338,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -6382,6 +6435,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
             loops: vec![],
         };
 
@@ -6567,6 +6621,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         }
     }
 
@@ -6731,6 +6786,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -6792,6 +6848,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -6862,6 +6919,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         // Validate FnOnce single-call property
@@ -6927,6 +6985,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -6971,6 +7030,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         // Call with None TraitDatabase - should work as before
@@ -7008,6 +7068,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -7051,6 +7112,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7090,6 +7152,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7146,6 +7209,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7200,6 +7264,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7260,6 +7325,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7314,6 +7380,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);
@@ -7398,6 +7465,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7451,6 +7519,7 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7510,6 +7579,7 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7565,6 +7635,7 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7606,6 +7677,7 @@ mod tests {
                 max_threads: 4,
                 max_context_switches: 8,
             }),
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7651,6 +7723,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None, // No explicit config, but thread_spawns present
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_concurrency_vcs(&func);

@@ -482,6 +482,7 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -591,6 +592,7 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -815,6 +817,7 @@ fn test_two_variable_loop() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1159,6 +1162,7 @@ fn test_loop_without_invariant_skipped() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1342,6 +1346,7 @@ fn test_loop_detection_from_cfg() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![], // Empty -- should be auto-detected
     };
 

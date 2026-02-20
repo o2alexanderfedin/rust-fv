@@ -16,6 +16,9 @@ pub struct VerificationFailure {
     pub contract_text: Option<String>,
     pub source_file: Option<String>,
     pub source_line: Option<usize>,
+    /// Source column number (1-based, when available).
+    #[allow(dead_code)] // Will be used by future ariadne/diagnostics enhancement
+    pub source_column: Option<usize>,
     pub counterexample: Option<Vec<(String, String)>>,
     pub message: String,
 }
@@ -1346,6 +1349,7 @@ mod tests {
             contract_text: contract_text.map(|s| s.to_string()),
             source_file: source_file.map(|s| s.to_string()),
             source_line,
+            source_column: None,
             counterexample,
             message: "test failure message".to_string(),
         }
@@ -1656,6 +1660,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: Some(vec![
                 ("_1".to_string(), "#xffffffff".to_string()),
                 ("_2".to_string(), "#x00000001".to_string()),
@@ -1673,6 +1678,7 @@ mod tests {
             contract_text: Some("result >= 0".to_string()),
             source_file: Some("src/math.rs".to_string()),
             source_line: Some(15),
+            source_column: None,
             counterexample: Some(vec![("_1".to_string(), "-1".to_string())]),
             message: "postcondition 'result >= 0' not proven".to_string(),
         };
@@ -1687,6 +1693,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "assertion might fail".to_string(),
         };
@@ -1959,6 +1966,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "FnOnce closure called more than once".to_string(),
         };
@@ -2122,6 +2130,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "null-check failed for _1".to_string(),
         };
@@ -2136,6 +2145,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "bounds-check failed for ptr".to_string(),
         };
@@ -2150,6 +2160,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "no safety contracts found".to_string(),
         };
@@ -2166,6 +2177,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "null-check failed".to_string(),
         };
@@ -2191,6 +2203,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "NaN propagation check failed".to_string(),
         };
@@ -2216,6 +2229,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "data race detected".to_string(),
         };
@@ -2303,6 +2317,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "data race".to_string(),
         };
@@ -2315,6 +2330,7 @@ mod tests {
             contract_text: None,
             source_file: None,
             source_line: None,
+            source_column: None,
             counterexample: None,
             message: "deadlock".to_string(),
         };
