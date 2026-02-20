@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 21 (Weak Memory Models) IN PROGRESS
+**Current focus:** v0.4 Full Rust Verification — Phase 21 (Weak Memory Models) COMPLETE
 
 ## Current Position
 
 Phase: 21 of 23 (Weak Memory Models)
-Plan: 2 complete (2/3 plans done)
-Status: In progress
-Last activity: 2026-02-19 — Plan 21-02 complete (RC11 VC generation: generate_rc11_vcs + SeqCst gate in vcgen.rs)
+Plan: 3 complete (3/3 plans done)
+Status: Complete
+Last activity: 2026-02-19 — Plan 21-03 complete (RC11 litmus tests: 9 canonical C11 litmus tests all passing)
 
-Progress: [█████████████████░░░░░░░] 74% (18/23 phases complete, Phase 21 in progress — 1/3 plans done)
+Progress: [█████████████████████░░░] 87% (19/23 phases complete, Phase 22 next)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [█████████████████░░░░░░
 | Phase 21 P01 | 452 | 2 tasks | 6 files |
 | Phase 21 P02 | 353 | 2 tasks | 2 files |
 | Phase 21 P02 | 353 | 2 tasks | 2 files |
+| Phase 21 P03 | 976 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions relevant to v0.4:
 - [Phase 21-01]: thread_id defaults to 0 at all existing construction sites — backward compatible
 - [Phase 21]: generate_rc11_vcs uses closure-based hb_term/eco_term for bounded N event sets — avoids materializing full N×N matrix as Terms
 - [Phase 21]: Step 2b in generate_concurrency_vcs is additive — existing DataRaceFreedom VCs from Step 2 are unchanged; RC11 VCs are purely additive
+- [Phase 21]: Litmus tests use custom SMT scripts (not generate_rc11_vcs) to pin specific forbidden executions with fixed rf choices
+- [Phase 21]: Violation-detection semantics for coherence VCs: assert hb∧eco (violation), UNSAT=RC11 holds, SAT=coherence issue
+- [Phase 21]: Initial-store-first axiom added to rc11.rs: mo(init) < mo(store) for all real stores per location
 
 ### Pending Todos
 
@@ -100,9 +104,9 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 21-02-PLAN.md — RC11 VC generation (generate_rc11_vcs + SeqCst gate in vcgen.rs)
+Stopped at: Completed 21-03-PLAN.md — RC11 litmus tests (9 canonical C11 litmus tests, all passing, WMM-02+WMM-03)
 Resume file: None
-Next step: Execute 21-03-PLAN.md (RC11 integration tests)
+Next step: Execute Phase 22 (Async Verification)
 
 ---
 

@@ -23,9 +23,9 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 
 ### Weak Memory Models
 
-- [ ] **WMM-01**: User can verify programs using `Relaxed`, `Acquire`, `Release`, and `AcqRel` atomic orderings with full RC11 coherence axioms (`mo`, `rf`, `co`)
-- [ ] **WMM-02**: The 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) pass as the soundness specification for the weak memory encoding
-- [ ] **WMM-03**: Data race detection extends to cover weak memory orderings (not just SeqCst)
+- [x] **WMM-01**: User can verify programs using `Relaxed`, `Acquire`, `Release`, and `AcqRel` atomic orderings with full RC11 coherence axioms (`mo`, `rf`, `co`)
+- [x] **WMM-02**: The 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) pass as the soundness specification for the weak memory encoding
+- [x] **WMM-03**: Data race detection extends to cover weak memory orderings (not just SeqCst)
 - [x] **WMM-04**: All weak memory axioms are scoped to `WeakMemory*` VcKind — existing SeqCst verification proofs are not regressed
 
 ### Higher-Order Closures
@@ -76,9 +76,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEP-02 | Phase 20 | Complete |
 | SEP-03 | Phase 20 | Complete |
 | SEP-04 | Phase 20 | Complete |
-| WMM-01 | Phase 21 | Pending |
-| WMM-02 | Phase 21 | Pending |
-| WMM-03 | Phase 21 | Pending |
+| WMM-01 | Phase 21 | Complete |
+| WMM-02 | Phase 21 | Complete |
+| WMM-03 | Phase 21 | Complete |
 | WMM-04 | Phase 21 | Complete |
 | HOF-01 | Phase 22 | Pending |
 | HOF-02 | Phase 22 | Pending |
