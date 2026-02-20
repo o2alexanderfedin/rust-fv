@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 20 (Separation Logic) Plan 3 complete
+**Current focus:** v0.4 Full Rust Verification — Phase 20 (Separation Logic) ALL PLANS COMPLETE
 
 ## Current Position
 
 Phase: 20 of 23 (Separation Logic)
-Plan: 3 complete
-Status: In progress
-Last activity: 2026-02-20 — Plan 20-03 complete (sep-conj detection, ghost predicate expansion, frame rule, AUFBV logic selection)
+Plan: 4 complete (all plans done)
+Status: Phase complete
+Last activity: 2026-02-19 — Plan 20-04 complete (E2E integration tests for all 4 SEP requirements with live Z3 validation)
 
-Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete, Phase 19 in progress — 4/4 plans done)
+Progress: [█████████████████░░░░░░░] 74% (18/23 phases complete, Phase 20 complete — 4/4 plans done)
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [████████████████░░░░░░░
 | Phase 19 P02 | 624 | 1 tasks | 8 files |
 | Phase 19 P04 | 155 | 2 tasks | 7 files |
 | Phase 19 P03 | 484 | 2 tasks | 3 files |
+| Phase 20 P04 | 425 | 1 tasks | 1 files |
 | Phase 20 P03 | 893 | 2 tasks | 3 files |
 | Phase 20 P02 | 34 | 2 tasks | 5 files |
 | Phase 20 P01 | 10 | 2 tasks | 3 files |
@@ -74,6 +75,8 @@ Recent decisions relevant to v0.4:
 - [Phase 20-03]: convert_expr_with_db() as core internal entry point; convert_expr_with_bounds() delegates to it with empty DB for backward compat
 - [Phase 20-03]: Frame axiom trigger :pattern ((select sep_heap _sep_frame_addr)) — reuses post-call heap select term to guide Z3 E-matching
 - [Phase 20-03]: has_sep_logic_spec() is cheap syntactic pts_to substring check; prepend_sep_heap_decls() inserts after SetLogic command
+- [Phase 20-04]: Recursive ghost pred (looping(p)=looping(p)) used to test depth=0 exhaustion via public parse_spec_expr_with_db API — avoids exposing private parse_spec_expr_with_depth
+- [Phase 20-04]: SEP-03 frame axiom validity proven via hand-crafted UNSAT SMT check (negation of axiom); VCGen-generated script checks call-site precondition encoding separately
 
 ### Pending Todos
 
@@ -88,10 +91,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 20-03-PLAN.md — sep-conj, ghost predicate expansion, frame rule, AUFBV logic selection
+Last session: 2026-02-19
+Stopped at: Completed 20-04-PLAN.md — E2E integration tests for all 4 SEP requirements with live Z3 validation
 Resume file: None
-Next step: /gsd:execute-phase 20 (continue with plan 04)
+Next step: /gsd:execute-phase 21 (weak memory / relaxed memory model)
 
 ---
 
