@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 22 of 23 (Higher-Order Closures)
-Plan: 1 complete (1/3 plans done)
+Plan: 2 complete (2/3 plans done)
 Status: In Progress
-Last activity: 2026-02-20 — Plan 22-01 complete (fn_spec macro+IR+extraction triangle, HOF-01+HOF-02)
+Last activity: 2026-02-20 — Plan 22-02 complete (HOF VCGen engine: hof_vcgen.rs + generate_fn_spec_vcs wired into generate_vcs)
 
 Progress: [█████████████████████░░░] 87% (19/23 phases complete, Phase 22 in progress)
 
@@ -50,7 +50,7 @@ Progress: [█████████████████████░░
 | Phase 21 P02 | 353 | 2 tasks | 2 files |
 | Phase 21 P03 | 976 | 2 tasks | 2 files |
 | Phase 22 P01 | 1719 | 2 tasks | 32 files |
-| Phase 22 P01 | 1719 | 2 tasks | 32 files |
+| Phase 22 P02 | 916 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -93,8 +93,11 @@ Recent decisions relevant to v0.4:
 - [Phase 21]: Initial-store-first axiom added to rc11.rs: mo(init) < mo(store) for all real stores per location
 - [Phase 22]: Token-level fat-arrow scanning (not syn::parse_str) to handle => in fn_spec clauses — syn rejects fat-arrow as binary op
 - [Phase 22]: %% as pre/post separator in fn_spec doc attributes to avoid :: collisions in expression content
-- [Phase 22]: Token-level fat-arrow scanning (not syn::parse_str) to handle => in fn_spec clauses — syn rejects fat-arrow as binary op
-- [Phase 22]: %% as pre/post separator in fn_spec doc attributes to avoid :: collisions in expression content
+- [Phase 22-02]: AUFLIA logic (not QF_BV) for HOF VCs — universal quantification requires non-QF logic
+- [Phase 22-02]: Best-effort HOF spec expression parser with BoolLit(true) stub fallback — no panic on unrecognized expressions
+- [Phase 22-02]: FnOnce uses identical Fn path — no env_before/after, single-call VC per RESEARCH.md Pattern 6
+- [Phase 22-02]: Sort::Uninterpreted for closure environment sort — opaque in fn_spec context
+- [Phase 22-02]: substitute_result() does post-parse substitution of result -> closure_app term
 
 ### Pending Todos
 
@@ -110,11 +113,11 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 22-01-PLAN.md — fn_spec macro+IR+extraction triangle (HOF-01+HOF-02)
+Stopped at: Completed 22-02-PLAN.md — HOF VCGen engine (hof_vcgen.rs + generate_fn_spec_vcs wired into generate_vcs)
 Resume file: None
-Next step: Execute Phase 22 Plan 02 (VCGen for HOF closure entailment)
+Next step: Execute Phase 22 Plan 03 (if exists, else Phase 23)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-20 after 21-01 RC11 weak memory foundation*
+*Last updated: 2026-02-20 after 22-02 HOF VCGen engine*

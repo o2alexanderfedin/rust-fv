@@ -253,8 +253,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 22-01-PLAN.md — fn_spec proc macro + FnSpec IR type + Contracts.fn_specs field + callbacks.rs extraction (HOF-01, HOF-02)
-- [ ] 22-02-PLAN.md — hof_vcgen.rs: generate_fn_spec_vcs() AUFLIA entailment engine + FnMut env encoding + vcgen.rs wiring (HOF-01, HOF-02)
+- [x] 22-01-PLAN.md — fn_spec proc macro + FnSpec IR type + Contracts.fn_specs field + callbacks.rs extraction (HOF-01, HOF-02)
+- [x] 22-02-PLAN.md — hof_vcgen.rs: generate_fn_spec_vcs() AUFLIA entailment engine + FnMut env encoding + vcgen.rs wiring (HOF-01, HOF-02)
 - [ ] 22-03-PLAN.md — TDD soundness suite: 6 fn_spec tests (Fn verified/falsified/trivial + FnMut verified/falsified + FnOnce) (HOF-01, HOF-02)
 
 ### Phase 23: Async/Await Verification
