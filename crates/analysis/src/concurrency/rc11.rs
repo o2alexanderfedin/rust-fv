@@ -4,8 +4,10 @@
 //! fr (from-read), and the four RC11 consistency axioms as bounded QF_LIA SMT
 //! formulas. See Lahav et al. PLDI 2017.
 
-use crate::ir::{AtomicOrdering, Function};
+use crate::ir::{AtomicOpKind, AtomicOrdering, Function};
+use crate::vcgen::{VcKind, VcLocation, VerificationCondition};
 use rust_fv_smtlib::command::Command;
+use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
@@ -209,6 +211,424 @@ pub fn has_non_seqcst_atomics(func: &Function) -> bool {
     func.atomic_ops
         .iter()
         .any(|op| op.ordering != AtomicOrdering::SeqCst)
+}
+
+// ===== RC11 VC generation =====
+
+/// Generate RC11 weak memory verification conditions for a function.
+///
+/// Produces three kinds of VCs:
+/// - `WeakMemoryCoherence`: hb;eco? irreflexivity per RC11 COHERENCE axiom
+/// - `WeakMemoryRace`: Relaxed-vs-Relaxed same-location cross-thread unordered writes
+/// - `WeakMemoryAtomicity`: RMW atomicity (no intervening store between read and write of RMW)
+///
+/// The caller is responsible for gating this function behind `has_non_seqcst_atomics`.
+pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let ops = &func.atomic_ops;
+    if ops.is_empty() {
+        return Vec::new();
+    }
+
+    let n = ops.len();
+    // Sentinel event_id for the initial store (value 0) — one past last real event.
+    let initial_store_id = n;
+
+    // === Step A: categorize events ===
+    // Collect store event ids and load event ids, grouped by location.
+    let mut store_ids_by_loc: std::collections::HashMap<&str, Vec<usize>> =
+        std::collections::HashMap::new();
+    let mut load_ids_by_loc: std::collections::HashMap<&str, Vec<usize>> =
+        std::collections::HashMap::new();
+
+    for (idx, op) in ops.iter().enumerate() {
+        let loc = op.atomic_place.local.as_str();
+        match op.kind {
+            AtomicOpKind::Store => {
+                store_ids_by_loc.entry(loc).or_default().push(idx);
+            }
+            AtomicOpKind::Load => {
+                load_ids_by_loc.entry(loc).or_default().push(idx);
+            }
+            // RMW operations act as both store and load
+            AtomicOpKind::Swap
+            | AtomicOpKind::CompareExchange
+            | AtomicOpKind::FetchAdd
+            | AtomicOpKind::FetchSub => {
+                store_ids_by_loc.entry(loc).or_default().push(idx);
+                load_ids_by_loc.entry(loc).or_default().push(idx);
+            }
+        }
+    }
+
+    // Collect all locations
+    let all_locs: std::collections::HashSet<&str> = ops
+        .iter()
+        .map(|op| op.atomic_place.local.as_str())
+        .collect();
+
+    // === Step B: Build SMT preamble commands ===
+    let mut preamble: Vec<Command> = Vec::new();
+    preamble.push(Command::SetLogic(weak_memory_smt_logic().to_string()));
+
+    // Declare mo_order for all store events (including RMW writes).
+    for (idx, op) in ops.iter().enumerate() {
+        match op.kind {
+            AtomicOpKind::Store
+            | AtomicOpKind::Swap
+            | AtomicOpKind::CompareExchange
+            | AtomicOpKind::FetchAdd
+            | AtomicOpKind::FetchSub => {
+                preamble.push(declare_mo_order(idx));
+            }
+            AtomicOpKind::Load => {}
+        }
+    }
+    // Declare mo_order for the initial store sentinel.
+    preamble.push(declare_mo_order(initial_store_id));
+
+    // Declare rf predicates: for each load, declare rf_L_S for every same-location store
+    // (and for the initial store sentinel).
+    for loc in &all_locs {
+        let load_ids = load_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let mut store_ids = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        // Add sentinel initial store
+        store_ids.push(initial_store_id);
+
+        for &load_id in &load_ids {
+            for &store_id in &store_ids {
+                preamble.push(declare_rf(load_id, store_id));
+            }
+        }
+    }
+
+    // === Step C: Assert mo is a total order per location ===
+    let mut mo_cmds: Vec<Command> = Vec::new();
+    for loc in &all_locs {
+        let mut store_ids = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        store_ids.push(initial_store_id); // include sentinel
+        mo_cmds.extend(assert_mo_total_order(&store_ids));
+    }
+
+    // === Step D: Assert rf is functional (each load reads from exactly one store) ===
+    let mut rf_cmds: Vec<Command> = Vec::new();
+    for loc in &all_locs {
+        let load_ids = load_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let mut store_ids = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        store_ids.push(initial_store_id);
+        for &load_id in &load_ids {
+            rf_cmds.extend(assert_rf_functional(load_id, &store_ids));
+        }
+    }
+
+    // === Step E: Build sb (sequenced-before) static matrix ===
+    // sb(i, j) = ops[i].thread_id == ops[j].thread_id && i < j
+    let sb = |i: usize, j: usize| -> bool { i < j && ops[i].thread_id == ops[j].thread_id };
+
+    // === Step F: Build sw (synchronizes-with) terms ===
+    // sw(S, L) holds when S is a release store and L is an acquire load that reads from S.
+    // We enumerate only (store, load) pairs where rf_L_S is declared (same location).
+    // Result: sw_terms[i][j] = sw(i, j) term (BoolLit(false) if not applicable)
+    let mut sw_terms: Vec<Vec<Term>> = vec![vec![Term::BoolLit(false); n]; n];
+    for loc in &all_locs {
+        let load_ids = load_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let store_ids = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        for &store_id in &store_ids {
+            for &load_id in &load_ids {
+                if store_id != load_id {
+                    let sw = encode_sw(
+                        store_id,
+                        ops[store_id].ordering,
+                        load_id,
+                        ops[load_id].ordering,
+                    );
+                    sw_terms[store_id][load_id] = sw;
+                }
+            }
+        }
+    }
+
+    // === Step G: Build hb (happens-before) terms ===
+    // hb(i, j) = sb(i,j) OR sw(i,j) OR (exists k. sb(i,k) AND sw(k,j))
+    // For bounded N, compute over the N×N matrix.
+    // Representation: each hb_term[i][j] is a Term (BoolLit(true/false) or Const "rf_...").
+    let hb_term = |i: usize, j: usize| -> Term {
+        if sb(i, j) {
+            return Term::BoolLit(true);
+        }
+        // Direct sw
+        let direct_sw = sw_terms[i][j].clone();
+        if direct_sw != Term::BoolLit(false) {
+            return direct_sw;
+        }
+        // Transitive: exists k. sb(i,k) && sw(k,j)
+        let mut trans_terms: Vec<Term> = Vec::new();
+        for (k, sw_row) in sw_terms.iter().enumerate().take(n) {
+            if k != i && k != j && sb(i, k) {
+                let sw_kj = sw_row[j].clone();
+                if sw_kj != Term::BoolLit(false) {
+                    trans_terms.push(sw_kj);
+                }
+            }
+        }
+        match trans_terms.len() {
+            0 => Term::BoolLit(false),
+            1 => trans_terms.remove(0),
+            _ => Term::Or(trans_terms),
+        }
+    };
+
+    // === Step H: Build eco (extended coherence order) terms ===
+    // eco(i, j) = rf(i,j) OR mo(i,j) OR fr(i,j)
+    let eco_term = |i: usize, j: usize| -> Term {
+        if i == j {
+            return Term::BoolLit(false);
+        }
+        let loc_i = ops[i].atomic_place.local.as_str();
+        let loc_j = ops[j].atomic_place.local.as_str();
+        if loc_i != loc_j {
+            return Term::BoolLit(false);
+        }
+        let loc = loc_i;
+
+        // rf(i, j): i is a load that reads from store j
+        let load_ids = load_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let store_ids_real = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let mut store_ids_with_sentinel = store_ids_real.clone();
+        store_ids_with_sentinel.push(initial_store_id);
+
+        let rf_term = if load_ids.contains(&i) && store_ids_real.contains(&j) {
+            Term::Const(format!("rf_{i}_{j}"))
+        } else {
+            Term::BoolLit(false)
+        };
+
+        // mo(i, j): both are stores, mo_order_i < mo_order_j
+        let i_is_store = store_ids_real.contains(&i);
+        let j_is_store = store_ids_real.contains(&j);
+        let mo_term = if i_is_store && j_is_store {
+            Term::IntLt(
+                Box::new(Term::Const(format!("mo_order_{i}"))),
+                Box::new(Term::Const(format!("mo_order_{j}"))),
+            )
+        } else {
+            Term::BoolLit(false)
+        };
+
+        // fr(i, j): i is a load, j is a store, i reads from some store that is mo-before j
+        let fr_term = if load_ids.contains(&i) && j_is_store {
+            encode_fr(i, j, &store_ids_with_sentinel)
+        } else {
+            Term::BoolLit(false)
+        };
+
+        // Combine: eco = rf OR mo OR fr
+        let parts: Vec<Term> = [rf_term, mo_term, fr_term]
+            .into_iter()
+            .filter(|t| *t != Term::BoolLit(false))
+            .collect();
+        match parts.len() {
+            0 => Term::BoolLit(false),
+            1 => parts.into_iter().next().unwrap(),
+            _ => Term::Or(parts),
+        }
+    };
+
+    let mut vcs: Vec<VerificationCondition> = Vec::new();
+
+    // === Step I: Generate WeakMemoryCoherence VCs ===
+    // For all pairs (i, j) where i != j: assert NOT(hb(i,j) AND eco(j,i))
+    for i in 0..n {
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            let hb_i_j = hb_term(i, j);
+            let eco_j_i = eco_term(j, i);
+
+            // Skip pairs where either is statically false (trivially safe)
+            if hb_i_j == Term::BoolLit(false) || eco_j_i == Term::BoolLit(false) {
+                continue;
+            }
+
+            let mut script = Script::new();
+            script.extend(preamble.clone());
+            script.extend(mo_cmds.clone());
+            script.extend(rf_cmds.clone());
+            script.push(coherence_check(i, j, hb_i_j, eco_j_i));
+            script.push(Command::CheckSat);
+
+            vcs.push(VerificationCondition {
+                description: format!(
+                    "RC11 coherence violation possible between events {i} and {j} in {}",
+                    func.name
+                ),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    source_column: None,
+                    contract_text: Some(format!(
+                        "RC11 COHERENCE: NOT(hb({i},{j}) AND eco({j},{i}))"
+                    )),
+                    vc_kind: VcKind::WeakMemoryCoherence,
+                },
+            });
+        }
+    }
+
+    // === Step J: Generate WeakMemoryRace VCs ===
+    // For all pairs (i, j) where:
+    // - same location, different threads
+    // - at least one is a write
+    // - both are Relaxed
+    // - hb(i,j) = false AND hb(j,i) = false
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let opi = &ops[i];
+            let opj = &ops[j];
+            if opi.atomic_place.local != opj.atomic_place.local {
+                continue;
+            }
+            if opi.thread_id == opj.thread_id {
+                continue;
+            }
+            let i_is_write = matches!(
+                opi.kind,
+                AtomicOpKind::Store
+                    | AtomicOpKind::Swap
+                    | AtomicOpKind::CompareExchange
+                    | AtomicOpKind::FetchAdd
+                    | AtomicOpKind::FetchSub
+            );
+            let j_is_write = matches!(
+                opj.kind,
+                AtomicOpKind::Store
+                    | AtomicOpKind::Swap
+                    | AtomicOpKind::CompareExchange
+                    | AtomicOpKind::FetchAdd
+                    | AtomicOpKind::FetchSub
+            );
+            if !i_is_write && !j_is_write {
+                continue; // read-read: not a race
+            }
+            if opi.ordering != AtomicOrdering::Relaxed || opj.ordering != AtomicOrdering::Relaxed {
+                continue;
+            }
+            // Check no hb in either direction
+            let hb_ij = hb_term(i, j);
+            let hb_ji = hb_term(j, i);
+            if hb_ij != Term::BoolLit(false) || hb_ji != Term::BoolLit(false) {
+                continue;
+            }
+
+            let mut script = Script::new();
+            script.extend(preamble.clone());
+            script.push(Command::Assert(Term::BoolLit(false)));
+            script.push(Command::CheckSat);
+
+            vcs.push(VerificationCondition {
+                description: format!(
+                    "Weak memory race: Relaxed accesses to {} from threads {} and {} without ordering in {}",
+                    opi.atomic_place.local, opi.thread_id, opj.thread_id, func.name
+                ),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    source_column: None,
+                    contract_text: Some(format!(
+                        "Relaxed race between events {i} (thread {}) and {j} (thread {})",
+                        opi.thread_id, opj.thread_id
+                    )),
+                    vc_kind: VcKind::WeakMemoryRace,
+                },
+            });
+        }
+    }
+
+    // === Step K: Generate WeakMemoryAtomicity VCs ===
+    // For RMW events with non-SeqCst ordering: assert no intervening store between
+    // the store-that-RMW-reads-from and the RMW-write in mo.
+    for (rmw_id, op) in ops.iter().enumerate() {
+        match op.kind {
+            AtomicOpKind::FetchAdd
+            | AtomicOpKind::FetchSub
+            | AtomicOpKind::Swap
+            | AtomicOpKind::CompareExchange => {}
+            _ => continue,
+        }
+        if op.ordering == AtomicOrdering::SeqCst {
+            continue;
+        }
+        let loc = op.atomic_place.local.as_str();
+        let store_ids_real = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        let mut store_ids_with_sentinel = store_ids_real.clone();
+        store_ids_with_sentinel.push(initial_store_id);
+
+        // The RMW event rmw_id acts as both a load (reads rf_rmw_id_S1) and a store (mo_order_rmw_id).
+        // Atomicity: for every other store S2 at the same location,
+        // it is NOT the case that mo_order_S1 < mo_order_S2 < mo_order_rmw_id
+        // (where S1 is the store the RMW reads from).
+        for &other_store in &store_ids_real {
+            if other_store == rmw_id {
+                continue;
+            }
+            // For each possible S1 that rmw_id could read from (including sentinel):
+            for &s1 in &store_ids_with_sentinel {
+                if s1 == rmw_id || s1 == other_store {
+                    continue;
+                }
+                // The violation: rf_rmw_id_S1 AND mo_order_S1 < mo_order_other_store AND
+                //                mo_order_other_store < mo_order_rmw_id
+                // If this is satisfiable, we have an atomicity violation.
+                let rf_term = Term::Const(format!("rf_{rmw_id}_{s1}"));
+                let mo_s1_lt_other = Term::IntLt(
+                    Box::new(Term::Const(format!("mo_order_{s1}"))),
+                    Box::new(Term::Const(format!("mo_order_{other_store}"))),
+                );
+                let mo_other_lt_rmw = Term::IntLt(
+                    Box::new(Term::Const(format!("mo_order_{other_store}"))),
+                    Box::new(Term::Const(format!("mo_order_{rmw_id}"))),
+                );
+                let violation = Term::And(vec![rf_term, mo_s1_lt_other, mo_other_lt_rmw]);
+                // Assert the negation: the violation must be impossible
+                let mut script = Script::new();
+                script.extend(preamble.clone());
+                script.extend(mo_cmds.clone());
+                script.extend(rf_cmds.clone());
+                script.push(Command::Assert(Term::Not(Box::new(violation))));
+                script.push(Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "RC11 RMW atomicity: event {rmw_id} in {} has intervening store {other_store}",
+                        func.name
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: 0,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "RMW atomicity: no store between read-source and RMW write for event {rmw_id}"
+                        )),
+                        vc_kind: VcKind::WeakMemoryAtomicity,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
 }
 
 #[cfg(test)]
