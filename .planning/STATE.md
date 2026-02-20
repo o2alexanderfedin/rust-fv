@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 20 (Separation Logic) ALL PLANS COMPLETE
+**Current focus:** v0.4 Full Rust Verification — Phase 21 (Weak Memory Models) IN PROGRESS
 
 ## Current Position
 
-Phase: 20 of 23 (Separation Logic)
-Plan: 4 complete (all plans done)
-Status: Phase complete
-Last activity: 2026-02-19 — Plan 20-04 complete (E2E integration tests for all 4 SEP requirements with live Z3 validation)
+Phase: 21 of 23 (Weak Memory Models)
+Plan: 1 complete (1/3 plans done)
+Status: In progress
+Last activity: 2026-02-20 — Plan 21-01 complete (RC11 SMT encoding foundation: thread_id, WeakMemory* VcKind variants, rc11.rs primitives)
 
-Progress: [█████████████████░░░░░░░] 74% (18/23 phases complete, Phase 20 complete — 4/4 plans done)
+Progress: [█████████████████░░░░░░░] 74% (18/23 phases complete, Phase 21 in progress — 1/3 plans done)
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [█████████████████░░░░░░
 | Phase 20 P03 | 893 | 2 tasks | 3 files |
 | Phase 20 P02 | 34 | 2 tasks | 5 files |
 | Phase 20 P01 | 10 | 2 tasks | 3 files |
+| Phase 21 P01 | 452 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions relevant to v0.4:
 - [Phase 20-03]: has_sep_logic_spec() is cheap syntactic pts_to substring check; prepend_sep_heap_decls() inserts after SetLogic command
 - [Phase 20-04]: Recursive ghost pred (looping(p)=looping(p)) used to test depth=0 exhaustion via public parse_spec_expr_with_db API — avoids exposing private parse_spec_expr_with_depth
 - [Phase 20-04]: SEP-03 frame axiom validity proven via hand-crafted UNSAT SMT check (negation of axiom); VCGen-generated script checks call-site precondition encoding separately
+- [Phase 21-01]: Use Term::IntLt for QF_LIA mo comparison (not Term::BvSLt) — correct for integer mo positions
+- [Phase 21-01]: encode_fr takes store_s2 as explicit parameter (not inside store_events) — cleaner API
+- [Phase 21-01]: thread_id defaults to 0 at all existing construction sites — backward compatible
 
 ### Pending Todos
 
@@ -91,12 +95,12 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: Completed 20-04-PLAN.md — E2E integration tests for all 4 SEP requirements with live Z3 validation
+Last session: 2026-02-20
+Stopped at: Completed 21-01-PLAN.md — RC11 weak memory foundation (thread_id, WeakMemory* VcKind, rc11.rs primitives)
 Resume file: None
-Next step: /gsd:execute-phase 21 (weak memory / relaxed memory model)
+Next step: Execute 21-02-PLAN.md (RC11 VC generation)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-20 after 19-03 ariadne multi-label counterexample rendering*
+*Last updated: 2026-02-20 after 21-01 RC11 weak memory foundation*
