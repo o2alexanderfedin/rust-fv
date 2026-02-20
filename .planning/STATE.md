@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 21 of 23 (Weak Memory Models)
-Plan: 1 complete (1/3 plans done)
+Plan: 2 complete (2/3 plans done)
 Status: In progress
-Last activity: 2026-02-20 — Plan 21-01 complete (RC11 SMT encoding foundation: thread_id, WeakMemory* VcKind variants, rc11.rs primitives)
+Last activity: 2026-02-19 — Plan 21-02 complete (RC11 VC generation: generate_rc11_vcs + SeqCst gate in vcgen.rs)
 
 Progress: [█████████████████░░░░░░░] 74% (18/23 phases complete, Phase 21 in progress — 1/3 plans done)
 
@@ -46,6 +46,8 @@ Progress: [█████████████████░░░░░░
 | Phase 20 P02 | 34 | 2 tasks | 5 files |
 | Phase 20 P01 | 10 | 2 tasks | 3 files |
 | Phase 21 P01 | 452 | 2 tasks | 6 files |
+| Phase 21 P02 | 353 | 2 tasks | 2 files |
+| Phase 21 P02 | 353 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -81,6 +83,8 @@ Recent decisions relevant to v0.4:
 - [Phase 21-01]: Use Term::IntLt for QF_LIA mo comparison (not Term::BvSLt) — correct for integer mo positions
 - [Phase 21-01]: encode_fr takes store_s2 as explicit parameter (not inside store_events) — cleaner API
 - [Phase 21-01]: thread_id defaults to 0 at all existing construction sites — backward compatible
+- [Phase 21]: generate_rc11_vcs uses closure-based hb_term/eco_term for bounded N event sets — avoids materializing full N×N matrix as Terms
+- [Phase 21]: Step 2b in generate_concurrency_vcs is additive — existing DataRaceFreedom VCs from Step 2 are unchanged; RC11 VCs are purely additive
 
 ### Pending Todos
 
@@ -95,10 +99,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 21-01-PLAN.md — RC11 weak memory foundation (thread_id, WeakMemory* VcKind, rc11.rs primitives)
+Last session: 2026-02-19
+Stopped at: Completed 21-02-PLAN.md — RC11 VC generation (generate_rc11_vcs + SeqCst gate in vcgen.rs)
 Resume file: None
-Next step: Execute 21-02-PLAN.md (RC11 VC generation)
+Next step: Execute 21-03-PLAN.md (RC11 integration tests)
 
 ---
 
