@@ -1,0 +1,95 @@
+# Requirements: rust-fv v0.4
+
+**Defined:** 2026-02-19
+**Core Value:** Sound, automated verification of Rust code properties with minimal developer burden — if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
+
+## v0.4 Requirements
+
+Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap phases.
+
+### Counterexample Generation
+
+- [ ] **CEX-01**: User sees Rust variable names (not SSA names like `_param_x_1`) in counterexample output when verification fails
+- [ ] **CEX-02**: User sees typed Rust values (e.g. `i32: 5`, `bool: false`) not raw hex bitvectors in counterexample output
+- [ ] **CEX-03**: User sees counterexample values annotated at the failing source line via ariadne inline labels in terminal output
+- [ ] **CEX-04**: Machine consumers receive structured `counterexample` field in `--output-format=json` output on verification failure
+
+### Separation Logic
+
+- [ ] **SEP-01**: User can write `pts_to(p, v)` ownership predicate in `#[requires]`/`#[ensures]` to specify raw pointer ownership
+- [ ] **SEP-02**: User can write separating conjunction (`H1 * H2`) in specs to prove disjoint ownership and aliasing freedom
+- [ ] **SEP-03**: Frame rule is automatically applied during function calls so unchanged heap portions are not required to be manually re-specified
+- [ ] **SEP-04**: User can define recursive heap predicates via `#[ghost_predicate]` (e.g. `linked_list(p, n)`) with bounded unfolding (depth 3)
+
+### Weak Memory Models
+
+- [ ] **WMM-01**: User can verify programs using `Relaxed`, `Acquire`, `Release`, and `AcqRel` atomic orderings with full RC11 coherence axioms (`mo`, `rf`, `co`)
+- [ ] **WMM-02**: The 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) pass as the soundness specification for the weak memory encoding
+- [ ] **WMM-03**: Data race detection extends to cover weak memory orderings (not just SeqCst)
+- [ ] **WMM-04**: All weak memory axioms are scoped to `WeakMemory*` VcKind — existing SeqCst verification proofs are not regressed
+
+### Higher-Order Closures
+
+- [ ] **HOF-01**: User can write `fn_spec(f, |x| pre => post)` specification entailments to verify that a closure `f` satisfies given pre/postconditions
+- [ ] **HOF-02**: Stateful closures (`FnMut`) track environment mutation across calls via SSA-versioned environment (`env_v0 → env_v1`)
+
+### Async/Await Verification
+
+- [ ] **ASY-01**: User can annotate `async fn` with `#[requires]`/`#[ensures]` and have functional properties verified under sequential polling model
+- [ ] **ASY-02**: User can write `#[state_invariant]` to specify invariants that must hold at every `.await` suspension point in an `async fn`
+
+## Future Requirements (v0.5+)
+
+### Deferred from v0.4
+
+- **SEP-05**: Magic wand (`-*`) operator in separation logic — complex encoding, rarely needed
+- **WMM-05**: SeqCst memory fences as distinct from SeqCst stores — vanishingly rare in Rust
+- **HOF-03**: Async closures (`async |x| { ... }`, Rust 2024) — third complexity axis on top of closures + async
+- **ASY-03**: Concurrent async verification (multi-threaded async + weak memory combined) — current research frontier
+- **ASY-04**: Async liveness properties / termination — requires temporal logic, out of SMT scope
+- **SEP-06**: Recursive SL predicates with full induction (not bounded) — bounded unfolding depth 3 covers practical cases
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Async liveness / termination | Requires temporal logic or ranking functions; outside SMT decision procedures |
+| Multi-threaded async (async + weak memory combined) | Current research frontier; no practical tool exists; defer to v0.5+ |
+| Magic wands in separation logic | Complex encoding, rarely needed, no SMT automation precedent |
+| SeqCst fences vs stores distinction | Vanishingly rare in real Rust; SeqCst stores (v0.3) cover 99% of cases |
+| Async closures (Rust 2024 edition) | Three-way orthogonality with closures+async; defer to v0.5 |
+| Recursive SL predicates with full induction | Bounded unfolding depth 3 covers practical linked lists / trees |
+| Automatic contract inference | Undecidable for general programs; explicit annotations required |
+| Windows support | Focus on macOS/Linux; add post-v1.0 when core is stable |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CEX-01 | Phase 19 | Pending |
+| CEX-02 | Phase 19 | Pending |
+| CEX-03 | Phase 19 | Pending |
+| CEX-04 | Phase 19 | Pending |
+| SEP-01 | Phase 20 | Pending |
+| SEP-02 | Phase 20 | Pending |
+| SEP-03 | Phase 20 | Pending |
+| SEP-04 | Phase 20 | Pending |
+| WMM-01 | Phase 21 | Pending |
+| WMM-02 | Phase 21 | Pending |
+| WMM-03 | Phase 21 | Pending |
+| WMM-04 | Phase 21 | Pending |
+| HOF-01 | Phase 22 | Pending |
+| HOF-02 | Phase 22 | Pending |
+| ASY-01 | Phase 23 | Pending |
+| ASY-02 | Phase 23 | Pending |
+
+**Coverage:**
+- v0.4 requirements: 16 total
+- Mapped to phases: 16
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-02-19*
+*Last updated: 2026-02-19 after initial definition*
