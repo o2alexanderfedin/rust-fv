@@ -3463,6 +3463,13 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
         vcs.append(&mut race_vcs);
     }
 
+    // Step 2b: RC11 weak memory axioms for non-SeqCst orderings (WMM-01, WMM-03)
+    // Scoped to WeakMemory* VcKind only — does NOT affect existing DataRaceFreedom VCs (WMM-04)
+    if crate::concurrency::rc11::has_non_seqcst_atomics(func) {
+        let mut wmm_vcs = crate::concurrency::rc11::generate_rc11_vcs(func);
+        vcs.append(&mut wmm_vcs);
+    }
+
     // Step 3: Generate lock invariant VCs
     use crate::concurrency::lock_invariants::{LockOp, lock_invariant_vcs};
     use crate::ir::SyncOpKind;
