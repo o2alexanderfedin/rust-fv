@@ -3776,6 +3776,7 @@ mod tests {
                 invariants: vec![],
                 is_pure: true,
                 decreases: None,
+                fn_specs: vec![],
             },
             generic_params: vec![],
             prophecies: vec![],
@@ -6704,6 +6705,7 @@ mod tests {
                 decreases: Some(SpecExpr {
                     raw: "_1".to_string(),
                 }),
+                fn_specs: vec![],
             },
             loops: vec![],
             generic_params: vec![],
@@ -6868,6 +6870,7 @@ mod tests {
                 }],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
                 invariants: vec![],
             },
             generic_params: vec![],
@@ -7902,6 +7905,7 @@ mod tests {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         };
 
         let mut contract_db = ContractDatabase::new();

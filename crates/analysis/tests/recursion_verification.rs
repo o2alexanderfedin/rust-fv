@@ -766,6 +766,7 @@ fn e2e_factorial_with_decreases_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let factorial = make_factorial(contracts, None);
@@ -818,6 +819,7 @@ fn e2e_factorial_without_decreases_rejected() {
         invariants: vec![],
         is_pure: false,
         decreases: None, // No decreases annotation
+        fn_specs: vec![],
     };
 
     let factorial = make_factorial(contracts, None);
@@ -872,6 +874,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let contracts_odd = Contracts {
@@ -884,6 +887,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let even = make_even(contracts_even);
@@ -981,6 +985,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let bb0 = BasicBlock {
@@ -1122,6 +1127,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         loops: vec![],
         generic_params: vec![],
@@ -1201,6 +1207,7 @@ fn e2e_recursive_function_postcondition_uses_uninterpreted_encoding() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let factorial = make_factorial(contracts, None);
@@ -1357,6 +1364,7 @@ fn e2e_fibonacci_two_recursive_calls() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
     };
 
     let fibonacci = make_fibonacci(contracts);

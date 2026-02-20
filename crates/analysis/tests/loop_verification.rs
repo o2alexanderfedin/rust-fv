@@ -626,6 +626,7 @@ fn test_simple_counter_loop() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -801,6 +802,7 @@ fn test_two_variable_loop() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -890,6 +892,7 @@ fn test_countdown_loop() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -942,6 +945,7 @@ fn test_wrong_init_invariant() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -990,6 +994,7 @@ fn test_wrong_preservation_invariant() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -1040,6 +1045,7 @@ fn test_wrong_exit_postcondition() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -1212,6 +1218,7 @@ fn test_zero_iteration_loop() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 
@@ -1330,6 +1337,7 @@ fn test_loop_detection_from_cfg() {
             }],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1387,6 +1395,7 @@ fn test_vc_description_labels() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
     );
 

@@ -753,6 +753,7 @@ struct HirContracts {
     invariants: Vec<String>,
     is_pure: bool,
     decreases: Option<String>,
+    fn_specs: Vec<rust_fv_analysis::ir::FnSpec>,
 }
 
 /// Extract contracts from HIR doc attributes.
@@ -782,6 +783,20 @@ fn extract_contracts(
                     contracts.decreases = Some(spec.to_string());
                 } else if doc == "rust_fv::pure" {
                     contracts.is_pure = true;
+                } else if let Some(spec) = doc.strip_prefix("rust_fv::fn_spec::") {
+                    // Format: "PARAM::PRE_STR%%POST_STR"
+                    if let Some((param, rest)) = spec.split_once("::")
+                        && let Some((pre_str, post_str)) = rest.split_once("%%")
+                    {
+                        let bound_vars = extract_bound_vars(pre_str);
+                        let pre_expr = strip_bound_var_prefix(pre_str);
+                        contracts.fn_specs.push(rust_fv_analysis::ir::FnSpec {
+                            closure_param: param.to_string(),
+                            pre: pre_expr,
+                            post: post_str.to_string(),
+                            bound_vars,
+                        });
+                    }
                 }
             }
         }
@@ -791,6 +806,7 @@ fn extract_contracts(
             || !contracts.invariants.is_empty()
             || contracts.is_pure
             || contracts.decreases.is_some()
+            || !contracts.fn_specs.is_empty()
         {
             map.insert(
                 local_def_id,
@@ -814,12 +830,61 @@ fn extract_contracts(
                     decreases: contracts
                         .decreases
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
+                    fn_specs: contracts.fn_specs,
                 },
             );
         }
     }
 
     map
+}
+
+/// Extract bound variable names from a fn_spec clause like `|x: i32| x > 0`.
+///
+/// Returns `["x"]` — strips type annotations, just the names.
+/// If no `|` prefix exists, returns an empty vec.
+fn extract_bound_vars(clause: &str) -> Vec<String> {
+    let trimmed = clause.trim();
+    if !trimmed.starts_with('|') {
+        return vec![];
+    }
+    // Find the second `|`
+    let inner = &trimmed[1..];
+    if let Some(end) = inner.find('|') {
+        let params_str = &inner[..end];
+        params_str
+            .split(',')
+            .filter_map(|p| {
+                // Strip type annotation: "|x: i32|" -> "x"
+                let name = p.trim().split(':').next().unwrap_or("").trim();
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.to_string())
+                }
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}
+
+/// Strip the `|x: T|` prefix from a clause, returning just the pre-expression.
+///
+/// For `"|x: i32| x > 0"` returns `"x > 0"`.
+/// If no `|` prefix, returns the whole string trimmed.
+fn strip_bound_var_prefix(clause: &str) -> String {
+    let trimmed = clause.trim();
+    if !trimmed.starts_with('|') {
+        return trimmed.to_string();
+    }
+    // Find the second `|`
+    let inner = &trimmed[1..];
+    if let Some(end) = inner.find('|') {
+        inner[end + 1..].trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Extract ghost predicates from HIR doc attributes.

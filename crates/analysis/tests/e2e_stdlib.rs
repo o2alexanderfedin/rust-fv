@@ -578,6 +578,7 @@ fn e2e_option_unwrap_safe() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         vec![Local {
             name: "_1".to_string(),

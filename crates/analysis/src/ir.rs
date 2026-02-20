@@ -413,6 +413,21 @@ impl Local {
     }
 }
 
+/// A higher-order function specification clause.
+///
+/// Represents: `fn_spec(f, |x| pre => post)` or `fn_spec(f => |x| ..., g => |y| ...)`
+#[derive(Debug, Clone, PartialEq)]
+pub struct FnSpec {
+    /// The closure parameter name (e.g., "f")
+    pub closure_param: String,
+    /// The pre-condition expression string (e.g., "x > 0")
+    pub pre: String,
+    /// The post-condition expression string (e.g., "result > 0")
+    pub post: String,
+    /// Bound variable names in the clause (e.g., ["x"] from "|x| ...")
+    pub bound_vars: Vec<String>,
+}
+
 /// Formal contracts on a function.
 #[derive(Debug, Clone, Default)]
 pub struct Contracts {
@@ -427,6 +442,8 @@ pub struct Contracts {
     /// Termination measure (`#[decreases(expr)]`) for recursive functions.
     /// None means no termination measure specified.
     pub decreases: Option<SpecExpr>,
+    /// HOF closure specification entailments (fn_spec clauses)
+    pub fn_specs: Vec<FnSpec>,
 }
 
 /// Information about a loop detected in the CFG.
@@ -1403,6 +1420,7 @@ mod tests {
             decreases: Some(SpecExpr {
                 raw: "n".to_string(),
             }),
+            fn_specs: vec![],
             ..Default::default()
         };
         assert!(contracts.decreases.is_some());

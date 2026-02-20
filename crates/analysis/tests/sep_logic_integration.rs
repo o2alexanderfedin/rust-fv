@@ -72,6 +72,7 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -130,6 +131,7 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -372,6 +374,7 @@ fn sep_03_frame_rule() {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
     };
 
     let mut contract_db = ContractDatabase::new();

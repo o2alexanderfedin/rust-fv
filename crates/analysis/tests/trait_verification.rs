@@ -263,6 +263,7 @@ fn make_function_with_trait_object_param(
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
         },
         loops: vec![],
         generic_params: vec![],

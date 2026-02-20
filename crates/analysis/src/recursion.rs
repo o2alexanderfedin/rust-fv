@@ -646,6 +646,7 @@ mod tests {
             invariants: vec![],
             is_pure: false,
             decreases: decreases.map(|d| SpecExpr { raw: d.to_string() }),
+            fn_specs: vec![],
         };
 
         // bb0: branch on _1 <= 1
@@ -956,6 +957,7 @@ mod tests {
             decreases: Some(SpecExpr {
                 raw: "_1".to_string(),
             }),
+            fn_specs: vec![],
             ..Default::default()
         };
 
