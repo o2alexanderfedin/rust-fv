@@ -1109,6 +1109,9 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::LockInvariant => "lock_invariant",
         VcKind::Deadlock => "deadlock",
         VcKind::ChannelSafety => "channel_safety",
+        VcKind::WeakMemoryCoherence => "weak_memory_coherence",
+        VcKind::WeakMemoryRace => "weak_memory_race",
+        VcKind::WeakMemoryAtomicity => "weak_memory_atomicity",
     }
     .to_string()
 }

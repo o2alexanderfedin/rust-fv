@@ -239,6 +239,10 @@ pub struct AtomicOp {
     pub atomic_place: Place,
     /// Value for stores/compare-exchange (None for loads)
     pub value: Option<Operand>,
+    /// Thread that performs this atomic operation.
+    /// 0 = main thread; N = Nth spawned thread (in thread_spawns order).
+    /// Used by RC11 weak memory encoding to partition events by thread.
+    pub thread_id: usize,
 }
 
 /// Type of synchronization operation.
@@ -1733,6 +1737,7 @@ mod tests {
             ordering: AtomicOrdering::SeqCst,
             atomic_place: Place::local("_2"),
             value: None,
+            thread_id: 0,
         };
         assert_eq!(atomic_op.kind, AtomicOpKind::Load);
         assert_eq!(atomic_op.ordering, AtomicOrdering::SeqCst);
@@ -1789,6 +1794,7 @@ mod tests {
                 ordering: AtomicOrdering::Release,
                 atomic_place: Place::local("_2"),
                 value: Some(Operand::Move(Place::local("_3"))),
+                thread_id: 0,
             }],
             sync_ops: vec![],
             lock_invariants: vec![],

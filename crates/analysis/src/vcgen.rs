@@ -123,6 +123,15 @@ pub enum VcKind {
     Deadlock,
     /// Channel operation safety (send-on-closed, capacity overflow, recv deadlock)
     ChannelSafety,
+    /// RC11 coherence check: hb;eco? is irreflexive under weak memory ordering.
+    /// Generated only for functions with at least one non-SeqCst atomic op.
+    WeakMemoryCoherence,
+    /// Weak memory data race: conflicting Relaxed accesses to same location from different threads.
+    /// Under Relaxed ordering, Relaxed-vs-Relaxed to same location without ordering is a race.
+    WeakMemoryRace,
+    /// Weak memory atomicity: RMW atomicity under RC11 (rmw ∩ (rb;mo) = ∅).
+    /// Generated for fetch_add/compare_exchange ops under non-SeqCst ordering.
+    WeakMemoryAtomicity,
 }
 
 impl VcKind {
@@ -7588,12 +7597,14 @@ mod tests {
                     atomic_place: Place::local("x".to_string()),
                     ordering: AtomicOrdering::SeqCst,
                     value: Some(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                    thread_id: 0,
                 },
                 AtomicOp {
                     kind: AtomicOpKind::Load,
                     atomic_place: Place::local("x".to_string()),
                     ordering: AtomicOrdering::SeqCst,
                     value: None,
+                    thread_id: 0,
                 },
             ],
             sync_ops: vec![],

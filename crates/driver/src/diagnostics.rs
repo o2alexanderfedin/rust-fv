@@ -376,6 +376,9 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::LockInvariant => "lock invariant violation",
         VcKind::Deadlock => "potential deadlock detected",
         VcKind::ChannelSafety => "channel operation safety violation",
+        VcKind::WeakMemoryCoherence => "RC11 coherence violation",
+        VcKind::WeakMemoryRace => "weak memory data race",
+        VcKind::WeakMemoryAtomicity => "RC11 RMW atomicity violation",
     }
 }
 
