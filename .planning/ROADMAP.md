@@ -249,8 +249,13 @@ Plans:
 **Requirements**: HOF-01, HOF-02
 **Success Criteria** (what must be TRUE):
   1. Developer writes `fn_spec(f, |x| pre => post)` in a HOF spec and the verifier proves the closure satisfies the given pre/postcondition entailment at every call site
-  2. Developer annotates a `FnMut` closure HOF and the verifier tracks environment mutation across calls via SSA-versioned environment (`env_v0 → env_v1`), proving postconditions that reference mutated captured variables
-**Plans**: TBD
+  2. Developer annotates a `FnMut` closure HOF and the verifier tracks environment mutation across calls via SSA-versioned environment (`env_before`/`env_after`), proving postconditions that reference mutated captured variables
+**Plans**: 3 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — fn_spec proc macro + FnSpec IR type + Contracts.fn_specs field + callbacks.rs extraction (HOF-01, HOF-02)
+- [ ] 22-02-PLAN.md — hof_vcgen.rs: generate_fn_spec_vcs() AUFLIA entailment engine + FnMut env encoding + vcgen.rs wiring (HOF-01, HOF-02)
+- [ ] 22-03-PLAN.md — TDD soundness suite: 6 fn_spec tests (Fn verified/falsified/trivial + FnMut verified/falsified + FnOnce) (HOF-01, HOF-02)
 
 ### Phase 23: Async/Await Verification
 **Goal**: Developers can verify functional properties of async fn code under sequential polling model
@@ -274,5 +279,5 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 19. Counterexample Generation | 4/4 | Complete    | 2026-02-20 | - |
 | 20. Separation Logic | 4/4 | Complete    | 2026-02-20 | - |
 | 21. Weak Memory Models | 3/3 | Complete    | 2026-02-20 | - |
-| 22. Higher-Order Closures | v0.4 | 0/TBD | Not started | - |
+| 22. Higher-Order Closures | v0.4 | 0/3 | Not started | - |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
