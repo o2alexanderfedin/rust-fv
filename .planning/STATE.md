@@ -6,23 +6,23 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — defining requirements
+**Current focus:** v0.4 Full Rust Verification — Phase 19 (Counterexample Generation) ready to plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-19 — Milestone v0.4 started
+Phase: 19 of 23 (Counterexample Generation)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-02-19 — v0.4 roadmap created (Phases 19-23)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░░░░░] 0% (v0.4 starting)
+Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 51 (v0.1: 17 plans, v0.2: 21 plans, v0.3: 13 plans)
-- Average duration: 800 seconds (v0.3)
-- Total execution time: 5 days (v0.1: 2 days, v0.2: 3 days, v0.3: 1 day)
+- Total plans completed: 51 (v0.1: 17, v0.2: 21, v0.3: 13)
+- Average duration: 800 seconds (v0.3 baseline)
+- Total execution time: 5 days (v0.1: 2d, v0.2: 3d, v0.3: 1d)
 
 **By Milestone:**
 
@@ -30,34 +30,12 @@ Progress: [░░░░░░░░░░░░░░░░░░░░░░░
 |-----------|--------|-------|----------|
 | v0.1 POC | 5 | 17 | 2 days |
 | v0.2 Advanced | 7 | 21 | 3 days |
-| v0.3 Usability | 6 | 13/TBD | In progress |
+| v0.3 Usability | 6 | 13 | 1 day |
+| v0.4 Full Rust | 5 | TBD | In progress |
 
 **Recent Trend:**
-- v0.1 average: 8.5 plans/day
-- v0.2 average: 7.0 plans/day
-- v0.3 current: 13 plans (avg 800s duration)
-- Trend: Accelerating (improved efficiency with integration testing patterns and focused implementations)
-
-**Recent Executions:**
-
-| Plan | Duration | Tasks | Files |
-|------|----------|-------|-------|
-| Phase 14 P01 | 738s | 2 | 8 |
-| Phase 14 P02 | 478s | 2 | 4 |
-| Phase 14 P03 | 71min | 2 | 4 |
-| Phase 14 P04 | 326s | 2 | 3 |
-| Phase 15 P01 | 751s | 2 | 6 |
-| Phase 15 P02 | 814s | 1 | 2 |
-| Phase 15 P03 | 530s | 2 | 4 |
-| Phase 16 P01 | 145s | 2 | 5 |
-| Phase 16 P02 | 427s | 2 | 5 |
-| Phase 16 P03 | ~600s | 2 | 6 |
-| Phase 17 P01 | 413s | 2 | 4 |
-| Phase 17 P02 | 201s | 2 | 5 |
-
-| Phase 18 P01 | 174s | 1 | 4 |
-| Phase 18 P02 | 428s | 1 | 8 |
-| Phase 18 P03 | 1063s | 2 | 4 |
+- v0.3 average: 800s/plan, 13 plans across 6 phases
+- Trend: Stable
 
 *Updated after each plan completion*
 
@@ -66,75 +44,15 @@ Progress: [░░░░░░░░░░░░░░░░░░░░░░░
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Recent decisions relevant to v0.4:
 
-- v0.2: Behavioral subtyping for traits (LSP enforcement; precondition weaker, postcondition stronger)
-- v0.2: Heap-as-array memory model for unsafe (byte-addressable memory with allocation metadata)
-- v0.2: Bounded concurrency with happens-before (state explosion mitigation; sequential consistency first)
-- v0.3: Standard library contracts as external crate pattern (Prusti/Verus model for versioning independence)
-- v0.3 (13-01): SMT Seq sort for Vec/String/slice modeling (native sequence operations vs array encoding)
-- v0.3 (13-01): StdlibContractRegistry with enable/disable flag (supports --no-stdlib-contracts)
-- v0.3 (13-02): Vec push has no capacity precondition (Rust allocator handles reallocation)
-- v0.3 (13-02): Element-level precision via seq.nth for Vec indexing (proves vec[i] == value)
-- v0.3 (13-02): Option/Result as SMT datatypes with ghost accessors (option_value, ok_value, err_value)
-- [Phase 13]: HashMap modeled as mathematical map abstraction with Array(K, Option(V)) encoding and frame conditions
-- [Phase 13]: Iterator adaptors model composable sequence transformations (map preserves length, filter reduces)
-- [Phase 13]: Stdlib contracts auto-load by default - zero configuration needed
-- [Phase 13]: CLI flag --no-stdlib-contracts provides opt-out via environment variable
-- [Phase 13]: Proptest oracle testing validates all stdlib contract postconditions against real behavior (256 cases each)
-- [Phase 13]: E2E tests prove full verification pipeline works with stdlib contracts (IR -> ContractDB -> VCGen -> Z3)
-- [Phase 14 (14-01)]: Dual-hash cache model (mir_hash + contract_hash) enables precise invalidation granularity
-- [Phase 14 (14-01)]: Age-based eviction (30-day TTL) with lazy cleanup on load (no periodic background task)
-- [Phase 14 (14-01)]: Transitive invalidation via reverse call graph (contract changes cascade to callers)
-- [Phase 14 (14-01)]: Timestamp zero means "keep" for backward compatibility with old cache format
-- [Phase 14 (14-02)]: Invalidation reasons shown for all re-verified functions (not behind verbose flag)
-- [Phase 14 (14-02)]: --verbose flag controls per-function timing only, not invalidation reasons
-- [Phase 14 (14-02)]: [SKIP] status distinguishes cached results from verified results
-- [Phase 14 (14-02)]: Total timing always shown in summary when any functions verified
-- [Phase 14 (14-03)]: Synthetic IR-level benchmarking provides controlled, reproducible scenarios without rustc overhead
-- [Phase 14 (14-03)]: Small-scale validation tests (10 functions) verify infrastructure, not performance targets
-- [Phase 14 (14-03)]: 9 correctness tests collectively prove incremental verification soundness
-- [Phase 14]: Standalone test fixture crate (not workspace member) for realistic E2E testing
-- [Phase 14]: cfg_attr contract syntax for rustc compatibility in test fixture
-- [Phase 14]: E2E tests marked #[ignore] - require full toolchain and solvers
-- [Phase 15 (15-01)]: Self-instantiation detection via recursive function name matching (not symbolic substitution)
-- [Phase 15 (15-01)]: Catch-all interpreted symbol detection for unrecognized Term variants
-- [Phase 15 (15-01)]: format_trigger_error returns String for testability and composability
-- [Phase 15 (15-02)]: TriggerHint stored as Vec<Term> in IR, separate from SMT Term layer
-- [Phase 15 (15-02)]: Test bodies use bound variable expressions, not unresolved function calls
-- [Phase 15 (15-03)]: Manual triggers fully replace auto-inference (not merge)
-- [Phase 15 (15-03)]: Validation errors propagate through Result type
-- [Phase 15 (15-03)]: describe_quantifier_triggers for verbose mode output
-- [Phase 15 (15-03)]: extract_manual_triggers strips rust_fv_trigger_hint annotations
-- [Phase 16 (16-01)]: Whole-crate verification scope (matches cargo check pattern, relies on incremental cache)
-- [Phase 16 (16-01)]: Fresh spawn per save (simpler lifecycle than persistent background process)
-- [Phase 16 (16-01)]: DiagnosticSeverity.Error for verification failures (not Warning - same visual weight as rustc)
-- [Phase 16 (16-01)]: Counterexamples formatted inline in diagnostic tooltip (not separate related information yet)
-- [Phase 16 (16-02)]: Structured output channel shown by default (not raw output - better UX)
-- [Phase 16 (16-02)]: SMT-LIB viewer reads from target/verify/ filesystem (not embedded in JSON - keeps payloads small)
-- [Phase 16 (16-02)]: Gutter decorations use regex function matching (JSON lacks source_line for passing functions)
-- [Phase 16 (16-02)]: Decorations persist across editor tab switches (lastVerificationReport + onDidChangeActiveTextEditor)
-- [Phase 16 (16-03)]: Z3 binary bundled per platform with config override priority
-- [Phase 16 (16-03)]: Terminal-based cargo install prompt (not URL-based)
-- [Phase 16 (16-03)]: Workspace-aware install path (crates/driver, not root virtual manifest)
-- [Phase 17 (17-01)]: --message-format=json separate from --output-format (IDE rustc-compat vs machine-readable)
-- [Phase 17 (17-01)]: Subprocess stdout capture when --message-format=json (pipe instead of inherit)
-- [Phase 17 (17-01)]: Summary diagnostic level: "note" for all-pass, "warning" for failures
-- [Phase 17]: Callback pattern for RA mode switching (RaModeCallbacks avoids circular imports)
-- [Phase 17]: Leave overrideCommand in place on extension deactivation (user expectation)
-- [Phase 17]: Workspace-scoped overrideCommand configuration (not global)
-- [Phase 17]: Diagnostic-based gutter inference in RA mode (verified = no diagnostics in function body)
-- [Phase 18]: Entire-function rejection for any bitwise/shift op (conservative, predictable, avoids complex per-expression tracking)
-- [Phase 18]: #[fv::no_bv2int] encoded as magic requires string to avoid new IR field and 30+ test fixture updates
-- [Phase 18]: RFC 0560 wrapping: unsigned uses modulo (mod result 2^N), signed uses nested ITE two's complement chain
-- [Phase 18 (18-02)]: SolverInterface trait in differential.rs (not solver crate) -- keeps equivalence testing self-contained, no binary dependency for unit tests
-- [Phase 18 (18-02)]: generate_vcs_with_mode delegates to generate_vcs for Bitvector mode -- zero duplication, guaranteed parity
-- [Phase 18 (18-02)]: Post-hoc logic replacement (replace_script_logic) swaps QF_BV to QF_LIA/QF_NIA -- minimally invasive, no threading through 15+ generation functions
-- [Phase 18 (18-02)]: CacheEntry derives Default -- enables ..Default::default() in struct literals, required by all callers after new fields added
-- [Phase 18 (18-03)]: Z3SolverAdapter in callbacks.rs (not solver crate) -- keeps differential testing wiring local, no circular deps
-- [Phase 18 (18-03)]: run_differential_test returns (None, None, None) when Z3 unavailable -- graceful degradation, no hard failure
-- [Phase 18 (18-03)]: ENV_MUTEX serializes bv2int env var tests -- fixes pre-existing flaky race between RUST_FV_BV2INT tests
-- [Phase 18 (18-03)]: callbacks.rs uses output::format_bv2int_timing and check_slowdown_warning -- DRY, consistent formatting
+- [Phase 18]: Post-hoc QF_BV→QF_LIA/QF_NIA replacement (minimally invasive)
+- [Phase 18]: SolverInterface trait in differential.rs (self-contained, no binary dep)
+- [v0.4 research]: Counterexample must be built first — force multiplier for all other features
+- [v0.4 research]: Separation logic uses distinct heap domain (not byte-array model) to avoid conflict with heap_model.rs
+- [v0.4 research]: Weak memory axioms scoped to WeakMemory* VcKind only — prevents SeqCst regressions
+- [v0.4 research]: Z3 MBQI preferred for HOF spec entailment queries (heavy universal quantification)
+- [v0.4 research]: Async coroutine detection in driver only — rustc internals must not leak into analysis crate
 
 ### Pending Todos
 
@@ -142,24 +60,19 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-**From research:**
-- Stdlib contract completeness - Need Tier 1 coverage (Vec, Option, HashMap, Iterator basics) before v0.3 ships
-- IDE performance boundary - Must maintain <1s re-verification or adoption suffers
-- Quantifier trigger diagnostics - Manual triggers expose SMT expert concepts, need progressive disclosure
-
-**Mitigation strategies:**
-- Property-based oracle testing for stdlib contract soundness
-- Incremental verification prerequisite for IDE integration
-- Static termination analysis before exposing manual trigger API
+**v0.4 phase-specific risks (from research):**
+- [Phase 20] Heap domain choice (Viper Ref sort vs bitvector-set permissions) — resolve at Phase 20 planning
+- [Phase 21] RC11 AcqRel encoding — not equivalent to Release OR Acquire; derive from arXiv:2108.06944
+- [Phase 23] Async coroutine MIR shape may have changed post-PR#145330 — validate with RUSTFLAGS="-Zunpretty=mir" before Phase 23
 
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Milestone v0.4 started — requirements being defined
+Stopped at: v0.4 roadmap created — ROADMAP.md written with Phases 19-23
 Resume file: None
-Next step: Complete requirements → create roadmap → /gsd:plan-phase 19
+Next step: /gsd:plan-phase 19
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-19 after starting v0.4 milestone*
+*Last updated: 2026-02-19 after v0.4 roadmap creation*
