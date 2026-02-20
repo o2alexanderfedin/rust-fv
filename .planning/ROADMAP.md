@@ -219,7 +219,13 @@ Plans:
   2. Developer writes separating conjunction (`H1 * H2`) in specs and the verifier proves the two heap regions do not alias
   3. Developer writes a function that modifies one heap region and the frame rule automatically propagates the unchanged remainder — no manual re-specification required
   4. Developer defines `#[ghost_predicate] fn linked_list(p, n)` recursively and the verifier unfolds it to depth 3 to prove list structure properties
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 20-01-PLAN.md — Sep heap domain (sep_heap + perm arrays) + pts_to(p,v) encoding in sep_logic.rs and spec_parser.rs (SEP-01)
+- [ ] 20-02-PLAN.md — #[ghost_predicate] proc-macro + GhostPredicateDatabase + callbacks.rs extraction (SEP-04 foundation)
+- [ ] 20-03-PLAN.md — Separating conjunction (*) detection + ghost predicate expansion + frame rule in vcgen.rs + AUFBV logic selection (SEP-02, SEP-03, SEP-04)
+- [ ] 20-04-PLAN.md — E2E integration tests for all 4 SEP requirements verified against Z3 (SEP-01, SEP-02, SEP-03, SEP-04)
 
 ### Phase 21: Weak Memory Models
 **Goal**: Developers can verify programs using Relaxed/Acquire/Release/AcqRel atomic orderings with sound RC11 semantics
@@ -261,7 +267,7 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19. Counterexample Generation | 4/4 | Complete    | 2026-02-20 | - |
-| 20. Separation Logic | v0.4 | 0/TBD | Not started | - |
+| 20. Separation Logic | v0.4 | 0/4 | Not started | - |
 | 21. Weak Memory Models | v0.4 | 0/TBD | Not started | - |
 | 22. Higher-Order Closures | v0.4 | 0/TBD | Not started | - |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
