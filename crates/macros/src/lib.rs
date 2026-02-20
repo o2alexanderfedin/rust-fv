@@ -229,6 +229,29 @@ pub fn verify(attr: TokenStream, item: TokenStream) -> TokenStream {
     verify_impl(attr.into(), item.into()).into()
 }
 
+/// Marks a function as a ghost predicate for separation logic specs.
+///
+/// The function body is serialized as a hidden doc attribute so the
+/// driver can extract and store it in the GhostPredicateDatabase.
+/// Ghost predicates may be recursive; the verifier unfolds them to depth 3.
+///
+/// # Example
+///
+/// ```ignore
+/// #[ghost_predicate]
+/// fn linked_list(p: *const Node, n: usize) -> bool {
+///     if n == 0 { p.is_null() } else { pts_to(p, *p) && linked_list((*p).next, n - 1) }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn ghost_predicate(attr: TokenStream, item: TokenStream) -> TokenStream {
+    ghost_predicate_impl(
+        proc_macro2::TokenStream::from(attr),
+        proc_macro2::TokenStream::from(item),
+    )
+    .into()
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -466,6 +489,52 @@ fn extend_contract_impl(
     }
 
     let doc_value = "rust_fv::extend_contract";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
+/// `proc_macro2`-based implementation of `ghost_predicate` for unit testing.
+///
+/// Serializes the function's parameter names and body as a hidden doc attribute.
+/// Format: `rust_fv::ghost_predicate::name::params::body`
+/// where params is a comma-separated list of parameter names and body is the
+/// token stream string of the function block.
+fn ghost_predicate_impl(
+    _attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let func: syn::ItemFn = match syn::parse2(item.clone()) {
+        Ok(f) => f,
+        Err(err) => return err.to_compile_error(),
+    };
+
+    let fn_name = func.sig.ident.to_string();
+    // Serialize param names as comma-separated string
+    let param_names: Vec<String> = func
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            if let syn::FnArg::Typed(pat_ty) = arg
+                && let syn::Pat::Ident(ident) = &*pat_ty.pat
+            {
+                return Some(ident.ident.to_string());
+            }
+            None
+        })
+        .collect();
+    let params_str = param_names.join(",");
+    // Serialize the function body as token stream string
+    let body_str = func.block.to_token_stream().to_string();
+    // Format: "rust_fv::ghost_predicate::name::params::body"
+    let doc_value = format!(
+        "rust_fv::ghost_predicate::{}::{}::{}",
+        fn_name, params_str, body_str
+    );
 
     quote::quote! {
         #[doc(hidden)]
@@ -1142,6 +1211,38 @@ mod tests {
         assert!(result_str.contains("rust_fv::verify::threads::4"));
         assert!(result_str.contains("rust_fv::verify::switches::8"));
         assert!(result_str.contains("fn heavy_concurrent"));
+    }
+
+    // --- ghost_predicate tests (Phase 20-02) ---
+
+    #[test]
+    fn test_ghost_predicate_macro() {
+        let attr = proc_macro2::TokenStream::new();
+        let item: proc_macro2::TokenStream = quote! {
+            fn foo(p: *const i32, n: usize) -> bool { true }
+        };
+
+        let result = ghost_predicate_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::ghost_predicate::foo"));
+        assert!(result_str.contains("p,n"));
+        assert!(result_str.contains("fn foo"));
+    }
+
+    #[test]
+    fn test_ghost_predicate_macro_empty_params() {
+        let attr = proc_macro2::TokenStream::new();
+        let item: proc_macro2::TokenStream = quote! {
+            fn emp() -> bool { true }
+        };
+
+        let result = ghost_predicate_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::ghost_predicate::emp"));
+        assert!(result_str.contains("fn emp"));
     }
 
     // --- override_contract tests (Phase 13-04) ---
