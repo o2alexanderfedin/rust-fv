@@ -139,8 +139,11 @@ pub fn format_equivalence_result(result: &EquivalenceResult, func_name: &str) ->
 pub enum VcOutcome {
     /// Formula is unsatisfiable (VC proved).
     Unsat,
-    /// Formula is satisfiable (VC failed), with optional model description.
-    Sat(Option<String>),
+    /// Formula is satisfiable (VC failed), with optional structured model pairs.
+    ///
+    /// Each pair is `(variable_name, raw_value_string)`, e.g. `("x", "#x00000005")`.
+    /// `None` means the solver returned SAT but no model was available.
+    Sat(Option<Vec<(String, String)>>),
     /// Solver timed out or returned unknown.
     Unknown,
 }
@@ -179,9 +182,16 @@ fn outcome_name(o: &VcOutcome) -> &'static str {
 
 /// Format additional model detail for divergence messages.
 fn format_model_detail(bv_r: &VcOutcome, int_r: &VcOutcome) -> String {
+    let format_pairs = |pairs: &[(String, String)]| -> String {
+        pairs
+            .iter()
+            .map(|(k, v)| format!("{k} = {v}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     let model = match (bv_r, int_r) {
-        (VcOutcome::Sat(Some(m)), _) => Some(format!(" (bitvector model: {m})")),
-        (_, VcOutcome::Sat(Some(m))) => Some(format!(" (bv2int model: {m})")),
+        (VcOutcome::Sat(Some(m)), _) => Some(format!(" (bitvector model: {})", format_pairs(m))),
+        (_, VcOutcome::Sat(Some(m))) => Some(format!(" (bv2int model: {})", format_pairs(m))),
         _ => None,
     };
     model.unwrap_or_default()
@@ -340,17 +350,18 @@ mod tests {
         let bv_scripts = empty_scripts(1);
         let int_scripts = empty_scripts(1);
 
-        let model_str = "x = 5, y = -3".to_string();
-        let cycle = CycleMockSolver::new(vec![
-            VcOutcome::Sat(Some(model_str.clone())),
-            VcOutcome::Unsat,
-        ]);
+        let model_pairs = vec![
+            ("x".to_string(), "5".to_string()),
+            ("y".to_string(), "-3".to_string()),
+        ];
+        let cycle = CycleMockSolver::new(vec![VcOutcome::Sat(Some(model_pairs)), VcOutcome::Unsat]);
         let result =
             test_encoding_equivalence("func_with_model", &bv_scripts, &int_scripts, &cycle);
 
         assert!(!result.equivalent);
         let ce = result.counterexample.unwrap();
-        assert!(ce.contains(&model_str));
+        assert!(ce.contains("x = 5"), "Expected 'x = 5' in: {ce}");
+        assert!(ce.contains("y = -3"), "Expected 'y = -3' in: {ce}");
     }
 
     #[test]
@@ -476,5 +487,62 @@ mod tests {
         };
         let formatted = format_equivalence_result(&result, "func");
         assert!(formatted.contains("1.0x faster"));
+    }
+
+    // --- Structured model pairs tests (Phase 19) ---
+
+    #[test]
+    fn test_sat_with_structured_model_pairs_contains_formatted_pair() {
+        // VcOutcome::Sat carries Vec<(String,String)> pairs
+        // When BV=SAT(model) and INT=UNSAT, divergence message must contain "x = 5"
+        let bv_scripts = empty_scripts(1);
+        let int_scripts = empty_scripts(1);
+
+        let model_pairs = vec![
+            ("x".to_string(), "5".to_string()),
+            ("b".to_string(), "true".to_string()),
+        ];
+        let cycle = CycleMockSolver::new(vec![VcOutcome::Sat(Some(model_pairs)), VcOutcome::Unsat]);
+        let result =
+            test_encoding_equivalence("func_with_pairs", &bv_scripts, &int_scripts, &cycle);
+
+        assert!(!result.equivalent);
+        let ce = result.counterexample.unwrap();
+        // The counterexample must display "x = 5" (from the Vec pair)
+        assert!(ce.contains("x = 5"), "Expected 'x = 5' in: {ce}");
+        assert!(ce.contains("b = true"), "Expected 'b = true' in: {ce}");
+    }
+
+    #[test]
+    fn test_sat_none_model_produces_no_model_detail() {
+        let bv_scripts = empty_scripts(1);
+        let int_scripts = empty_scripts(1);
+
+        let cycle = CycleMockSolver::new(vec![VcOutcome::Sat(None), VcOutcome::Unsat]);
+        let result = test_encoding_equivalence("no_model_func", &bv_scripts, &int_scripts, &cycle);
+
+        assert!(!result.equivalent);
+        let ce = result.counterexample.unwrap();
+        // No model detail when None
+        assert!(
+            !ce.contains("model:"),
+            "Should not contain model detail: {ce}"
+        );
+    }
+
+    #[test]
+    fn test_sat_vec_pairs_type_accepted_by_outcome() {
+        // Verify the type is Vec<(String,String)> not String
+        let pairs: Vec<(String, String)> = vec![("x".to_string(), "#x00000005".to_string())];
+        let outcome = VcOutcome::Sat(Some(pairs));
+        // Pattern match to confirm it holds Vec
+        match outcome {
+            VcOutcome::Sat(Some(v)) => {
+                assert_eq!(v.len(), 1);
+                assert_eq!(v[0].0, "x");
+                assert_eq!(v[0].1, "#x00000005");
+            }
+            _ => panic!("Expected Sat(Some(vec))"),
+        }
     }
 }

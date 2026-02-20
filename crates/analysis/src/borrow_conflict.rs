@@ -117,6 +117,7 @@ pub fn generate_conflict_vcs(
             statement: 0,
             source_file: None,
             source_line: None,
+            source_column: None,
             contract_text: None,
             vc_kind: VcKind::BorrowValidity,
         };
@@ -190,6 +191,7 @@ pub fn generate_reborrow_vcs(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::BorrowValidity,
                     };
@@ -411,6 +413,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -470,6 +473,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         // For now this is a placeholder test - actual implementation
@@ -579,6 +583,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let _result = generate_vcs(&func, None);
@@ -616,6 +621,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let result = generate_vcs(&func, None);

@@ -41,14 +41,9 @@ impl SolverInterface for Z3SolverAdapter {
         match self.solver.check_sat_raw(&script_text) {
             Ok(rust_fv_solver::SolverResult::Unsat) => VcOutcome::Unsat,
             Ok(rust_fv_solver::SolverResult::Sat(model)) => {
-                let model_str = model.map(|m| {
-                    m.assignments
-                        .iter()
-                        .map(|(k, v)| format!("{k} = {v}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                });
-                VcOutcome::Sat(model_str)
+                // Pass structured pairs directly — no string serialization needed
+                let model_pairs = model.map(|m| m.assignments);
+                VcOutcome::Sat(model_pairs)
             }
             Ok(rust_fv_solver::SolverResult::Unknown(_)) | Err(_) => VcOutcome::Unknown,
         }
@@ -70,7 +65,9 @@ pub struct VerificationResult {
     pub function_name: String,
     pub condition: String,
     pub verified: bool,
-    pub counterexample: Option<String>,
+    /// Structured counterexample as `(variable_name, raw_value)` pairs.
+    /// `None` if the VC was verified (or no model was available).
+    pub counterexample: Option<Vec<(String, String)>>,
     #[allow(dead_code)] // Used for future diagnostics enhancement
     pub vc_location: rust_fv_analysis::vcgen::VcLocation,
 }
@@ -246,7 +243,13 @@ impl VerificationCallbacks {
                 let fail_msg = vcs.iter().find(|r| !r.verified).map(|r| {
                     let mut msg = r.condition.clone();
                     if let Some(cx) = &r.counterexample {
-                        msg.push_str(&format!(" (counterexample: {cx})"));
+                        // Format structured pairs as "k = v, k2 = v2"
+                        let cx_str = cx
+                            .iter()
+                            .map(|(k, v)| format!("{k} = {v}"))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        msg.push_str(&format!(" (counterexample: {cx_str})"));
                     }
                     msg
                 });
@@ -312,6 +315,7 @@ impl VerificationCallbacks {
                                 contract: f.contract_text.clone(),
                                 source_file: f.source_file.clone(),
                                 source_line: f.source_line,
+                                source_column: None,
                                 counterexample: f.counterexample.as_ref().map(|cx| {
                                     cx.iter()
                                         .map(|(k, v)| json_output::JsonAssignment {
@@ -434,8 +438,13 @@ impl Callbacks for VerificationCallbacks {
         // Note: --fresh no longer clears cache, it just bypasses it for this run
         // Cache files remain on disk for future runs
 
-        // Collect all functions to verify
-        let mut func_infos = Vec::new();
+        // Collect all functions to verify.
+        // Each entry: (name, ir_func, source_locations_map).
+        // source_locations_map maps (block_idx, stmt_idx) → (file, line, col)
+        // and is built here while TyCtxt is live for use in parallel workers.
+        type SourceLocMap = std::collections::HashMap<(usize, usize), (String, usize, usize)>;
+        type FuncInfoEntry = (String, rust_fv_analysis::ir::Function, SourceLocMap);
+        let mut func_infos: Vec<FuncInfoEntry> = Vec::new();
 
         for local_def_id in tcx.hir_body_owners() {
             let def_id = local_def_id.to_def_id();
@@ -462,20 +471,24 @@ impl Callbacks for VerificationCallbacks {
                 contracts.cloned().unwrap_or_default(),
             );
 
-            func_infos.push((name.clone(), ir_func));
+            // Build source location map from MIR SourceInfo spans.
+            // Maps (block_idx, stmt_idx) → (file, line, col) while TyCtxt is live.
+            let source_locations = build_source_location_map(tcx, mir);
+
+            func_infos.push((name.clone(), ir_func, source_locations));
         }
 
         // Build call graph
         let call_graph = rust_fv_analysis::call_graph::CallGraph::from_functions(
             &func_infos
                 .iter()
-                .map(|(n, f)| (n.clone(), f))
+                .map(|(n, f, _sl)| (n.clone(), f))
                 .collect::<Vec<_>>(),
         );
 
         // Compute per-function hashes and dependencies
         let mut func_hashes = std::collections::HashMap::new();
-        for (name, ir_func) in &func_infos {
+        for (name, ir_func, _source_locs) in &func_infos {
             let ir_debug = format!("{:?}", ir_func);
             let mir_hash = crate::cache::VcCache::compute_mir_hash(name, &ir_debug);
             let contract_hash =
@@ -501,7 +514,7 @@ impl Callbacks for VerificationCallbacks {
         // When --bv2int enabled: check per-function eligibility, emit warnings for
         // ineligible functions, and record equivalence results.
         if self.bv2int_enabled || self.bv2int_report {
-            for (name, ir_func) in &func_infos {
+            for (name, ir_func, _source_locs) in &func_infos {
                 match rust_fv_analysis::bv2int::is_bv2int_eligible(ir_func) {
                     Ok(()) => {
                         // Eligible — run differential test if bv2int enabled and solver available
@@ -579,7 +592,7 @@ impl Callbacks for VerificationCallbacks {
 
         // Build verification tasks with invalidation decisions
         let mut tasks = Vec::new();
-        for (name, ir_func) in func_infos.into_iter() {
+        for (name, ir_func, source_locations) in func_infos.into_iter() {
             let (mir_hash, contract_hash) = func_hashes.get(&name).unwrap();
 
             // Compute legacy cache key for backward compatibility
@@ -611,6 +624,7 @@ impl Callbacks for VerificationCallbacks {
                 contract_hash: *contract_hash,
                 dependencies,
                 invalidation_decision,
+                source_locations,
             });
         }
 
@@ -659,20 +673,8 @@ impl Callbacks for VerificationCallbacks {
                 if !result.verified
                     && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::Postcondition
                 {
-                    // Parse counterexample string back into map
-                    let counterexample = result.counterexample.as_ref().map(|cx_str| {
-                        cx_str
-                            .split(", ")
-                            .filter_map(|s| {
-                                let parts: Vec<_> = s.split(" = ").collect();
-                                if parts.len() == 2 {
-                                    Some((parts[0].to_string(), parts[1].to_string()))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    });
+                    // Use the structured pairs directly — no string re-parsing needed
+                    let counterexample = result.counterexample.clone();
 
                     self.failures.push(diagnostics::VerificationFailure {
                         function_name: result.function_name.clone(),
@@ -680,6 +682,7 @@ impl Callbacks for VerificationCallbacks {
                         contract_text: result.vc_location.contract_text.clone(),
                         source_file: result.vc_location.source_file.clone(),
                         source_line: result.vc_location.source_line,
+                        source_column: None,
                         counterexample,
                         message: result.condition.clone(),
                     });
@@ -887,6 +890,8 @@ fn run_differential_test(
             int_str,
             result.counterexample.as_deref(),
         );
+        // Note: result.counterexample in EquivalenceResult is Option<String> (divergence message),
+        // distinct from VerificationResult.counterexample: Option<Vec<(String,String)>>
         // Return timing even for divergent results (useful for analysis)
         return (
             Some(result.bitvec_time_ms),
@@ -900,6 +905,122 @@ fn run_differential_test(
         Some(result.bv2int_time_ms),
         Some(result.speedup_factor),
     )
+}
+
+/// Build a source location map for a MIR body from `SourceInfo` spans.
+///
+/// Returns a `HashMap` mapping `(block_idx, stmt_idx)` to `(file, line, col)`
+/// where:
+/// - `block_idx` is the 0-based basic block index
+/// - `stmt_idx` == `bb.statements.len()` represents the terminator
+/// - `file` is the local path string from the source map
+/// - `line` is 1-based line number
+/// - `col` is 1-based column number
+///
+/// This is called during `after_analysis` while `TyCtxt` is live, and the
+/// resulting map is stored in `VerificationTask.source_locations` for use
+/// in parallel workers after `TyCtxt` has been dropped.
+fn build_source_location_map(
+    tcx: rustc_middle::ty::TyCtxt<'_>,
+    body: &rustc_middle::mir::Body<'_>,
+) -> std::collections::HashMap<(usize, usize), (String, usize, usize)> {
+    let source_map = tcx.sess.source_map();
+    let mut map = std::collections::HashMap::new();
+
+    for (block_idx, bb_data) in body.basic_blocks.iter_enumerated() {
+        let block_idx = block_idx.as_usize();
+
+        // Index statements
+        for (stmt_idx, stmt) in bb_data.statements.iter().enumerate() {
+            let span = stmt.source_info.span;
+            if span == rustc_span::DUMMY_SP {
+                continue;
+            }
+            let loc = source_map.lookup_char_pos(span.lo());
+            let file = loc.file.name.prefer_local_unconditionally().to_string();
+            map.insert((block_idx, stmt_idx), (file, loc.line, loc.col_display + 1));
+        }
+
+        // Index terminator as (block_idx, statements.len())
+        if let Some(terminator) = &bb_data.terminator {
+            let span = terminator.source_info.span;
+            if span != rustc_span::DUMMY_SP {
+                let loc = source_map.lookup_char_pos(span.lo());
+                let file = loc.file.name.prefer_local_unconditionally().to_string();
+                let stmt_idx = bb_data.statements.len(); // terminator slot
+                map.insert((block_idx, stmt_idx), (file, loc.line, loc.col_display + 1));
+            }
+        }
+    }
+
+    map
+}
+
+/// Populate `source_file`, `source_line`, and `source_column` in every
+/// `VcLocation` by consulting the MIR `SourceInfo` spans via the source map.
+///
+/// This is called after `convert_mir` and `generate_vcs` so that the compiler
+/// session (and therefore the source map) is still live. In the current
+/// architecture, `build_source_location_map` + `VerificationTask.source_locations`
+/// is the primary path for source location plumbing; this function provides
+/// the same capability as a single-call helper for contexts where `TyCtxt`,
+/// `Body`, and `FunctionVCs` are all available simultaneously.
+///
+/// # Arguments
+/// * `tcx`   — type context (provides `sess.source_map()`)
+/// * `body`  — MIR body of the function being verified
+/// * `vcs`   — mutable list of VCs whose locations will be filled
+///
+/// Locations that already have `source_file` set are left unchanged
+/// (idempotent). Locations with block index beyond the body's basic blocks are
+/// skipped (should not happen in practice).
+#[allow(dead_code)]
+pub(crate) fn fill_vc_locations(
+    tcx: rustc_middle::ty::TyCtxt<'_>,
+    body: &rustc_middle::mir::Body<'_>,
+    vcs: &mut rust_fv_analysis::vcgen::FunctionVCs,
+) {
+    let source_map = tcx.sess.source_map();
+
+    for vc in &mut vcs.conditions {
+        // Skip if already populated.
+        if vc.location.source_file.is_some() {
+            continue;
+        }
+
+        let block_idx = vc.location.block;
+        let Some(bb_data) = body
+            .basic_blocks
+            .get(rustc_middle::mir::BasicBlock::from_usize(block_idx))
+        else {
+            continue;
+        };
+
+        // Use the SourceInfo from the terminator (covers the end of the block)
+        // or from the statement at location.statement if in range.
+        let span = {
+            let stmt_idx = vc.location.statement;
+            if stmt_idx < bb_data.statements.len() {
+                bb_data.statements[stmt_idx].source_info.span
+            } else {
+                // Terminator span
+                bb_data
+                    .terminator
+                    .as_ref()
+                    .map(|t| t.source_info.span)
+                    .unwrap_or(rustc_span::DUMMY_SP)
+            }
+        };
+
+        if span == rustc_span::DUMMY_SP {
+            continue;
+        }
+
+        let loc = source_map.lookup_char_pos(span.lo());
+        vc.location.source_file = Some(loc.file.name.prefer_local_unconditionally().to_string());
+        vc.location.source_line = Some(loc.line);
+        vc.location.source_column = Some(loc.col_display + 1); // 1-based
+    }
 }
 
 /// Convert VcKind to a JSON-friendly string.
@@ -1151,6 +1272,7 @@ mod tests {
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: None,
                 vc_kind: VcKind::Postcondition,
             },
@@ -1166,19 +1288,24 @@ mod tests {
             function_name: "div".to_string(),
             condition: "division by zero".to_string(),
             verified: false,
-            counterexample: Some("b = 0".to_string()),
+            counterexample: Some(vec![("b".to_string(), "0".to_string())]),
             vc_location: rust_fv_analysis::vcgen::VcLocation {
                 function: "div".to_string(),
                 block: 1,
                 statement: 2,
                 source_file: Some("src/lib.rs".to_string()),
                 source_line: Some(42),
+                source_column: None,
                 contract_text: Some("b != 0".to_string()),
                 vc_kind: VcKind::DivisionByZero,
             },
         };
         assert!(!result.verified);
-        assert_eq!(result.counterexample.as_deref(), Some("b = 0"));
+        assert!(result.counterexample.is_some());
+        let cx = result.counterexample.as_ref().unwrap();
+        assert_eq!(cx.len(), 1);
+        assert_eq!(cx[0].0, "b");
+        assert_eq!(cx[0].1, "0");
         assert_eq!(
             result.vc_location.source_file.as_deref(),
             Some("src/lib.rs")

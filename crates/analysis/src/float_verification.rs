@@ -112,6 +112,7 @@ pub fn generate_float_vcs(func: &Function) -> Vec<VerificationCondition> {
                             statement: stmt_idx,
                             source_file: None,
                             source_line: None,
+                            source_column: None,
                             contract_text: None,
                             vc_kind: VcKind::FloatingPointNaN,
                         };
@@ -190,6 +191,7 @@ mod tests {
             statement: 0,
             source_file: None,
             source_line: None,
+            source_column: None,
             contract_text: None,
             vc_kind: VcKind::FloatingPointNaN,
         }
@@ -281,6 +283,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let vcs = generate_float_vcs(&func);

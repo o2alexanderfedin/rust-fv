@@ -493,6 +493,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -548,6 +549,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -582,6 +584,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -630,6 +633,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -717,6 +721,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -781,6 +786,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         };
 
         let decls = collect_datatype_declarations(&func);

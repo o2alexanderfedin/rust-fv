@@ -1511,6 +1511,7 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
         }
     }
 

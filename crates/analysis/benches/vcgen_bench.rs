@@ -65,6 +65,7 @@ fn make_add_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -154,6 +155,7 @@ fn make_max_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
@@ -307,6 +309,7 @@ fn make_complex_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
         loops: vec![],
     }
 }
