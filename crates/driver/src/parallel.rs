@@ -366,17 +366,10 @@ fn build_counterexample_v2(
 ) -> Option<crate::json_output::JsonCounterexample> {
     let pairs = cx_pairs?;
 
-    // Build source_names map: SSA name → source name from IR locals/params
-    let mut source_names = std::collections::HashMap::new();
-    for local in ir_func.locals.iter().chain(ir_func.params.iter()) {
-        // IR locals have an SSA name (e.g., "_1") and may have a source name
-        source_names.insert(local.name.clone(), local.name.clone());
-    }
-
-    // Render typed counterexample variables
+    // Render typed counterexample variables using the harvested SSA→Rust name map
     let cex_vars = crate::cex_render::render_counterexample(
         pairs,
-        &source_names,
+        &ir_func.source_names,
         &ir_func.locals,
         &ir_func.params,
     );
