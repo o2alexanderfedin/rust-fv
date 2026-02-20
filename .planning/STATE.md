@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 19 (Counterexample Generation) Plan 2 complete
+**Current focus:** v0.4 Full Rust Verification — Phase 19 (Counterexample Generation) Plan 4 complete
 
 ## Current Position
 
 Phase: 19 of 23 (Counterexample Generation)
-Plan: 2 complete, advancing to Plan 3
+Plan: 4 complete, phase complete
 Status: In progress
-Last activity: 2026-02-20 — Plan 19-02 complete (typed SMT value rendering module cex_render.rs)
+Last activity: 2026-02-19 — Plan 19-04 complete (structured JSON counterexample schema and TypeScript interfaces)
 
-Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete, Phase 19 in progress — 2/4 plans done)
+Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete, Phase 19 in progress — 4/4 plans done)
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ Progress: [████████████████░░░░░░░
 
 *Updated after each plan completion*
 | Phase 19 P02 | 624 | 1 tasks | 8 files |
+| Phase 19 P04 | 155 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,8 @@ Recent decisions relevant to v0.4:
 - [Phase 19-01]: Ghost detection via __ghost_ name prefix is simpler than HIR attribute scanning and sufficient for the proc macro convention used in the codebase
 - [Phase 19-01]: source_column stored 1-based (col_display + 1) to match convention in source_line
 - [Phase 19]: cex_render: collapsible-if clippy fixed with let-chain syntax; JsonCounterexample needs Debug+Clone derives for use in VerificationFailure/Result; counterexample_v2 field backfilled across 8 files
+- [Phase 19-04]: counterexample_v2 populated via build_counterexample_v2() in parallel.rs (where IR func data is available) not callbacks.rs; additive schema with backward compat flat field preserved
+- [Phase 19-04]: TypeScript interfaces in verifier.ts mirror Rust struct field names exactly (type: string maps to Rust ty: String via serde rename)
 
 ### Pending Todos
 
@@ -72,10 +75,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 19-02-PLAN.md — typed SMT value rendering module cex_render.rs
+Last session: 2026-02-19
+Stopped at: Completed 19-04-PLAN.md — structured JSON counterexample schema and TypeScript interfaces
 Resume file: None
-Next step: /gsd:execute-phase 19-03 (ariadne terminal counterexample display)
+Next step: /gsd:execute-phase 20 (heap model / separation logic)
 
 ---
 

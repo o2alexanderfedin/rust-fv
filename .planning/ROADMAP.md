@@ -260,7 +260,7 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 1-5. POC Phases | v0.1 | 17/17 | Complete | 2026-02-12 |
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
-| 19. Counterexample Generation | 2/4 | In Progress|  | - |
+| 19. Counterexample Generation | 3/4 | In Progress|  | - |
 | 20. Separation Logic | v0.4 | 0/TBD | Not started | - |
 | 21. Weak Memory Models | v0.4 | 0/TBD | Not started | - |
 | 22. Higher-Order Closures | v0.4 | 0/TBD | Not started | - |
