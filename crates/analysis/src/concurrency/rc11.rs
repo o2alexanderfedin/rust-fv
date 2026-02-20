@@ -190,6 +190,35 @@ pub fn coherence_check(event_i: usize, event_j: usize, hb_i_j: Term, eco_j_i: Te
     Command::Assert(Term::Not(Box::new(Term::And(vec![hb_i_j, eco_j_i]))))
 }
 
+/// Assert the RC11 COHERENCE violation for a pair of events (i, j).
+///
+/// This asserts the NEGATION of the coherence axiom: `hb(i, j) AND eco(j, i)`.
+/// Used in violation-detection VCs: if this is SAT, there IS a coherence violation.
+/// If UNSAT, no execution can produce this pair of hb and eco orderings simultaneously.
+pub fn coherence_violation(event_i: usize, event_j: usize, hb_i_j: Term, eco_j_i: Term) -> Command {
+    let _ = (event_i, event_j); // event ids are encoded in the terms
+    Command::Assert(Term::And(vec![hb_i_j, eco_j_i]))
+}
+
+/// Assert that the initial store sentinel is modification-order-first for a location.
+///
+/// The initial store (writing 0 to every location) is always mo-before any
+/// real store to the same location. This is an axiom of the memory model.
+pub fn assert_initial_store_mo_first(
+    real_store_ids: &[usize],
+    initial_store_id: usize,
+) -> Vec<Command> {
+    real_store_ids
+        .iter()
+        .map(|&s| {
+            Command::Assert(Term::IntLt(
+                Box::new(Term::Const(format!("mo_order_{initial_store_id}"))),
+                Box::new(Term::Const(format!("mo_order_{s}"))),
+            ))
+        })
+        .collect()
+}
+
 // ===== Logic selection =====
 
 /// SMT-LIB logic for weak memory VCs.
@@ -305,6 +334,8 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
     let mut mo_cmds: Vec<Command> = Vec::new();
     for loc in &all_locs {
         let mut store_ids = store_ids_by_loc.get(loc).cloned().unwrap_or_default();
+        // Assert initial store is mo-first (axiom: initial store precedes all real stores)
+        mo_cmds.extend(assert_initial_store_mo_first(&store_ids, initial_store_id));
         store_ids.push(initial_store_id); // include sentinel
         mo_cmds.extend(assert_mo_total_order(&store_ids));
     }
@@ -436,7 +467,16 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
     let mut vcs: Vec<VerificationCondition> = Vec::new();
 
     // === Step I: Generate WeakMemoryCoherence VCs ===
-    // For all pairs (i, j) where i != j: assert NOT(hb(i,j) AND eco(j,i))
+    //
+    // Violation-detection mode: for each pair (i, j), assert the VIOLATION
+    // condition `hb(i,j) AND eco(j,i)` and check SAT.
+    //
+    //   SAT   => there EXISTS an execution with this coherence violation (bad)
+    //   UNSAT => NO execution can produce hb(i,j) AND eco(j,i) simultaneously
+    //            (RC11 coherence holds for this pair — good)
+    //
+    // For canonical litmus tests, FORBIDDEN outcomes produce UNSAT VCs:
+    // the violation scenario is shown to be inconsistent with RC11.
     for i in 0..n {
         for j in 0..n {
             if i == j {
@@ -445,7 +485,7 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
             let hb_i_j = hb_term(i, j);
             let eco_j_i = eco_term(j, i);
 
-            // Skip pairs where either is statically false (trivially safe)
+            // Skip pairs where either is statically false (violation structurally impossible)
             if hb_i_j == Term::BoolLit(false) || eco_j_i == Term::BoolLit(false) {
                 continue;
             }
@@ -454,7 +494,10 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
             script.extend(preamble.clone());
             script.extend(mo_cmds.clone());
             script.extend(rf_cmds.clone());
-            script.push(coherence_check(i, j, hb_i_j, eco_j_i));
+            // Assert the VIOLATION: hb(i,j) AND eco(j,i)
+            // UNSAT => violation impossible => RC11 coherence holds
+            // SAT   => violation possible   => coherence issue
+            script.push(coherence_violation(i, j, hb_i_j, eco_j_i));
             script.push(Command::CheckSat);
 
             vcs.push(VerificationCondition {
@@ -471,7 +514,7 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
                     source_line: None,
                     source_column: None,
                     contract_text: Some(format!(
-                        "RC11 COHERENCE: NOT(hb({i},{j}) AND eco({j},{i}))"
+                        "RC11 COHERENCE CHECK: hb({i},{j}) AND eco({j},{i}) [UNSAT=safe, SAT=violation]"
                     )),
                     vc_kind: VcKind::WeakMemoryCoherence,
                 },
