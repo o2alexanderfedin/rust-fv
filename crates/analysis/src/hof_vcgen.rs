@@ -26,7 +26,6 @@ use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
-use crate::encode_sort::encode_type;
 use crate::ir::{ClosureTrait, FnSpec, Function, Ty};
 use crate::vcgen::{VcKind, VcLocation, VerificationCondition};
 
@@ -277,6 +276,33 @@ fn build_fnmut_vc_script(func: &Function, spec: &FnSpec) -> Script {
     script
 }
 
+/// Convert a Rust type to an AUFLIA-compatible SMT sort.
+///
+/// AUFLIA supports: `Int`, `Bool`, `Real`, uninterpreted sorts, and arrays
+/// over these. It does NOT support `BitVec` sorts.
+///
+/// Mapping:
+/// - Integer types (`i8`..`i128`, `u8`..`u128`) → `Int`
+/// - `bool` → `Bool`
+/// - Everything else → `Int` (conservative fallback for AUFLIA arithmetic)
+fn encode_type_for_auflia(ty: &Ty) -> Sort {
+    match ty {
+        Ty::Bool => Sort::Bool,
+        Ty::Int(_) | Ty::Uint(_) | Ty::Char => Sort::Int,
+        Ty::SpecInt | Ty::SpecNat => Sort::Int,
+        // Arrays/slices: map to AUFLIA array over Int
+        Ty::Array(elem_ty, _) | Ty::Slice(elem_ty) => Sort::Array(
+            Box::new(Sort::Int),
+            Box::new(encode_type_for_auflia(elem_ty)),
+        ),
+        // References/pointers: transparent or conservative Int
+        Ty::Ref(inner, _) => encode_type_for_auflia(inner),
+        Ty::RawPtr(_, _) => Sort::Int,
+        // All other types: conservative Int fallback for AUFLIA context
+        _ => Sort::Int,
+    }
+}
+
 /// Infer the SMT sort for a bound variable in a fn_spec clause.
 ///
 /// Looks up the variable in the function's local variables. If not found,
@@ -285,7 +311,8 @@ fn infer_bound_var_sort(func: &Function, var_name: &str) -> Sort {
     // Search in params and locals
     for local in func.params.iter().chain(func.locals.iter()) {
         if local.name == var_name {
-            return encode_type(&local.ty);
+            // Use AUFLIA-safe sort: BitVec types become Int in this logic
+            return encode_type_for_auflia(&local.ty);
         }
     }
     // Default to Int for abstract bound variables in HOF specs
@@ -305,7 +332,8 @@ fn find_captured_vars(func: &Function, param_name: &str) -> Vec<(String, Sort)> 
                 Some(
                     info.env_fields
                         .iter()
-                        .map(|(name, ty)| (name.clone(), encode_type(ty)))
+                        // Use AUFLIA-safe encoding: BitVec sorts are not valid in AUFLIA
+                        .map(|(name, ty)| (name.clone(), encode_type_for_auflia(ty)))
                         .collect(),
                 )
             } else {
