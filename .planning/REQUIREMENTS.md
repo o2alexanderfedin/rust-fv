@@ -10,7 +10,7 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 ### Counterexample Generation
 
 - [x] **CEX-01**: User sees Rust variable names (not SSA names like `_param_x_1`) in counterexample output when verification fails
-- [ ] **CEX-02**: User sees typed Rust values (e.g. `i32: 5`, `bool: false`) not raw hex bitvectors in counterexample output
+- [x] **CEX-02**: User sees typed Rust values (e.g. `i32: 5`, `bool: false`) not raw hex bitvectors in counterexample output
 - [ ] **CEX-03**: User sees counterexample values annotated at the failing source line via ariadne inline labels in terminal output
 - [ ] **CEX-04**: Machine consumers receive structured `counterexample` field in `--output-format=json` output on verification failure
 
@@ -69,7 +69,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CEX-01 | Phase 19 | Complete (19-01) |
-| CEX-02 | Phase 19 | Pending |
+| CEX-02 | Phase 19 | Complete |
 | CEX-03 | Phase 19 | Pending |
 | CEX-04 | Phase 19 | Pending |
 | SEP-01 | Phase 20 | Pending |
