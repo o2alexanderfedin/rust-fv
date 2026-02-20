@@ -236,7 +236,12 @@ Plans:
   2. All 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) produce the correct allowed/forbidden verdicts, serving as the soundness regression suite
   3. Data race detection reports races under Relaxed orderings that the SeqCst-only path would miss
   4. Existing SeqCst proofs from v0.2/v0.3 continue to pass with zero regressions — weak memory axioms are scoped to `WeakMemory*` VcKind only
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — RC11 foundation: AtomicOp.thread_id, WeakMemory* VcKind variants, rc11.rs SMT primitives (WMM-01, WMM-04)
+- [ ] 21-02-PLAN.md — VCGen integration: generate_rc11_vcs() wired into generate_concurrency_vcs() with SeqCst gate (WMM-01, WMM-03, WMM-04)
+- [ ] 21-03-PLAN.md — 8 canonical C11 litmus tests + data race test as TDD soundness suite (WMM-02, WMM-03)
 
 ### Phase 22: Higher-Order Closures
 **Goal**: Developers can specify and verify higher-order functions taking closure arguments with precise pre/postconditions
@@ -268,6 +273,6 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19. Counterexample Generation | 4/4 | Complete    | 2026-02-20 | - |
 | 20. Separation Logic | 4/4 | Complete    | 2026-02-20 | - |
-| 21. Weak Memory Models | v0.4 | 0/TBD | Not started | - |
+| 21. Weak Memory Models | v0.4 | 0/3 | Not started | - |
 | 22. Higher-Order Closures | v0.4 | 0/TBD | Not started | - |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
