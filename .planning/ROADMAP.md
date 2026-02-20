@@ -205,7 +205,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 19-01-PLAN.md — Data foundation: VcOutcome structured pairs, IR source_names, ghost detection, source location plumbing (CEX-01)
+- [x] 19-01-PLAN.md — Data foundation: VcOutcome structured pairs, IR source_names, ghost detection, source location plumbing (CEX-01)
 - [ ] 19-02-PLAN.md — Typed value rendering module cex_render.rs: bitvec→decimal, struct/enum/ptr/array display (CEX-02)
 - [ ] 19-03-PLAN.md — Ariadne multi-label wiring: source file read + per-variable span Labels at spec use sites (CEX-03)
 - [ ] 19-04-PLAN.md — JSON schema extension: JsonCounterexample struct + VSCode TypeScript interface update (CEX-04)
@@ -260,7 +260,7 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
 | 1-5. POC Phases | v0.1 | 17/17 | Complete | 2026-02-12 |
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
-| 19. Counterexample Generation | v0.4 | 0/TBD | Not started | - |
+| 19. Counterexample Generation | v0.4 | 1/4 | In progress | - |
 | 20. Separation Logic | v0.4 | 0/TBD | Not started | - |
 | 21. Weak Memory Models | v0.4 | 0/TBD | Not started | - |
 | 22. Higher-Order Closures | v0.4 | 0/TBD | Not started | - |

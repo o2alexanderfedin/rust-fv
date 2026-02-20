@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 19 (Counterexample Generation) ready to plan
+**Current focus:** v0.4 Full Rust Verification — Phase 19 (Counterexample Generation) Plan 1 complete
 
 ## Current Position
 
 Phase: 19 of 23 (Counterexample Generation)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-19 — v0.4 roadmap created (Phases 19-23)
+Plan: 1 complete, advancing to Plan 2
+Status: In progress
+Last activity: 2026-02-20 — Plan 19-01 complete (structured counterexample data foundation)
 
-Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete across all milestones)
+Progress: [████████████████░░░░░░░░] 72% (18/23 phases complete, Phase 19 in progress — 1/4 plans done)
 
 ## Performance Metrics
 
@@ -53,6 +53,9 @@ Recent decisions relevant to v0.4:
 - [v0.4 research]: Weak memory axioms scoped to WeakMemory* VcKind only — prevents SeqCst regressions
 - [v0.4 research]: Z3 MBQI preferred for HOF spec entailment queries (heavy universal quantification)
 - [v0.4 research]: Async coroutine detection in driver only — rustc internals must not leak into analysis crate
+- [Phase 19-01]: Source location plumbing uses pre-built HashMap approach: build_source_location_map() during after_analysis while TyCtxt is live, then pass HashMap into parallel tasks — avoids TyCtxt lifetime issues in rayon threads
+- [Phase 19-01]: Ghost detection via __ghost_ name prefix is simpler than HIR attribute scanning and sufficient for the proc macro convention used in the codebase
+- [Phase 19-01]: source_column stored 1-based (col_display + 1) to match convention in source_line
 
 ### Pending Todos
 
@@ -67,10 +70,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: v0.4 roadmap created — ROADMAP.md written with Phases 19-23
+Last session: 2026-02-20
+Stopped at: Completed 19-01-PLAN.md — structured counterexample data foundation
 Resume file: None
-Next step: /gsd:plan-phase 19
+Next step: /gsd:execute-phase 19-02 (typed value rendering module cex_render.rs)
 
 ---
 
