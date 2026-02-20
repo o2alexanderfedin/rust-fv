@@ -20,6 +20,9 @@ pub struct VerificationFailure {
     #[allow(dead_code)] // Will be used by future ariadne/diagnostics enhancement
     pub source_column: Option<usize>,
     pub counterexample: Option<Vec<(String, String)>>,
+    /// Structured counterexample (v2 schema) with typed variables.
+    /// Populated when solver returns SAT with model and IR type info is available.
+    pub counterexample_v2: Option<crate::json_output::JsonCounterexample>,
     pub message: String,
 }
 
@@ -1351,6 +1354,7 @@ mod tests {
             source_line,
             source_column: None,
             counterexample,
+            counterexample_v2: None,
             message: "test failure message".to_string(),
         }
     }
@@ -1665,6 +1669,7 @@ mod tests {
                 ("_1".to_string(), "#xffffffff".to_string()),
                 ("_2".to_string(), "#x00000001".to_string()),
             ]),
+            counterexample_v2: None,
             message: "i32 addition may overflow".to_string(),
         };
         report_verification_failure(&failure);
@@ -1680,6 +1685,7 @@ mod tests {
             source_line: Some(15),
             source_column: None,
             counterexample: Some(vec![("_1".to_string(), "-1".to_string())]),
+            counterexample_v2: None,
             message: "postcondition 'result >= 0' not proven".to_string(),
         };
         report_verification_failure(&failure);
@@ -1695,6 +1701,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "assertion might fail".to_string(),
         };
         report_verification_failure(&failure);
@@ -1968,6 +1975,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "FnOnce closure called more than once".to_string(),
         };
         report_text_only(&failure);
@@ -2132,6 +2140,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "null-check failed for _1".to_string(),
         };
         report_text_only(&failure);
@@ -2147,6 +2156,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "bounds-check failed for ptr".to_string(),
         };
         report_text_only(&failure);
@@ -2162,6 +2172,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "no safety contracts found".to_string(),
         };
         report_text_only(&failure);
@@ -2179,6 +2190,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "null-check failed".to_string(),
         };
         // This should use ReportKind::Warning instead of Error
@@ -2205,6 +2217,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "NaN propagation check failed".to_string(),
         };
         // This should emit the performance warning (once)
@@ -2231,6 +2244,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "data race detected".to_string(),
         };
         // This should emit the bounded verification warning (once)
@@ -2319,6 +2333,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "data race".to_string(),
         };
         report_with_ariadne(&dr_failure, "test.rs", 10);
@@ -2332,6 +2347,7 @@ mod tests {
             source_line: None,
             source_column: None,
             counterexample: None,
+            counterexample_v2: None,
             message: "deadlock".to_string(),
         };
         report_with_ariadne(&dl_failure, "test.rs", 10);

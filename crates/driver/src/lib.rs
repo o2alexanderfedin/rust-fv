@@ -3,4 +3,5 @@
 //! Exposes cache and invalidation modules for integration tests.
 
 pub mod cache;
+pub mod cex_render;
 pub mod invalidation;

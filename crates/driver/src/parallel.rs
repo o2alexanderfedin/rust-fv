@@ -111,6 +111,7 @@ pub fn verify_functions_parallel(
                     condition: format!("{} VCs verified", entry.vc_count),
                     verified: true,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
@@ -131,6 +132,7 @@ pub fn verify_functions_parallel(
                         .unwrap_or_else(|| "verification failed".to_string()),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
@@ -222,6 +224,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("solver error: {}", e),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
@@ -280,6 +283,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: vc.description.clone(),
                     verified: true,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -287,11 +291,16 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 // Pass structured pairs directly — no string serialization needed
                 let cx_pairs = model.map(|m| m.assignments);
 
+                // Build structured v2 counterexample from IR type info
+                let counterexample_v2 =
+                    build_counterexample_v2(cx_pairs.as_deref(), &vc.location, &task.ir_func);
+
                 results.push(VerificationResult {
                     function_name: task.name.clone(),
                     condition: vc.description.clone(),
                     verified: false,
                     counterexample: cx_pairs,
+                    counterexample_v2,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -301,6 +310,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("{} (unknown: {reason})", vc.description),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -310,6 +320,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("{} (error: {e})", vc.description),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -324,6 +335,68 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         invalidation_reason: None, // Will be set by caller
         duration_ms: None,         // Will be set by caller
     }
+}
+
+/// Build a structured `JsonCounterexample` from raw SMT model pairs and IR function metadata.
+///
+/// Calls `cex_render::render_counterexample` with the IR function's locals/params to produce
+/// typed, human-readable variable representations for the v2 JSON schema.
+///
+/// Returns `None` when no model pairs are available (solver gave no model).
+fn build_counterexample_v2(
+    cx_pairs: Option<&[(String, String)]>,
+    vc_location: &VcLocation,
+    ir_func: &Function,
+) -> Option<crate::json_output::JsonCounterexample> {
+    let pairs = cx_pairs?;
+
+    // Build source_names map: SSA name → source name from IR locals/params
+    let mut source_names = std::collections::HashMap::new();
+    for local in ir_func.locals.iter().chain(ir_func.params.iter()) {
+        // IR locals have an SSA name (e.g., "_1") and may have a source name
+        source_names.insert(local.name.clone(), local.name.clone());
+    }
+
+    // Render typed counterexample variables
+    let cex_vars = crate::cex_render::render_counterexample(
+        pairs,
+        &source_names,
+        &ir_func.locals,
+        &ir_func.params,
+    );
+
+    // Map CexVariable → JsonCexVariable
+    let variables: Vec<crate::json_output::JsonCexVariable> = cex_vars
+        .into_iter()
+        .map(|cv| crate::json_output::JsonCexVariable {
+            name: cv.name,
+            ty: cv.ty,
+            display: Some(cv.display),
+            raw: Some(cv.raw),
+            initial: cv.initial.map(|v| crate::json_output::JsonCexValue {
+                display: v.display,
+                raw: v.raw,
+            }),
+            at_failure: cv.at_failure.map(|v| crate::json_output::JsonCexValue {
+                display: v.display,
+                raw: v.raw,
+            }),
+        })
+        .collect();
+
+    Some(crate::json_output::JsonCounterexample {
+        variables,
+        failing_location: crate::json_output::JsonLocation {
+            file: vc_location
+                .source_file
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            line: vc_location.source_line.unwrap_or(0),
+            column: vc_location.source_column.unwrap_or(0),
+        },
+        vc_kind: format!("{:?}", vc_location.vc_kind).to_lowercase(),
+        violated_spec: vc_location.contract_text.clone(),
+    })
 }
 
 #[cfg(test)]

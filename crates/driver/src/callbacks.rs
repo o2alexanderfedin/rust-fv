@@ -68,6 +68,9 @@ pub struct VerificationResult {
     /// Structured counterexample as `(variable_name, raw_value)` pairs.
     /// `None` if the VC was verified (or no model was available).
     pub counterexample: Option<Vec<(String, String)>>,
+    /// Structured counterexample v2 with typed variables and metadata.
+    /// Populated when solver returns SAT with model and IR type info is available.
+    pub counterexample_v2: Option<crate::json_output::JsonCounterexample>,
     #[allow(dead_code)] // Used for future diagnostics enhancement
     pub vc_location: rust_fv_analysis::vcgen::VcLocation,
 }
@@ -324,6 +327,7 @@ impl VerificationCallbacks {
                                         })
                                         .collect()
                                 }),
+                                counterexample_v2: f.counterexample_v2.clone(),
                                 suggestion: diagnostics::suggest_fix(&f.vc_kind),
                             })
                             .collect();
@@ -675,6 +679,7 @@ impl Callbacks for VerificationCallbacks {
                 {
                     // Use the structured pairs directly — no string re-parsing needed
                     let counterexample = result.counterexample.clone();
+                    let counterexample_v2 = result.counterexample_v2.clone();
 
                     self.failures.push(diagnostics::VerificationFailure {
                         function_name: result.function_name.clone(),
@@ -684,6 +689,7 @@ impl Callbacks for VerificationCallbacks {
                         source_line: result.vc_location.source_line,
                         source_column: None,
                         counterexample,
+                        counterexample_v2,
                         message: result.condition.clone(),
                     });
                 }
@@ -1266,6 +1272,7 @@ mod tests {
             condition: "postcondition: result > 0".to_string(),
             verified: true,
             counterexample: None,
+            counterexample_v2: None,
             vc_location: rust_fv_analysis::vcgen::VcLocation {
                 function: "test_fn".to_string(),
                 block: 0,
@@ -1289,6 +1296,7 @@ mod tests {
             condition: "division by zero".to_string(),
             verified: false,
             counterexample: Some(vec![("b".to_string(), "0".to_string())]),
+            counterexample_v2: None,
             vc_location: rust_fv_analysis::vcgen::VcLocation {
                 function: "div".to_string(),
                 block: 1,
