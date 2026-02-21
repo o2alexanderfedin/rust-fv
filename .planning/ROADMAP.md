@@ -266,18 +266,49 @@ Plans:
   2. Developer writes `#[state_invariant]` on an `async fn` and the verifier proves the invariant holds at every `.await` suspension point within the function body
 **Plans**: TBD
 
+### Phase 24: SEP-04 Ghost Predicate Production Wiring
+**Goal**: `#[ghost_predicate]` definitions actually expand in `#[requires]`/`#[ensures]` specs during production verification (not just in direct unit tests)
+**Depends on**: Phase 20 (SEP-04 gap closure)
+**Requirements**: SEP-04
+**Gap Closure**: Closes SEP-04 critical wiring gap found in v0.4 audit
+**Success Criteria** (what must be TRUE):
+  1. `VerificationTask` carries `ghost_pred_db: Arc<GhostPredicateDatabase>` and it is populated at construction
+  2. `generate_vcs()` accepts and passes `ghost_pred_db` to `parse_spec`
+  3. `vcgen.rs parse_spec()` calls `parse_spec_expr_with_db` (not the db-less version)
+  4. End-to-end integration test through the driver/callbacks/parallel path proves ghost predicates expand in production (not just via direct vcgen calls)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 24-01-PLAN.md — Thread ghost_pred_db through VerificationTask → generate_vcs() → parse_spec_expr_with_db + driver-level integration test (SEP-04)
+
+### Phase 25: VSCode Counterexample v2 Integration
+**Goal**: VSCode extension users see fully typed Rust counterexample values (not legacy flat format) when verification fails
+**Depends on**: Phase 19 (CEX-02/CEX-04 IDE gap closure)
+**Requirements**: CEX-02, CEX-04
+**Gap Closure**: Closes CEX-02/CEX-04 non-critical IDE gap found in v0.4 audit
+**Success Criteria** (what must be TRUE):
+  1. `diagnostics.ts` reads `failure.counterexample_v2` (typed format) instead of legacy `failure.counterexample`
+  2. `outputPanel.ts` renders typed Rust values (`i32: 5`, `bool: false`) from `counterexample_v2`
+  3. Extension correctly handles absence of `counterexample_v2` (graceful fallback to legacy when not present)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 25-01-PLAN.md — Wire counterexample_v2 into diagnostics.ts and outputPanel.ts with typed value rendering and legacy fallback (CEX-02, CEX-04)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 19 → 20 → 21 → 22 → 23
+Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1-5. POC Phases | v0.1 | 17/17 | Complete | 2026-02-12 |
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
-| 19. Counterexample Generation | 4/4 | Complete    | 2026-02-20 | - |
-| 20. Separation Logic | 4/4 | Complete    | 2026-02-20 | - |
-| 21. Weak Memory Models | 3/3 | Complete    | 2026-02-20 | - |
-| 22. Higher-Order Closures | 1/3 | Complete    | 2026-02-20 | - |
+| 19. Counterexample Generation | v0.4 | 4/4 | Complete | 2026-02-20 |
+| 20. Separation Logic | v0.4 | 4/4 | Complete | 2026-02-20 |
+| 21. Weak Memory Models | v0.4 | 3/3 | Complete | 2026-02-20 |
+| 22. Higher-Order Closures | v0.4 | 3/3 | Complete | 2026-02-20 |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
+| 24. SEP-04 Ghost Predicate Production Wiring | v0.4 | 0/1 | Pending | - |
+| 25. VSCode Counterexample v2 Integration | v0.4 | 0/1 | Pending | - |

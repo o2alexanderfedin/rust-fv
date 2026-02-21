@@ -19,7 +19,7 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 - [x] **SEP-01**: User can write `pts_to(p, v)` ownership predicate in `#[requires]`/`#[ensures]` to specify raw pointer ownership
 - [x] **SEP-02**: User can write separating conjunction (`H1 * H2`) in specs to prove disjoint ownership and aliasing freedom
 - [x] **SEP-03**: Frame rule is automatically applied during function calls so unchanged heap portions are not required to be manually re-specified
-- [x] **SEP-04**: User can define recursive heap predicates via `#[ghost_predicate]` (e.g. `linked_list(p, n)`) with bounded unfolding (depth 3)
+- [ ] **SEP-04**: User can define recursive heap predicates via `#[ghost_predicate]` (e.g. `linked_list(p, n)`) with bounded unfolding (depth 3)
 
 ### Weak Memory Models
 
@@ -30,8 +30,8 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 
 ### Higher-Order Closures
 
-- [ ] **HOF-01**: User can write `fn_spec(f, |x| pre => post)` specification entailments to verify that a closure `f` satisfies given pre/postconditions
-- [ ] **HOF-02**: Stateful closures (`FnMut`) track environment mutation across calls via SSA-versioned environment (`env_v0 → env_v1`)
+- [x] **HOF-01**: User can write `fn_spec(f, |x| pre => post)` specification entailments to verify that a closure `f` satisfies given pre/postconditions
+- [x] **HOF-02**: Stateful closures (`FnMut`) track environment mutation across calls via SSA-versioned environment (`env_v0 → env_v1`)
 
 ### Async/Await Verification
 
@@ -69,19 +69,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CEX-01 | Phase 19 | Complete (19-01) |
-| CEX-02 | Phase 19 | Complete |
+| CEX-02 | Phase 19 / Phase 25 (IDE gap) | Complete (CLI) / Pending (IDE) |
 | CEX-03 | Phase 19 | Complete |
-| CEX-04 | Phase 19 | Complete |
+| CEX-04 | Phase 19 / Phase 25 (IDE gap) | Complete (CLI) / Pending (IDE) |
 | SEP-01 | Phase 20 | Complete |
 | SEP-02 | Phase 20 | Complete |
 | SEP-03 | Phase 20 | Complete |
-| SEP-04 | Phase 20 | Complete |
+| SEP-04 | Phase 24 | Pending |
 | WMM-01 | Phase 21 | Complete |
 | WMM-02 | Phase 21 | Complete |
 | WMM-03 | Phase 21 | Complete |
 | WMM-04 | Phase 21 | Complete |
-| HOF-01 | Phase 22 | Pending |
-| HOF-02 | Phase 22 | Pending |
+| HOF-01 | Phase 22 | Complete |
+| HOF-02 | Phase 22 | Complete |
 | ASY-01 | Phase 23 | Pending |
 | ASY-02 | Phase 23 | Pending |
 
@@ -89,7 +89,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v0.4 requirements: 16 total
 - Mapped to phases: 16
 - Unmapped: 0 ✓
+- Pending (gap closure): SEP-04 (Phase 24), CEX-02/CEX-04 IDE (Phase 25), ASY-01/ASY-02 (Phase 23)
 
 ---
 *Requirements defined: 2026-02-19*
-*Last updated: 2026-02-19 — traceability confirmed after roadmap creation*
+*Last updated: 2026-02-20 — gap closure phases 24-25 added from v0.4 audit*
