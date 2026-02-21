@@ -273,13 +273,14 @@ Plans:
 **Gap Closure**: Closes SEP-04 critical wiring gap found in v0.4 audit
 **Success Criteria** (what must be TRUE):
   1. `VerificationTask` carries `ghost_pred_db: Arc<GhostPredicateDatabase>` and it is populated at construction
-  2. `generate_vcs()` accepts and passes `ghost_pred_db` to `parse_spec`
+  2. `generate_vcs_with_db()` accepts `ghost_pred_db` and passes it to `parse_spec()`
   3. `vcgen.rs parse_spec()` calls `parse_spec_expr_with_db` (not the db-less version)
   4. End-to-end integration test through the driver/callbacks/parallel path proves ghost predicates expand in production (not just via direct vcgen calls)
-**Plans**: 1 plan
+**Plans**: 2 plans
 
 Plans:
-- [ ] 24-01-PLAN.md — Thread ghost_pred_db through VerificationTask → generate_vcs() → parse_spec_expr_with_db + driver-level integration test (SEP-04)
+- [ ] 24-01-PLAN.md — TDD: Add ghost_pred_db to VerificationTask + generate_vcs_with_db() shim + parse_spec() switch to parse_spec_expr_with_db (SEP-04)
+- [ ] 24-02-PLAN.md — TDD: Driver-level E2E integration test via verify_functions_parallel() proving ghost predicate expands in production path (SEP-04)
 
 ### Phase 25: VSCode Counterexample v2 Integration
 **Goal**: VSCode extension users see fully typed Rust counterexample values (not legacy flat format) when verification fails
@@ -310,5 +311,5 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
 | 21. Weak Memory Models | v0.4 | 3/3 | Complete | 2026-02-20 |
 | 22. Higher-Order Closures | v0.4 | 3/3 | Complete | 2026-02-20 |
 | 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
-| 24. SEP-04 Ghost Predicate Production Wiring | v0.4 | 0/1 | Pending | - |
+| 24. SEP-04 Ghost Predicate Production Wiring | v0.4 | 0/2 | Pending | - |
 | 25. VSCode Counterexample v2 Integration | v0.4 | 0/1 | Pending | - |
