@@ -54,6 +54,7 @@ Progress: [█████████████████████░░
 | Phase 22 P03 | 104 | 2 tasks | 2 files |
 | Phase 24-sep04-ghost-predicate-wiring P01 | 808 | 1 tasks | 3 files |
 | Phase 24-sep04-ghost-predicate-wiring P02 | 662 | 1 tasks | 6 files |
+| Phase 25 P01 | 53 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ Recent decisions relevant to v0.4:
 - [Phase 24]: encode_callee_postcondition_assumptions required ghost_pred_db threading (compiler-enforced; Rule 3 auto-fix)
 - [Phase 24]: VcKind::Precondition is for call-site checks (caller satisfies callee requires); function's own requires is an assumption in postcondition VCs — E2E tests need requires+ensures pair
 - [Phase 24]: VerificationResult moved to types.rs (rustc-free) to enable parallel module export from lib.rs for driver integration tests
+- [Phase 25]: renderCounterexampleLines shared helper in diagnostics.ts consumed by both createDiagnostic() and outputPanel.ts — single source of truth for counterexample rendering
+- [Phase 25]: v2 schema preferred over legacy flat assignments in both diagnostics and output panel; fallback preserved for older binaries
 
 ### Pending Todos
 
