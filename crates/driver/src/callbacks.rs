@@ -604,6 +604,8 @@ impl Callbacks for VerificationCallbacks {
         }
 
         // Build verification tasks with invalidation decisions
+        // Create Arc once before the per-function loop to avoid N allocations.
+        let ghost_pred_db_arc = std::sync::Arc::new(self.ghost_pred_db.clone());
         let mut tasks = Vec::new();
         for (name, ir_func, source_locations) in func_infos.into_iter() {
             let (mir_hash, contract_hash) = func_hashes.get(&name).unwrap();
@@ -638,6 +640,7 @@ impl Callbacks for VerificationCallbacks {
                 dependencies,
                 invalidation_decision,
                 source_locations,
+                ghost_pred_db: std::sync::Arc::clone(&ghost_pred_db_arc),
             });
         }
 

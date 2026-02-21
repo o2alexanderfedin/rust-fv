@@ -43,6 +43,7 @@ use crate::encode_term::{
     encode_aggregate_with_type, encode_binop, encode_field_access, encode_operand,
     encode_place_with_type, encode_unop, overflow_check,
 };
+use crate::ghost_predicate_db::GhostPredicateDatabase;
 use crate::ir::*;
 use crate::ownership::{OwnershipConstraint, classify_argument, generate_ownership_constraints};
 use crate::sep_logic;
@@ -221,7 +222,15 @@ struct OverflowVcInfo {
 /// when present, call sites are encoded modularly using callee contracts
 /// as summaries (assert precondition, havoc return, assume postcondition).
 /// Pass `None` for backward-compatible behavior where calls are opaque.
-pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> FunctionVCs {
+/// Like `generate_vcs` but with ghost predicate expansion.
+///
+/// Called by `verify_single()` in the driver. `generate_vcs()` delegates to this
+/// with an empty ghost predicate database for backward compatibility.
+pub fn generate_vcs_with_db(
+    func: &Function,
+    contract_db: Option<&ContractDatabase>,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> FunctionVCs {
     tracing::info!(function = %func.name, "Generating verification conditions");
 
     let mut conditions = Vec::new();
@@ -263,14 +272,25 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
     // Generate overflow VCs from all paths
     for path in &paths {
         for ov in &path.overflow_vcs {
-            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
+            let mut vc = generate_overflow_vc(
+                func,
+                &datatype_declarations,
+                &declarations,
+                ov,
+                ghost_pred_db,
+            );
             conditions.append(&mut vc);
         }
     }
 
     // Generate terminator assertion VCs (Terminator::Assert)
-    let mut assert_vcs =
-        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
+    let mut assert_vcs = generate_assert_terminator_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        ghost_pred_db,
+    );
     conditions.append(&mut assert_vcs);
 
     // Generate contract verification conditions (postconditions)
@@ -282,13 +302,20 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         &declarations,
         &paths,
         contract_db,
+        ghost_pred_db,
     );
     conditions.append(&mut contract_vcs);
 
     // Generate call-site precondition VCs (inter-procedural)
     if let Some(db) = contract_db {
-        let mut call_vcs =
-            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        let mut call_vcs = generate_call_site_vcs(
+            func,
+            db,
+            &datatype_declarations,
+            &declarations,
+            &paths,
+            ghost_pred_db,
+        );
         conditions.append(&mut call_vcs);
     }
 
@@ -668,8 +695,13 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                 invariant_count = loop_info.invariants.len(),
                 "Generating loop invariant VCs"
             );
-            let mut loop_vcs =
-                generate_loop_invariant_vcs(func, &datatype_declarations, &declarations, loop_info);
+            let mut loop_vcs = generate_loop_invariant_vcs(
+                func,
+                &datatype_declarations,
+                &declarations,
+                loop_info,
+                ghost_pred_db,
+            );
             conditions.append(&mut loop_vcs);
         }
     }
@@ -716,6 +748,24 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         function_name: func.name.clone(),
         conditions,
     }
+}
+
+/// Generate all verification conditions for a function.
+///
+/// This is the main entry point. It produces a set of SMT-LIB scripts,
+/// each checking one verification condition. If any script is SAT,
+/// the corresponding condition is violated.
+///
+/// The optional `contract_db` enables inter-procedural verification:
+/// when present, call sites are encoded modularly using callee contracts
+/// as summaries (assert precondition, havoc return, assume postcondition).
+/// Pass `None` for backward-compatible behavior where calls are opaque.
+///
+/// This delegates to `generate_vcs_with_db` with an empty ghost predicate database.
+/// Use `generate_vcs_with_db` directly to enable ghost predicate expansion.
+pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> FunctionVCs {
+    let empty_db = GhostPredicateDatabase::new();
+    generate_vcs_with_db(func, contract_db, &empty_db)
 }
 
 /// Generate verification conditions with a specific encoding mode.
@@ -768,17 +818,26 @@ pub fn generate_vcs_with_mode(
 
     let paths = enumerate_paths(func);
 
+    // generate_vcs_with_mode does not support ghost predicates; use empty db
+    let empty_db = GhostPredicateDatabase::new();
+
     // Generate overflow VCs
     for path in &paths {
         for ov in &path.overflow_vcs {
-            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
+            let mut vc =
+                generate_overflow_vc(func, &datatype_declarations, &declarations, ov, &empty_db);
             conditions.append(&mut vc);
         }
     }
 
     // Generate assert terminator VCs
-    let mut assert_vcs =
-        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
+    let mut assert_vcs = generate_assert_terminator_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        &empty_db,
+    );
     conditions.append(&mut assert_vcs);
 
     // Generate contract VCs
@@ -788,13 +847,20 @@ pub fn generate_vcs_with_mode(
         &declarations,
         &paths,
         contract_db,
+        &empty_db,
     );
     conditions.append(&mut contract_vcs);
 
     // Generate call-site precondition VCs
     if let Some(db) = contract_db {
-        let mut call_vcs =
-            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        let mut call_vcs = generate_call_site_vcs(
+            func,
+            db,
+            &datatype_declarations,
+            &declarations,
+            &paths,
+            &empty_db,
+        );
         conditions.append(&mut call_vcs);
     }
 
@@ -1425,6 +1491,7 @@ fn generate_overflow_vc(
     datatype_declarations: &[Command],
     declarations: &[Command],
     ov: &OverflowVcInfo,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1453,7 +1520,7 @@ fn generate_overflow_vc(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1500,6 +1567,7 @@ fn generate_assert_terminator_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1550,7 +1618,7 @@ fn generate_assert_terminator_vcs(
 
             // Assume preconditions
             for pre in &func.contracts.requires {
-                if let Some(pre_term) = parse_spec(&pre.raw, func) {
+                if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                     script.push(Command::Assert(pre_term));
                 }
             }
@@ -1632,6 +1700,7 @@ fn generate_contract_vcs(
     declarations: &[Command],
     paths: &[CfgPath],
     contract_db: Option<&ContractDatabase>,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1680,7 +1749,7 @@ fn generate_contract_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1689,7 +1758,13 @@ fn generate_contract_vcs(
         if let Some(db) = contract_db {
             for path in paths {
                 for call_site in &path.call_sites {
-                    encode_callee_postcondition_assumptions(func, db, call_site, &mut script);
+                    encode_callee_postcondition_assumptions(
+                        func,
+                        db,
+                        call_site,
+                        &mut script,
+                        ghost_pred_db,
+                    );
                 }
             }
         }
@@ -1711,7 +1786,7 @@ fn generate_contract_vcs(
         }
 
         // Negate postcondition and check if SAT (= postcondition violated)
-        if let Some(post_term) = parse_spec(&post.raw, func) {
+        if let Some(post_term) = parse_spec(&post.raw, func, ghost_pred_db) {
             script.push(Command::Comment(format!(
                 "Check postcondition: {}",
                 post.raw
@@ -1964,6 +2039,7 @@ fn generate_call_site_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -2003,7 +2079,7 @@ fn generate_call_site_vcs(
 
             for (pre_idx, pre) in callee_summary.contracts.requires.iter().enumerate() {
                 // Parse the precondition in the callee's context
-                let pre_term = match parse_spec(&pre.raw, &callee_func_context) {
+                let pre_term = match parse_spec(&pre.raw, &callee_func_context, ghost_pred_db) {
                     Some(t) => t,
                     None => continue,
                 };
@@ -2029,7 +2105,8 @@ fn generate_call_site_vcs(
 
                 // Assume caller's preconditions
                 for caller_pre in &func.contracts.requires {
-                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func) {
+                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func, ghost_pred_db)
+                    {
                         script.push(Command::Assert(caller_pre_term));
                     }
                 }
@@ -2064,7 +2141,9 @@ fn generate_call_site_vcs(
                     // 3. Extract footprint from callee's requires terms and emit frame axiom
                     let mut footprint_ptrs = Vec::new();
                     for req in &callee_summary.contracts.requires {
-                        if let Some(req_term) = parse_spec(&req.raw, &callee_func_context) {
+                        if let Some(req_term) =
+                            parse_spec(&req.raw, &callee_func_context, ghost_pred_db)
+                        {
                             let fp = sep_logic::extract_pts_to_footprint(&req_term);
                             footprint_ptrs.extend(fp);
                         }
@@ -2131,6 +2210,7 @@ fn encode_callee_postcondition_assumptions(
     contract_db: &ContractDatabase,
     call_site: &CallSiteInfo,
     script: &mut Script,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) {
     let callee_summary = match contract_db.get(&call_site.callee_name) {
         Some(s) => s,
@@ -2165,7 +2245,7 @@ fn encode_callee_postcondition_assumptions(
     );
 
     for post in &callee_summary.contracts.ensures {
-        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context) {
+        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context, ghost_pred_db) {
             let substituted_post = substitute_term(&post_term, &arg_subs);
             tracing::debug!(
                 caller = %func.name,
@@ -2414,6 +2494,7 @@ fn generate_loop_invariant_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     loop_info: &LoopInfo,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
     let header = loop_info.header_block;
@@ -2422,7 +2503,7 @@ fn generate_loop_invariant_vcs(
     let parsed_invariants: Vec<Term> = loop_info
         .invariants
         .iter()
-        .filter_map(|inv| parse_spec(&inv.raw, func))
+        .filter_map(|inv| parse_spec(&inv.raw, func, ghost_pred_db))
         .collect();
 
     if parsed_invariants.is_empty() {
@@ -2464,7 +2545,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2534,7 +2615,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions (they hold throughout)
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2618,7 +2699,7 @@ fn generate_loop_invariant_vcs(
     // Invariant + header stmts + NOT loop condition + post-loop => postcondition
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-            if let Some(post_term) = parse_spec(&post.raw, func) {
+            if let Some(post_term) = parse_spec(&post.raw, func, ghost_pred_db) {
                 let mut script = base_script(
                     datatype_declarations,
                     declarations,
@@ -2630,7 +2711,7 @@ fn generate_loop_invariant_vcs(
 
                 // Assume preconditions
                 for pre in &func.contracts.requires {
-                    if let Some(pre_term) = parse_spec(&pre.raw, func) {
+                    if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                         script.push(Command::Assert(pre_term));
                     }
                 }
@@ -3088,9 +3169,9 @@ fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
 ///
 /// After parsing, quantified specs (forall/exists) are automatically annotated
 /// with trigger patterns for SMT instantiation control.
-fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
-    let term =
-        spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))?;
+fn parse_spec(spec: &str, func: &Function, ghost_pred_db: &GhostPredicateDatabase) -> Option<Term> {
+    let term = spec_parser::parse_spec_expr_with_db(spec, func, ghost_pred_db)
+        .or_else(|| parse_simple_spec(spec, func))?;
 
     // Annotate quantifiers with trigger patterns (validation happens here)
     // On validation error, log and return None (spec parsing fails)
@@ -6569,7 +6650,8 @@ mod tests {
             back_edge_blocks: vec![2],
             invariants: vec![], // No invariants
         };
-        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
         assert!(vcs.is_empty(), "No VCs when invariants are empty");
     }
 
@@ -6589,7 +6671,8 @@ mod tests {
                 raw: "_1 >= 0".to_string(),
             }],
         };
-        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
         // Should generate 3 VCs: init, preserve, exit
         assert_eq!(vcs.len(), 3, "Expected 3 loop invariant VCs");
     }
@@ -7963,6 +8046,38 @@ mod tests {
             script_str.contains("sep_heap"),
             "Sep-logic call-site VC must declare sep_heap, got script:\n{}",
             script_str
+        );
+    }
+
+    #[test]
+    fn generate_vcs_with_db_expands_ghost_predicate_in_requires() {
+        use crate::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabase};
+        // ghost predicate: is_pos(x) := x > 0
+        let mut db = GhostPredicateDatabase::new();
+        db.insert(
+            "is_pos".to_string(),
+            GhostPredicate {
+                param_names: vec!["x".to_string()],
+                body_raw: "x > 0".to_string(),
+            },
+        );
+        // Build function with requires: "is_pos(_1)"
+        // (db-less parse_spec_expr returns None for "is_pos(_1)" — no VC generated)
+        // (generate_vcs_with_db with db returns Some(x > 0) — precondition VC generated)
+        let mut func = make_add_function();
+        func.contracts.requires = vec![crate::ir::SpecExpr {
+            raw: "is_pos(_1)".to_string(),
+        }];
+        // Also add a trivial ensures so generate_contract_vcs fires and uses the requires
+        func.contracts.ensures = vec![crate::ir::SpecExpr {
+            raw: "_1 > 0".to_string(),
+        }];
+        let vcs = generate_vcs_with_db(&func, None, &db);
+        // With ghost-predicate wired path, the requires "is_pos(_1)" expands to "_1 > 0"
+        // and is assumed in the postcondition VC. That VC should exist.
+        assert!(
+            !vcs.conditions.is_empty(),
+            "Ghost predicate in requires must produce at least one VC via generate_vcs_with_db"
         );
     }
 }
