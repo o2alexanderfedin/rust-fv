@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 22 (Higher-Order Closures) COMPLETE → Phase 23 (Async/Await) next
+**Current focus:** v0.4 Full Rust Verification — Phase 24 (SEP-04 Ghost Predicate Production Wiring) — Plan 1 complete, Plan 2 pending
 
 ## Current Position
 
-Phase: 22 of 23 (Higher-Order Closures) — COMPLETE
-Plan: 3 complete (3/3 plans done)
-Status: Phase Complete
-Last activity: 2026-02-20 — Plan 22-03 complete (HOF TDD validation: 6 Z3 entailment tests, HOF-01 + HOF-02 confirmed sound)
+Phase: 24 of 25 (SEP-04 Ghost Predicate Production Wiring) — In Progress
+Plan: 1 complete (1/2 plans done)
+Status: In Progress
+Last activity: 2026-02-21 — Plan 24-01 complete (SEP-04 ghost predicate wiring: generate_vcs_with_db, parse_spec_expr_with_db, VerificationTask.ghost_pred_db)
 
-Progress: [█████████████████████░░░] 91% (20/23 phases complete, Phase 23 pending)
+Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 23-25 pending)
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█████████████████████░░
 | Phase 22 P01 | 1719 | 2 tasks | 32 files |
 | Phase 22 P02 | 916 | 2 tasks | 3 files |
 | Phase 22 P03 | 104 | 2 tasks | 2 files |
+| Phase 24-sep04-ghost-predicate-wiring P01 | 808 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions relevant to v0.4:
 - [Phase 22-02]: substitute_result() does post-parse substitution of result -> closure_app term
 - [Phase 22-03]: Axiom injection pattern: commands_without_check_sat() + push axiom Assert + push CheckSat — clean test augmentation without modifying generate_fn_spec_vcs() API
 - [Phase 22-03]: encode_type_for_auflia() replaces encode_type() for AUFLIA safety — BitVec sorts are invalid in AUFLIA, all integers map to Sort::Int
+- [Phase 24]: generate_vcs() made backward-compatible delegation shim to generate_vcs_with_db with empty GhostPredicateDatabase — 6+ test sites unchanged
+- [Phase 24]: parse_spec() updated to call parse_spec_expr_with_db (not db-less parse_spec_expr) — ghost predicates expand at all 13 call sites in vcgen.rs
+- [Phase 24]: encode_callee_postcondition_assumptions required ghost_pred_db threading (compiler-enforced; Rule 3 auto-fix)
 
 ### Pending Todos
 
@@ -115,10 +119,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 22-03-PLAN.md — HOF TDD validation (6 Z3 entailment tests for HOF-01/HOF-02, Phase 22 complete)
+Last session: 2026-02-21
+Stopped at: Completed 24-01-PLAN.md — SEP-04 ghost predicate production wiring (generate_vcs_with_db, VerificationTask.ghost_pred_db, parse_spec_expr_with_db)
 Resume file: None
-Next step: Execute Phase 23 (Async/Await Verification) — validate coroutine MIR shape first
+Next step: Execute Phase 24 Plan 02 (SEP-04 gap closure validation / integration tests)
 
 ---
 
