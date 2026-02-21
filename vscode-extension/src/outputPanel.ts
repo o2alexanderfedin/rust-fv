@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { JsonVerificationReport, JsonFunctionResult } from './verifier';
+import { renderCounterexampleLines } from './diagnostics';
 
 /**
  * Output panel management for structured and raw verification output.
@@ -111,12 +112,18 @@ function formatFailedFunction(channel: vscode.OutputChannel, func: JsonFunctionR
       channel.appendLine(`    Location: ${failure.source_file}:${failure.source_line}`);
     }
 
-    // Show counterexample if available
-    if (failure.counterexample && failure.counterexample.length > 0) {
+    // Show counterexample if available (prefer typed v2 schema, fallback to legacy)
+    const cexLines = renderCounterexampleLines(failure);
+    if (cexLines.length > 0) {
       channel.appendLine('    Counterexample:');
-      for (const assignment of failure.counterexample) {
-        channel.appendLine(`      ${assignment.variable} = ${assignment.value}`);
+      for (const line of cexLines) {
+        channel.appendLine(`      ${line}`);
       }
+    }
+
+    // Show violated spec from v2 counterexample if present
+    if (failure.counterexample_v2?.violated_spec) {
+      channel.appendLine(`    Violated spec: ${failure.counterexample_v2.violated_spec}`);
     }
 
     // Show suggestion if available
