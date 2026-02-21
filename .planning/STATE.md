@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 24 (SEP-04 Ghost Predicate Production Wiring) — Plan 1 complete, Plan 2 pending
+**Current focus:** v0.4 Full Rust Verification — Phase 24 (SEP-04 Ghost Predicate Production Wiring) — COMPLETE. Phase 25 (ASY-01/02 async/await) pending.
 
 ## Current Position
 
-Phase: 24 of 25 (SEP-04 Ghost Predicate Production Wiring) — In Progress
-Plan: 1 complete (1/2 plans done)
-Status: In Progress
-Last activity: 2026-02-21 — Plan 24-01 complete (SEP-04 ghost predicate wiring: generate_vcs_with_db, parse_spec_expr_with_db, VerificationTask.ghost_pred_db)
+Phase: 24 of 25 (SEP-04 Ghost Predicate Production Wiring) — Complete
+Plan: 2 complete (2/2 plans done)
+Status: Phase 24 Complete — Phase 25 Pending
+Last activity: 2026-02-21 — Plan 24-02 complete (SEP-04 E2E driver integration tests: ghost_predicate_e2e.rs, VerificationResult extracted to types.rs)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 23-25 pending)
 
@@ -53,6 +53,7 @@ Progress: [█████████████████████░░
 | Phase 22 P02 | 916 | 2 tasks | 3 files |
 | Phase 22 P03 | 104 | 2 tasks | 2 files |
 | Phase 24-sep04-ghost-predicate-wiring P01 | 808 | 1 tasks | 3 files |
+| Phase 24-sep04-ghost-predicate-wiring P02 | 662 | 1 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions relevant to v0.4:
 - [Phase 24]: generate_vcs() made backward-compatible delegation shim to generate_vcs_with_db with empty GhostPredicateDatabase — 6+ test sites unchanged
 - [Phase 24]: parse_spec() updated to call parse_spec_expr_with_db (not db-less parse_spec_expr) — ghost predicates expand at all 13 call sites in vcgen.rs
 - [Phase 24]: encode_callee_postcondition_assumptions required ghost_pred_db threading (compiler-enforced; Rule 3 auto-fix)
+- [Phase 24]: VcKind::Precondition is for call-site checks (caller satisfies callee requires); function's own requires is an assumption in postcondition VCs — E2E tests need requires+ensures pair
+- [Phase 24]: VerificationResult moved to types.rs (rustc-free) to enable parallel module export from lib.rs for driver integration tests
 
 ### Pending Todos
 
@@ -120,9 +123,9 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 24-01-PLAN.md — SEP-04 ghost predicate production wiring (generate_vcs_with_db, VerificationTask.ghost_pred_db, parse_spec_expr_with_db)
+Stopped at: Completed 24-02-PLAN.md — E2E ghost predicate driver integration tests (ghost_predicate_e2e.rs, types.rs extraction, parallel module exported from lib.rs)
 Resume file: None
-Next step: Execute Phase 24 Plan 02 (SEP-04 gap closure validation / integration tests)
+Next step: Execute Phase 25 (ASY-01/02 async/await verification)
 
 ---
 
