@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use std::sync::Arc;
 
 use crate::cache::{CacheEntry, VcCache};
-use crate::callbacks::VerificationResult;
+use crate::types::VerificationResult;
 use rust_fv_analysis::contract_db::ContractDatabase;
 use rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase;
 use rust_fv_analysis::ir::Function;

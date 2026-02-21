@@ -61,20 +61,10 @@ pub enum OutputFormat {
 }
 
 /// Result of verifying a single function.
-#[derive(Debug)]
-pub struct VerificationResult {
-    pub function_name: String,
-    pub condition: String,
-    pub verified: bool,
-    /// Structured counterexample as `(variable_name, raw_value)` pairs.
-    /// `None` if the VC was verified (or no model was available).
-    pub counterexample: Option<Vec<(String, String)>>,
-    /// Structured counterexample v2 with typed variables and metadata.
-    /// Populated when solver returns SAT with model and IR type info is available.
-    pub counterexample_v2: Option<crate::json_output::JsonCounterexample>,
-    #[allow(dead_code)] // Used for future diagnostics enhancement
-    pub vc_location: rust_fv_analysis::vcgen::VcLocation,
-}
+///
+/// Re-exported from `crate::types` so it can be accessed from the library crate
+/// (which cannot export `callbacks` due to rustc internal dependencies).
+pub use crate::types::VerificationResult;
 
 /// Metadata for per-function verification.
 #[derive(Debug, Clone)]
