@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { JsonVerificationReport, JsonFailure, JsonAssignment } from './verifier';
+import { JsonVerificationReport, JsonFailure, JsonAssignment, JsonCexVariable } from './verifier';
 
 /**
  * Convert JsonVerificationReport to VSCode Diagnostics grouped by file URI.
@@ -46,6 +46,52 @@ export function convertToDiagnostics(
 }
 
 /**
+ * Render a single typed variable from a v2 counterexample.
+ *
+ * Handles three cases:
+ * 1. display-only: variable with a single known value (e.g. function parameter not mutated)
+ * 2. initial+at_failure: variable mutated between initial state and failure point
+ * 3. initial-only: parameter with known initial value but no mutation tracked
+ */
+function renderTypedVariable(v: JsonCexVariable): string {
+  // Single-value case: variable with one known value (e.g. function parameter that was not mutated)
+  if (v.display !== undefined) {
+    return `${v.name}: ${v.type} = ${v.display}`;
+  }
+  // Two-value case: variable mutated between initial state and failure point
+  if (v.initial && v.at_failure) {
+    return `${v.name}: ${v.type} = ${v.initial.display} (initial) → ${v.at_failure.display} (at failure)`;
+  }
+  // Initial-only case: parameter with known initial value but no mutation tracked
+  if (v.initial) {
+    return `${v.name}: ${v.type} = ${v.initial.display}`;
+  }
+  return `${v.name}: ${v.type} = (unknown)`;
+}
+
+/**
+ * Render counterexample variables as human-readable lines.
+ *
+ * Prefers the typed v2 schema (Phase 19-04 output) when present.
+ * Falls back to the legacy flat assignment list for backward compatibility
+ * with older binaries or timeout/UNSAT scenarios.
+ *
+ * @param failure - The JsonFailure containing counterexample data
+ * @returns Array of formatted lines, e.g. ["x: i32 = 5", "flag: bool = false"]
+ */
+export function renderCounterexampleLines(failure: JsonFailure): string[] {
+  // Prefer typed v2 schema (Phase 19-04 output)
+  if (failure.counterexample_v2 && failure.counterexample_v2.variables.length > 0) {
+    return failure.counterexample_v2.variables.map(renderTypedVariable);
+  }
+  // Fallback to legacy flat assignments (backward compat: older binary or timeout/UNSAT)
+  if (failure.counterexample && failure.counterexample.length > 0) {
+    return failure.counterexample.map((a: JsonAssignment) => `${a.variable} = ${a.value}`);
+  }
+  return [];
+}
+
+/**
  * Create a VSCode Diagnostic from a JsonFailure.
  *
  * @param failure - The failure from cargo verify JSON output
@@ -63,8 +109,9 @@ function createDiagnostic(failure: JsonFailure): vscode.Diagnostic {
     message += `\nContract: ${failure.contract}`;
   }
 
-  if (failure.counterexample && failure.counterexample.length > 0) {
-    message += `\nCounterexample: ${formatCounterexample(failure.counterexample)}`;
+  const cexLines = renderCounterexampleLines(failure);
+  if (cexLines.length > 0) {
+    message += `\nCounterexample:\n  ${cexLines.join('\n  ')}`;
   }
 
   if (failure.suggestion) {
