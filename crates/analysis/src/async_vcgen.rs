@@ -171,6 +171,7 @@ fn generate_async_postcondition_vc(
     script.push(Command::Assert(Term::Not(Box::new(ensures_term))));
 
     script.push(Command::CheckSat);
+    script.push(Command::GetModel);
 
     VerificationCondition {
         description: format!(
@@ -250,6 +251,7 @@ fn generate_invariant_vc(
     script.push(Command::Assert(Term::Not(Box::new(invariant_term))));
 
     script.push(Command::CheckSat);
+    script.push(Command::GetModel);
 
     let vc_kind = if side == "suspension" {
         VcKind::AsyncStateInvariantSuspend

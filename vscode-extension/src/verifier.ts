@@ -41,6 +41,10 @@ export interface JsonCounterexample {
   failing_location: JsonLocation;
   vc_kind: string;
   violated_spec?: string;
+  /** For async VCs: which poll iteration (0-based state_id) triggered the violation. */
+  poll_iteration?: number;
+  /** For async VCs: "pre_await" (suspension) or "post_await" (resumption) side. */
+  await_side?: string;
 }
 
 /** A single variable in a counterexample. */

@@ -126,6 +126,14 @@ function formatFailedFunction(channel: vscode.OutputChannel, func: JsonFunctionR
       channel.appendLine(`    Violated spec: ${failure.counterexample_v2.violated_spec}`);
     }
 
+    // Show async context if present (state_invariant failures)
+    if (failure.counterexample_v2?.poll_iteration !== undefined) {
+      const side = failure.counterexample_v2.await_side ?? 'unknown';
+      channel.appendLine(
+        `    Async context: poll iteration ${failure.counterexample_v2.poll_iteration}, ${side}`
+      );
+    }
+
     // Show suggestion if available
     if (failure.suggestion) {
       channel.appendLine(`    Suggestion: ${failure.suggestion}`);
