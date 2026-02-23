@@ -60,6 +60,7 @@ Progress: [█████████████████████░░
 | Phase 23 P03 | 384 | 1 tasks | 5 files |
 | Phase 23 P04 | 716 | 1 tasks | 3 files |
 | Phase 26-wmm03-race-detection-fix P01 | 180 | 2 tasks | 2 files |
+| Phase 26 P02 | 317 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,7 @@ Recent decisions relevant to v0.4:
 - [Phase 23]: parse_spec_expr_qf_lia uses in_int_mode=true for QF_LIA-compatible integer encoding in async VCs
 - [Phase 23]: convert_path allows free SMT constant references in int_mode (awaited_result_N), strict BV mode preserved
 - [Phase 26-wmm03-race-detection-fix]: WeakMemoryRace VC uses Assert(BoolLit(true)) + mo_cmds + rf_cmds — SAT = race detected, mirrors WeakMemoryCoherence violation-detection semantics
+- [Phase 26]: Follow ghost_predicate_e2e.rs VerificationTask pattern (name/ir_func/contract_db fields); Function.atomic_ops for RC11 VCs with ConcurrencyConfig.verify_concurrency=true
 
 ### Pending Todos
 
@@ -141,11 +143,11 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 26-01-PLAN.md — WMM-03 WeakMemoryRace VC fix (SAT-returning formula, Z3 SAT assertion in test)
+Stopped at: Completed 26-02-PLAN.md — WMM-03 diagnostics UX (suggest_fix + bounded warning) and E2E driver test (wmm_race_e2e.rs). Phase 26 complete — WMM-03 fully satisfied.
 Resume file: None
-Next step: Phase 26 Plan 02 (if any) or next pending phase
+Next step: Next pending phase (Phase 27+ or milestone v0.4 completion)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-22 after 23-04 async TDD — Phase 23 complete*
+*Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*
