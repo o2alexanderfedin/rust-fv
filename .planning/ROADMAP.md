@@ -312,13 +312,11 @@ Plans:
   2. Driver pipeline interprets SAT result on `WeakMemoryRace` VC as a detected race and surfaces it as an error/warning to the user (not `verified: true`)
   3. `test_relaxed_data_race_detected` sends the VC to Z3 and asserts the result is SAT (race detected), not just that a `WeakMemoryRace` VC exists structurally
   4. End-to-end integration test proves a program with a Relaxed data race causes `cargo verify` to report a race error, not a safe result
-**Plans**: 4 plans
+**Plans**: 2 plans
 
 Plans:
-- [ ] 26-01-PLAN.md — Fix WeakMemoryRace VC body in rc11.rs: emit race-existence formula (conflicting accesses, no mo/rf/co sync edge) (WMM-03)
-- [ ] 26-02-PLAN.md — Fix driver result interpretation: SAT on WeakMemoryRace VC → race error, not verified:true (WMM-03)
-- [ ] 26-03-PLAN.md — Update test_relaxed_data_race_detected to verify Z3 SAT result (not just VC presence) (WMM-03)
-- [ ] 26-04-PLAN.md — E2E integration test: Relaxed data race → driver surfaces race error end-to-end (WMM-03)
+- [ ] 26-01-PLAN.md — TDD: Fix WeakMemoryRace VC body in rc11.rs (Assert(BoolLit(true)) + mo_cmds + rf_cmds) + update test to assert Z3 SAT (WMM-03)
+- [ ] 26-02-PLAN.md — Complete error UX (suggest_fix + bounded warning) + E2E driver integration test via verify_functions_parallel (WMM-03)
 
 ## Progress
 
@@ -337,4 +335,4 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25 �
 | 23. Async/Await Verification | 4/4 | Complete    | 2026-02-23 | - |
 | 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-23 | - |
 | 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-23 | - |
-| 26. WMM-03 Weak Memory Race Detection Fix | v0.4 | 0/4 | Pending | - |
+| 26. WMM-03 Weak Memory Race Detection Fix | v0.4 | 0/2 | Pending | - |
