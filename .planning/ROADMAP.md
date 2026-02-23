@@ -5,7 +5,7 @@
 - ✅ **v0.1 POC** - Phases 1-5 (shipped 2026-02-12)
 - ✅ **v0.2 Advanced Verification** - Phases 6-12 (shipped 2026-02-14)
 - ✅ **v0.3 Production Usability** - Phases 13-18 (shipped 2026-02-17)
-- 🚧 **v0.4 Full Rust Verification** - Phases 19-23 (in progress)
+- 🚧 **v0.4 Full Rust Verification** - Phases 19-27 (in progress)
 
 ## Phases
 
@@ -318,6 +318,21 @@ Plans:
 - [ ] 26-01-PLAN.md — TDD: Fix WeakMemoryRace VC body in rc11.rs (Assert(BoolLit(true)) + mo_cmds + rf_cmds) + update test to assert Z3 SAT (WMM-03)
 - [ ] 26-02-PLAN.md — Complete error UX (suggest_fix + bounded warning) + E2E driver integration test via verify_functions_parallel (WMM-03)
 
+### Phase 27: Async Counterexample IDE Fidelity
+**Goal**: Async verification failures show poll iteration and await-side context in the VSCode extension, completing the ASY counterexample IDE rendering pipeline
+**Depends on**: Phase 23, Phase 25
+**Requirements**: ASY-02
+**Gap Closure**: Closes tech debt from v0.4 audit — doubly incomplete async CEX fields (Rust never-populated + TypeScript interface gap)
+**Success Criteria** (what must be TRUE):
+  1. `parallel.rs build_counterexample_v2()` extracts `poll_iteration` from the Z3 model (`poll_iter` constant in `cx_pairs`) and populates `JsonCounterexample.poll_iteration`
+  2. `await_side` is inferred from `vc_kind` (`AsyncStateInvariantSuspend` → `"pre_await"`, `AsyncStateInvariantResume` → `"post_await"`) and populated in `JsonCounterexample.await_side`
+  3. `vscode-extension/src/verifier.ts JsonCounterexample` interface declares `poll_iteration?: number` and `await_side?: string`
+  4. `npx tsc --noEmit` in `vscode-extension/` produces zero errors after interface update
+**Plans**: 1 plan
+
+Plans:
+- [ ] 27-01-PLAN.md — TDD: Extract poll_iteration from Z3 model in parallel.rs + infer await_side from vc_kind + update verifier.ts interface + optional outputPanel.ts rendering (ASY-02)
+
 ## Progress
 
 **Execution Order:**
@@ -336,3 +351,4 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25 �
 | 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-23 | - |
 | 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-23 | - |
 | 26. WMM-03 Weak Memory Race Detection Fix | 2/2 | Complete    | 2026-02-23 | - |
+| 27. Async Counterexample IDE Fidelity | v0.4 | 0/1 | Pending | - |
