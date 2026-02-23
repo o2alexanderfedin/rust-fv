@@ -6,16 +6,16 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — In Progress (3/4 plans complete).
+**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — Complete (4/4 plans done).
 
 ## Current Position
 
-Phase: 23 of 25 (async/await verification) — In Progress
-Plan: 3 complete (3/4 plans done)
-Status: Phase 23 Plan 03 Complete — Plan 04 (Async VC TDD Integration) Pending
-Last activity: 2026-02-22 — Plan 23-03 complete (Async VC generator: async_vcgen.rs, vcgen dispatch, JsonCounterexample async fields)
+Phase: 23 of 25 (async/await verification) — Complete
+Plan: 4 complete (4/4 plans done)
+Status: Phase 23 Complete — ASY-01 and ASY-02 TDD integration tests all passing
+Last activity: 2026-02-22 — Plan 23-04 complete (ASY-01/ASY-02 TDD integration: 6 Z3 tests, QF_LIA spec parser fix)
 
-Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 23-25 pending)
+Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████████████████░░
 | Phase 23 P01 | 25 | 1 tasks | 58 files |
 | Phase 23 P02 | 283 | 1 tasks | 2 files |
 | Phase 23 P03 | 384 | 1 tasks | 5 files |
+| Phase 23 P04 | 716 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,8 @@ Recent decisions relevant to v0.4:
 - [Phase 23]: count_coroutine_await_points() counts discriminant >= 3 (values 0/1/2 are reserved initial/done/panicked)
 - [Phase 23]: QF_LIA logic for async VCs — no quantifiers needed for bounded state enumeration
 - [Phase 23]: poll_iteration + await_side on JsonCounterexample with skip_serializing_if for backward compat
+- [Phase 23]: parse_spec_expr_qf_lia uses in_int_mode=true for QF_LIA-compatible integer encoding in async VCs
+- [Phase 23]: convert_path allows free SMT constant references in int_mode (awaited_result_N), strict BV mode preserved
 
 ### Pending Todos
 
@@ -136,11 +139,11 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 23-03-PLAN.md — Async VC generator (async_vcgen.rs, vcgen dispatch, JsonCounterexample async fields)
+Stopped at: Completed 23-04-PLAN.md — ASY-01 and ASY-02 TDD integration tests (Phase 23 complete)
 Resume file: None
-Next step: Execute Phase 23 Plan 04 (Async VC TDD Integration)
+Next step: Phase 24 or 25 (v0.4 remaining phases)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-20 after 22-03 HOF TDD validation — Phase 22 complete*
+*Last updated: 2026-02-22 after 23-04 async TDD — Phase 23 complete*
