@@ -744,6 +744,12 @@ pub fn generate_vcs_with_db(
         conditions.extend(hof_vcs);
     }
 
+    // ASY-01 / ASY-02: Generate async VCs if this is an async fn (coroutine)
+    if func.coroutine_info.is_some() {
+        let async_vcs = crate::async_vcgen::generate_async_vcs(func, ghost_pred_db);
+        conditions.extend(async_vcs);
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),

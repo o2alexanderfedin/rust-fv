@@ -56,6 +56,14 @@ pub struct JsonCounterexample {
     pub failing_location: JsonLocation,
     pub vc_kind: String,
     pub violated_spec: Option<String>,
+    /// For async VCs: which poll iteration (0-based state_id) triggered the violation.
+    /// Absent for non-async VCs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub poll_iteration: Option<usize>,
+    /// For async VCs: "suspension" or "resumption" side of the `.await`.
+    /// Absent for non-async VCs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub await_side: Option<String>,
 }
 
 /// A single variable in a counterexample (may have single or dual initial/at_failure values).
@@ -537,6 +545,8 @@ mod tests {
             },
             vc_kind: "precondition".to_string(),
             violated_spec: Some("x > 0".to_string()),
+            poll_iteration: None,
+            await_side: None,
         };
         let json = serde_json::to_string(&cex).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -587,6 +597,8 @@ mod tests {
             },
             vc_kind: "overflow".to_string(),
             violated_spec: None,
+            poll_iteration: None,
+            await_side: None,
         };
         let json = serde_json::to_string(&cex).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -629,6 +641,8 @@ mod tests {
                 },
                 vc_kind: "precondition".to_string(),
                 violated_spec: Some("x > 0".to_string()),
+                poll_iteration: None,
+                await_side: None,
             }),
             suggestion: None,
         };

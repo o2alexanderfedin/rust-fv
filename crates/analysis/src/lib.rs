@@ -1,3 +1,4 @@
+pub mod async_vcgen;
 pub mod behavioral_subtyping;
 pub mod borrow_conflict;
 pub mod bv2int;

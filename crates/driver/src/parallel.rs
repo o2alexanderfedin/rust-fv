@@ -411,6 +411,8 @@ fn build_counterexample_v2(
         },
         vc_kind: format!("{:?}", vc_location.vc_kind).to_lowercase(),
         violated_spec: vc_location.contract_text.clone(),
+        poll_iteration: None,
+        await_side: None,
     })
 }
 
