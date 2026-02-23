@@ -200,6 +200,7 @@ fn report_text_only(failure: &VerificationFailure) {
         || failure.vc_kind == VcKind::LockInvariant
         || failure.vc_kind == VcKind::Deadlock
         || failure.vc_kind == VcKind::ChannelSafety
+        || failure.vc_kind == VcKind::WeakMemoryRace
     {
         use std::sync::atomic::{AtomicBool, Ordering};
         static CONCURRENCY_WARNING_EMITTED: AtomicBool = AtomicBool::new(false);
@@ -524,6 +525,11 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::ChannelSafety => Some(
             "Check channel usage: ensure sender is not dropped before receiver reads, \
              bounded channels have capacity for sends, and receivers handle closed channels."
+                .to_string(),
+        ),
+        VcKind::WeakMemoryRace => Some(
+            "Weak memory data race: use Release/Acquire ordering instead of Relaxed, or protect \
+             access with a Mutex. Relaxed atomics provide no ordering guarantees between threads."
                 .to_string(),
         ),
         _ => None,
