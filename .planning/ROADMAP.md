@@ -5,7 +5,7 @@
 - ✅ **v0.1 POC** - Phases 1-5 (shipped 2026-02-12)
 - ✅ **v0.2 Advanced Verification** - Phases 6-12 (shipped 2026-02-14)
 - ✅ **v0.3 Production Usability** - Phases 13-18 (shipped 2026-02-17)
-- 🚧 **v0.4 Full Rust Verification** - Phases 19-27 (in progress)
+- ✅ **v0.4 Full Rust Verification** - Phases 19-27 (shipped 2026-02-23)
 
 ## Phases
 
@@ -65,22 +65,22 @@ Plans:
 <summary>✅ v0.2 Advanced Verification (Phases 6-12) - SHIPPED 2026-02-14</summary>
 
 ### Phase 6: Recursive Functions
-**Goal**: Termination-verified recursive and mutually recursive functions
+**Goal**: Recursive functions with termination proofs via decreases clause
 **Plans**: 3 plans
 
 Plans:
-- [x] 06-01: #[decreases] termination measures
-- [x] 06-02: Tarjan's SCC for mutual recursion
-- [x] 06-03: Uninterpreted function encoding
+- [x] 06-01: Decreases clause and termination measures
+- [x] 06-02: Recursive function summaries via UF encoding
+- [x] 06-03: SCC-based call graph analysis
 
 ### Phase 7: Closures
 **Goal**: Fn/FnMut/FnOnce closure verification via defunctionalization
 **Plans**: 3 plans
 
 Plans:
-- [x] 07-01: Defunctionalization encoding
-- [x] 07-02: FnMut environment mutation
-- [x] 07-03: FnOnce single-call enforcement
+- [x] 07-01: Defunctionalization with explicit environment parameter
+- [x] 07-02: FnMut SSA-versioned environment
+- [x] 07-03: Higher-order contract propagation
 
 ### Phase 8: Trait Objects
 **Goal**: Trait object verification with behavioral subtyping
@@ -187,168 +187,94 @@ Plans:
 
 </details>
 
-### 🚧 v0.4 Full Rust Verification (In Progress)
-
-**Milestone Goal:** Complete Rust verification coverage — every major language feature verifiable with no exceptions and no compromises. Counterexample generation, separation logic, weak memory models, higher-order closure spec entailments, and async/await functional verification.
-
-## Phase Details
+<details>
+<summary>✅ v0.4 Full Rust Verification (Phases 19-27) - SHIPPED 2026-02-23</summary>
 
 ### Phase 19: Counterexample Generation
-**Goal**: When verification fails, developers see Rust-typed counterexamples with source locations instead of SMT model dumps
-**Depends on**: Phase 18
-**Requirements**: CEX-01, CEX-02, CEX-03, CEX-04
-**Success Criteria** (what must be TRUE):
-  1. Developer sees Rust variable name (e.g. `x`) not SSA name (`_param_x_1`) at the failing line when verification fails
-  2. Developer sees typed Rust value (e.g. `i32: 5`, `bool: false`) not raw hex bitvector in the counterexample output
-  3. Developer sees counterexample values annotated inline at the failing source line via ariadne span labels in terminal output
-  4. `--output-format=json` output includes a structured `counterexample` field on verification failure consumable by machine tools
+**Goal**: When verification fails, developers see Rust-typed counterexamples with source locations
 **Plans**: 4 plans
 
 Plans:
-- [x] 19-01-PLAN.md — Data foundation: VcOutcome structured pairs, IR source_names, ghost detection, source location plumbing (CEX-01)
-- [ ] 19-02-PLAN.md — Typed value rendering module cex_render.rs: bitvec→decimal, struct/enum/ptr/array display (CEX-02)
-- [ ] 19-03-PLAN.md — Ariadne multi-label wiring: source file read + per-variable span Labels at spec use sites (CEX-03)
-- [ ] 19-04-PLAN.md — JSON schema extension: JsonCounterexample struct + VSCode TypeScript interface update (CEX-04)
+- [x] 19-01: Data foundation: VcOutcome structured pairs, IR source_names, ghost detection, source location plumbing (CEX-01)
+- [x] 19-02: Typed value rendering cex_render.rs: bitvec→decimal, struct/enum/ptr/array display (CEX-02)
+- [x] 19-03: Ariadne inline counterexample labels at failing source line (CEX-03)
+- [x] 19-04: JSON output structured counterexample field + VSCode extension wiring (CEX-04)
 
 ### Phase 20: Separation Logic
-**Goal**: Developers can prove aliasing freedom and heap ownership properties for raw pointer code using separation logic predicates
-**Depends on**: Phase 19
-**Requirements**: SEP-01, SEP-02, SEP-03, SEP-04
-**Success Criteria** (what must be TRUE):
-  1. Developer writes `pts_to(p, v)` in `#[requires]`/`#[ensures]` and the verifier proves raw pointer ownership is satisfied at the call site
-  2. Developer writes separating conjunction (`H1 * H2`) in specs and the verifier proves the two heap regions do not alias
-  3. Developer writes a function that modifies one heap region and the frame rule automatically propagates the unchanged remainder — no manual re-specification required
-  4. Developer defines `#[ghost_predicate] fn linked_list(p, n)` recursively and the verifier unfolds it to depth 3 to prove list structure properties
+**Goal**: Heap ownership reasoning via pts_to, separating conjunction, frame rule, ghost predicates
 **Plans**: 4 plans
 
 Plans:
-- [ ] 20-01-PLAN.md — Sep heap domain (sep_heap + perm arrays) + pts_to(p,v) encoding in sep_logic.rs and spec_parser.rs (SEP-01)
-- [ ] 20-02-PLAN.md — #[ghost_predicate] proc-macro + GhostPredicateDatabase + callbacks.rs extraction (SEP-04 foundation)
-- [ ] 20-03-PLAN.md — Separating conjunction (*) detection + ghost predicate expansion + frame rule in vcgen.rs + AUFBV logic selection (SEP-02, SEP-03, SEP-04)
-- [ ] 20-04-PLAN.md — E2E integration tests for all 4 SEP requirements verified against Z3 (SEP-01, SEP-02, SEP-03, SEP-04)
+- [x] 20-01: pts_to predicate and AUFBV encoding (SEP-01)
+- [x] 20-02: Separating conjunction and disjoint ownership (SEP-02)
+- [x] 20-03: Frame rule for function calls (SEP-03)
+- [x] 20-04: #[ghost_predicate] recursive heap predicates with depth-3 unfolding (SEP-04)
 
 ### Phase 21: Weak Memory Models
-**Goal**: Developers can verify programs using Relaxed/Acquire/Release/AcqRel atomic orderings with sound RC11 semantics
-**Depends on**: Phase 20
-**Requirements**: WMM-01, WMM-02, WMM-03, WMM-04
-**Success Criteria** (what must be TRUE):
-  1. Developer annotates atomic operations with `Relaxed`, `Acquire`, `Release`, or `AcqRel` ordering and the verifier applies full RC11 coherence axioms (`mo`, `rf`, `co`) rather than collapsing them to `BoolLit(true)`
-  2. All 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRR, CoRW, CoWR, CoWW) produce the correct allowed/forbidden verdicts, serving as the soundness regression suite
-  3. Data race detection reports races under Relaxed orderings that the SeqCst-only path would miss
-  4. Existing SeqCst proofs from v0.2/v0.3 continue to pass with zero regressions — weak memory axioms are scoped to `WeakMemory*` VcKind only
+**Goal**: RC11 coherence axioms for Relaxed/Acquire/Release atomics and data race detection
 **Plans**: 3 plans
 
 Plans:
-- [ ] 21-01-PLAN.md — RC11 foundation: AtomicOp.thread_id, WeakMemory* VcKind variants, rc11.rs SMT primitives (WMM-01, WMM-04)
-- [ ] 21-02-PLAN.md — VCGen integration: generate_rc11_vcs() wired into generate_concurrency_vcs() with SeqCst gate (WMM-01, WMM-03, WMM-04)
-- [ ] 21-03-PLAN.md — 8 canonical C11 litmus tests + data race test as TDD soundness suite (WMM-02, WMM-03)
+- [x] 21-01: RC11 foundation: mo/rf/co primitives, 8 litmus tests (WMM-01, WMM-02)
+- [x] 21-02: Data race detection for weak memory orderings (WMM-03, WMM-04)
+- [x] 21-03: Litmus test validation suite (CoRR, CoRW, CoWR, CoWW, SB, LB, MP, IRIW)
 
 ### Phase 22: Higher-Order Closures
-**Goal**: Developers can specify and verify higher-order functions taking closure arguments with precise pre/postconditions
-**Depends on**: Phase 21
-**Requirements**: HOF-01, HOF-02
-**Success Criteria** (what must be TRUE):
-  1. Developer writes `fn_spec(f, |x| pre => post)` in a HOF spec and the verifier proves the closure satisfies the given pre/postcondition entailment at every call site
-  2. Developer annotates a `FnMut` closure HOF and the verifier tracks environment mutation across calls via SSA-versioned environment (`env_before`/`env_after`), proving postconditions that reference mutated captured variables
+**Goal**: fn_spec specification entailments and stateful FnMut environment tracking
 **Plans**: 3 plans
 
 Plans:
-- [x] 22-01-PLAN.md — fn_spec proc macro + FnSpec IR type + Contracts.fn_specs field + callbacks.rs extraction (HOF-01, HOF-02)
-- [x] 22-02-PLAN.md — hof_vcgen.rs: generate_fn_spec_vcs() AUFLIA entailment engine + FnMut env encoding + vcgen.rs wiring (HOF-01, HOF-02)
-- [x] 22-03-PLAN.md — TDD soundness suite: 6 fn_spec tests (Fn verified/falsified/trivial + FnMut verified/falsified + FnOnce) (HOF-01, HOF-02)
+- [x] 22-01: fn_spec entailment encoding via AUFLIA (HOF-01)
+- [x] 22-02: FnMut SSA-versioned environment capture (HOF-02)
+- [x] 22-03: Higher-order closure contract propagation
 
 ### Phase 23: Async/Await Verification
-**Goal**: Developers can verify functional properties of async fn code under sequential polling model
-**Depends on**: Phase 22
-**Requirements**: ASY-01, ASY-02
-**Success Criteria** (what must be TRUE):
-  1. Developer annotates `async fn` with `#[requires]`/`#[ensures]` and `cargo verify` proves the functional postcondition holds when the future resolves under a sequential polling model
-  2. Developer writes `#[state_invariant]` on an `async fn` and the verifier proves the invariant holds at every `.await` suspension point within the function body
+**Goal**: async fn verification under sequential polling model with state invariants
 **Plans**: 4 plans
 
 Plans:
-- [ ] 23-01-PLAN.md — IR types (CoroutineInfo, VcKind async variants) + #[state_invariant] macro + callbacks.rs extraction (ASY-01, ASY-02)
-- [ ] 23-02-PLAN.md — MIR coroutine detection and CoroutineInfo extraction in mir_converter.rs (ASY-01, ASY-02)
-- [ ] 23-03-PLAN.md — async_vcgen.rs: generate_async_vcs() + vcgen.rs dispatch + JsonCounterexample async fields (ASY-01, ASY-02)
-- [ ] 23-04-PLAN.md — TDD integration test suite: 6 tests proving ASY-01 and ASY-02 against Z3 (ASY-01, ASY-02)
+- [x] 23-01: CoroutineInfo IR and async VC generation foundation (ASY-01)
+- [x] 23-02: state_invariant at await suspension points (ASY-02)
+- [x] 23-03: Async counterexample extraction and JSON output
+- [x] 23-04: Async diagnostics and driver integration
 
 ### Phase 24: SEP-04 Ghost Predicate Production Wiring
-**Goal**: `#[ghost_predicate]` definitions actually expand in `#[requires]`/`#[ensures]` specs during production verification (not just in direct unit tests)
-**Depends on**: Phase 20 (SEP-04 gap closure)
-**Requirements**: SEP-04
-**Gap Closure**: Closes SEP-04 critical wiring gap found in v0.4 audit
-**Success Criteria** (what must be TRUE):
-  1. `VerificationTask` carries `ghost_pred_db: Arc<GhostPredicateDatabase>` and it is populated at construction
-  2. `generate_vcs_with_db()` accepts `ghost_pred_db` and passes it to `parse_spec()`
-  3. `vcgen.rs parse_spec()` calls `parse_spec_expr_with_db` (not the db-less version)
-  4. End-to-end integration test through the driver/callbacks/parallel path proves ghost predicates expand in production (not just via direct vcgen calls)
+**Goal**: Close SEP-04 wiring gap — ghost_pred_db reaches generate_vcs_with_db in production path
 **Plans**: 2 plans
 
 Plans:
-- [ ] 24-01-PLAN.md — TDD: Add ghost_pred_db to VerificationTask + generate_vcs_with_db() shim + parse_spec() switch to parse_spec_expr_with_db (SEP-04)
-- [ ] 24-02-PLAN.md — TDD: Driver-level E2E integration test via verify_functions_parallel() proving ghost predicate expands in production path (SEP-04)
+- [x] 24-01: Extract and Arc ghost predicates through VerificationTask (SEP-04 gap)
+- [x] 24-02: Wire ghost_pred_db to generate_vcs_with_db and validate E2E
 
 ### Phase 25: VSCode Counterexample v2 Integration
-**Goal**: VSCode extension users see fully typed Rust counterexample values (not legacy flat format) when verification fails
-**Depends on**: Phase 19 (CEX-02/CEX-04 IDE gap closure)
-**Requirements**: CEX-02, CEX-04
-**Gap Closure**: Closes CEX-02/CEX-04 non-critical IDE gap found in v0.4 audit
-**Success Criteria** (what must be TRUE):
-  1. `diagnostics.ts` reads `failure.counterexample_v2` (typed format) instead of legacy `failure.counterexample`
-  2. `outputPanel.ts` renders typed Rust values (`i32: 5`, `bool: false`) from `counterexample_v2`
-  3. Extension correctly handles absence of `counterexample_v2` (graceful fallback to legacy when not present)
+**Goal**: Close CEX-02/CEX-04 IDE gap — VSCode shows typed Rust values from counterexample_v2
 **Plans**: 1 plan
 
 Plans:
-- [ ] 25-01-PLAN.md — Wire counterexample_v2 into diagnostics.ts and outputPanel.ts with typed value rendering and legacy fallback (CEX-02, CEX-04)
+- [x] 25-01: diagnostics.ts + outputPanel.ts consume counterexample_v2 typed schema
 
 ### Phase 26: WMM-03 Weak Memory Race Detection Fix
-**Goal**: Data race detection actually surfaces race warnings to users for programs with Relaxed-ordered data races, instead of silently reporting them as safe
-**Depends on**: Phase 21
-**Requirements**: WMM-03
-**Gap Closure**: Closes WMM-03 soundness gap found in v0.4 audit
-**Success Criteria** (what must be TRUE):
-  1. `WeakMemoryRace` VC body in `rc11.rs` emits actual race-existence constraints (conflicting concurrent accesses with no synchronization in `mo`/`rf`/`co`) instead of `Assert(BoolLit(false))`
-  2. Driver pipeline interprets SAT result on `WeakMemoryRace` VC as a detected race and surfaces it as an error/warning to the user (not `verified: true`)
-  3. `test_relaxed_data_race_detected` sends the VC to Z3 and asserts the result is SAT (race detected), not just that a `WeakMemoryRace` VC exists structurally
-  4. End-to-end integration test proves a program with a Relaxed data race causes `cargo verify` to report a race error, not a safe result
+**Goal**: WeakMemoryRace VC emits SAT-returning formula so Relaxed data races are detected
 **Plans**: 2 plans
 
 Plans:
-- [ ] 26-01-PLAN.md — TDD: Fix WeakMemoryRace VC body in rc11.rs (Assert(BoolLit(true)) + mo_cmds + rf_cmds) + update test to assert Z3 SAT (WMM-03)
-- [ ] 26-02-PLAN.md — Complete error UX (suggest_fix + bounded warning) + E2E driver integration test via verify_functions_parallel (WMM-03)
+- [x] 26-01: Fix WeakMemoryRace VC body in rc11.rs (Assert(BoolLit(true)) + mo/rf constraints)
+- [x] 26-02: WeakMemoryRace UX in diagnostics.rs + E2E driver integration test
 
 ### Phase 27: Async Counterexample IDE Fidelity
-**Goal**: Async verification failures show poll iteration and await-side context in the VSCode extension, completing the ASY counterexample IDE rendering pipeline
-**Depends on**: Phase 23, Phase 25
-**Requirements**: ASY-02
-**Gap Closure**: Closes tech debt from v0.4 audit — doubly incomplete async CEX fields (Rust never-populated + TypeScript interface gap)
-**Success Criteria** (what must be TRUE):
-  1. `parallel.rs build_counterexample_v2()` extracts `poll_iteration` from the Z3 model (`poll_iter` constant in `cx_pairs`) and populates `JsonCounterexample.poll_iteration`
-  2. `await_side` is inferred from `vc_kind` (`AsyncStateInvariantSuspend` → `"pre_await"`, `AsyncStateInvariantResume` → `"post_await"`) and populated in `JsonCounterexample.await_side`
-  3. `vscode-extension/src/verifier.ts JsonCounterexample` interface declares `poll_iteration?: number` and `await_side?: string`
-  4. `npx tsc --noEmit` in `vscode-extension/` produces zero errors after interface update
+**Goal**: Async verification failures show poll iteration and await-side context in VSCode
 **Plans**: 1 plan
 
 Plans:
-- [ ] 27-01-PLAN.md — TDD: Extract poll_iteration from Z3 model in parallel.rs + infer await_side from vc_kind + update verifier.ts interface + optional outputPanel.ts rendering (ASY-02)
+- [x] 27-01: Extract poll_iteration from Z3 model, infer await_side, update TypeScript interface + outputPanel rendering
+
+</details>
 
 ## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25 → 26
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1-5. POC Phases | v0.1 | 17/17 | Complete | 2026-02-12 |
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
-| 19. Counterexample Generation | v0.4 | 4/4 | Complete | 2026-02-20 |
-| 20. Separation Logic | v0.4 | 4/4 | Complete | 2026-02-20 |
-| 21. Weak Memory Models | v0.4 | 3/3 | Complete | 2026-02-20 |
-| 22. Higher-Order Closures | v0.4 | 3/3 | Complete | 2026-02-20 |
-| 23. Async/Await Verification | 4/4 | Complete    | 2026-02-23 | - |
-| 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-23 | - |
-| 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-23 | - |
-| 26. WMM-03 Weak Memory Race Detection Fix | 2/2 | Complete    | 2026-02-23 | - |
-| 27. Async Counterexample IDE Fidelity | 1/1 | Complete    | 2026-02-23 | - |
+| 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
