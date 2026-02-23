@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 24 (SEP-04 Ghost Predicate Production Wiring) — COMPLETE. Phase 25 (ASY-01/02 async/await) pending.
+**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — In Progress (2/4 plans complete).
 
 ## Current Position
 
-Phase: 24 of 25 (SEP-04 Ghost Predicate Production Wiring) — Complete
-Plan: 2 complete (2/2 plans done)
-Status: Phase 24 Complete — Phase 25 Pending
-Last activity: 2026-02-21 — Plan 24-02 complete (SEP-04 E2E driver integration tests: ghost_predicate_e2e.rs, VerificationResult extracted to types.rs)
+Phase: 23 of 25 (async/await verification) — In Progress
+Plan: 2 complete (2/4 plans done)
+Status: Phase 23 Plan 02 Complete — Plan 03 (Async VC Generator) Pending
+Last activity: 2026-02-22 — Plan 23-02 complete (MIR coroutine detection: extract_coroutine_info, count_coroutine_await_points in mir_converter.rs)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 23-25 pending)
 
@@ -56,6 +56,7 @@ Progress: [█████████████████████░░
 | Phase 24-sep04-ghost-predicate-wiring P02 | 662 | 1 tasks | 6 files |
 | Phase 25 P01 | 53 | 2 tasks | 2 files |
 | Phase 23 P01 | 25 | 1 tasks | 58 files |
+| Phase 23 P02 | 283 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,8 @@ Recent decisions relevant to v0.4:
 - [Phase 25]: renderCounterexampleLines shared helper in diagnostics.ts consumed by both createDiagnostic() and outputPanel.ts — single source of truth for counterexample rendering
 - [Phase 25]: v2 schema preferred over legacy flat assignments in both diagnostics and output panel; fallback preserved for older binaries
 - [Phase 23-01]: state_invariant placed in Contracts (not Function) following requires/ensures precedent; coroutine_info placed in Function as structural metadata not a contract clause; AsyncPostcondition separate from Postcondition since async completion is Poll::Ready not direct return
+- [Phase 23]: Post-transform MIR at after_analysis has no TerminatorKind::Yield — fallback to SwitchInt discriminant counting (bb0 targets >= 3)
+- [Phase 23]: count_coroutine_await_points() counts discriminant >= 3 (values 0/1/2 are reserved initial/done/panicked)
 
 ### Pending Todos
 
@@ -123,14 +126,16 @@ Recent decisions relevant to v0.4:
 **v0.4 phase-specific risks (from research):**
 - [Phase 20] Heap domain choice (Viper Ref sort vs bitvector-set permissions) — resolve at Phase 20 planning
 - [Phase 21] RC11 AcqRel encoding — not equivalent to Release OR Acquire; derive from arXiv:2108.06944
-- [Phase 23] Async coroutine MIR shape may have changed post-PR#145330 — validate with RUSTFLAGS="-Zunpretty=mir" before Phase 23
+- [Phase 20] Heap domain choice (Viper Ref sort vs bitvector-set permissions) — RESOLVED (Separate heap domain)
+- [Phase 21] RC11 AcqRel encoding — RESOLVED (Phase 21 complete)
+- [Phase 23] Async coroutine MIR shape validated: nightly-2026-02-11 uses post-transform SwitchInt discriminant (no Yield terminators at after_analysis hook) — RESOLVED
 
 ## Session Continuity
 
-Last session: 2026-02-21
-Stopped at: Completed 24-02-PLAN.md — E2E ghost predicate driver integration tests (ghost_predicate_e2e.rs, types.rs extraction, parallel module exported from lib.rs)
+Last session: 2026-02-22
+Stopped at: Completed 23-02-PLAN.md — MIR coroutine detection and CoroutineInfo extraction (extract_coroutine_info, count_coroutine_await_points in mir_converter.rs)
 Resume file: None
-Next step: Execute Phase 25 (ASY-01/02 async/await verification)
+Next step: Execute Phase 23 Plan 03 (Async VC generator)
 
 ---
 

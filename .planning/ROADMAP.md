@@ -316,6 +316,6 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
 | 20. Separation Logic | v0.4 | 4/4 | Complete | 2026-02-20 |
 | 21. Weak Memory Models | v0.4 | 3/3 | Complete | 2026-02-20 |
 | 22. Higher-Order Closures | v0.4 | 3/3 | Complete | 2026-02-20 |
-| 23. Async/Await Verification | 1/4 | In Progress|  | - |
+| 23. Async/Await Verification | 2/4 | In Progress|  | - |
 | 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-21 | - |
 | 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-21 | - |
