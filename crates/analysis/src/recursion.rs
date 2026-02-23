@@ -605,6 +605,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -647,6 +648,7 @@ mod tests {
             is_pure: false,
             decreases: decreases.map(|d| SpecExpr { raw: d.to_string() }),
             fn_specs: vec![],
+            state_invariant: None,
         };
 
         // bb0: branch on _1 <= 1
@@ -723,6 +725,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -813,6 +816,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -958,6 +962,7 @@ mod tests {
                 raw: "_1".to_string(),
             }),
             fn_specs: vec![],
+            state_invariant: None,
             ..Default::default()
         };
 

@@ -456,6 +456,7 @@ fn snd_signed_add_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -514,6 +515,7 @@ fn snd_unsigned_add_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -572,6 +574,7 @@ fn snd_signed_sub_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -630,6 +633,7 @@ fn snd_unsigned_sub_underflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -688,6 +692,7 @@ fn snd_signed_mul_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -746,6 +751,7 @@ fn snd_unsigned_mul_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -804,6 +810,7 @@ fn snd_division_by_zero() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -862,6 +869,7 @@ fn snd_shift_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -923,6 +931,7 @@ fn snd_wrong_postcondition_add() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -940,6 +949,7 @@ fn snd_wrong_postcondition_add() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1014,6 +1024,7 @@ fn snd_wrong_postcondition_max() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1031,6 +1042,7 @@ fn snd_wrong_postcondition_max() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1072,6 +1084,7 @@ fn snd_wrong_postcondition_identity() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1089,6 +1102,7 @@ fn snd_wrong_postcondition_identity() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1124,6 +1138,7 @@ fn snd_wrong_postcondition_constant() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1141,6 +1156,7 @@ fn snd_wrong_postcondition_constant() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1214,6 +1230,7 @@ fn snd_wrong_postcondition_branch() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1231,6 +1248,7 @@ fn snd_wrong_postcondition_branch() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1272,6 +1290,7 @@ fn snd_postcondition_off_by_one() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1289,6 +1308,7 @@ fn snd_postcondition_off_by_one() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1385,6 +1405,7 @@ fn snd_branch_unsound_if_linear() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1402,6 +1423,7 @@ fn snd_branch_unsound_if_linear() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1453,6 +1475,7 @@ fn snd_signed_div_int_min_neg_one() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1470,6 +1493,7 @@ fn snd_signed_div_int_min_neg_one() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1547,6 +1571,7 @@ fn snd_signed_rem_int_min_neg_one() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1564,6 +1589,7 @@ fn snd_signed_rem_int_min_neg_one() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1662,6 +1688,7 @@ fn snd_unrestricted_input_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1806,6 +1833,7 @@ fn snd_nested_branch_wrong_result() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1823,6 +1851,7 @@ fn snd_nested_branch_wrong_result() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1883,6 +1912,7 @@ fn snd_unsigned_rem_div_by_zero() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1945,6 +1975,7 @@ fn snd_shr_overflow() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2002,6 +2033,7 @@ fn snd_add_wrong_upper_bound() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -2019,6 +2051,7 @@ fn snd_add_wrong_upper_bound() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

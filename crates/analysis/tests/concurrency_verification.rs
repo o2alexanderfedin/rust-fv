@@ -99,6 +99,7 @@ fn make_concurrent_function(
         lock_invariants: lock_invariants_expr,
         concurrency_config,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 

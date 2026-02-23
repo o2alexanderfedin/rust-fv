@@ -59,6 +59,7 @@ fn make_function(name: &str, basic_blocks: Vec<BasicBlock>, contracts: Contracts
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -96,6 +97,7 @@ fn simple_contracts() -> Contracts {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     }
 }
 

@@ -357,6 +357,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -410,6 +411,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 

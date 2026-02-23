@@ -74,6 +74,7 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
         }],
         contracts: Contracts {
             fn_specs: vec![],
+            state_invariant: None,
             ..Default::default()
         },
         loops: vec![],
@@ -93,6 +94,7 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -116,6 +118,7 @@ fn make_fnmut_func(param_name: &str) -> Function {
         }],
         contracts: Contracts {
             fn_specs: vec![],
+            state_invariant: None,
             ..Default::default()
         },
         loops: vec![],
@@ -135,6 +138,7 @@ fn make_fnmut_func(param_name: &str) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 

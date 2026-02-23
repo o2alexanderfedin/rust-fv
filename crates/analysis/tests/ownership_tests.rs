@@ -468,6 +468,7 @@ fn test_copy_semantics_preserved() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -485,6 +486,7 @@ fn test_copy_semantics_preserved() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -500,6 +502,7 @@ fn test_copy_semantics_preserved() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -597,6 +600,7 @@ fn test_shared_borrow_preserved() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -614,6 +618,7 @@ fn test_shared_borrow_preserved() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -632,6 +637,7 @@ fn test_shared_borrow_preserved() {
                 is_pure: true,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared)],
@@ -731,6 +737,7 @@ fn test_mutable_borrow_havoced() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -748,6 +755,7 @@ fn test_mutable_borrow_havoced() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -763,6 +771,7 @@ fn test_mutable_borrow_havoced() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable)],
@@ -871,6 +880,7 @@ fn test_move_semantics_value_consumed() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -888,6 +898,7 @@ fn test_move_semantics_value_consumed() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -907,6 +918,7 @@ fn test_move_semantics_value_consumed() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -1080,6 +1092,7 @@ fn test_mixed_ownership_call() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1097,6 +1110,7 @@ fn test_mixed_ownership_call() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1115,6 +1129,7 @@ fn test_mixed_ownership_call() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1", "_2", "_3"],
             vec![
@@ -1212,6 +1227,7 @@ fn test_ownership_with_postcondition_assumption() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1229,6 +1245,7 @@ fn test_ownership_with_postcondition_assumption() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1247,6 +1264,7 @@ fn test_ownership_with_postcondition_assumption() {
                 is_pure: true,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared)],
@@ -1349,6 +1367,7 @@ fn test_no_ownership_without_contract_db() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1366,6 +1385,7 @@ fn test_no_ownership_without_contract_db() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1451,6 +1471,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             generic_params: vec![],
             prophecies: vec![],
@@ -1468,6 +1489,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         }
     };
@@ -1486,6 +1508,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
                 is_pure: true,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared)],
@@ -1505,6 +1528,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable)],
@@ -1670,6 +1694,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1687,6 +1712,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1706,6 +1732,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
                     is_pure: true,
                     decreases: None,
                     fn_specs: vec![],
+                    state_invariant: None,
                 },
                 vec!["_1"],
                 vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared)],
@@ -1834,6 +1861,7 @@ fn test_preservation_constraint_smt_encoding() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1851,6 +1879,7 @@ fn test_preservation_constraint_smt_encoding() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1867,6 +1896,7 @@ fn test_preservation_constraint_smt_encoding() {
                 is_pure: true,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Ref(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared)],

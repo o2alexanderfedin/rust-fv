@@ -249,6 +249,29 @@ pub fn fn_spec(attr: TokenStream, item: TokenStream) -> TokenStream {
     fn_spec_impl(attr.into(), item.into()).into()
 }
 
+/// Attach a state invariant to an async function.
+///
+/// The invariant must hold at every `.await` suspension point:
+/// both at suspension (just before yielding) and at resumption (just after
+/// control returns from the awaited future).
+///
+/// The invariant expression may reference any local variable visible at
+/// the annotation site, including captured variables and `&mut` fields.
+///
+/// # Example
+///
+/// ```ignore
+/// #[state_invariant(counter >= 0)]
+/// async fn process(counter: &mut i32) {
+///     some_future().await;
+///     *counter += 1;
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn state_invariant(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("state_invariant", attr, item)
+}
+
 /// Marks a function as a ghost predicate for separation logic specs.
 ///
 /// The function body is serialized as a hidden doc attribute so the
@@ -1573,6 +1596,39 @@ mod tests {
         assert!(result_str.contains("rust_fv::ghost_predicate::foo"));
         assert!(result_str.contains("p,n"));
         assert!(result_str.contains("fn foo"));
+    }
+
+    // --- state_invariant tests (Phase 23-01) ---
+
+    #[test]
+    fn test_state_invariant_emits_doc_attribute() {
+        let attr: proc_macro2::TokenStream = quote! { counter >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            async fn process(counter: &mut i32) {
+                some_future().await;
+            }
+        };
+
+        let result = spec_attribute_impl("state_invariant", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::state_invariant::counter >= 0"));
+        assert!(result_str.contains("async fn process"));
+    }
+
+    #[test]
+    fn test_state_invariant_doc_format() {
+        let attr: proc_macro2::TokenStream = quote! { x >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            async fn f() {}
+        };
+
+        let result = spec_attribute_impl("state_invariant", attr, item);
+        let result_str = normalise(result);
+
+        // Should follow the rust_fv::state_invariant:: prefix pattern
+        assert!(result_str.contains("rust_fv::state_invariant::x >= 0"));
     }
 
     #[test]

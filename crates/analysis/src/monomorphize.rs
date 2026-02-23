@@ -321,6 +321,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -380,6 +381,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -442,6 +444,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -498,6 +501,7 @@ mod tests {
                 is_pure: false,
                 decreases: None,
                 fn_specs: vec![],
+                state_invariant: None,
             },
             loops: vec![],
             generic_params: vec![GenericParam {
@@ -519,6 +523,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -564,6 +569,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -1036,6 +1042,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -1116,6 +1123,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -1194,6 +1202,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();
@@ -1433,6 +1442,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let mut subs = HashMap::new();

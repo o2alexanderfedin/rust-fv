@@ -226,6 +226,7 @@ mod tests {
                     is_pure: false,
                     decreases: None,
                     fn_specs: vec![],
+                    state_invariant: None,
                 },
                 param_names: (0..param_count).map(|i| format!("param{}", i)).collect(),
                 param_types: vec![Ty::Unit; param_count],

@@ -483,6 +483,7 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -593,6 +594,7 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -627,6 +629,7 @@ fn test_simple_counter_loop() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -803,6 +806,7 @@ fn test_two_variable_loop() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -820,6 +824,7 @@ fn test_two_variable_loop() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -893,6 +898,7 @@ fn test_countdown_loop() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -946,6 +952,7 @@ fn test_wrong_init_invariant() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -995,6 +1002,7 @@ fn test_wrong_preservation_invariant() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -1046,6 +1054,7 @@ fn test_wrong_exit_postcondition() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -1169,6 +1178,7 @@ fn test_loop_without_invariant_skipped() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1219,6 +1229,7 @@ fn test_zero_iteration_loop() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 
@@ -1338,6 +1349,7 @@ fn test_loop_detection_from_cfg() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1355,6 +1367,7 @@ fn test_loop_detection_from_cfg() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![], // Empty -- should be auto-detected
     };
 
@@ -1396,6 +1409,7 @@ fn test_vc_description_labels() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
     );
 

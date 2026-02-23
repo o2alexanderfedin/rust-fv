@@ -427,6 +427,7 @@ fn test_struct_construction() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -444,6 +445,7 @@ fn test_struct_construction() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -547,6 +549,7 @@ fn test_struct_field_postcondition_positive() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -564,6 +567,7 @@ fn test_struct_field_postcondition_positive() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -631,6 +635,7 @@ fn test_struct_field_postcondition_negative() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -648,6 +653,7 @@ fn test_struct_field_postcondition_negative() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -715,6 +721,7 @@ fn test_tuple_construction() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -732,6 +739,7 @@ fn test_tuple_construction() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -827,6 +835,7 @@ fn test_tuple_field_access() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -844,6 +853,7 @@ fn test_tuple_field_access() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -932,6 +942,7 @@ fn test_array_select() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -949,6 +960,7 @@ fn test_array_select() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1094,6 +1106,7 @@ fn test_enum_variant_construction() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1111,6 +1124,7 @@ fn test_enum_variant_construction() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 

@@ -379,6 +379,9 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::WeakMemoryCoherence => "RC11 coherence violation",
         VcKind::WeakMemoryRace => "weak memory data race",
         VcKind::WeakMemoryAtomicity => "RC11 RMW atomicity violation",
+        VcKind::AsyncStateInvariantSuspend => "async state invariant violation at suspension",
+        VcKind::AsyncStateInvariantResume => "async state invariant violation at resumption",
+        VcKind::AsyncPostcondition => "async function postcondition not proven",
     }
 }
 

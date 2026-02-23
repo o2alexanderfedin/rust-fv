@@ -414,6 +414,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -474,6 +475,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         // For now this is a placeholder test - actual implementation
@@ -584,6 +586,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let _result = generate_vcs(&func, None);
@@ -622,6 +625,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);

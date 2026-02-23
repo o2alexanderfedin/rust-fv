@@ -114,6 +114,7 @@ fn make_litmus_function(name: &str, atomic_ops: Vec<AtomicOp>) -> Function {
             max_context_switches: 6,
         }),
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 

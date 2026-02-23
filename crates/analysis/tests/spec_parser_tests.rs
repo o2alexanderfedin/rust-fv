@@ -48,6 +48,7 @@ fn make_i32_function() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -84,6 +85,7 @@ fn make_u32_function() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -126,6 +128,7 @@ fn make_struct_return_function() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -158,6 +161,7 @@ fn make_tuple_return_function() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -194,6 +198,7 @@ fn make_bool_return_function() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }

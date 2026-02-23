@@ -747,6 +747,8 @@ struct HirContracts {
     is_pure: bool,
     decreases: Option<String>,
     fn_specs: Vec<rust_fv_analysis::ir::FnSpec>,
+    /// Raw expression string from `#[state_invariant(expr)]`, if present.
+    state_invariant: Option<String>,
 }
 
 /// Extract contracts from HIR doc attributes.
@@ -790,6 +792,8 @@ fn extract_contracts(
                             bound_vars,
                         });
                     }
+                } else if let Some(expr_str) = doc.strip_prefix("rust_fv::state_invariant::") {
+                    contracts.state_invariant = Some(expr_str.to_string());
                 }
             }
         }
@@ -800,6 +804,7 @@ fn extract_contracts(
             || contracts.is_pure
             || contracts.decreases.is_some()
             || !contracts.fn_specs.is_empty()
+            || contracts.state_invariant.is_some()
         {
             map.insert(
                 local_def_id,
@@ -824,6 +829,9 @@ fn extract_contracts(
                         .decreases
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
                     fn_specs: contracts.fn_specs,
+                    state_invariant: contracts
+                        .state_invariant
+                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
                 },
             );
         }
@@ -1170,6 +1178,9 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::WeakMemoryCoherence => "weak_memory_coherence",
         VcKind::WeakMemoryRace => "weak_memory_race",
         VcKind::WeakMemoryAtomicity => "weak_memory_atomicity",
+        VcKind::AsyncStateInvariantSuspend => "async_state_invariant_suspend",
+        VcKind::AsyncStateInvariantResume => "async_state_invariant_resume",
+        VcKind::AsyncPostcondition => "async_postcondition",
     }
     .to_string()
 }

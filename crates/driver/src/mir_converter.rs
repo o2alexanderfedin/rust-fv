@@ -129,6 +129,7 @@ pub fn convert_mir(
         lock_invariants: vec![],
         concurrency_config: None,
         source_names,
+        coroutine_info: None,
     }
 }
 

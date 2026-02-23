@@ -74,6 +74,7 @@ fn make_function(
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -579,6 +580,7 @@ fn e2e_option_unwrap_safe() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         vec![Local {
             name: "_1".to_string(),

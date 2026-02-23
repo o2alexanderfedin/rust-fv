@@ -55,6 +55,7 @@ fn make_ghost_test_func(requires_spec: &str, ensures_spec: &str) -> Function {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -73,6 +74,7 @@ fn make_ghost_test_func(requires_spec: &str, ensures_spec: &str) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: HashMap::new(),
+        coroutine_info: None,
     }
 }
 

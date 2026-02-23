@@ -477,6 +477,7 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -553,6 +554,7 @@ fn make_even(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -629,6 +631,7 @@ fn make_odd(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -745,6 +748,7 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -767,6 +771,7 @@ fn e2e_factorial_with_decreases_verified() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -820,6 +825,7 @@ fn e2e_factorial_without_decreases_rejected() {
         is_pure: false,
         decreases: None, // No decreases annotation
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -875,6 +881,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let contracts_odd = Contracts {
@@ -888,6 +895,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let even = make_even(contracts_even);
@@ -986,6 +994,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let bb0 = BasicBlock {
@@ -1055,6 +1064,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1128,6 +1138,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1146,6 +1157,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1208,6 +1220,7 @@ fn e2e_recursive_function_postcondition_uses_uninterpreted_encoding() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -1306,6 +1319,7 @@ fn snd_recursive_without_decreases_rejected() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1365,6 +1379,7 @@ fn e2e_fibonacci_two_recursive_calls() {
             raw: "_1".to_string(),
         }),
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let fibonacci = make_fibonacci(contracts);

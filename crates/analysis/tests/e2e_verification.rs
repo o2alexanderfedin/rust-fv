@@ -65,6 +65,7 @@ fn make_add_function(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -456,6 +457,7 @@ fn test_overflow_verification_unconstrained_add() {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -553,6 +555,7 @@ fn test_safe_add_with_preconditions() {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -614,6 +617,7 @@ fn test_provable_postcondition() {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -685,6 +689,7 @@ fn test_postcondition_violation() {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -801,6 +806,7 @@ fn make_max_function(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -825,6 +831,7 @@ fn test_if_else_branches_ssa() {
         is_pure: true,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -872,6 +879,7 @@ fn test_if_else_wrong_postcondition() {
         is_pure: true,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1011,6 +1019,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1027,6 +1036,7 @@ fn test_multi_branch_match() {
         is_pure: true,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1134,6 +1144,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1150,6 +1161,7 @@ fn test_early_return_via_goto() {
         is_pure: true,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1331,6 +1343,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1347,6 +1360,7 @@ fn test_nested_branches() {
         is_pure: true,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1448,6 +1462,7 @@ fn test_single_branch_overflow_check() {
             is_pure: true,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1465,6 +1480,7 @@ fn test_single_branch_overflow_check() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1884,6 +1900,7 @@ fn test_quantifier_full_pipeline() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1902,6 +1919,7 @@ fn test_quantifier_full_pipeline() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -2002,6 +2020,7 @@ fn test_generic_max_i32_verified() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2023,6 +2042,7 @@ fn test_generic_max_i32_verified() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register i32 instantiation
@@ -2117,6 +2137,7 @@ fn test_generic_max_u64_verified() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2138,6 +2159,7 @@ fn test_generic_max_u64_verified() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2232,6 +2254,7 @@ fn test_generic_max_wrong_postcondition() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2253,6 +2276,7 @@ fn test_generic_max_wrong_postcondition() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register i32 instantiation
@@ -2331,6 +2355,7 @@ fn test_generic_multiple_instantiations() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2352,6 +2377,7 @@ fn test_generic_multiple_instantiations() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2449,6 +2475,7 @@ fn test_generic_no_instantiations_warning() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2507,6 +2534,7 @@ fn test_prophecy_increment_mut_ref() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2525,6 +2553,7 @@ fn test_prophecy_increment_mut_ref() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2579,6 +2608,7 @@ fn test_prophecy_no_mutation_verified() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2597,6 +2627,7 @@ fn test_prophecy_no_mutation_verified() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2677,6 +2708,7 @@ fn test_prophecy_conditional_mutation() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2695,6 +2727,7 @@ fn test_prophecy_conditional_mutation() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2752,6 +2785,7 @@ fn test_prophecy_basic() {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2770,6 +2804,7 @@ fn test_prophecy_basic() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

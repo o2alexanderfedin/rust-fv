@@ -129,6 +129,7 @@ fn test_lifetime_params_outlives_verified() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Extract lifetime parameters
@@ -196,6 +197,7 @@ fn test_outlives_with_static_lifetime() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -289,6 +291,7 @@ fn test_nll_conflict_detection() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Build lifetime context
@@ -356,6 +359,7 @@ fn test_prophecy_single_mut_ref() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Detect prophecies
@@ -410,6 +414,7 @@ fn test_prophecy_nested_mut_mut() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -500,6 +505,7 @@ fn test_borrow_validity_vc_generation() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -591,6 +597,7 @@ fn test_reborrow_chain_detection() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Detect reborrow chains
@@ -688,6 +695,7 @@ fn test_reborrow_outlives_detection() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -749,6 +757,7 @@ fn test_phase9_requirement_coverage() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -807,6 +816,7 @@ fn test_phase9_requirement_coverage() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let chains = detect_reborrow_chains(&reborrow_func);

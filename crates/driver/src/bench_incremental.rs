@@ -61,6 +61,7 @@ pub fn generate_synthetic_functions(count: usize) -> Vec<(String, Function, Cont
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         functions.push((func_name, func, contracts));

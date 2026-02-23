@@ -85,6 +85,7 @@ fn make_unsafe_function(
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -598,6 +599,7 @@ fn test_safe_function_no_unsafe_vcs() {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Generate VCs

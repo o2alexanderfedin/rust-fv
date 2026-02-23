@@ -73,6 +73,7 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -90,6 +91,7 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -132,6 +134,7 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
             is_pure: false,
             decreases: None,
             fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -149,6 +152,7 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -204,6 +208,7 @@ fn build_caller_func() -> Function {
         lock_invariants: vec![],
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -375,6 +380,7 @@ fn sep_03_frame_rule() {
         is_pure: false,
         decreases: None,
         fn_specs: vec![],
+        state_invariant: None,
     };
 
     let mut contract_db = ContractDatabase::new();

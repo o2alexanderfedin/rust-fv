@@ -232,6 +232,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = extract_closure_info(&func);
@@ -265,6 +266,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = extract_closure_info(&func);
@@ -307,6 +309,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = detect_closure_calls(&func);
@@ -351,6 +354,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let errors = validate_fnonce_single_call(&func);
@@ -406,6 +410,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let errors = validate_fnonce_single_call(&func);

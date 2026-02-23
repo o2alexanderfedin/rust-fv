@@ -633,6 +633,7 @@ mod tests {
             }],
             contracts: Contracts {
                 fn_specs: vec![],
+                state_invariant: None,
                 ..Default::default()
             },
             loops: vec![],
@@ -652,6 +653,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -677,6 +679,7 @@ mod tests {
             }],
             contracts: Contracts {
                 fn_specs: vec![],
+                state_invariant: None,
                 ..Default::default()
             },
             loops: vec![],
@@ -696,6 +699,7 @@ mod tests {
             lock_invariants: vec![],
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
