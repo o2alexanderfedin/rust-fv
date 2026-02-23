@@ -32,7 +32,7 @@ use rust_fv_smtlib::term::Term;
 
 use crate::ghost_predicate_db::GhostPredicateDatabase;
 use crate::ir::{CoroutineExitKind, CoroutineInfo, CoroutineState, Function, SpecExpr, Ty};
-use crate::spec_parser::parse_spec_expr_with_db;
+use crate::spec_parser::parse_spec_expr_qf_lia;
 use crate::vcgen::{VcKind, VcLocation, VerificationCondition};
 
 /// Generate all VCs for an async function (coroutine).
@@ -160,13 +160,13 @@ fn generate_async_postcondition_vc(
 
     // Assert #[requires] as assumptions
     for req in &func.contracts.requires {
-        if let Some(term) = parse_spec_expr_with_db(&req.raw, func, ghost_pred_db) {
+        if let Some(term) = parse_spec_expr_qf_lia(&req.raw, func, ghost_pred_db) {
             script.push(Command::Assert(term));
         }
     }
 
     // Assert negated #[ensures] — UNSAT = proven
-    let ensures_term = parse_spec_expr_with_db(&ensures_expr.raw, func, ghost_pred_db)
+    let ensures_term = parse_spec_expr_qf_lia(&ensures_expr.raw, func, ghost_pred_db)
         .unwrap_or(Term::BoolLit(true));
     script.push(Command::Assert(Term::Not(Box::new(ensures_term))));
 
@@ -246,7 +246,7 @@ fn generate_invariant_vc(
 
     // Assert negated invariant — UNSAT = invariant holds
     let invariant_term =
-        parse_spec_expr_with_db(&invariant.raw, func, ghost_pred_db).unwrap_or(Term::BoolLit(true));
+        parse_spec_expr_qf_lia(&invariant.raw, func, ghost_pred_db).unwrap_or(Term::BoolLit(true));
     script.push(Command::Assert(Term::Not(Box::new(invariant_term))));
 
     script.push(Command::CheckSat);

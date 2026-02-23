@@ -51,6 +51,35 @@ pub fn parse_spec_expr_with_db(
     parse_spec_expr_with_depth(spec, func, ghost_pred_db, GHOST_PRED_EXPAND_DEPTH)
 }
 
+/// Parse a specification expression using integer arithmetic (QF_LIA-compatible).
+///
+/// Same as `parse_spec_expr_with_db` but forces `in_int_mode: true` so that all
+/// integer literals and arithmetic operators use `Sort::Int` / `Term::IntLit` / `Term::IntAdd`
+/// etc. instead of BitVec variants.
+///
+/// Use this for VCs that use `QF_LIA` logic (e.g., async VCs, RC11 VCs) where
+/// `BitVec` sorts are not valid.
+pub fn parse_spec_expr_qf_lia(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+    let expr: syn::Expr = syn::parse_str(spec).ok()?;
+    convert_expr_with_db(
+        &expr,
+        func,
+        false, // in_old
+        true,  // in_int_mode — force QF_LIA-compatible integer encoding
+        &[],   // bound_vars
+        ghost_pred_db,
+        GHOST_PRED_EXPAND_DEPTH,
+    )
+}
+
 /// Private helper: parse spec expression with bounded ghost predicate unfolding depth.
 fn parse_spec_expr_with_depth(
     spec: &str,
@@ -108,7 +137,7 @@ fn convert_expr_with_db(
     match expr {
         Expr::Lit(lit_expr) => convert_lit(&lit_expr.lit, func, in_int_mode),
 
-        Expr::Path(path_expr) => convert_path(path_expr, func, in_old, bound_vars),
+        Expr::Path(path_expr) => convert_path(path_expr, func, in_old, in_int_mode, bound_vars),
 
         Expr::Binary(bin_expr) => {
             // Separating conjunction detection: `H1 * H2` where at least one operand
@@ -288,10 +317,15 @@ fn convert_lit(lit: &Lit, func: &Function, in_int_mode: bool) -> Option<Term> {
 }
 
 /// Convert a path expression (variable reference) to an SMT Term.
+///
+/// When `in_int_mode` is `true` (QF_LIA context), unknown identifiers are allowed
+/// as free SMT constants — they are assumed to be declared externally in the VC script.
+/// When `in_int_mode` is `false` (BV context), unknown identifiers return `None` (strict mode).
 fn convert_path(
     path: &syn::ExprPath,
     func: &Function,
     in_old: bool,
+    in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
     // Must be a simple single-segment path (no :: separators)
@@ -321,12 +355,27 @@ fn convert_path(
         "true" => Some(Term::BoolLit(true)),
         "false" => Some(Term::BoolLit(false)),
         _ => {
-            // Check if it matches a param, local, or return local
-            let name = resolve_variable_name(&ident, func)?;
-            if in_old {
-                Some(Term::Const(format!("{name}_pre")))
-            } else {
-                Some(Term::Const(name))
+            // Check if it matches a param, local, or return local.
+            // In QF_LIA (int) mode, fall back to using the identifier as a free SMT constant
+            // when not found in the IR. This allows specs to reference externally-declared
+            // constants like `awaited_result_0` in async VC scripts.
+            match resolve_variable_name(&ident, func) {
+                Some(name) => {
+                    if in_old {
+                        Some(Term::Const(format!("{name}_pre")))
+                    } else {
+                        Some(Term::Const(name))
+                    }
+                }
+                None if in_int_mode => {
+                    // Free constant reference (declared externally in QF_LIA script)
+                    if in_old {
+                        Some(Term::Const(format!("{ident}_pre")))
+                    } else {
+                        Some(Term::Const(ident))
+                    }
+                }
+                None => None, // Strict mode (BV): unknown variables are an error
             }
         }
     }
