@@ -6,13 +6,13 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — Complete (4/4 plans done).
+**Current focus:** v0.5 SMT Completeness — Phase 28 (SMT VCGen Completeness) — Planned (5/5 plans ready).
 
 ## Current Position
 
-Phase: 23 of 25 (async/await verification) — Complete
-Plan: 4 complete (4/4 plans done)
-Status: Phase 23 Complete — ASY-01 and ASY-02 TDD integration tests all passing
+Phase: 28 (SMT VCGen completeness) — Ready to execute
+Plan: 0 complete (5 plans ready, 5 waves)
+Status: Phase 28 Planned — VCGEN-01..04 covered across 28-01..05-PLAN.md
 Last activity: 2026-02-22 — Plan 23-04 complete (ASY-01/ASY-02 TDD integration: 6 Z3 tests, QF_LIA spec parser fix)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
@@ -143,11 +143,12 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 26-02-PLAN.md — WMM-03 diagnostics UX (suggest_fix + bounded warning) and E2E driver test (wmm_race_e2e.rs). Phase 26 complete — WMM-03 fully satisfied.
+Stopped at: Phase 28 planned — 5 PLAN.md files created (VCGEN-01..04), verification passed, docs committed.
 Resume file: None
-Next step: Next pending phase (Phase 27+ or milestone v0.4 completion)
+Next step: /gsd:execute-phase 28
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-23 after Phase 28 planning — v0.5 milestone started*
 *Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*
