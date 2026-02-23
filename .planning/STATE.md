@@ -55,6 +55,7 @@ Progress: [█████████████████████░░
 | Phase 24-sep04-ghost-predicate-wiring P01 | 808 | 1 tasks | 3 files |
 | Phase 24-sep04-ghost-predicate-wiring P02 | 662 | 1 tasks | 6 files |
 | Phase 25 P01 | 53 | 2 tasks | 2 files |
+| Phase 23 P01 | 25 | 1 tasks | 58 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,7 @@ Recent decisions relevant to v0.4:
 - [Phase 24]: VerificationResult moved to types.rs (rustc-free) to enable parallel module export from lib.rs for driver integration tests
 - [Phase 25]: renderCounterexampleLines shared helper in diagnostics.ts consumed by both createDiagnostic() and outputPanel.ts — single source of truth for counterexample rendering
 - [Phase 25]: v2 schema preferred over legacy flat assignments in both diagnostics and output panel; fallback preserved for older binaries
+- [Phase 23-01]: state_invariant placed in Contracts (not Function) following requires/ensures precedent; coroutine_info placed in Function as structural metadata not a contract clause; AsyncPostcondition separate from Postcondition since async completion is Poll::Ready not direct return
 
 ### Pending Todos
 

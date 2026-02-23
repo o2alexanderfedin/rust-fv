@@ -35,8 +35,8 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 
 ### Async/Await Verification
 
-- [ ] **ASY-01**: User can annotate `async fn` with `#[requires]`/`#[ensures]` and have functional properties verified under sequential polling model
-- [ ] **ASY-02**: User can write `#[state_invariant]` to specify invariants that must hold at every `.await` suspension point in an `async fn`
+- [x] **ASY-01**: User can annotate `async fn` with `#[requires]`/`#[ensures]` and have functional properties verified under sequential polling model
+- [x] **ASY-02**: User can write `#[state_invariant]` to specify invariants that must hold at every `.await` suspension point in an `async fn`
 
 ## Future Requirements (v0.5+)
 
@@ -82,8 +82,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WMM-04 | Phase 21 | Complete |
 | HOF-01 | Phase 22 | Complete |
 | HOF-02 | Phase 22 | Complete |
-| ASY-01 | Phase 23 | Pending |
-| ASY-02 | Phase 23 | Pending |
+| ASY-01 | Phase 23 | Complete |
+| ASY-02 | Phase 23 | Complete |
 
 **Coverage:**
 - v0.4 requirements: 16 total
