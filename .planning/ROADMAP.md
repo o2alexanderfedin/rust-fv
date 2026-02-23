@@ -233,7 +233,7 @@ Plans:
 **Requirements**: WMM-01, WMM-02, WMM-03, WMM-04
 **Success Criteria** (what must be TRUE):
   1. Developer annotates atomic operations with `Relaxed`, `Acquire`, `Release`, or `AcqRel` ordering and the verifier applies full RC11 coherence axioms (`mo`, `rf`, `co`) rather than collapsing them to `BoolLit(true)`
-  2. All 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) produce the correct allowed/forbidden verdicts, serving as the soundness regression suite
+  2. All 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRR, CoRW, CoWR, CoWW) produce the correct allowed/forbidden verdicts, serving as the soundness regression suite
   3. Data race detection reports races under Relaxed orderings that the SeqCst-only path would miss
   4. Existing SeqCst proofs from v0.2/v0.3 continue to pass with zero regressions — weak memory axioms are scoped to `WeakMemory*` VcKind only
 **Plans**: 3 plans
@@ -264,7 +264,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Developer annotates `async fn` with `#[requires]`/`#[ensures]` and `cargo verify` proves the functional postcondition holds when the future resolves under a sequential polling model
   2. Developer writes `#[state_invariant]` on an `async fn` and the verifier proves the invariant holds at every `.await` suspension point within the function body
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 23-01-PLAN.md — IR types (CoroutineInfo, VcKind async variants) + #[state_invariant] macro + callbacks.rs extraction (ASY-01, ASY-02)
+- [ ] 23-02-PLAN.md — MIR coroutine detection and CoroutineInfo extraction in mir_converter.rs (ASY-01, ASY-02)
+- [ ] 23-03-PLAN.md — async_vcgen.rs: generate_async_vcs() + vcgen.rs dispatch + JsonCounterexample async fields (ASY-01, ASY-02)
+- [ ] 23-04-PLAN.md — TDD integration test suite: 6 tests proving ASY-01 and ASY-02 against Z3 (ASY-01, ASY-02)
 
 ### Phase 24: SEP-04 Ghost Predicate Production Wiring
 **Goal**: `#[ghost_predicate]` definitions actually expand in `#[requires]`/`#[ensures]` specs during production verification (not just in direct unit tests)
@@ -310,6 +316,6 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
 | 20. Separation Logic | v0.4 | 4/4 | Complete | 2026-02-20 |
 | 21. Weak Memory Models | v0.4 | 3/3 | Complete | 2026-02-20 |
 | 22. Higher-Order Closures | v0.4 | 3/3 | Complete | 2026-02-20 |
-| 23. Async/Await Verification | v0.4 | 0/TBD | Not started | - |
+| 23. Async/Await Verification | v0.4 | 0/4 | Not started | - |
 | 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-21 | - |
 | 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-21 | - |
