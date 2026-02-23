@@ -500,4 +500,89 @@ mod tests {
         // This will fail to compile if ghost_pred_db field is absent from VerificationTask.
         // (The actual struct construction is in the GREEN phase.)
     }
+
+    fn make_minimal_async_func() -> Function {
+        use rust_fv_analysis::ir::{
+            BasicBlock, Constant, Contracts, Local, Operand, Place, Rvalue, Statement, Terminator,
+            Ty,
+        };
+        Function {
+            name: "test_async".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Unit)),
+                )],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_build_counterexample_v2_async_fields_suspension() {
+        let vc_location = VcLocation {
+            vc_kind: VcKind::AsyncStateInvariantSuspend,
+            function: "test_async".to_string(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            source_column: None,
+            contract_text: None,
+        };
+        let ir_func = make_minimal_async_func();
+        let pairs: Vec<(String, String)> = vec![
+            ("poll_iter".to_string(), "2".to_string()),
+            ("counter".to_string(), "0".to_string()),
+        ];
+        let result = build_counterexample_v2(Some(&pairs), &vc_location, &ir_func);
+        let cex = result.expect("should build counterexample");
+        assert_eq!(cex.poll_iteration, Some(2));
+        assert_eq!(cex.await_side.as_deref(), Some("pre_await"));
+    }
+
+    #[test]
+    fn test_build_counterexample_v2_async_fields_resume() {
+        let vc_location = VcLocation {
+            vc_kind: VcKind::AsyncStateInvariantResume,
+            function: "test_async".to_string(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            source_column: None,
+            contract_text: None,
+        };
+        let ir_func = make_minimal_async_func();
+        let pairs: Vec<(String, String)> = vec![
+            ("poll_iter".to_string(), "1".to_string()),
+            ("counter".to_string(), "0".to_string()),
+        ];
+        let result = build_counterexample_v2(Some(&pairs), &vc_location, &ir_func);
+        let cex = result.expect("should build counterexample");
+        assert_eq!(cex.poll_iteration, Some(1));
+        assert_eq!(cex.await_side.as_deref(), Some("post_await"));
+    }
 }
