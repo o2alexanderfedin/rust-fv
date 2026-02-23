@@ -59,6 +59,7 @@ Progress: [█████████████████████░░
 | Phase 23 P02 | 283 | 1 tasks | 2 files |
 | Phase 23 P03 | 384 | 1 tasks | 5 files |
 | Phase 23 P04 | 716 | 1 tasks | 3 files |
+| Phase 26-wmm03-race-detection-fix P01 | 180 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,7 @@ Recent decisions relevant to v0.4:
 - [Phase 23]: poll_iteration + await_side on JsonCounterexample with skip_serializing_if for backward compat
 - [Phase 23]: parse_spec_expr_qf_lia uses in_int_mode=true for QF_LIA-compatible integer encoding in async VCs
 - [Phase 23]: convert_path allows free SMT constant references in int_mode (awaited_result_N), strict BV mode preserved
+- [Phase 26-wmm03-race-detection-fix]: WeakMemoryRace VC uses Assert(BoolLit(true)) + mo_cmds + rf_cmds — SAT = race detected, mirrors WeakMemoryCoherence violation-detection semantics
 
 ### Pending Todos
 
@@ -138,10 +140,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 23-04-PLAN.md — ASY-01 and ASY-02 TDD integration tests (Phase 23 complete)
+Last session: 2026-02-23
+Stopped at: Completed 26-01-PLAN.md — WMM-03 WeakMemoryRace VC fix (SAT-returning formula, Z3 SAT assertion in test)
 Resume file: None
-Next step: Phase 24 or 25 (v0.4 remaining phases)
+Next step: Phase 26 Plan 02 (if any) or next pending phase
 
 ---
 
