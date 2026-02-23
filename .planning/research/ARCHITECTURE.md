@@ -62,6 +62,25 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### SMT Constraint Sources (Core Design Decision)
+
+SMT constraints come from two **independent** sources. VCGen concatenates them into a single flat list submitted to the solver unchanged:
+
+| Source | What it encodes | Origin |
+|--------|----------------|--------|
+| **Set A — Code-inferred** | Properties the code must satisfy: overflow safety, division-by-zero absence, postcondition validity given the actual implementation | Code AST → MIR → IR → VCGen |
+| **Set B — Annotation-derived** | User-imposed policies stricter than what code alone requires: `#[requires]`, `#[ensures]`, `#[invariant]`, etc. | Proc macro attrs → HIR → VCGen |
+
+**Submission**: `[...Set_A, ...Set_B]` — no deduplication. Duplicate constraints are harmless in SMT-LIB2.
+
+**Conflict detection**: The pipeline does NOT check for contradictions. If contradictory constraints exist, the solver returns `UNSAT`; the pipeline then notifies the user to act on it.
+
+```
+code-inferred:      ["c1", "c2", "c3"]
+annotation-derived: ["c2", "c4"]
+submitted to solver: ["c1", "c2", "c3", "c2", "c4"]  // c2 appears twice — OK
+```
+
 ### Crate Responsibilities
 
 | Crate | Responsibility | Key Files |
