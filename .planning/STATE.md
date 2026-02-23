@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — In Progress (2/4 plans complete).
+**Current focus:** v0.4 Full Rust Verification — Phase 23 (ASY async/await) — In Progress (3/4 plans complete).
 
 ## Current Position
 
 Phase: 23 of 25 (async/await verification) — In Progress
-Plan: 2 complete (2/4 plans done)
-Status: Phase 23 Plan 02 Complete — Plan 03 (Async VC Generator) Pending
-Last activity: 2026-02-22 — Plan 23-02 complete (MIR coroutine detection: extract_coroutine_info, count_coroutine_await_points in mir_converter.rs)
+Plan: 3 complete (3/4 plans done)
+Status: Phase 23 Plan 03 Complete — Plan 04 (Async VC TDD Integration) Pending
+Last activity: 2026-02-22 — Plan 23-03 complete (Async VC generator: async_vcgen.rs, vcgen dispatch, JsonCounterexample async fields)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 23-25 pending)
 
@@ -57,6 +57,7 @@ Progress: [█████████████████████░░
 | Phase 25 P01 | 53 | 2 tasks | 2 files |
 | Phase 23 P01 | 25 | 1 tasks | 58 files |
 | Phase 23 P02 | 283 | 1 tasks | 2 files |
+| Phase 23 P03 | 384 | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Recent decisions relevant to v0.4:
 - [Phase 23-01]: state_invariant placed in Contracts (not Function) following requires/ensures precedent; coroutine_info placed in Function as structural metadata not a contract clause; AsyncPostcondition separate from Postcondition since async completion is Poll::Ready not direct return
 - [Phase 23]: Post-transform MIR at after_analysis has no TerminatorKind::Yield — fallback to SwitchInt discriminant counting (bb0 targets >= 3)
 - [Phase 23]: count_coroutine_await_points() counts discriminant >= 3 (values 0/1/2 are reserved initial/done/panicked)
+- [Phase 23]: QF_LIA logic for async VCs — no quantifiers needed for bounded state enumeration
+- [Phase 23]: poll_iteration + await_side on JsonCounterexample with skip_serializing_if for backward compat
 
 ### Pending Todos
 
@@ -133,9 +136,9 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 23-02-PLAN.md — MIR coroutine detection and CoroutineInfo extraction (extract_coroutine_info, count_coroutine_await_points in mir_converter.rs)
+Stopped at: Completed 23-03-PLAN.md — Async VC generator (async_vcgen.rs, vcgen dispatch, JsonCounterexample async fields)
 Resume file: None
-Next step: Execute Phase 23 Plan 03 (Async VC generator)
+Next step: Execute Phase 23 Plan 04 (Async VC TDD Integration)
 
 ---
 
