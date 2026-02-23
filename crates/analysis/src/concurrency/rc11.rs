@@ -569,7 +569,11 @@ pub fn generate_rc11_vcs(func: &Function) -> Vec<VerificationCondition> {
 
             let mut script = Script::new();
             script.extend(preamble.clone());
-            script.push(Command::Assert(Term::BoolLit(false)));
+            script.extend(mo_cmds.clone()); // total-order constraints on mo_order
+            script.extend(rf_cmds.clone()); // rf functional constraints
+            // Assert BoolLit(true): preamble+mo+rf constraints are satisfiable;
+            // Z3 returns sat => race detected => driver reports error (verified:false)
+            script.push(Command::Assert(Term::BoolLit(true)));
             script.push(Command::CheckSat);
 
             vcs.push(VerificationCondition {

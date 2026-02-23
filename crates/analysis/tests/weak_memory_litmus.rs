@@ -1485,6 +1485,7 @@ fn test_coww_coherence_forbidden() {
 
 #[test]
 fn test_relaxed_data_race_detected() {
+    let solver = solver_or_skip(); // requires Z3; skips if unavailable
     let func = make_litmus_function(
         "data_race_test",
         vec![
@@ -1519,5 +1520,16 @@ fn test_relaxed_data_race_detected() {
         vcs.iter()
             .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
             .collect::<Vec<_>>()
+    );
+
+    // Verify Z3 returns SAT (race actually detected, not silently hidden by UNSAT stub)
+    let script_text = race_vcs[0].script.to_string();
+    let result = solver
+        .check_sat_raw(&script_text)
+        .expect("Z3 solver error on WeakMemoryRace VC");
+    assert!(
+        matches!(result, SolverResult::Sat(_)),
+        "Expected SAT (race detected) for WeakMemoryRace VC — got {result:?}. \
+         If UNSAT, the race VC formula is wrong (may still have BoolLit(false) stub)."
     );
 }
