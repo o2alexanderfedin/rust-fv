@@ -411,8 +411,24 @@ fn build_counterexample_v2(
         },
         vc_kind: format!("{:?}", vc_location.vc_kind).to_lowercase(),
         violated_spec: vc_location.contract_text.clone(),
-        poll_iteration: None,
-        await_side: None,
+        poll_iteration: if matches!(
+            vc_location.vc_kind,
+            VcKind::AsyncStateInvariantSuspend
+                | VcKind::AsyncStateInvariantResume
+                | VcKind::AsyncPostcondition
+        ) {
+            pairs
+                .iter()
+                .find(|(name, _)| name == "poll_iter")
+                .and_then(|(_, val)| val.trim().parse::<usize>().ok())
+        } else {
+            None
+        },
+        await_side: match vc_location.vc_kind {
+            VcKind::AsyncStateInvariantSuspend => Some("pre_await".to_string()),
+            VcKind::AsyncStateInvariantResume => Some("post_await".to_string()),
+            _ => None,
+        },
     })
 }
 
