@@ -25,7 +25,7 @@ Requirements for v0.4 Full Rust Verification milestone. Each maps to roadmap pha
 
 - [x] **WMM-01**: User can verify programs using `Relaxed`, `Acquire`, `Release`, and `AcqRel` atomic orderings with full RC11 coherence axioms (`mo`, `rf`, `co`)
 - [x] **WMM-02**: The 8 canonical C11 litmus tests (IRIW, SB, LB, MP, CoRR, CoRW, CoWR, CoWW) pass as the soundness specification for the weak memory encoding
-- [x] **WMM-03**: Data race detection extends to cover weak memory orderings (not just SeqCst)
+- [ ] **WMM-03**: Data race detection extends to cover weak memory orderings (not just SeqCst)
 - [x] **WMM-04**: All weak memory axioms are scoped to `WeakMemory*` VcKind — existing SeqCst verification proofs are not regressed
 
 ### Higher-Order Closures
@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEP-04 | Phase 24 | Complete |
 | WMM-01 | Phase 21 | Complete |
 | WMM-02 | Phase 21 | Complete |
-| WMM-03 | Phase 21 | Complete |
+| WMM-03 | Phase 26 (gap closure) | Pending |
 | WMM-04 | Phase 21 | Complete |
 | HOF-01 | Phase 22 | Complete |
 | HOF-02 | Phase 22 | Complete |
@@ -89,8 +89,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v0.4 requirements: 16 total
 - Mapped to phases: 16
 - Unmapped: 0 ✓
-- Pending (gap closure): SEP-04 (Phase 24), CEX-02/CEX-04 IDE (Phase 25), ASY-01/ASY-02 (Phase 23)
+- Pending (gap closure): WMM-03 (Phase 26)
 
 ---
 *Requirements defined: 2026-02-19*
-*Last updated: 2026-02-20 — gap closure phases 24-25 added from v0.4 audit*
+*Last updated: 2026-02-22 — gap closure phase 26 added from v0.4 audit (WMM-03 soundness gap)*

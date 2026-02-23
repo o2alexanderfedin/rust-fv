@@ -302,10 +302,28 @@ Plans:
 Plans:
 - [ ] 25-01-PLAN.md — Wire counterexample_v2 into diagnostics.ts and outputPanel.ts with typed value rendering and legacy fallback (CEX-02, CEX-04)
 
+### Phase 26: WMM-03 Weak Memory Race Detection Fix
+**Goal**: Data race detection actually surfaces race warnings to users for programs with Relaxed-ordered data races, instead of silently reporting them as safe
+**Depends on**: Phase 21
+**Requirements**: WMM-03
+**Gap Closure**: Closes WMM-03 soundness gap found in v0.4 audit
+**Success Criteria** (what must be TRUE):
+  1. `WeakMemoryRace` VC body in `rc11.rs` emits actual race-existence constraints (conflicting concurrent accesses with no synchronization in `mo`/`rf`/`co`) instead of `Assert(BoolLit(false))`
+  2. Driver pipeline interprets SAT result on `WeakMemoryRace` VC as a detected race and surfaces it as an error/warning to the user (not `verified: true`)
+  3. `test_relaxed_data_race_detected` sends the VC to Z3 and asserts the result is SAT (race detected), not just that a `WeakMemoryRace` VC exists structurally
+  4. End-to-end integration test proves a program with a Relaxed data race causes `cargo verify` to report a race error, not a safe result
+**Plans**: 4 plans
+
+Plans:
+- [ ] 26-01-PLAN.md — Fix WeakMemoryRace VC body in rc11.rs: emit race-existence formula (conflicting accesses, no mo/rf/co sync edge) (WMM-03)
+- [ ] 26-02-PLAN.md — Fix driver result interpretation: SAT on WeakMemoryRace VC → race error, not verified:true (WMM-03)
+- [ ] 26-03-PLAN.md — Update test_relaxed_data_race_detected to verify Z3 SAT result (not just VC presence) (WMM-03)
+- [ ] 26-04-PLAN.md — E2E integration test: Relaxed data race → driver surfaces race error end-to-end (WMM-03)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
+Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25 → 26
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -319,3 +337,4 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23 → 24 → 25
 | 23. Async/Await Verification | 4/4 | Complete    | 2026-02-23 | - |
 | 24. SEP-04 Ghost Predicate Production Wiring | 2/2 | Complete    | 2026-02-23 | - |
 | 25. VSCode Counterexample v2 Integration | 1/1 | Complete    | 2026-02-23 | - |
+| 26. WMM-03 Weak Memory Race Detection Fix | v0.4 | 0/4 | Pending | - |
