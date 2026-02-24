@@ -5,7 +5,8 @@
 use rust_fv_smtlib::term::Term;
 
 use crate::ir::{
-    AggregateKind, BinOp, Constant, FloatTy, Function, Operand, Place, Projection, Ty, UnOp,
+    AggregateKind, BinOp, CastKind, Constant, FloatTy, Function, IntTy, Operand, Place, Projection,
+    Ty, UintTy, UnOp,
 };
 
 /// Encode an operand as an SMT-LIB term.
@@ -626,6 +627,131 @@ pub fn overflow_check(op: BinOp, lhs: &Term, rhs: &Term, ty: &Ty) -> Option<Term
         | BinOp::BitAnd
         | BinOp::BitOr
         | BinOp::BitXor => None,
+    }
+}
+
+// === Cast encoding ===
+
+/// Returns the bit width of a Rust numeric type, or 64 as default for pointers/unknown.
+pub fn ty_bit_width(ty: &Ty) -> u32 {
+    match ty {
+        Ty::Int(int_ty) => match int_ty {
+            IntTy::I8 => 8,
+            IntTy::I16 => 16,
+            IntTy::I32 => 32,
+            IntTy::I64 => 64,
+            IntTy::I128 => 128,
+            IntTy::Isize => 64,
+        },
+        Ty::Uint(uint_ty) => match uint_ty {
+            UintTy::U8 => 8,
+            UintTy::U16 => 16,
+            UintTy::U32 => 32,
+            UintTy::U64 => 64,
+            UintTy::U128 => 128,
+            UintTy::Usize => 64,
+        },
+        Ty::Float(float_ty) => match float_ty {
+            FloatTy::F32 => 32,
+            FloatTy::F64 => 64,
+        },
+        _ => 64, // pointer default (conservative)
+    }
+}
+
+/// Returns true if the type is a signed integer type.
+pub fn ty_is_signed(ty: &Ty) -> bool {
+    matches!(ty, Ty::Int(_))
+}
+
+/// Encode a Rust `as` cast or `transmute` as an SMT-LIB term.
+///
+/// `kind`: the cast kind from IR
+/// `src`: the already-encoded source operand term
+/// `from_bits`: bit width of source type (from `ty_bit_width(source_ty)`)
+/// `to_bits`: bit width of target type
+/// `from_signed`: whether source integer type is signed
+pub fn encode_cast(
+    kind: &CastKind,
+    src: Term,
+    from_bits: u32,
+    to_bits: u32,
+    from_signed: bool,
+) -> Term {
+    match kind {
+        CastKind::IntToInt => encode_int_to_int_cast(src, from_bits, to_bits, from_signed),
+        CastKind::IntToFloat => encode_int_to_float_cast(src, from_bits, to_bits, from_signed),
+        CastKind::FloatToInt => encode_float_to_int_cast(src, from_bits, to_bits),
+        CastKind::FloatToFloat => encode_float_to_float_cast(src, from_bits, to_bits),
+        // Pointer casts: identity on bitvector (pointer is BitVec 64)
+        CastKind::Pointer => src,
+    }
+}
+
+/// Integer-to-integer cast: widening (zero/sign extend) or narrowing (extract low bits).
+pub fn encode_int_to_int_cast(src: Term, from_bits: u32, to_bits: u32, from_signed: bool) -> Term {
+    use std::cmp::Ordering;
+    match from_bits.cmp(&to_bits) {
+        Ordering::Equal => src, // no-op cast (reinterpret, same width)
+        Ordering::Less => {
+            if from_signed {
+                Term::SignExtend(to_bits - from_bits, Box::new(src))
+            } else {
+                Term::ZeroExtend(to_bits - from_bits, Box::new(src))
+            }
+        }
+        Ordering::Greater => Term::Extract(to_bits - 1, 0, Box::new(src)),
+    }
+}
+
+/// Integer-to-float cast: reinterpret bitvector as float using SMT-LIB to_fp.
+///
+/// Models transmute semantics: reinterpret the source BV bits as float.
+/// Uses Term::App to represent `((_ to_fp eb sb) RNE src_bv)`.
+fn encode_int_to_float_cast(src: Term, from_bits: u32, to_bits: u32, from_signed: bool) -> Term {
+    // Ensure source is the right bit width for the target float
+    let adjusted = if from_bits == to_bits {
+        src
+    } else {
+        encode_int_to_int_cast(src, from_bits, to_bits, from_signed)
+    };
+    // SMT-LIB: ((_ to_fp eb sb) RNE adjusted)
+    // For f32: eb=8, sb=24; for f64: eb=11, sb=53
+    let (eb, sb) = float_params(to_bits);
+    Term::App(
+        format!("(_ to_fp {eb} {sb})"),
+        vec![Term::RoundingMode("RNE".to_string()), adjusted],
+    )
+}
+
+/// Float-to-integer cast: extract lower bits from the float bitvector.
+///
+/// Conservative approximation: model as extraction of the lower to_bits.
+/// TODO Phase 29: proper round-to-zero conversion.
+fn encode_float_to_int_cast(src: Term, _from_bits: u32, to_bits: u32) -> Term {
+    Term::Extract(to_bits - 1, 0, Box::new(src))
+}
+
+/// Float-to-float cast (f32 <-> f64): identity for same size, FpFromBits after adjustment otherwise.
+fn encode_float_to_float_cast(src: Term, from_bits: u32, to_bits: u32) -> Term {
+    if from_bits == to_bits {
+        src
+    } else {
+        // Use to_fp for float width conversion
+        let (eb, sb) = float_params(to_bits);
+        Term::App(
+            format!("(_ to_fp {eb} {sb})"),
+            vec![Term::RoundingMode("RNE".to_string()), src],
+        )
+    }
+}
+
+/// Returns (exponent_bits, significand_bits) for a float of the given bit width.
+fn float_params(bits: u32) -> (u32, u32) {
+    match bits {
+        32 => (8, 24),
+        64 => (11, 53),
+        _ => (11, 53), // default to f64 params
     }
 }
 
