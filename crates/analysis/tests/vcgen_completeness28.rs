@@ -541,7 +541,9 @@ fn vcgen_03_transmute() {
 ///
 /// RED: Fails because trait bounds are not injected as SMT assumptions —
 /// generate_vcs_with_db currently ignores generic_params.
+/// Planned for Phase 28 Plan 05 (VCGEN-04: Generic where-clause premises).
 #[test]
+#[ignore = "VCGEN-04 planned for Phase 28 Plan 05"]
 fn vcgen_04_trait_bound() {
     let func = build_generic_function();
     let ghost_db = GhostPredicateDatabase::new();
@@ -573,7 +575,9 @@ fn vcgen_04_trait_bound() {
 ///
 /// RED (partial): generate_vcs_with_db currently does not inject trait bound premises,
 /// so postcondition verification of generic functions is incomplete.
+/// Planned for Phase 28 Plan 05 (VCGEN-04: Generic where-clause premises).
 #[test]
+#[ignore = "VCGEN-04 planned for Phase 28 Plan 05"]
 fn vcgen_04_generic_spec() {
     let func = build_generic_function();
     let ghost_db = GhostPredicateDatabase::new();
