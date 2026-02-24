@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 28 (SMT VCGen completeness) — In Progress
-Plan: 1 complete (5 plans total, 5 waves)
-Status: Phase 28 Plan 01 Done — TDD RED scaffold (10 tests, 9 failing RED, 1 regression guard)
-Last activity: 2026-02-24 — Plan 28-01 complete (VCGEN-01..04 TDD scaffold committed)
+Plan: 2 complete (5 plans total, 5 waves)
+Status: Phase 28 Plan 02 Done — encode_cast() implemented; vcgen_03_* tests GREEN
+Last activity: 2026-02-24 — Plan 28-02 complete (numeric cast encoding committed)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -62,6 +62,7 @@ Progress: [█████████████████████░░
 | Phase 26-wmm03-race-detection-fix P01 | 180 | 2 tasks | 2 files |
 | Phase 26 P02 | 317 | 2 tasks | 2 files |
 | Phase 28 P01 | 879 | 1 tasks | 1 files |
+| Phase 28 P02 | 402 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,8 @@ Recent decisions relevant to v0.4:
 - [Phase 26]: Follow ghost_predicate_e2e.rs VerificationTask pattern (name/ir_func/contract_db fields); Function.atomic_ops for RC11 VCs with ConcurrencyConfig.verify_concurrency=true
 - [Phase 28]: vcgen_01_array_index tests VCGen auto-generation for Projection::Index (not Assert terminator)
 - [Phase 28]: Cast tests use tautological postcondition to force VC generation; check specific SMT patterns for sign_extend/extract
+- [Phase 28]: FpFromBits is a literal float constructor not BV-reinterpret; use Term::App for to_fp in int-to-float cast
+- [Phase 28]: infer_operand_type() used for source type in Rvalue::Cast; fallback to target_ty when unresolvable
 
 ### Pending Todos
 
@@ -146,12 +149,12 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 28-01-PLAN.md — TDD scaffold (10 tests, 9 RED) committed d900436
+Stopped at: Completed 28-02-PLAN.md — encode_cast() wired; vcgen_03_* GREEN (61c7c30, c6dba44)
 Resume file: None
-Next step: /gsd:execute-phase 28 (plan 02)
+Next step: /gsd:execute-phase 28 (plan 03)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-24 after 28-01 — Phase 28 plan 1/5 complete (TDD RED scaffold)*
+*Last updated: 2026-02-24 after 28-02 — Phase 28 plan 2/5 complete (encode_cast implemented)*
 *Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*
