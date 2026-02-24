@@ -281,7 +281,7 @@ Plans:
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
-| 28. SMT VCGen Completeness | 2/5 | In Progress|  | - |
+| 28. SMT VCGen Completeness | 3/5 | In Progress|  | - |
 
 ## v0.5 SMT Completeness
 

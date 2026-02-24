@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 28 (SMT VCGen completeness) — In Progress
-Plan: 2 complete (5 plans total, 5 waves)
-Status: Phase 28 Plan 02 Done — encode_cast() implemented; vcgen_03_* tests GREEN
-Last activity: 2026-02-24 — Plan 28-02 complete (numeric cast encoding committed)
+Plan: 3 complete (5 plans total, 5 waves)
+Status: Phase 28 Plan 03 Done — Rvalue::Discriminant implemented; vcgen_02_* tests GREEN
+Last activity: 2026-02-24 — Plan 28-03 complete (discriminant binding committed)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -63,6 +63,7 @@ Progress: [█████████████████████░░
 | Phase 26 P02 | 317 | 2 tasks | 2 files |
 | Phase 28 P01 | 879 | 1 tasks | 1 files |
 | Phase 28 P02 | 402 | 2 tasks | 2 files |
+| Phase 28 P03 | 310 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -132,6 +133,8 @@ Recent decisions relevant to v0.4:
 - [Phase 28]: Cast tests use tautological postcondition to force VC generation; check specific SMT patterns for sign_extend/extract
 - [Phase 28]: FpFromBits is a literal float constructor not BV-reinterpret; use Term::App for to_fp in int-to-float cast
 - [Phase 28]: infer_operand_type() used for source type in Rvalue::Cast; fallback to target_ty when unresolvable
+- [Phase 28]: Task 2 (SMT DeclareFun for discriminant) skipped — vcgen_02 tests pass after Task 1 alone; Z3 accepts Term::App without explicit declare-fun
+- [Phase 28]: Rvalue::Discriminant uses Term::App('discriminant-{local}', [Term::Const(local)]) — uninterpreted selector over enum value
 
 ### Pending Todos
 
@@ -149,12 +152,12 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 28-02-PLAN.md — encode_cast() wired; vcgen_03_* GREEN (61c7c30, c6dba44)
+Stopped at: Completed 28-03-PLAN.md — Rvalue::Discriminant implemented; vcgen_02_* GREEN (5cfdbf6)
 Resume file: None
-Next step: /gsd:execute-phase 28 (plan 03)
+Next step: /gsd:execute-phase 28 (plan 04)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-24 after 28-02 — Phase 28 plan 2/5 complete (encode_cast implemented)*
+*Last updated: 2026-02-24 after 28-03 — Phase 28 plan 3/5 complete (Rvalue::Discriminant implemented)*
 *Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*

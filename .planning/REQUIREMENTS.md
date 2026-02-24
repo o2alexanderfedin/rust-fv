@@ -10,11 +10,11 @@ VCGen must produce correct SMT VCs for all Rust memory access patterns:
 - Slice references (`&[T]`) — length + data pointer encoding
 - Struct/tuple field access (`s.field`, `t.0`) — projection encoding
 
-### VCGEN-02: Conditional Operators
+### VCGEN-02: Conditional Operators [COMPLETE — Phase 28 Plan 03]
 VCGen must produce correct SMT VCs for all Rust branching constructs:
 - `if`/`else` expressions (already partially handled; verify completeness)
-- `match` expressions with patterns: literal, tuple, enum variant, wildcard, guard
-- `if let` and `while let` pattern destructuring
+- `match` expressions with patterns: literal, tuple, enum variant, wildcard, guard — DONE (Rvalue::Discriminant binding)
+- `if let` and `while let` pattern destructuring — DONE (SwitchInt + Discriminant)
 - Exhaustiveness: match arms must cover all cases in VCs
 
 ### VCGEN-03: Typecasts
