@@ -271,6 +271,22 @@ pub fn generate_vcs_with_db(
         declarations.append(&mut closure_decls);
     }
 
+    // Inject trait bound premises for generic functions.
+    // For each generic parameter with trait bounds, call trait_bounds_as_smt_assumptions()
+    // and inject the resulting terms as Assert commands in the declarations list.
+    // These serve as axioms/assumptions in all VCs generated for this function.
+    // For BoolLit(true), Z3 ignores them harmlessly (no false premises added).
+    if !func.generic_params.is_empty() {
+        for gp in &func.generic_params {
+            let concrete_ty = Ty::Generic(gp.name.clone());
+            let assumptions =
+                crate::monomorphize::trait_bounds_as_smt_assumptions(gp, &concrete_ty);
+            for term in assumptions {
+                declarations.push(Command::Assert(term));
+            }
+        }
+    }
+
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
     tracing::debug!(function = %func.name, path_count = paths.len(), "Enumerated CFG paths");
