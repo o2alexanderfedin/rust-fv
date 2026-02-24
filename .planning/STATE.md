@@ -10,10 +10,10 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 ## Current Position
 
-Phase: 28 (SMT VCGen completeness) — Ready to execute
-Plan: 0 complete (5 plans ready, 5 waves)
-Status: Phase 28 Planned — VCGEN-01..04 covered across 28-01..05-PLAN.md
-Last activity: 2026-02-22 — Plan 23-04 complete (ASY-01/ASY-02 TDD integration: 6 Z3 tests, QF_LIA spec parser fix)
+Phase: 28 (SMT VCGen completeness) — In Progress
+Plan: 1 complete (5 plans total, 5 waves)
+Status: Phase 28 Plan 01 Done — TDD RED scaffold (10 tests, 9 failing RED, 1 regression guard)
+Last activity: 2026-02-24 — Plan 28-01 complete (VCGEN-01..04 TDD scaffold committed)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -61,6 +61,7 @@ Progress: [█████████████████████░░
 | Phase 23 P04 | 716 | 1 tasks | 3 files |
 | Phase 26-wmm03-race-detection-fix P01 | 180 | 2 tasks | 2 files |
 | Phase 26 P02 | 317 | 2 tasks | 2 files |
+| Phase 28 P01 | 879 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,8 @@ Recent decisions relevant to v0.4:
 - [Phase 23]: convert_path allows free SMT constant references in int_mode (awaited_result_N), strict BV mode preserved
 - [Phase 26-wmm03-race-detection-fix]: WeakMemoryRace VC uses Assert(BoolLit(true)) + mo_cmds + rf_cmds — SAT = race detected, mirrors WeakMemoryCoherence violation-detection semantics
 - [Phase 26]: Follow ghost_predicate_e2e.rs VerificationTask pattern (name/ir_func/contract_db fields); Function.atomic_ops for RC11 VCs with ConcurrencyConfig.verify_concurrency=true
+- [Phase 28]: vcgen_01_array_index tests VCGen auto-generation for Projection::Index (not Assert terminator)
+- [Phase 28]: Cast tests use tautological postcondition to force VC generation; check specific SMT patterns for sign_extend/extract
 
 ### Pending Todos
 
@@ -142,13 +145,13 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Phase 28 planned — 5 PLAN.md files created (VCGEN-01..04), verification passed, docs committed.
+Last session: 2026-02-24
+Stopped at: Completed 28-01-PLAN.md — TDD scaffold (10 tests, 9 RED) committed d900436
 Resume file: None
-Next step: /gsd:execute-phase 28
+Next step: /gsd:execute-phase 28 (plan 02)
 
 ---
 
 *State initialized: 2026-02-14*
-*Last updated: 2026-02-23 after Phase 28 planning — v0.5 milestone started*
+*Last updated: 2026-02-24 after 28-01 — Phase 28 plan 1/5 complete (TDD RED scaffold)*
 *Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*
