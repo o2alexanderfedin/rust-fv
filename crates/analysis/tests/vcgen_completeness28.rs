@@ -190,13 +190,30 @@ fn build_discriminant_function() -> Function {
             terminator: Terminator::Return,
         },
     ];
-    make_func(
+    let mut func = make_func(
         "match_discr",
         Ty::Int(IntTy::I32),
         params,
         vec![Local::new("_2", Ty::Int(IntTy::I32))],
         blocks,
-    )
+    );
+    // Add two postconditions — one per branch outcome — to force per-path VC generation.
+    // VCGen creates one VC per postcondition, so two postconditions yield >= 2 VCs.
+    // Postcondition 1: tautological bound (always holds — result is 0 or 1)
+    // Postcondition 2: upper bound (always holds — result is at most 1)
+    // This exercises that SwitchInt path conditions appear in both generated VCs.
+    func.contracts = Contracts {
+        ensures: vec![
+            SpecExpr {
+                raw: "result >= 0".to_string(),
+            },
+            SpecExpr {
+                raw: "result <= 1".to_string(),
+            },
+        ],
+        ..Contracts::default()
+    };
+    func
 }
 
 /// Build a Function IR with a cast assignment.

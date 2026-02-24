@@ -1457,9 +1457,15 @@ fn encode_assignment(
                 return None;
             }
         }
-        Rvalue::Discriminant(_) => {
-            // Phase 1: skip discriminant
-            return None;
+        Rvalue::Discriminant(disc_place) => {
+            // Encode the discriminant of an enum value as an uninterpreted selector application.
+            // The discriminant is an integer tag that SwitchInt compares against literal variant
+            // indices. We declare it as: (discriminant-{local} enum_value) where enum_value is
+            // the place holding the enum. This produces Term::App which the SwitchInt
+            // path-condition logic already handles correctly — SwitchInt compares discr_term
+            // against BitVecLit values for each target arm.
+            let disc_fn = format!("discriminant-{}", disc_place.local);
+            Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }
     };
 
@@ -5022,7 +5028,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_assignment_discriminant_returns_none() {
+    fn encode_assignment_discriminant_emits_app_term() {
         let func = make_add_function();
         let mut ssa = HashMap::new();
         let result = encode_assignment(
@@ -5031,7 +5037,16 @@ mod tests {
             &func,
             &mut ssa,
         );
-        assert!(result.is_none());
+        // Rvalue::Discriminant now emits a discriminant-{local} application term, not None.
+        assert!(
+            result.is_some(),
+            "expected Some command for Rvalue::Discriminant"
+        );
+        let cmd_text = format!("{result:?}");
+        assert!(
+            cmd_text.contains("discriminant-_1"),
+            "expected 'discriminant-_1' in command, got: {cmd_text}"
+        );
     }
 
     #[test]
