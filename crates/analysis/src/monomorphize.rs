@@ -10,6 +10,8 @@
 /// with concrete types throughout the function's IR.
 use std::collections::HashMap;
 
+use rust_fv_smtlib::term::Term;
+
 use crate::ir::{BasicBlock, Function, GenericParam, Local, Rvalue, Statement, Terminator, Ty};
 
 /// Maps generic type parameter names to concrete types for a single instantiation.
@@ -284,6 +286,31 @@ pub fn trait_bound_constraints(generic: &GenericParam, concrete_ty: &Ty) -> Vec<
     }
 
     constraints
+}
+
+/// Produce SMT-LIB Assert premises encoding a generic parameter's trait bound constraints.
+///
+/// For integer types with Ord/PartialOrd/Eq/PartialEq: the constraints are trivially true
+/// in BV semantics (total order is guaranteed by bitvector comparisons). We emit
+/// `Term::BoolLit(true)` as a no-op assumption — it documents the contract without
+/// adding false premises.
+///
+/// For unrecognized/composite types: emit `Term::BoolLit(true)` conservatively (no
+/// contradiction, no false implications).
+///
+/// Safety note (RESEARCH.md Pitfall 5): Do NOT emit incorrect ordering assumptions for
+/// non-integer types. If T is not a known integer type, always emit BoolLit(true).
+pub fn trait_bounds_as_smt_assumptions(gp: &GenericParam, _concrete_ty: &Ty) -> Vec<Term> {
+    // Check concrete_ty — for known integer/bool types, all standard trait bounds
+    // (Ord, PartialOrd, Eq, PartialEq, Copy, Clone) are trivially satisfied by BV semantics.
+    // Return BoolLit(true) for each bound as a no-op documented assumption.
+    //
+    // For unrecognized types: same conservative approach — emit BoolLit(true).
+    // This is sound: we never add false premises.
+    gp.trait_bounds
+        .iter()
+        .map(|_bound| Term::BoolLit(true))
+        .collect()
 }
 
 #[cfg(test)]

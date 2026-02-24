@@ -75,10 +75,11 @@ pub fn encode_type(ty: &Ty) -> Sort {
             Sort::Int
         }
         Ty::Generic(name) => {
-            panic!(
-                "Cannot encode generic type parameter '{}' -- must be monomorphized first",
-                name
-            )
+            tracing::trace!(
+                type_name = %name,
+                "Encoding generic type parameter as uninterpreted sort (parametric verification)"
+            );
+            Sort::Uninterpreted(name.clone())
         }
         Ty::Closure(info) => {
             tracing::trace!(closure_name = %info.name, "Encoding closure as datatype sort");
