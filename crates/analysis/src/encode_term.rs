@@ -664,6 +664,30 @@ pub fn ty_is_signed(ty: &Ty) -> bool {
     matches!(ty, Ty::Int(_))
 }
 
+/// Build the bounds-check term for an array/slice index access.
+///
+/// Asserts: (0 <= idx) AND (idx < len)
+/// Both operands are 64-bit bitvectors (unsigned comparison via BvULe / BvULt).
+/// If idx is narrower than 64 bits, it is zero-extended to match len's 64-bit width.
+pub fn bounds_check_term(idx: Term, idx_bits: u32, len: Term) -> Term {
+    // Zero-extend idx to 64 bits if necessary
+    let idx_64 = if idx_bits < 64 {
+        Term::ZeroExtend(64 - idx_bits, Box::new(idx))
+    } else {
+        idx
+    };
+    // Lower bound: 0 <= idx (always true for unsigned bitvectors, but emitted explicitly)
+    let lower = Term::BvULe(Box::new(Term::BitVecLit(0, 64)), Box::new(idx_64.clone()));
+    // Upper bound: idx < len
+    let upper = Term::BvULt(Box::new(idx_64), Box::new(len));
+    Term::And(vec![lower, upper])
+}
+
+/// Generate the SMT constant name for a slice/array length.
+pub fn len_constant_name(arr_local: &str) -> String {
+    format!("{arr_local}_len")
+}
+
 /// Encode a Rust `as` cast or `transmute` as an SMT-LIB term.
 ///
 /// `kind`: the cast kind from IR
