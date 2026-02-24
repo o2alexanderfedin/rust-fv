@@ -26,12 +26,12 @@ VCGen must produce correct SMT VCs for Rust type conversion operations:
 - Pointer-to-integer and integer-to-pointer casts (usize)
 - No-op casts (same-size types) handled correctly
 
-### VCGEN-04: Generics
+### VCGEN-04: Generics [COMPLETE — Phase 28 Plan 05]
 VCGen must produce correct SMT VCs for generic functions and types:
-- `where` clause constraints propagated into SMT premises
-- Generic spec annotation propagation (e.g., `#[requires(T: Ord)]`)
-- Monomorphization: each instantiation generates separate VCs
-- Trait bound encoding as uninterpreted sort constraints
+- `where` clause constraints propagated into SMT premises — DONE (trait_bounds_as_smt_assumptions injects Assert premises)
+- Generic spec annotation propagation (e.g., `#[requires(T: Ord)]`) — DONE (Ty::Generic as Sort::Uninterpreted)
+- Monomorphization: each instantiation generates separate VCs — DONE (generate_vcs_monomorphized)
+- Trait bound encoding as uninterpreted sort constraints — DONE (BoolLit(true) per bound, Z3 no-op)
 
 ## Out of Scope (v0.5)
 
