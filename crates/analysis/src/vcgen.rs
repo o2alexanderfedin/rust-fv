@@ -299,6 +299,12 @@ pub fn generate_vcs_with_db(
     );
     conditions.append(&mut assert_vcs);
 
+    // Generate bounds-check VCs for array/slice index accesses (Projection::Index).
+    // Each statement that reads a place through an Index projection generates a
+    // safety VC: 0 <= idx AND idx < {arr}_len.
+    let mut index_vcs = generate_index_bounds_vcs(func, &datatype_declarations, &declarations);
+    conditions.append(&mut index_vcs);
+
     // Generate contract verification conditions (postconditions)
     // When contract_db is provided, callee postconditions are assumed during
     // the caller's postcondition check.
@@ -1313,7 +1319,111 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
         decls.push(Command::DeclareConst(local.name.clone(), sort));
     }
 
+    // Len constants: for each Rvalue::Len(place) in the body, declare {place}_len as BitVec(64)
+    for bb in &func.basic_blocks {
+        for stmt in &bb.statements {
+            if let Statement::Assign(_, Rvalue::Len(len_place)) = stmt {
+                let len_const = crate::encode_term::len_constant_name(&len_place.local);
+                decls.push(Command::DeclareConst(
+                    len_const,
+                    rust_fv_smtlib::sort::Sort::BitVec(64),
+                ));
+            }
+        }
+    }
+
     decls
+}
+
+/// Generate bounds-check VCs for array/slice index accesses (Projection::Index).
+///
+/// Scans all statements in the function body. For every operand that reads through
+/// a `Projection::Index(idx_local)`, emits a VC asserting:
+///   NOT (0 <= idx AND idx < {arr}_len)   -- UNSAT means bounds check passes
+///
+/// The index local's type determines its bit width for zero-extension to 64 bits.
+fn generate_index_bounds_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
+            // Find operands with Index projections in assignment RHS
+            let index_operand = match stmt {
+                Statement::Assign(_, Rvalue::Use(op)) => extract_index_operand(op),
+                _ => None,
+            };
+
+            if let Some((arr_local, idx_local)) = index_operand {
+                // Determine bit width of index type
+                let idx_bits = find_local_type(func, idx_local)
+                    .map(crate::encode_term::ty_bit_width)
+                    .unwrap_or(64);
+
+                let idx_term = Term::Const(idx_local.to_string());
+                let len_term = Term::Const(crate::encode_term::len_constant_name(arr_local));
+                let bounds_ok = crate::encode_term::bounds_check_term(idx_term, idx_bits, len_term);
+
+                // Build VC script: assert NOT bounds_ok — UNSAT proves safety
+                let mut script = Script::new();
+                script.push(Command::SetLogic("QF_BV".to_string()));
+                script.push(Command::SetOption(
+                    "produce-models".to_string(),
+                    "true".to_string(),
+                ));
+                for cmd in datatype_declarations {
+                    script.push(cmd.clone());
+                }
+                for cmd in declarations {
+                    script.push(cmd.clone());
+                }
+                script.push(Command::Assert(Term::Not(Box::new(bounds_ok))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                let desc = format!(
+                    "bounds check: {} index {} in bounds at block {}",
+                    arr_local, idx_local, block_idx
+                );
+                vcs.push(VerificationCondition {
+                    description: desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: stmt_idx,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "0 <= {} && {} < {}_len",
+                            idx_local, idx_local, arr_local
+                        )),
+                        vc_kind: VcKind::MemorySafety,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Extract (arr_local, idx_local) from an operand that reads through Projection::Index.
+fn extract_index_operand(op: &Operand) -> Option<(&str, &str)> {
+    let place = match op {
+        Operand::Copy(p) | Operand::Move(p) => p,
+        Operand::Constant(_) => return None,
+    };
+    for proj in &place.projections {
+        if let Projection::Index(idx_local) = proj {
+            return Some((&place.local, idx_local.as_str()));
+        }
+    }
+    None
 }
 
 /// Check if a function uses specification integer types (SpecInt/SpecNat).
@@ -1437,9 +1547,11 @@ fn encode_assignment(
             // Reference is transparent -- same as the value
             Term::Const(ref_place.local.clone())
         }
-        Rvalue::Len(_) => {
-            // Array length -- represented as an uninterpreted constant for now
-            return None;
+        Rvalue::Len(len_place) => {
+            // Model slice/array length as a named constant: {local}_len.
+            // The constant is declared as Sort::BitVec(64) via collect_declarations.
+            let len_name = crate::encode_term::len_constant_name(&len_place.local);
+            Term::Const(len_name)
         }
         Rvalue::Cast(kind, op, target_ty) => {
             let src = encode_operand_for_vcgen(op, func);
@@ -4998,7 +5110,8 @@ mod tests {
     }
 
     #[test]
-    fn encode_assignment_len_returns_none() {
+    fn encode_assignment_len_emits_len_constant() {
+        // Rvalue::Len now encodes as an assignment to the {arr}_len constant (not None).
         let func = make_add_function();
         let mut ssa = HashMap::new();
         let result = encode_assignment(
@@ -5007,7 +5120,20 @@ mod tests {
             &func,
             &mut ssa,
         );
-        assert!(result.is_none());
+        assert!(
+            result.is_some(),
+            "Rvalue::Len should produce an assignment assertion"
+        );
+        // The RHS should reference the len constant "_1_len"
+        if let Some(Command::Assert(Term::Eq(_, rhs))) = result {
+            assert!(
+                matches!(*rhs, Term::Const(ref name) if name == "_1_len"),
+                "expected RHS to be Const(\"_1_len\"), got: {:?}",
+                *rhs
+            );
+        } else {
+            panic!("expected Assert(Eq(...)) from encode_assignment for Rvalue::Len");
+        }
     }
 
     #[test]
