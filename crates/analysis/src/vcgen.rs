@@ -1441,9 +1441,13 @@ fn encode_assignment(
             // Array length -- represented as an uninterpreted constant for now
             return None;
         }
-        Rvalue::Cast(_, op, _) => {
-            // Phase 1: casts are identity (TODO: proper cast encoding)
-            encode_operand(op)
+        Rvalue::Cast(kind, op, target_ty) => {
+            let src = encode_operand_for_vcgen(op, func);
+            let source_ty = infer_operand_type(func, op).unwrap_or(target_ty); // fallback: assume same type (safe — no truncation)
+            let from_bits = crate::encode_term::ty_bit_width(source_ty);
+            let to_bits = crate::encode_term::ty_bit_width(target_ty);
+            let from_signed = crate::encode_term::ty_is_signed(source_ty);
+            crate::encode_term::encode_cast(kind, src, from_bits, to_bits, from_signed)
         }
         Rvalue::Aggregate(kind, operands) => {
             let result_ty = find_local_type(func, &place.local);
