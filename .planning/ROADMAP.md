@@ -281,7 +281,7 @@ Plans:
 | 6-12. Advanced Phases | v0.2 | 21/21 | Complete | 2026-02-14 |
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
-| 28. SMT VCGen Completeness | 3/5 | In Progress|  | - |
+| 28. SMT VCGen Completeness | 4/5 | In Progress|  | - |
 
 ## v0.5 SMT Completeness
 
@@ -301,7 +301,7 @@ Plans:
 - [ ] 28-01-PLAN.md — TDD scaffold: 10 failing tests for VCGEN-01..04 (all requirements)
 - [ ] 28-02-PLAN.md — VCGEN-03: Numeric as-cast and transmute encoding (encode_cast + Rvalue::Cast)
 - [ ] 28-03-PLAN.md — VCGEN-02: Discriminant binding for match/if-let/while-let (Rvalue::Discriminant)
-- [ ] 28-04-PLAN.md — VCGEN-01: Array index bounds VCs and slice length encoding (Rvalue::Len)
+- [x] 28-04-PLAN.md — VCGEN-01: Array index bounds VCs and slice length encoding (Rvalue::Len)
 - [ ] 28-05-PLAN.md — VCGEN-04: Generic where-clause premises as SMT Assert (trait_bounds_as_smt_assumptions)
 
 </details>

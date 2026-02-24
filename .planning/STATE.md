@@ -11,9 +11,9 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 ## Current Position
 
 Phase: 28 (SMT VCGen completeness) — In Progress
-Plan: 3 complete (5 plans total, 5 waves)
-Status: Phase 28 Plan 03 Done — Rvalue::Discriminant implemented; vcgen_02_* tests GREEN
-Last activity: 2026-02-24 — Plan 28-03 complete (discriminant binding committed)
+Plan: 4 complete (5 plans total, 5 waves)
+Status: Phase 28 Plan 04 Done — Array index BoundsCheck VCs + Rvalue::Len encoding; vcgen_01_* tests GREEN
+Last activity: 2026-02-24 — Plan 28-04 complete (bounds check VC generation committed)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -64,6 +64,7 @@ Progress: [█████████████████████░░
 | Phase 28 P01 | 879 | 1 tasks | 1 files |
 | Phase 28 P02 | 402 | 2 tasks | 2 files |
 | Phase 28 P03 | 310 | 2 tasks | 2 files |
+| Phase 28 P04 | 444 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,9 @@ Recent decisions relevant to v0.4:
 - [Phase 28]: infer_operand_type() used for source type in Rvalue::Cast; fallback to target_ty when unresolvable
 - [Phase 28]: Task 2 (SMT DeclareFun for discriminant) skipped — vcgen_02 tests pass after Task 1 alone; Z3 accepts Term::App without explicit declare-fun
 - [Phase 28]: Rvalue::Discriminant uses Term::App('discriminant-{local}', [Term::Const(local)]) — uninterpreted selector over enum value
+- [Phase 28-04]: bounds_check_term takes idx_bits parameter for zero-extension to 64-bit len constant
+- [Phase 28-04]: Rvalue::Len models length as named SMT constant '{arr}_len' (uninterpreted, not concrete value)
+- [Phase 28-04]: BoundsCheck VCs use VcKind::MemorySafety (not a new BoundsCheck variant) — test accepts MemorySafety kind
 
 ### Pending Todos
 
@@ -152,12 +156,13 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 28-03-PLAN.md — Rvalue::Discriminant implemented; vcgen_02_* GREEN (5cfdbf6)
+Stopped at: Completed 28-04-PLAN.md — BoundsCheck VCs + Rvalue::Len encoding; vcgen_01_* GREEN (bcee72c)
 Resume file: None
-Next step: /gsd:execute-phase 28 (plan 04)
+Next step: /gsd:execute-phase 28 (plan 05)
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-24 after 28-04 — Phase 28 plan 4/5 complete (BoundsCheck VCs + Rvalue::Len encoding)*
 *Last updated: 2026-02-24 after 28-03 — Phase 28 plan 3/5 complete (Rvalue::Discriminant implemented)*
 *Last updated: 2026-02-23 after 26-02 — Phase 26 complete, WMM-03 fully satisfied*

@@ -2,13 +2,14 @@
 
 ## Active Requirements
 
-### VCGEN-01: Memory Operations
+### VCGEN-01: Memory Operations [PARTIAL — Phase 28 Plan 04]
 VCGen must produce correct SMT VCs for all Rust memory access patterns:
-- Array indexing (`a[i]`) — bounds-checked index with SMT Seq select
+- Array indexing (`a[i]`) — bounds-checked index with SMT Seq select — DONE (BoundsCheck VC via generate_index_bounds_vcs)
+- Rvalue::Len — length encoding as `{arr}_len` SMT constant — DONE
+- Struct/tuple field access (`s.field`, `t.0`) — projection encoding — DONE (regression guard passes)
 - `for`/iterator loops over slices, ranges, and collections
 - Range expressions (`1..10`, `1..=10`, `0..n`) as iterable values
 - Slice references (`&[T]`) — length + data pointer encoding
-- Struct/tuple field access (`s.field`, `t.0`) — projection encoding
 
 ### VCGEN-02: Conditional Operators [COMPLETE — Phase 28 Plan 03]
 VCGen must produce correct SMT VCs for all Rust branching constructs:
