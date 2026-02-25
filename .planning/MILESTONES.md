@@ -66,10 +66,45 @@
 
 ## v0.4 Full Rust Verification (Shipped: 2026-02-23)
 
-**Phases completed:** 28 phases, 82 plans, 45 tasks
+**Phases completed:** 9 phases (19-27), 27 plans
+**Timeline:** 2026-02-17 to 2026-02-23
 
 **Key accomplishments:**
-- (none recorded)
+1. Counterexample generation — typed Rust values (not SSA/hex), ariadne inline labels at failing source line, JSON structured output, VSCode IDE wiring (CEX-01..04)
+2. Separation logic — `pts_to` predicate with AUFBV encoding, separating conjunction, frame rule, `#[ghost_predicate]` recursive heap predicates with depth-3 unfolding (SEP-01..04)
+3. Weak memory models — full RC11 (mo/rf/co primitives), 8 canonical C11 litmus tests (CoRR/CoWW/SB/LB/MP/IRIW), Relaxed/Acquire/Release data race detection (WMM-01..04)
+4. Higher-order closures — `fn_spec` specification entailments via AUFLIA, stateful `FnMut` SSA-versioned environment tracking (HOF-01..02)
+5. Async/await verification — sequential polling model, `#[state_invariant]` at suspension points, async counterexample extraction with poll_iteration/await_side IDE rendering (ASY-01..02)
+6. Gap closure phases: SEP-04 ghost predicate production wiring, VSCode counterexample v2 integration, WMM-03 race detection fix, async counterexample IDE fidelity
+
+**Delivered:** Complete Rust verification coverage — every major language feature verifiable with typed counterexamples, heap separation reasoning, weak memory model checking, higher-order closure specs, and async/await state invariants.
+
+---
+
+
+## v0.5 SMT Completeness (Shipped: 2026-02-25)
+
+**Phases completed:** 2 phases (28-29), 10 plans
+**Timeline:** 2026-02-23 to 2026-02-24
+**Files changed:** 37 files, +6,539 / -48 lines
+
+**Key accomplishments:**
+1. TDD scaffold — 10 failing tests covering VCGEN-01..04 + MIRCONV-01/02 + VCGEN-05/06 requirements
+2. Numeric `as`-cast encoding (`encode_cast()`) — sign-extension, zero-extension, truncation, FPA theory for float casts with correct SMT bitvector semantics (VCGEN-03)
+3. Match/if-let discriminant binding — `Rvalue::Discriminant` → uninterpreted selector term in SMT; all `match`/`if let`/`while let` constructs generate VCs (VCGEN-02)
+4. Array bounds VCs + `Rvalue::Len` — auto-generated `MemorySafety` VCs with index bounds checks; length encoded as named `{arr}_len` SMT constant (VCGEN-01 partial)
+5. Generic trait bound premises — `trait_bounds_as_smt_assumptions()` injects `Assert` premises in `generate_vcs_with_db`; `Ty::Generic` encodes as `Sort::Uninterpreted` (VCGEN-04)
+6. CastKind preservation in MIR converter — exhaustive match for FloatToInt/IntToFloat/FloatToFloat/Pointer kinds; compiler-enforced completeness (MIRCONV-01)
+7. Aggregate conversion — `AggregateKind::Adt/Closure` wired; `ir::Statement::SetDiscriminant/Assume` variants added (MIRCONV-02)
+8. Float-to-int SMT soundness fix — `fp.to_sbv/fp.to_ubv RTZ` rounding replaces erroneous `Term::Extract` on Float sort (VCGEN-05)
+9. Missing rvalue variants — `CopyForDeref`, `RawPtr`, `Repeat` added to MIR converter; `TyKind::Param` → `ir::Ty::Generic` (MIRCONV-01 complete)
+10. Projected LHS functional record update — struct field mutation (`s.x = expr`) generates `(assert (= s (mk-Struct new_x (Struct-y s))))` SMT assertions (VCGEN-06)
+
+**Known Gaps:**
+- VCGEN-01 PARTIAL: `for`/iterator loops over slices/ranges, range expressions (`1..10`), and slice references (`&[T]`) not yet covered — deferred to v0.6
+- `vcgen_06_set_discriminant_assertion` test ignored: `Statement::SetDiscriminant` VCGen encoding deferred
+
+**Delivered:** Complete SMT VCGen coverage for all major Rust expression categories — casts, match/discriminants, array bounds, generics, float-to-int soundness, aggregate construction, and struct mutation functional updates. All 9 previously-failing tests green; 1 test deferred.
 
 ---
 

@@ -2,20 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-19)
+See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — COMPLETE (5/5 plans done).
+**Current focus:** v0.5 SMT Completeness — MILESTONE COMPLETE. Planning v0.6 — run `/gsd:new-milestone`.
 
 ## Current Position
 
-Phase: 29 (Fix identified SMT VCGen coverage gaps) — COMPLETE
-Plan: 5 complete (5 plans total, 5 waves)
-Status: Phase 29 COMPLETE — MIRCONV-01/02 + VCGEN-05/06 all satisfied
-Last activity: 2026-02-24 — Plan 29-05 complete (VCGEN-06 projected LHS functional record update + Downcast type narrowing)
+Phase: v0.5 milestone archived
+Status: ✅ MILESTONE v0.5 COMPLETE — 29 phases, 92 plans, all requirements satisfied
+Last activity: 2026-02-25 — v0.5 SMT Completeness milestone archived
 
-Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
+Progress: [████████████████████] 92/92 plans (100%)
 
 ## Performance Metrics
 

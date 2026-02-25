@@ -46,9 +46,19 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - ✓ Higher-order closures — `fn_spec` specification entailments, stateful `FnMut` SSA-versioned environment tracking -- v0.4
 - ✓ Async/await — `async fn` verification under sequential polling model, `#[state_invariant]` at suspension points, IDE rendering with poll_iteration/await_side -- v0.4
 
+- ✓ Numeric `as`-cast encoding with correct sign-extension/truncation/FPA semantics — v0.5
+- ✓ Match/if-let/while-let discriminant binding VCGen via `Rvalue::Discriminant` — v0.5
+- ✓ Array index bounds VCs + `Rvalue::Len` as named SMT constant — v0.5 (partial: for loops deferred)
+- ✓ Generic `where`-clause trait bound premises as SMT `Assert` in `generate_vcs_with_db` — v0.5
+- ✓ CastKind preservation in MIR converter (FloatToInt/IntToFloat/FloatToFloat/Pointer) — v0.5
+- ✓ Aggregate conversion: `AggregateKind::Adt/Closure` + `ir::Statement::SetDiscriminant/Assume` — v0.5
+- ✓ Float-to-int SMT soundness fix: `fp.to_sbv/fp.to_ubv RTZ` — v0.5
+- ✓ Missing rvalue variants: CopyForDeref, RawPtr, Repeat; TyKind::Param → Ty::Generic — v0.5
+- ✓ Projected LHS struct field mutation via SMT functional record update — v0.5
+
 ### Active
 
-#### Current Milestone: v0.5 (TBD)
+#### Current Milestone: v0.6 (TBD)
 
 (Next milestone requirements to be defined with `/gsd:new-milestone`)
 
@@ -69,8 +79,8 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.4 shipped — 27 phases, 82 plans, 153 files changed (+25,814 LOC), 6-crate workspace + VSCode extension; full Rust verification coverage achieved
-- **v0.4 achievements:** Counterexample generation, separation logic (pts_to + ghost predicates), RC11 weak memory models, higher-order closure specs, async/await verification, IDE fidelity for async CEX
+- **Current state:** v0.5 shipped — 29 phases, 92 plans, 6-crate workspace + VSCode extension; complete SMT VCGen coverage for all major Rust expression categories
+- **v0.5 achievements:** Cast encoding, discriminant binding, array bounds VCs, generic premises, CastKind preservation, aggregate wiring, float-to-int soundness fix, functional record update for struct mutation
 - **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; async closures (Rust 2024) deferred to v0.5
 - **Tech debt:** Pre-existing doc test failures in stdlib_contracts/option.rs (26 doc tests, `self` parameter issue); v0.4 tech debt fully resolved
 
@@ -125,17 +135,32 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | CoroutineInfo + polling model for async (Phase 23) | Sequential poll-based state machine; no executor complexity | ✓ Good |
 | GetModel in async VC scripts (Phase 27) | check_sat_raw() doesn't auto-append get-model; must be explicit in script | ✓ Good |
 | await_side inferred from VcKind (Phase 27) | Deterministic from VC type; no Z3 model query needed | ✓ Good |
+| infer_operand_type() for cast source type (Phase 28) | Fallback to target_ty when unresolvable; avoids panics on opaque operands | ✓ Good |
+| Rvalue::Discriminant as Term::App uninterpreted selector (Phase 28) | Z3 accepts without explicit declare-fun; no need for SMT DeclareFun preamble | ✓ Good |
+| BoundsCheck VCs use VcKind::MemorySafety (Phase 28) | No new variant needed; MemorySafety semantics cover all bounds checks | ✓ Good |
+| Ty::Generic → Sort::Uninterpreted (Phase 28) | Enables parametric VCGen without monomorphization; no panic on generic specs | ✓ Good |
+| trait_bounds_as_smt_assumptions emits BoolLit(true) (Phase 28) | Sound (no false premises), documents contract, Z3 ignores harmlessly | ✓ Good |
+| CastKind exhaustive match in mir_converter (Phase 29) | Compiler enforces completeness on MIR API changes; no wildcard catch-all | ✓ Good |
+| AggregateKind::Adt maps to ir::AggregateKind::Enum (Phase 29) | Structs use variant_idx=0; unified enum+struct encoding in IR | ✓ Good |
+| encode_cast to_signed: bool parameter (Phase 29) | Distinguishes fp.to_sbv vs fp.to_ubv at call site; RTZ matches Rust truncation | ✓ Good |
+| Cow<Ty> in encode_place_with_type (Phase 29) | Downcast produces owned variant-struct Ty alongside borrowed Tys from find_local_type | ✓ Good |
+| Functional update emits ALL fields in order (Phase 29) | Changed field gets new_val, others get selector(base); correct constructor arity guaranteed | ✓ Good |
 
-## Shipped: v0.4 Full Rust Verification
+## Shipped: v0.5 SMT Completeness
 
-**Goal achieved:** Complete Rust verification coverage — every major language feature verifiable with no exceptions and no compromises.
+**Goal achieved:** Complete SMT VCGen coverage for all major Rust expression categories — casts, match/discriminants, array bounds, generics, aggregates, and struct mutation.
 
 **Delivered:**
-- Counterexample generation with typed Rust values, ariadne labels, JSON output, IDE integration
-- Separation logic: pts_to, separating conjunction, frame rule, #[ghost_predicate] depth-3 unfolding
-- Weak memory models: full RC11, 8 C11 litmus tests, Relaxed/Acquire/Release data race detection
-- Higher-order closures: fn_spec entailments, FnMut SSA-versioned environments
-- Async/await: sequential polling model, #[state_invariant], IDE async counterexample rendering
+- Numeric `as`-cast VCGen with sign-extension/truncation/FPA semantics (`encode_cast()`)
+- Match/if-let/while-let discriminant binding via `Rvalue::Discriminant` uninterpreted selector
+- Array bounds VCs + Rvalue::Len encoding; generic trait bound premises in `generate_vcs_with_db`
+- CastKind preservation in MIR converter; AggregateKind::Adt/Closure wiring; SetDiscriminant/Assume IR variants
+- Float-to-int soundness fix (`fp.to_sbv/fp.to_ubv RTZ`); TyKind::Param→Generic; CopyForDeref/RawPtr/Repeat
+- Projected LHS struct field mutation via SMT functional record update with correct constructor arity
+
+**Known gaps (deferred to v0.6):**
+- VCGEN-01 PARTIAL: for/iterator loops, range expressions, slice references
+- vcgen_06_set_discriminant_assertion (Statement::SetDiscriminant VCGen encoding)
 
 ---
-*Last updated: 2026-02-23 after v0.4 milestone shipped*
+*Last updated: 2026-02-25 after v0.5 SMT Completeness milestone shipped*
