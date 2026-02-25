@@ -203,6 +203,7 @@ fn substitute_rvalue(rvalue: &Rvalue, subs: &HashMap<String, Ty>) -> Rvalue {
         Rvalue::Aggregate(kind, operands) => Rvalue::Aggregate(kind.clone(), operands.clone()),
         Rvalue::Len(place) => Rvalue::Len(place.clone()),
         Rvalue::Discriminant(place) => Rvalue::Discriminant(place.clone()),
+        Rvalue::Repeat(op, count) => Rvalue::Repeat(op.clone(), *count),
     }
 }
 

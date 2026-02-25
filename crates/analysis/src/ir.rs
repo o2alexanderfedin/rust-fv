@@ -660,6 +660,8 @@ pub enum Rvalue {
     Len(Place),
     /// Discriminant of an enum
     Discriminant(Place),
+    /// Array repeat expression: `[x; N]`
+    Repeat(Operand, usize),
 }
 
 /// Aggregate kinds.

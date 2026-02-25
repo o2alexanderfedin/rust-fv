@@ -340,7 +340,32 @@ fn convert_rvalue(rvalue: &mir::Rvalue<'_>) -> Option<ir::Rvalue> {
             Some(ir::Rvalue::Aggregate(ir_kind, ir_ops))
         }
 
-        _ => None, // Skip other rvalues for Phase 1
+        // CopyForDeref: deref coercion copy — treat as identity copy
+        mir::Rvalue::CopyForDeref(place) => {
+            Some(ir::Rvalue::Use(ir::Operand::Copy(convert_place(place))))
+        }
+
+        // RawPtr (formerly AddressOf): raw pointer creation — model as Ref (transparent pointer identity)
+        // In nightly-2026-02-11, AddressOf was renamed to RawPtr(RawPtrKind, Place).
+        mir::Rvalue::RawPtr(_, place) => Some(ir::Rvalue::Ref(
+            ir::Mutability::Shared,
+            convert_place(place),
+        )),
+
+        // Repeat: [x; N] array fill
+        mir::Rvalue::Repeat(op, count) => {
+            // Extract the concrete count value from the Const.
+            // Use debug format as fallback — robust across nightly API changes.
+            let n: usize = format!("{count:?}")
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>()
+                .parse()
+                .unwrap_or(0);
+            Some(ir::Rvalue::Repeat(convert_operand(op), n))
+        }
+
+        _ => None, // Skip other rvalues (NullaryOp removed in nightly-2026-02-11, etc.)
     }
 }
 
@@ -446,6 +471,7 @@ pub fn convert_ty(ty: ty::Ty<'_>) -> ir::Ty {
             ir::Ty::RawPtr(Box::new(convert_ty(*inner)), m)
         }
         ty::TyKind::Never => ir::Ty::Never,
+        ty::TyKind::Param(t) => ir::Ty::Generic(t.name.as_str().to_string()),
         _ => ir::Ty::Named(format!("{ty:?}")),
     }
 }

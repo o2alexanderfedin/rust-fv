@@ -1596,6 +1596,9 @@ fn encode_assignment(
             let disc_fn = format!("discriminant-{}", disc_place.local);
             Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }
+        // Repeat ([x; N]): VCGen encoding is out of scope for Phase 29 — the IR just needs to
+        // represent it. Skip the assertion so VCGen remains sound (no false claims about arrays).
+        Rvalue::Repeat(..) => return None,
     };
 
     Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))))
