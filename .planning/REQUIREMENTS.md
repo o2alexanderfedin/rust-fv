@@ -41,11 +41,11 @@ MIR converter must preserve all Rustc CastKind variants through MIR → IR conve
 - TyKind::Param maps to ir::Ty::Generic (not ir::Ty::Named) — preserves generic identity
 - Missing rvalue variants wired: CopyForDeref, AddressOf, Repeat, NullaryOp
 
-### MIRCONV-02: Aggregate Conversion [Phase 29]
+### MIRCONV-02: Aggregate Conversion [COMPLETE — Phase 29 Plan 03]
 Struct, enum, and closure aggregate construction must be converted rather than silently dropped:
-- AggregateKind::Adt (struct/enum) wired to ir::AggregateKind::Struct/Enum
-- AggregateKind::Closure wired to ir::AggregateKind::Closure
-- StatementKind::SetDiscriminant and Assume converted to ir::Statement variants
+- AggregateKind::Adt (struct/enum) wired to ir::AggregateKind::Enum — DONE
+- AggregateKind::Closure wired to ir::AggregateKind::Closure — DONE
+- StatementKind::SetDiscriminant and Assume converted to ir::Statement variants — DONE
 
 ### VCGEN-05: Float-to-Int SMT Encoding [Phase 29]
 Float-to-integer casts must use type-correct SMT-LIB2 encoding:
