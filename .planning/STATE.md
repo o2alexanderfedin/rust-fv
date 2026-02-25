@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — Phase 28 (SMT VCGen Completeness) — Complete (5/5 plans done).
+**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (1/5 plans done).
 
 ## Current Position
 
-Phase: 28 (SMT VCGen completeness) — Complete
-Plan: 5 complete (5 plans total, 5 waves)
-Status: Phase 28 Plan 05 Done — VCGEN-04 generic trait bound premises; all 10 vcgen_completeness28 tests GREEN
-Last activity: 2026-02-24 — Plan 28-05 complete (trait_bounds_as_smt_assumptions + parametric VCGen)
+Phase: 29 (Fix identified SMT VCGen coverage gaps)
+Plan: 1 complete (5 plans total, 5 waves)
+Status: Phase 29 Plan 01 Done — MIRCONV-01 CastKind preservation; 10 RED tests scaffolded; vcgen_completeness29 RED baseline established
+Last activity: 2026-02-24 — Plan 29-01 complete (CastKind exhaustive match in mir_converter + 10 TDD tests)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -66,6 +66,7 @@ Progress: [█████████████████████░░
 | Phase 28 P03 | 310 | 2 tasks | 2 files |
 | Phase 28 P04 | 444 | 2 tasks | 2 files |
 | Phase 28 P05 | 567 | 2 tasks | 4 files |
+| Phase 29 P01 | 342 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,8 @@ Recent decisions relevant to v0.4:
 - [Phase 28]: Ty::Generic encodes as Sort::Uninterpreted(name) instead of panic — enables parametric VCGen without monomorphization for spec-only verification
 - [Phase 28]: trait_bounds_as_smt_assumptions emits BoolLit(true) per bound — sound (no false premises), documents contract, Z3 ignores harmlessly
 - [Phase 28]: Trait bound premises injected in generate_vcs_with_db (not generate_vcs_monomorphized) — covers both parametric and concrete instantiation paths
+- [Phase 29-01]: CastKind fix uses exhaustive match (no wildcard) so compiler enforces completeness on MIR API changes
+- [Phase 29-01]: mirconv_02 aggregate tests are GREEN as regression guards — vcgen already handles Struct/Enum aggregates at IR level; the MIRCONV-02 gap is only in mir_converter.rs (returns None for non-Tuple aggregates)
 
 ### Roadmap Evolution
 
@@ -164,13 +167,14 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 28-05-PLAN.md — VCGEN-04 trait bound premises; all 10 vcgen_completeness28 tests GREEN (b5de0a6)
+Stopped at: Completed 29-01-PLAN.md — MIRCONV-01 CastKind preservation + Phase 29 TDD scaffold (e00c3ee)
 Resume file: None
-Next step: Phase 28 complete — start next phase
+Next step: Phase 29 Plan 02 — Fix encode_float_to_int_cast to emit fp.to_sbv/fp.to_ubv (VCGEN-05)
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-24 after 29-01 — Phase 29 plan 1/5 complete (MIRCONV-01 CastKind fix + TDD scaffold)*
 *Last updated: 2026-02-24 after 28-05 — Phase 28 plan 5/5 complete (VCGEN-04 generic trait bound premises)*
 *Last updated: 2026-02-24 after 28-04 — Phase 28 plan 4/5 complete (BoundsCheck VCs + Rvalue::Len encoding)*
 *Last updated: 2026-02-24 after 28-03 — Phase 28 plan 3/5 complete (Rvalue::Discriminant implemented)*

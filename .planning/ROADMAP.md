@@ -311,7 +311,7 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 29-01-PLAN.md — TDD scaffold (10 RED tests) + MIRCONV-01: cast kind mapping in mir_converter.rs
+- [x] 29-01-PLAN.md — TDD scaffold (10 RED tests) + MIRCONV-01: cast kind mapping in mir_converter.rs
 - [ ] 29-02-PLAN.md — VCGEN-05: float-to-int SMT encoding fix (fp.to_sbv/fp.to_ubv with RTZ)
 - [ ] 29-03-PLAN.md — MIRCONV-02: aggregate Adt/Closure conversion + IR SetDiscriminant/Assume statements
 - [ ] 29-04-PLAN.md — MIRCONV-01 (TyKind::Param) + missing rvalue variants (CopyForDeref, AddressOf, Repeat, NullaryOp)
