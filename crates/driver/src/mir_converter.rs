@@ -285,13 +285,24 @@ fn convert_rvalue(rvalue: &mir::Rvalue<'_>) -> Option<ir::Rvalue> {
             Some(ir::Rvalue::Ref(mutability, convert_place(place)))
         }
 
-        mir::Rvalue::Cast(_, op, ty) => {
+        mir::Rvalue::Cast(kind, op, ty) => {
             let ir_ty = convert_ty(*ty);
-            Some(ir::Rvalue::Cast(
-                ir::CastKind::IntToInt,
-                convert_operand(op),
-                ir_ty,
-            ))
+            let ir_kind = match kind {
+                mir::CastKind::IntToInt => ir::CastKind::IntToInt,
+                mir::CastKind::FloatToInt => ir::CastKind::FloatToInt,
+                mir::CastKind::IntToFloat => ir::CastKind::IntToFloat,
+                mir::CastKind::FloatToFloat => ir::CastKind::FloatToFloat,
+                mir::CastKind::PtrToPtr
+                | mir::CastKind::FnPtrToPtr
+                | mir::CastKind::PointerCoercion(..)
+                | mir::CastKind::PointerExposeProvenance
+                | mir::CastKind::PointerWithExposedProvenance => ir::CastKind::Pointer,
+                // Transmute: same-size BV reinterpret — conservatively treat as IntToInt
+                mir::CastKind::Transmute => ir::CastKind::IntToInt,
+                // Subtype: identity coercion — no semantic change
+                mir::CastKind::Subtype => ir::CastKind::IntToInt,
+            };
+            Some(ir::Rvalue::Cast(ir_kind, convert_operand(op), ir_ty))
         }
 
         mir::Rvalue::Discriminant(place) => Some(ir::Rvalue::Discriminant(convert_place(place))),
