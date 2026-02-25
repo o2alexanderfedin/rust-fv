@@ -304,5 +304,17 @@ Plans:
 - [x] 28-04-PLAN.md — VCGEN-01: Array index bounds VCs and slice length encoding (Rvalue::Len)
 - [ ] 28-05-PLAN.md — VCGEN-04: Generic where-clause premises as SMT Assert (trait_bounds_as_smt_assumptions)
 
-</details>
+### Phase 29: to fix the identified gaps
+**Goal**: Fix all identified gaps in Rust → SMT-LIB/SMT-LIB2 VCGen coverage — soundness holes first (cast kind preservation, float-to-int SMT encoding), then coverage breadth (aggregates, missing rvalues, projected LHS mutation)
+**Requirements**: MIRCONV-01, MIRCONV-02, VCGEN-05, VCGEN-06
+**Depends on**: Phase 28
+**Plans**: 5 plans
 
+Plans:
+- [ ] 29-01-PLAN.md — TDD scaffold (10 RED tests) + MIRCONV-01: cast kind mapping in mir_converter.rs
+- [ ] 29-02-PLAN.md — VCGEN-05: float-to-int SMT encoding fix (fp.to_sbv/fp.to_ubv with RTZ)
+- [ ] 29-03-PLAN.md — MIRCONV-02: aggregate Adt/Closure conversion + IR SetDiscriminant/Assume statements
+- [ ] 29-04-PLAN.md — MIRCONV-01 (TyKind::Param) + missing rvalue variants (CopyForDeref, AddressOf, Repeat, NullaryOp)
+- [ ] 29-05-PLAN.md — VCGEN-06: projected LHS functional record update + Downcast type narrowing
+
+</details>
