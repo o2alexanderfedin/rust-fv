@@ -1511,6 +1511,35 @@ fn base_script(
     script
 }
 
+/// Encode an rvalue to a Term for use as the RHS of a functional record update.
+///
+/// This is similar to encode_assignment's rhs encoding but returns a Term, not a Command.
+/// Used when building `(mk-StructName new_field (StructName-other field base) ...)` terms.
+fn encode_rvalue_for_assignment(rvalue: &Rvalue, func: &Function, dest: &Place) -> Option<Term> {
+    match rvalue {
+        Rvalue::Use(op) => Some(encode_operand_for_vcgen(op, func)),
+        Rvalue::BinaryOp(op, lhs_op, rhs_op) => {
+            let l = encode_operand(lhs_op);
+            let r = encode_operand(rhs_op);
+            let ty = if op.is_comparison() {
+                infer_operand_type(func, lhs_op).or_else(|| infer_operand_type(func, rhs_op))?
+            } else {
+                infer_operand_type(func, lhs_op)
+                    .or_else(|| infer_operand_type(func, rhs_op))
+                    .or_else(|| find_local_type(func, &dest.local))?
+            };
+            Some(encode_binop(*op, &l, &r, ty))
+        }
+        Rvalue::UnaryOp(op, operand) => {
+            let t = encode_operand(operand);
+            let ty =
+                infer_operand_type(func, operand).or_else(|| find_local_type(func, &dest.local))?;
+            Some(encode_unop(*op, &t, ty))
+        }
+        _ => None, // Other rvalues not yet supported for functional update RHS
+    }
+}
+
 /// Encode an assignment as an SMT assertion.
 fn encode_assignment(
     place: &Place,
@@ -1520,11 +1549,39 @@ fn encode_assignment(
 ) -> Option<Command> {
     // Handle projected LHS (field access on left side)
     if !place.projections.is_empty() {
-        // For projected places, encode the LHS using type-aware projection
+        // Single-level Field projection: try functional record update for struct mutation.
+        // Supports: s.field_idx = new_val (most common case in safe Rust).
+        // Produces: (= s (mk-StructName new_field (StructName-other_field s) ...))
+        if place.projections.len() == 1
+            && let Projection::Field(field_idx) = &place.projections[0]
+            && let Some(base_ty) = find_local_type(func, &place.local)
+            && let Ty::Struct(name, fields) = base_ty
+        {
+            let new_val = encode_rvalue_for_assignment(rvalue, func, place)?;
+            let base_term = Term::Const(place.local.clone());
+            // Build functional update: (mk-Name f0 f1 ... new_val_at_idx ... fn)
+            // All fields must be provided in order to satisfy constructor arity.
+            let field_terms: Vec<Term> = fields
+                .iter()
+                .enumerate()
+                .map(|(i, (fname, _))| {
+                    if i == *field_idx {
+                        new_val.clone()
+                    } else {
+                        // Unchanged field: use selector (StructName-fieldName base)
+                        Term::App(format!("{name}-{fname}"), vec![base_term.clone()])
+                    }
+                })
+                .collect();
+            let updated = Term::App(format!("mk-{name}"), field_terms);
+            let lhs = Term::Const(place.local.clone());
+            return Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(updated))));
+        }
+        // Fallback: encode via type-aware place for Use rvalues only.
         let lhs = encode_place_with_type(place, func)?;
         let rhs = match rvalue {
             Rvalue::Use(op) => encode_operand_for_vcgen(op, func),
-            _ => return None, // Complex rvalues on projected places are rare
+            _ => return None, // Complex rvalues on projected places not yet supported
         };
         return Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))));
     }

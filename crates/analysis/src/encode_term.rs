@@ -4,6 +4,8 @@
 /// its exact semantics, including overflow and division-by-zero checks.
 use rust_fv_smtlib::term::Term;
 
+use std::borrow::Cow;
+
 use crate::ir::{
     AggregateKind, BinOp, CastKind, Constant, FloatTy, Function, IntTy, Operand, Place, Projection,
     Ty, UintTy, UnOp,
@@ -62,30 +64,48 @@ pub fn encode_place_with_type(place: &Place, func: &Function) -> Option<Term> {
     }
 
     let mut current = Term::Const(place.local.clone());
-    let mut current_ty = find_local_type(func, &place.local)?;
+    // Use Cow to allow both borrowed references (common case) and owned values
+    // (needed for Downcast which synthesises a variant-struct type on the fly).
+    let mut current_ty: Cow<'_, Ty> = Cow::Borrowed(find_local_type(func, &place.local)?);
 
     for proj in &place.projections {
         match proj {
             Projection::Field(idx) => {
-                current = encode_field_access(current, current_ty, *idx)?;
+                current = encode_field_access(current, &current_ty, *idx)?;
                 // Update current_ty to the field's type
-                current_ty = get_field_type(current_ty, *idx)?;
+                current_ty = Cow::Owned(get_field_type(&current_ty, *idx)?.clone());
             }
             Projection::Index(idx_local) => {
                 let index_term = Term::Const(idx_local.clone());
                 current = Term::Select(Box::new(current), Box::new(index_term));
                 // Update current_ty to the element type
-                current_ty = get_element_type(current_ty)?;
+                current_ty = Cow::Owned(get_element_type(&current_ty)?.clone());
             }
             Projection::Deref => {
-                // References are transparent
-                if let Ty::Ref(inner, _) = current_ty {
-                    current_ty = inner;
+                // References are transparent — peel off the Box<Ty>
+                if let Ty::Ref(inner, _) = current_ty.as_ref() {
+                    current_ty = Cow::Owned((**inner).clone());
                 }
             }
-            Projection::Downcast(_variant_idx) => {
-                // Enum downcast is handled during pattern matching
-                // The type doesn't change here
+            Projection::Downcast(variant_idx) => {
+                // Narrow the current type to the specific enum variant's type.
+                // This allows the subsequent Field projection to access variant-specific fields.
+                if let Ty::Enum(_enum_name, variants) = current_ty.as_ref()
+                    && let Some((variant_name, variant_fields)) = variants.get(*variant_idx)
+                {
+                    // Create an ad-hoc Struct type for this variant's fields
+                    // so that the next Field projection can use encode_field_access.
+                    let variant_struct_ty = Ty::Struct(
+                        variant_name.clone(),
+                        variant_fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, ty)| (format!("f{i}"), ty.clone()))
+                            .collect(),
+                    );
+                    current_ty = Cow::Owned(variant_struct_ty);
+                }
+                // current_term stays the same — the enum value holds the fields
             }
         }
     }
