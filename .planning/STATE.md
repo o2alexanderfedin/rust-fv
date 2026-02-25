@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (3/5 plans done).
+**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (4/5 plans done).
 
 ## Current Position
 
 Phase: 29 (Fix identified SMT VCGen coverage gaps)
-Plan: 3 complete (5 plans total, 5 waves)
-Status: Phase 29 Plan 03 Done — MIRCONV-02 Aggregate conversion (Adt/Closure) + ir::Statement::SetDiscriminant/Assume variants
-Last activity: 2026-02-25 — Plan 29-03 complete (Aggregate arm extended; SetDiscriminant/Assume IR variants added)
+Plan: 4 complete (5 plans total, 5 waves)
+Status: Phase 29 Plan 04 Done — TyKind::Param→Generic fix + Rvalue::Repeat IR variant + CopyForDeref/RawPtr/Repeat converter arms
+Last activity: 2026-02-24 — Plan 29-04 complete (TyKind::Param fix; ir::Rvalue::Repeat; CopyForDeref/RawPtr/Repeat in mir_converter)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -68,6 +68,7 @@ Progress: [█████████████████████░░
 | Phase 28 P05 | 567 | 2 tasks | 4 files |
 | Phase 29 P01 | 342 | 2 tasks | 2 files |
 | Phase 29 P02 | 780 | 1 tasks | 3 files |
+| Phase 29 P04 | 648 | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,8 @@ Recent decisions relevant to v0.4:
 - [Phase 29-03]: NonDivergingIntrinsic is Box-wrapped in StatementKind::Intrinsic; pattern requires `box` binding
 - [Phase 29-03]: SetDiscriminant and Assume are no-ops in vcgen for now (VCGen encoding deferred to Plan 05); new variants covered by if-let patterns
 - [Phase 29]: encode_cast adds to_signed: bool parameter for FloatToInt; RTZ rounding matches Rust truncation semantics; fp.to_sbv/fp.to_ubv replaces type-erroneous Term::Extract on Float sort
+- [Phase 29]: NullaryOp removed from nightly-2026-02-11 MIR; AddressOf renamed to RawPtr(RawPtrKind, Place)
+- [Phase 29]: Repeat count extracted via debug-format string parsing for nightly Const API robustness
 
 ### Roadmap Evolution
 
@@ -171,14 +174,15 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 29-03-PLAN.md — MIRCONV-02 Aggregate conversion + SetDiscriminant/Assume IR variants (65b7368)
+Last session: 2026-02-24
+Stopped at: Completed 29-04-PLAN.md — TyKind::Param fix + CopyForDeref/RawPtr/Repeat converter arms (f1abab0)
 Resume file: None
-Next step: Phase 29 Plan 04 — VCGEN-06 SetDiscriminant SMT assertion encoding
+Next step: Phase 29 Plan 05 — VCGEN-06 SetDiscriminant SMT assertion encoding + projected LHS functional update
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-24 after 29-04 — Phase 29 plan 4/5 complete (TyKind::Param→Generic; Rvalue::Repeat; CopyForDeref/RawPtr/Repeat)*
 *Last updated: 2026-02-25 after 29-03 — Phase 29 plan 3/5 complete (MIRCONV-02 Aggregate + SetDiscriminant/Assume IR variants)*
 *Last updated: 2026-02-25 after 29-02 — Phase 29 plan 2/5 complete (VCGEN-05 fp.to_sbv/fp.to_ubv float-to-int fix)*
 *Last updated: 2026-02-24 after 29-01 — Phase 29 plan 1/5 complete (MIRCONV-01 CastKind fix + TDD scaffold)*
