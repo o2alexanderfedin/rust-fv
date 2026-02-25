@@ -33,6 +33,31 @@ VCGen must produce correct SMT VCs for generic functions and types:
 - Monomorphization: each instantiation generates separate VCs — DONE (generate_vcs_monomorphized)
 - Trait bound encoding as uninterpreted sort constraints — DONE (BoolLit(true) per bound, Z3 no-op)
 
+## Phase 29: MIR Converter + VCGen Soundness Fixes
+
+### MIRCONV-01: Cast Kind Preservation [Phase 29]
+MIR converter must preserve all Rustc CastKind variants through MIR → IR conversion:
+- FloatToInt, IntToFloat, FloatToFloat cast kinds mapped correctly (not collapsed to IntToInt)
+- TyKind::Param maps to ir::Ty::Generic (not ir::Ty::Named) — preserves generic identity
+- Missing rvalue variants wired: CopyForDeref, AddressOf, Repeat, NullaryOp
+
+### MIRCONV-02: Aggregate Conversion [Phase 29]
+Struct, enum, and closure aggregate construction must be converted rather than silently dropped:
+- AggregateKind::Adt (struct/enum) wired to ir::AggregateKind::Struct/Enum
+- AggregateKind::Closure wired to ir::AggregateKind::Closure
+- StatementKind::SetDiscriminant and Assume converted to ir::Statement variants
+
+### VCGEN-05: Float-to-Int SMT Encoding [Phase 29]
+Float-to-integer casts must use type-correct SMT-LIB2 encoding:
+- Signed float-to-int: `((_ fp.to_sbv N) RTZ src)` — not `((_ extract N-1 0) src)`
+- Unsigned float-to-int: `((_ fp.to_ubv N) RTZ src)`
+- RTZ (round toward zero) rounding mode per IEEE 754 truncation semantics
+
+### VCGEN-06: Projected LHS Mutation [Phase 29]
+Struct field mutation (`s.x = expr`) must generate VCs via functional record update:
+- Projected LHS with non-Use rvalue produces `(assert (= s (mk-StructName new_x (Struct-y s))))`
+- Downcast projections narrow enum type to variant-specific selector functions
+
 ## Out of Scope (v0.5)
 
 - Async closures (Rust 2024 edition) — deferred to v0.6

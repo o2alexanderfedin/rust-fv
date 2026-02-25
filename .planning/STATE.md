@@ -144,6 +144,10 @@ Recent decisions relevant to v0.4:
 - [Phase 28]: trait_bounds_as_smt_assumptions emits BoolLit(true) per bound — sound (no false premises), documents contract, Z3 ignores harmlessly
 - [Phase 28]: Trait bound premises injected in generate_vcs_with_db (not generate_vcs_monomorphized) — covers both parametric and concrete instantiation paths
 
+### Roadmap Evolution
+
+- Phase 29 added: to fix the identified gaps
+
 ### Pending Todos
 
 0 pending.
