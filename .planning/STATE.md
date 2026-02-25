@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (4/5 plans done).
+**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — COMPLETE (5/5 plans done).
 
 ## Current Position
 
-Phase: 29 (Fix identified SMT VCGen coverage gaps)
-Plan: 4 complete (5 plans total, 5 waves)
-Status: Phase 29 Plan 04 Done — TyKind::Param→Generic fix + Rvalue::Repeat IR variant + CopyForDeref/RawPtr/Repeat converter arms
-Last activity: 2026-02-24 — Plan 29-04 complete (TyKind::Param fix; ir::Rvalue::Repeat; CopyForDeref/RawPtr/Repeat in mir_converter)
+Phase: 29 (Fix identified SMT VCGen coverage gaps) — COMPLETE
+Plan: 5 complete (5 plans total, 5 waves)
+Status: Phase 29 COMPLETE — MIRCONV-01/02 + VCGEN-05/06 all satisfied
+Last activity: 2026-02-24 — Plan 29-05 complete (VCGEN-06 projected LHS functional record update + Downcast type narrowing)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -69,6 +69,7 @@ Progress: [█████████████████████░░
 | Phase 29 P01 | 342 | 2 tasks | 2 files |
 | Phase 29 P02 | 780 | 1 tasks | 3 files |
 | Phase 29 P04 | 648 | 1 tasks | 4 files |
+| Phase 29 P05 | 250 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,8 @@ Recent decisions relevant to v0.4:
 - [Phase 29]: encode_cast adds to_signed: bool parameter for FloatToInt; RTZ rounding matches Rust truncation semantics; fp.to_sbv/fp.to_ubv replaces type-erroneous Term::Extract on Float sort
 - [Phase 29]: NullaryOp removed from nightly-2026-02-11 MIR; AddressOf renamed to RawPtr(RawPtrKind, Place)
 - [Phase 29]: Repeat count extracted via debug-format string parsing for nightly Const API robustness
+- [Phase 29]: Cow<Ty> used in encode_place_with_type so Downcast can produce an owned variant-struct Ty alongside borrowed Tys from find_local_type
+- [Phase 29]: Functional update mk-StructName emits ALL fields in order — changed field gets new_val, others get selector(base) — correct constructor arity guaranteed by construction
 
 ### Roadmap Evolution
 
@@ -175,13 +178,14 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 29-04-PLAN.md — TyKind::Param fix + CopyForDeref/RawPtr/Repeat converter arms (f1abab0)
+Stopped at: Completed 29-05-PLAN.md — VCGEN-06 projected LHS functional record update + Downcast type narrowing (77aba84)
 Resume file: None
-Next step: Phase 29 Plan 05 — VCGEN-06 SetDiscriminant SMT assertion encoding + projected LHS functional update
+Next step: Phase 29 COMPLETE — proceed to next phase
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-24 after 29-05 — Phase 29 COMPLETE (5/5 plans done; MIRCONV-01/02 + VCGEN-05/06 all satisfied)*
 *Last updated: 2026-02-24 after 29-04 — Phase 29 plan 4/5 complete (TyKind::Param→Generic; Rvalue::Repeat; CopyForDeref/RawPtr/Repeat)*
 *Last updated: 2026-02-25 after 29-03 — Phase 29 plan 3/5 complete (MIRCONV-02 Aggregate + SetDiscriminant/Assume IR variants)*
 *Last updated: 2026-02-25 after 29-02 — Phase 29 plan 2/5 complete (VCGEN-05 fp.to_sbv/fp.to_ubv float-to-int fix)*
