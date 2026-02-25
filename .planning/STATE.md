@@ -6,14 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (1/5 plans done).
+**Current focus:** v0.5 SMT Completeness — Phase 29 (Fix Identified Gaps) — In progress (2/5 plans done).
 
 ## Current Position
 
 Phase: 29 (Fix identified SMT VCGen coverage gaps)
-Plan: 1 complete (5 plans total, 5 waves)
-Status: Phase 29 Plan 01 Done — MIRCONV-01 CastKind preservation; 10 RED tests scaffolded; vcgen_completeness29 RED baseline established
-Last activity: 2026-02-24 — Plan 29-01 complete (CastKind exhaustive match in mir_converter + 10 TDD tests)
+Plan: 2 complete (5 plans total, 5 waves)
+Status: Phase 29 Plan 02 Done — VCGEN-05 float-to-int fp.to_sbv/fp.to_ubv encoding; soundness hole eliminated; vcgen_05 + mirconv_01 tests GREEN
+Last activity: 2026-02-25 — Plan 29-02 complete (float-to-int cast uses fp.to_sbv/fp.to_ubv with RTZ rounding)
 
 Progress: [█████████████████████░░░] 91% (20/25 phases complete, Phases 24-25 pending)
 
@@ -67,6 +67,7 @@ Progress: [█████████████████████░░
 | Phase 28 P04 | 444 | 2 tasks | 2 files |
 | Phase 28 P05 | 567 | 2 tasks | 4 files |
 | Phase 29 P01 | 342 | 2 tasks | 2 files |
+| Phase 29 P02 | 780 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,7 @@ Recent decisions relevant to v0.4:
 - [Phase 28]: Trait bound premises injected in generate_vcs_with_db (not generate_vcs_monomorphized) — covers both parametric and concrete instantiation paths
 - [Phase 29-01]: CastKind fix uses exhaustive match (no wildcard) so compiler enforces completeness on MIR API changes
 - [Phase 29-01]: mirconv_02 aggregate tests are GREEN as regression guards — vcgen already handles Struct/Enum aggregates at IR level; the MIRCONV-02 gap is only in mir_converter.rs (returns None for non-Tuple aggregates)
+- [Phase 29]: encode_cast adds to_signed: bool parameter for FloatToInt; RTZ rounding matches Rust truncation semantics; fp.to_sbv/fp.to_ubv replaces type-erroneous Term::Extract on Float sort
 
 ### Roadmap Evolution
 
@@ -166,14 +168,15 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 29-01-PLAN.md — MIRCONV-01 CastKind preservation + Phase 29 TDD scaffold (e00c3ee)
+Last session: 2026-02-25
+Stopped at: Completed 29-02-PLAN.md — VCGEN-05 fp.to_sbv/fp.to_ubv float-to-int encoding fix (9bd0740)
 Resume file: None
-Next step: Phase 29 Plan 02 — Fix encode_float_to_int_cast to emit fp.to_sbv/fp.to_ubv (VCGEN-05)
+Next step: Phase 29 Plan 03 — MIRCONV-02 aggregate conversion (struct/enum aggregates in mir_converter)
 
 ---
 
 *State initialized: 2026-02-14*
+*Last updated: 2026-02-25 after 29-02 — Phase 29 plan 2/5 complete (VCGEN-05 fp.to_sbv/fp.to_ubv float-to-int fix)*
 *Last updated: 2026-02-24 after 29-01 — Phase 29 plan 1/5 complete (MIRCONV-01 CastKind fix + TDD scaffold)*
 *Last updated: 2026-02-24 after 28-05 — Phase 28 plan 5/5 complete (VCGEN-04 generic trait bound premises)*
 *Last updated: 2026-02-24 after 28-04 — Phase 28 plan 4/5 complete (BoundsCheck VCs + Rvalue::Len encoding)*

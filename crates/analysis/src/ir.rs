@@ -567,6 +567,11 @@ pub enum Statement {
     Assign(Place, Rvalue),
     /// No-op (padding, debug info, etc.)
     Nop,
+    /// Set enum variant discriminant (tag). Used in optimized MIR when the tag is
+    /// written separately from field construction.
+    SetDiscriminant(Place, usize),
+    /// Inject an assumption premise (from core::intrinsics::assume).
+    Assume(Operand),
 }
 
 /// A MIR terminator — ends a basic block.
