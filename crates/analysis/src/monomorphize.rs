@@ -140,6 +140,8 @@ fn substitute_statement(stmt: &Statement, subs: &HashMap<String, Ty>) -> Stateme
             Statement::Assign(place.clone(), substitute_rvalue(rvalue, subs))
         }
         Statement::Nop => Statement::Nop,
+        Statement::SetDiscriminant(place, idx) => Statement::SetDiscriminant(place.clone(), *idx),
+        Statement::Assume(op) => Statement::Assume(op.clone()),
     }
 }
 

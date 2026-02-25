@@ -181,6 +181,16 @@ fn convert_statement(stmt: &mir::Statement<'_>) -> Option<ir::Statement> {
             let ir_rvalue = convert_rvalue(rvalue)?;
             Some(ir::Statement::Assign(ir_place, ir_rvalue))
         }
+        mir::StatementKind::SetDiscriminant {
+            place,
+            variant_index,
+        } => Some(ir::Statement::SetDiscriminant(
+            convert_place(place),
+            variant_index.as_usize(),
+        )),
+        mir::StatementKind::Intrinsic(box mir::NonDivergingIntrinsic::Assume(op)) => {
+            Some(ir::Statement::Assume(convert_operand(op)))
+        }
         // Skip storage, retag, coverage, etc.
         _ => None,
     }
@@ -307,13 +317,26 @@ fn convert_rvalue(rvalue: &mir::Rvalue<'_>) -> Option<ir::Rvalue> {
 
         mir::Rvalue::Discriminant(place) => Some(ir::Rvalue::Discriminant(convert_place(place))),
 
-        // Aggregate (tuples, structs, enums)
+        // Aggregate (tuples, structs, enums, closures)
         mir::Rvalue::Aggregate(box kind, operands) => {
+            let ir_ops: Vec<ir::Operand> = operands.iter().map(|op| convert_operand(op)).collect();
             let ir_kind = match kind {
                 mir::AggregateKind::Tuple => ir::AggregateKind::Tuple,
-                _ => return None, // Skip complex aggregates for Phase 1
+                mir::AggregateKind::Adt(def_id, variant_idx, _, _, _) => {
+                    // Use debug format for name — adequate for VCGen constructor matching.
+                    // AggregateKind::Adt is used for BOTH structs (variant_idx=0) and enums.
+                    // The IR Enum variant handles both cases; VCGen uses the variant index.
+                    let name = format!("{def_id:?}");
+                    ir::AggregateKind::Enum(name, variant_idx.as_usize())
+                }
+                mir::AggregateKind::Closure(def_id, _) => {
+                    ir::AggregateKind::Closure(format!("{def_id:?}"))
+                }
+                // Coroutine aggregates are handled by async_vcgen — skip here.
+                mir::AggregateKind::Coroutine(..) => return None,
+                // CoroutineClosure and RawPtr may exist in nightly — skip if present.
+                _ => return None,
             };
-            let ir_ops: Vec<ir::Operand> = operands.iter().map(|op| convert_operand(op)).collect();
             Some(ir::Rvalue::Aggregate(ir_kind, ir_ops))
         }
 

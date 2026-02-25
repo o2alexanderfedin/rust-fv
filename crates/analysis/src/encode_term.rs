@@ -701,11 +701,12 @@ pub fn encode_cast(
     from_bits: u32,
     to_bits: u32,
     from_signed: bool,
+    to_signed: bool, // signedness of target type (needed for FloatToInt)
 ) -> Term {
     match kind {
         CastKind::IntToInt => encode_int_to_int_cast(src, from_bits, to_bits, from_signed),
         CastKind::IntToFloat => encode_int_to_float_cast(src, from_bits, to_bits, from_signed),
-        CastKind::FloatToInt => encode_float_to_int_cast(src, from_bits, to_bits),
+        CastKind::FloatToInt => encode_float_to_int_cast(src, from_bits, to_bits, to_signed),
         CastKind::FloatToFloat => encode_float_to_float_cast(src, from_bits, to_bits),
         // Pointer casts: identity on bitvector (pointer is BitVec 64)
         CastKind::Pointer => src,
@@ -748,12 +749,18 @@ fn encode_int_to_float_cast(src: Term, from_bits: u32, to_bits: u32, from_signed
     )
 }
 
-/// Float-to-integer cast: extract lower bits from the float bitvector.
+/// Float-to-integer cast using SMT-LIB2 FPA theory.
 ///
-/// Conservative approximation: model as extraction of the lower to_bits.
-/// TODO Phase 29: proper round-to-zero conversion.
-fn encode_float_to_int_cast(src: Term, _from_bits: u32, to_bits: u32) -> Term {
-    Term::Extract(to_bits - 1, 0, Box::new(src))
+/// Uses `((_ fp.to_sbv N) RTZ src)` for signed targets and
+/// `((_ fp.to_ubv N) RTZ src)` for unsigned targets.
+/// RTZ = Round Toward Zero, matching Rust's float-as-integer truncation semantics.
+fn encode_float_to_int_cast(src: Term, _from_bits: u32, to_bits: u32, to_signed: bool) -> Term {
+    let op_name = if to_signed {
+        format!("(_ fp.to_sbv {to_bits})")
+    } else {
+        format!("(_ fp.to_ubv {to_bits})")
+    };
+    Term::App(op_name, vec![Term::RoundingMode("RTZ".to_string()), src])
 }
 
 /// Float-to-float cast (f32 <-> f64): identity for same size, FpFromBits after adjustment otherwise.

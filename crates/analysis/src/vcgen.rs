@@ -1575,7 +1575,8 @@ fn encode_assignment(
             let from_bits = crate::encode_term::ty_bit_width(source_ty);
             let to_bits = crate::encode_term::ty_bit_width(target_ty);
             let from_signed = crate::encode_term::ty_is_signed(source_ty);
-            crate::encode_term::encode_cast(kind, src, from_bits, to_bits, from_signed)
+            let to_signed = crate::encode_term::ty_is_signed(target_ty);
+            crate::encode_term::encode_cast(kind, src, from_bits, to_bits, from_signed, to_signed)
         }
         Rvalue::Aggregate(kind, operands) => {
             let result_ty = find_local_type(func, &place.local);
