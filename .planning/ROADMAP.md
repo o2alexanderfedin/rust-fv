@@ -283,6 +283,7 @@ Plans:
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
 | 28-29. SMT Completeness Phases | v0.5 | 10/10 | Complete | 2026-02-24 |
+| 00. v0.4+v0.5 Milestone UAT | Cross-milestone | 0/1 | In Progress | — |
 
 <details>
 <summary>✅ v0.5 SMT Completeness (Phases 28-29) — SHIPPED 2026-02-24</summary>
@@ -312,3 +313,11 @@ Plans:
 - [x] 29-05: VCGEN-06: projected LHS functional record update + Downcast narrowing
 
 </details>
+
+### Phase 00: v0.4+v0.5 Milestone UAT
+**Goal**: Combined UAT document validating v0.4 (phases 19-27) and v0.5 (phases 28-29) deliverables end-to-end
+**Requirements**: UAT-01
+**Plans**: 1 plan
+
+Plans:
+- [ ] 00-01-PLAN.md — Author and execute v0.4-v0.5-UAT.md (22 test items covering phases 19-29)
