@@ -69,6 +69,7 @@ Progress: [████████████████████] 92/92 p
 | Phase 29 P02 | 780 | 1 tasks | 3 files |
 | Phase 29 P04 | 648 | 1 tasks | 4 files |
 | Phase 29 P05 | 250 | 1 tasks | 2 files |
+| Phase 00-milestone-uat P01 | 19 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -156,6 +157,7 @@ Recent decisions relevant to v0.4:
 - [Phase 29]: Repeat count extracted via debug-format string parsing for nightly Const API robustness
 - [Phase 29]: Cow<Ty> used in encode_place_with_type so Downcast can produce an owned variant-struct Ty alongside borrowed Tys from find_local_type
 - [Phase 29]: Functional update mk-StructName emits ALL fields in order — changed field gets new_val, others get selector(base) — correct constructor arity guaranteed by construction
+- [Phase 00-milestone-uat]: Used integration test file filters for mirconv/vcgen_06 tests (vcgen_completeness29) rather than lib binary filters which match 0; npx tsc --noEmit exits 0 confirming Phase 25 TypeScript integration is type-safe
 
 ### Roadmap Evolution
 

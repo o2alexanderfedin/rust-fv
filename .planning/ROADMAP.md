@@ -283,7 +283,7 @@ Plans:
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
 | 28-29. SMT Completeness Phases | v0.5 | 10/10 | Complete | 2026-02-24 |
-| 00. v0.4+v0.5 Milestone UAT | Cross-milestone | 0/1 | In Progress | — |
+| 00. v0.4+v0.5 Milestone UAT | 1/1 | Complete   | 2026-02-25 | — |
 
 <details>
 <summary>✅ v0.5 SMT Completeness (Phases 28-29) — SHIPPED 2026-02-24</summary>
