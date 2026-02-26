@@ -314,6 +314,48 @@ Plans:
 
 </details>
 
+### Phase 29.4: Stdlib Contracts Option Doc Test Fixes (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 29.4 to break down)
+
+### Phase 29.3: Borrow Conflict Detection Implementation (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 29.3 to break down)
+
+### Phase 29.2: Prophecy Encoding for Mutable Reference Assignments (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 29.2 to break down)
+
+### Phase 29.1: For-loop Iterator Range VCGen (INSERTED)
+
+**Goal:** Add VCGen support for for-loops over ranges and iterators — AUFLIA quantified VCs + QF_LIA bounded unrolling VCs + MIR pattern detection
+**Requirements**: VCGEN-01-FORLOOP
+**Depends on:** Phase 29
+**Plans:** 3 plans
+
+Plans:
+- [ ] 29.1-01-PLAN.md — TDD scaffold: 8 RED tests + IteratorKind IR extension
+- [ ] 29.1-02-PLAN.md — for_loop_vcgen.rs module + wiring into generate_vcs_with_db (8 tests GREEN)
+- [ ] 29.1-03-PLAN.md — MIR for-loop pattern detection + test 09 integration test
+
 ### Phase 00: v0.4+v0.5 Milestone UAT ✅
 **Goal**: Combined UAT document validating v0.4 (phases 19-27) and v0.5 (phases 28-29) deliverables end-to-end
 **Requirements**: UAT-01
