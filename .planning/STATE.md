@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T21:06:18.715Z"
+last_updated: "2026-02-26T21:13:14.256Z"
 progress:
   total_phases: 37
   completed_phases: 35
   total_plans: 105
-  completed_plans: 103
+  completed_plans: 104
 ---
 
 # Project State
@@ -93,6 +93,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 30 P02 | 87 | 1 tasks | 1 files |
 | Phase 30 P03 | 102 | 1 tasks | 1 files |
 | Phase 31-z3-bv2int-fix-ghost-locals P01 | 160 | 1 tasks | 1 files |
+| Phase 31 P02 | 288 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -195,6 +196,8 @@ Recent decisions relevant to v0.4:
 - [Phase 30]: Test already fully GREEN from plan 30-02; plan 03 only needed module doc update to finalize VCGEN-06 closure
 - [Phase 31-01]: Ghost test uses ensures:true to force VC generation — without contracts 0 VCs are emitted and ghost leak is unobservable; tautological postcondition is the minimal fix
 - [Phase 31-01]: Phase-04-ghost: RED test uses full Function struct literal (not make_func helper) and ensures:true to expose __ghost_x leak in SMT assert and declare-const output
+- [Phase 31-02]: Extended uses_spec_int_types() with substring scan over spec expressions (contains 'as int' / 'as nat') — minimal change enabling ALL logic for common BV-typed functions with integer-cast specs
+- [Phase 31-02]: Used ..Default::default() for Contracts missing fields; explicit field list for Function (no Default derive) — matches make_add_function() helper pattern
 
 ### Roadmap Evolution
 
