@@ -321,6 +321,10 @@ pub fn generate_vcs_with_db(
     let mut index_vcs = generate_index_bounds_vcs(func, &datatype_declarations, &declarations);
     conditions.append(&mut index_vcs);
 
+    // Generate discriminant assertion VCs for SetDiscriminant statements (VCGEN-06).
+    let mut disc_vcs = generate_set_discriminant_vcs(func, &datatype_declarations, &declarations);
+    conditions.append(&mut disc_vcs);
+
     // Generate contract verification conditions (postconditions)
     // When contract_db is provided, callee postconditions are assumed during
     // the caller's postcondition check.
@@ -1432,6 +1436,70 @@ fn generate_index_bounds_vcs(
                             idx_local, idx_local, arr_local
                         )),
                         vc_kind: VcKind::MemorySafety,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Generate discriminant assertion VCs for SetDiscriminant statements (VCGEN-06).
+///
+/// For each `Statement::SetDiscriminant(place, variant_idx)`, emits one assertion VC:
+/// `discriminant-{place.local}(place.local) == variant_idx`
+///
+/// The discriminant function name matches the `Rvalue::Discriminant` encoding in
+/// `encode_rvalue` to ensure SMT consistency.
+fn generate_set_discriminant_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
+            if let Statement::SetDiscriminant(place, variant_idx) = stmt {
+                // Use the same naming convention as Rvalue::Discriminant
+                let disc_fn = format!("discriminant-{}", place.local);
+                let disc_term = Term::App(disc_fn, vec![Term::Const(place.local.clone())]);
+                let idx_term = Term::IntLit(*variant_idx as i128);
+                let assertion = Term::Eq(Box::new(disc_term), Box::new(idx_term));
+
+                // base_script selects: QF_BV (no datatypes), QF_UFBVDT (datatypes), ALL (spec-int)
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
+
+                let desc = format!(
+                    "{}: discriminant({}) == {} at block {}",
+                    func.name, place.local, variant_idx, block_idx
+                );
+                script.push(Command::Comment(desc.clone()));
+                // Negate assertion: UNSAT proves discriminant is set correctly
+                script.push(Command::Assert(Term::Not(Box::new(assertion))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                vcs.push(VerificationCondition {
+                    description: desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: stmt_idx,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "discriminant({}) == {}",
+                            place.local, variant_idx
+                        )),
+                        vc_kind: VcKind::Assertion,
                     },
                 });
             }
