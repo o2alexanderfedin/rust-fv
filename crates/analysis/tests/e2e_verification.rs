@@ -2762,7 +2762,6 @@ fn test_prophecy_conditional_mutation() {
 /// infrastructure (ProphecyInfo, detect_prophecies, spec parser extensions) is
 /// in place for future refinement.
 #[test]
-#[ignore] // TODO: Fix prophecy encoding for mutable reference assignments
 fn test_prophecy_basic() {
     let func = Function {
         name: "test_prophecy".to_string(),

@@ -2010,7 +2010,8 @@ fn generate_contract_vcs(
         }
 
         // Negate postcondition and check if SAT (= postcondition violated)
-        if let Some(post_term) = parse_spec(&post.raw, func, ghost_pred_db) {
+        // Use parse_spec_postcondition so that *_1 in ensures resolves to _1_prophecy
+        if let Some(post_term) = parse_spec_postcondition(&post.raw, func, ghost_pred_db) {
             script.push(Command::Comment(format!(
                 "Check postcondition: {}",
                 post.raw
@@ -3413,6 +3414,31 @@ fn parse_spec(spec: &str, func: &Function, ghost_pred_db: &GhostPredicateDatabas
             );
             // TODO: In a full implementation, we'd propagate this error to the driver
             // for proper diagnostic formatting. For now, we log and fail parsing.
+            None
+        }
+    }
+}
+
+/// Parse a specification expression for use in postcondition (ensures) VCs.
+///
+/// Uses postcondition-aware deref resolution: `*_1` → `_1_prophecy` for mutable
+/// reference params, while `old(*_1)` still resolves to `_1_initial`.
+fn parse_spec_postcondition(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let term = spec_parser::parse_spec_expr_postcondition_with_db(spec, func, ghost_pred_db)
+        .or_else(|| parse_simple_spec(spec, func))?;
+
+    match crate::encode_quantifier::annotate_quantifier(term) {
+        Ok(annotated_term) => Some(annotated_term),
+        Err(trigger_error) => {
+            tracing::error!(
+                "Trigger validation failed in function {}: {:?}",
+                func.name,
+                trigger_error
+            );
             None
         }
     }

@@ -51,6 +51,36 @@ pub fn parse_spec_expr_with_db(
     parse_spec_expr_with_depth(spec, func, ghost_pred_db, GHOST_PRED_EXPAND_DEPTH)
 }
 
+/// Parse a specification expression in postcondition (ensures) context.
+///
+/// Identical to `parse_spec_expr_with_db` except that dereferences of mutable
+/// reference parameters (`*_1`) resolve to the prophecy variable (`_1_prophecy`)
+/// instead of the current value (`_1`). This is correct for `ensures` clauses where
+/// `*_1` refers to the final (post-return) value of the mutable reference.
+///
+/// `old(*_1)` inside a postcondition still resolves to `_1_initial` — `old()` always wins.
+pub fn parse_spec_expr_postcondition_with_db(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+    let expr: Expr = syn::parse_str(spec).ok()?;
+    convert_expr_with_db(
+        &expr,
+        func,
+        false, // in_old
+        true,  // in_postcondition — key difference: *_1 → _1_prophecy
+        false, // in_int_mode
+        &[],   // bound_vars
+        ghost_pred_db,
+        GHOST_PRED_EXPAND_DEPTH,
+    )
+}
+
 /// Parse a specification expression using integer arithmetic (QF_LIA-compatible).
 ///
 /// Same as `parse_spec_expr_with_db` but forces `in_int_mode: true` so that all
@@ -73,6 +103,7 @@ pub fn parse_spec_expr_qf_lia(
         &expr,
         func,
         false, // in_old
+        false, // in_postcondition
         true,  // in_int_mode — force QF_LIA-compatible integer encoding
         &[],   // bound_vars
         ghost_pred_db,
@@ -95,7 +126,7 @@ fn parse_spec_expr_with_depth(
     // Parse the spec string as a Rust expression via syn
     let expr: Expr = syn::parse_str(spec).ok()?;
 
-    convert_expr_with_db(&expr, func, false, false, &[], ghost_pred_db, depth)
+    convert_expr_with_db(&expr, func, false, false, false, &[], ghost_pred_db, depth)
 }
 
 /// Parse a specification expression with quantifier-bound variables support.
@@ -104,6 +135,7 @@ fn convert_expr_with_bounds(
     expr: &Expr,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
@@ -112,6 +144,7 @@ fn convert_expr_with_bounds(
         expr,
         func,
         in_old,
+        in_postcondition,
         in_int_mode,
         bound_vars,
         &ghost_db,
@@ -129,6 +162,7 @@ fn convert_expr_with_db(
     expr: &Expr,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
     ghost_pred_db: &GhostPredicateDatabase,
@@ -151,6 +185,7 @@ fn convert_expr_with_db(
                     &bin_expr.left,
                     func,
                     in_old,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                     ghost_pred_db,
@@ -160,6 +195,7 @@ fn convert_expr_with_db(
                     &bin_expr.right,
                     func,
                     in_old,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                     ghost_pred_db,
@@ -174,6 +210,7 @@ fn convert_expr_with_db(
                 &bin_expr.left,
                 func,
                 in_old,
+                in_postcondition,
                 in_int_mode,
                 bound_vars,
                 ghost_pred_db,
@@ -183,6 +220,7 @@ fn convert_expr_with_db(
                 &bin_expr.right,
                 func,
                 in_old,
+                in_postcondition,
                 in_int_mode,
                 bound_vars,
                 ghost_pred_db,
@@ -194,12 +232,13 @@ fn convert_expr_with_db(
         Expr::Unary(unary_expr) => {
             // Handle dereference operator specially for prophecy variables
             if matches!(unary_expr.op, SynUnOp::Deref(_)) {
-                return convert_deref(&unary_expr.expr, func, in_old, bound_vars);
+                return convert_deref(&unary_expr.expr, func, in_old, in_postcondition, bound_vars);
             }
             let inner = convert_expr_with_db(
                 &unary_expr.expr,
                 func,
                 in_old,
+                in_postcondition,
                 in_int_mode,
                 bound_vars,
                 ghost_pred_db,
@@ -212,6 +251,7 @@ fn convert_expr_with_db(
             &paren_expr.expr,
             func,
             in_old,
+            in_postcondition,
             in_int_mode,
             bound_vars,
             ghost_pred_db,
@@ -224,6 +264,7 @@ fn convert_expr_with_db(
             call_expr,
             func,
             in_old,
+            in_postcondition,
             in_int_mode,
             bound_vars,
             ghost_pred_db,
@@ -242,6 +283,7 @@ fn convert_expr_with_db(
                     inner_expr,
                     func,
                     in_old,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                     ghost_pred_db,
@@ -562,7 +604,7 @@ fn convert_field_access(
     in_old: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
-    let base = convert_expr_with_bounds(&field_expr.base, func, in_old, false, bound_vars)?;
+    let base = convert_expr_with_bounds(&field_expr.base, func, in_old, false, false, bound_vars)?;
 
     // Determine the type of the base expression to resolve field selectors
     let base_ty = infer_expr_type(&field_expr.base, func)?;
@@ -628,6 +670,7 @@ fn convert_call(
     call_expr: &syn::ExprCall,
     func: &Function,
     _in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
@@ -650,7 +693,14 @@ fn convert_call(
             // Convert call arguments
             let mut arg_terms = vec![env_term];
             for arg in &call_expr.args {
-                let arg_term = convert_expr_with_bounds(arg, func, false, in_int_mode, bound_vars)?;
+                let arg_term = convert_expr_with_bounds(
+                    arg,
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
                 arg_terms.push(arg_term);
             }
 
@@ -660,13 +710,16 @@ fn convert_call(
         match func_name.as_str() {
             "old" => {
                 // old() operator: parse the inner expression with in_old=true
+                // Inside old(), in_postcondition=false: old() always captures initial value,
+                // never the prophecy variable.
                 if call_expr.args.len() != 1 {
                     return None; // old() takes exactly one argument
                 }
                 return convert_expr_with_bounds(
                     &call_expr.args[0],
                     func,
-                    true,
+                    true,  // in_old
+                    false, // in_postcondition: inside old() we never want _prophecy
                     in_int_mode,
                     bound_vars,
                 );
@@ -681,6 +734,7 @@ fn convert_call(
                     &call_expr.args[0],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -688,6 +742,7 @@ fn convert_call(
                     &call_expr.args[1],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -734,6 +789,7 @@ fn convert_call(
                     &call_expr.args[0],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -741,6 +797,7 @@ fn convert_call(
                     &call_expr.args[1],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -771,6 +828,7 @@ fn convert_call_with_db(
     call_expr: &syn::ExprCall,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
     ghost_pred_db: &GhostPredicateDatabase,
@@ -815,7 +873,14 @@ fn convert_call_with_db(
     }
 
     // Delegate to the standard convert_call for all other cases
-    convert_call(call_expr, func, in_old, in_int_mode, bound_vars)
+    convert_call(
+        call_expr,
+        func,
+        in_old,
+        in_postcondition,
+        in_int_mode,
+        bound_vars,
+    )
 }
 
 /// Replace whole-word occurrences of `from` with `to` in `s`.
@@ -918,6 +983,7 @@ fn convert_quantifier(
             &closure_expr.body,
             func,
             false,
+            false, // in_postcondition: quantifier bodies don't use prophecy vars
             in_int_mode,
             &new_bound_vars,
         )?;
@@ -1162,7 +1228,7 @@ fn convert_trigger_expr(
         }
         _ => {
             // For other expressions, fall back to the regular expression converter
-            convert_expr_with_bounds(expr, func, false, in_int_mode, bound_vars)
+            convert_expr_with_bounds(expr, func, false, false, in_int_mode, bound_vars)
         }
     }
 }
@@ -1212,16 +1278,28 @@ fn convert_cast(
                 "int" => {
                     // Cast to unbounded integer: convert inner expression in int mode
                     // and wrap with Bv2Int if the inner expression is a bitvector
-                    let inner =
-                        convert_expr_with_bounds(&cast_expr.expr, func, in_old, false, bound_vars)?;
+                    let inner = convert_expr_with_bounds(
+                        &cast_expr.expr,
+                        func,
+                        in_old,
+                        false,
+                        false,
+                        bound_vars,
+                    )?;
                     // The inner is a bitvector term, convert to Int
                     Some(Term::Bv2Int(Box::new(inner)))
                 }
                 "nat" => {
                     // Cast to non-negative unbounded integer
                     // Same as int cast for now (non-negativity constraint added in VCGen)
-                    let inner =
-                        convert_expr_with_bounds(&cast_expr.expr, func, in_old, false, bound_vars)?;
+                    let inner = convert_expr_with_bounds(
+                        &cast_expr.expr,
+                        func,
+                        in_old,
+                        false,
+                        false,
+                        bound_vars,
+                    )?;
                     Some(Term::Bv2Int(Box::new(inner)))
                 }
                 _ => None, // Unsupported cast
@@ -1388,6 +1466,7 @@ fn resolve_selector_from_ty<'a>(ty: &'a Ty, selector_name: &str) -> Option<&'a T
 ///
 /// When the dereferenced expression is a mutable reference parameter:
 /// - In `old()` context: produces `param_initial` (the initial dereferenced value)
+/// - In postcondition context: produces `param_prophecy` (the predicted final value)
 /// - In normal context: produces `param` (the current dereferenced value)
 ///
 /// This enables specs like `*x == old(*x) + 1` for mutable borrow parameters.
@@ -1395,6 +1474,7 @@ fn convert_deref(
     expr: &Expr,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     _bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
     // Extract the parameter name from the expression
@@ -1411,11 +1491,13 @@ fn convert_deref(
             {
                 // This is a mutable ref param - apply prophecy naming
                 if in_old {
-                    // In old() context: use initial value
+                    // old() always wins — captures initial value regardless of postcondition context
                     return Some(Term::Const(format!("{param_name}_initial")));
+                } else if in_postcondition {
+                    // postcondition context: *param resolves to prophecy variable (final predicted value)
+                    return Some(Term::Const(format!("{param_name}_prophecy")));
                 } else {
-                    // In normal context: use current value
-                    // (the param itself represents the dereferenced value in our encoding)
+                    // normal context (preconditions, loop invariants): use current value
                     return Some(Term::Const(param_name));
                 }
             }
@@ -2168,6 +2250,33 @@ mod tests {
         let term = term.unwrap();
         // Should produce Const("_1_prophecy")
         assert_eq!(term, Term::Const("_1_prophecy".to_string()));
+    }
+
+    #[test]
+    fn parse_postcondition_deref_resolves_to_prophecy() {
+        // Confirm that *_1 in postcondition context resolves to _1_prophecy
+        // This test is RED until parse_spec_expr_postcondition_with_db is implemented
+        let func = make_mut_ref_func();
+        let ghost_db = GhostPredicateDatabase::new();
+        let term = parse_spec_expr_postcondition_with_db("*_1", &func, &ghost_db);
+        assert!(
+            matches!(term, Some(Term::Const(ref s)) if s == "_1_prophecy"),
+            "Expected _1_prophecy, got {:?}",
+            term
+        );
+    }
+
+    #[test]
+    fn parse_postcondition_old_deref_still_resolves_to_initial() {
+        // Confirm that old(*_1) in postcondition context still resolves to _1_initial
+        let func = make_mut_ref_func();
+        let ghost_db = GhostPredicateDatabase::new();
+        let term = parse_spec_expr_postcondition_with_db("old(*_1)", &func, &ghost_db);
+        assert!(
+            matches!(term, Some(Term::Const(ref s)) if s == "_1_initial"),
+            "Expected _1_initial, got {:?}",
+            term
+        );
     }
 
     #[test]
