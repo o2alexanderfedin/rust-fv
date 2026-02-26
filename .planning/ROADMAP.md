@@ -6,7 +6,7 @@
 - ✅ **v0.2 Advanced Verification** - Phases 6-12 (shipped 2026-02-14)
 - ✅ **v0.3 Production Usability** - Phases 13-18 (shipped 2026-02-17)
 - ✅ **v0.4 Full Rust Verification** - Phases 19-27 (shipped 2026-02-23)
-- ✅ **v0.5 SMT Completeness** - Phases 28-29 (shipped 2026-02-24)
+- ✅ **v0.5 SMT Completeness** - Phases 28-29 (shipped 2026-02-24) + UAT Phase 00 (validated 2026-02-25, 22/22 tests pass)
 
 ## Phases
 
@@ -283,7 +283,7 @@ Plans:
 | 13-18. Usability Phases | v0.3 | 13/13 | Complete | 2026-02-17 |
 | 19-27. Full Rust Verification | v0.4 | 27/27 | Complete | 2026-02-23 |
 | 28-29. SMT Completeness Phases | v0.5 | 10/10 | Complete | 2026-02-24 |
-| 00. v0.4+v0.5 Milestone UAT | 1/1 | Complete    | 2026-02-25 | — |
+| 00. v0.4+v0.5 Milestone UAT | v0.5 UAT | 1/1 | Complete | 2026-02-25 |
 
 <details>
 <summary>✅ v0.5 SMT Completeness (Phases 28-29) — SHIPPED 2026-02-24</summary>
@@ -314,10 +314,11 @@ Plans:
 
 </details>
 
-### Phase 00: v0.4+v0.5 Milestone UAT
+### Phase 00: v0.4+v0.5 Milestone UAT ✅
 **Goal**: Combined UAT document validating v0.4 (phases 19-27) and v0.5 (phases 28-29) deliverables end-to-end
 **Requirements**: UAT-01
 **Plans**: 1 plan
+**Completed**: 2026-02-25
 
 Plans:
-- [ ] 00-01-PLAN.md — Author and execute v0.4-v0.5-UAT.md (22 test items covering phases 19-29)
+- [x] 00-01: Author and execute v0.4-v0.5-UAT.md (22 test items covering phases 19-29) — all 22 PASS

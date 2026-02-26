@@ -106,5 +106,7 @@
 
 **Delivered:** Complete SMT VCGen coverage for all major Rust expression categories — casts, match/discriminants, array bounds, generics, float-to-int soundness, aggregate construction, and struct mutation functional updates. All 9 previously-failing tests green; 1 test deferred.
 
+**UAT Validation (2026-02-25):** Phase 00 v0.4+v0.5 UAT — 22/22 test items passed covering phases 19-29: counterexample generation, separation logic, weak memory models, higher-order closures, async/await, cast encoding, discriminant binding, array bounds VCs, generic premises, aggregate wiring, float-to-int soundness, and functional record update.
+
 ---
 

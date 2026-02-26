@@ -6,15 +6,15 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness — MILESTONE COMPLETE. Planning v0.6 — run `/gsd:new-milestone`.
+**Current focus:** v0.5 SMT Completeness + UAT — FULLY VALIDATED. Ready to plan v0.6 — run `/gsd:new-milestone`.
 
 ## Current Position
 
-Phase: v0.5 milestone archived
-Status: ✅ MILESTONE v0.5 COMPLETE — 29 phases, 92 plans, all requirements satisfied
-Last activity: 2026-02-25 — v0.5 SMT Completeness milestone archived
+Phase: v0.5 milestone archived + UAT validated
+Status: ✅ MILESTONE v0.5 FULLY COMPLETE — 29 phases + UAT (Phase 00), 93 plans, all requirements satisfied, 22/22 UAT tests pass
+Last activity: 2026-02-25 — v0.4+v0.5 UAT complete (Phase 00, 22 test items all PASS)
 
-Progress: [████████████████████] 92/92 plans (100%)
+Progress: [████████████████████] 93/93 plans (100%) + UAT: 22/22 test items PASS
 
 ## Performance Metrics
 
@@ -178,10 +178,10 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 29-05-PLAN.md — VCGEN-06 projected LHS functional record update + Downcast type narrowing (77aba84)
+Last session: 2026-02-25
+Stopped at: Phase 00 UAT complete — v0.4+v0.5 UAT all 22 test items pass (393b719)
 Resume file: None
-Next step: Phase 29 COMPLETE — proceed to next phase
+Next step: v0.5 FULLY COMPLETE (UAT validated) — run /gsd:new-milestone to plan v0.6
 
 ---
 
@@ -190,6 +190,7 @@ Next step: Phase 29 COMPLETE — proceed to next phase
 *Last updated: 2026-02-24 after 29-04 — Phase 29 plan 4/5 complete (TyKind::Param→Generic; Rvalue::Repeat; CopyForDeref/RawPtr/Repeat)*
 *Last updated: 2026-02-25 after 29-03 — Phase 29 plan 3/5 complete (MIRCONV-02 Aggregate + SetDiscriminant/Assume IR variants)*
 *Last updated: 2026-02-25 after 29-02 — Phase 29 plan 2/5 complete (VCGEN-05 fp.to_sbv/fp.to_ubv float-to-int fix)*
+*Last updated: 2026-02-25 after Phase 00 UAT — v0.4+v0.5 all 22 test items PASS; v0.5 milestone FULLY COMPLETE*
 *Last updated: 2026-02-24 after 29-01 — Phase 29 plan 1/5 complete (MIRCONV-01 CastKind fix + TDD scaffold)*
 *Last updated: 2026-02-24 after 28-05 — Phase 28 plan 5/5 complete (VCGEN-04 generic trait bound premises)*
 *Last updated: 2026-02-24 after 28-04 — Phase 28 plan 4/5 complete (BoundsCheck VCs + Rvalue::Len encoding)*

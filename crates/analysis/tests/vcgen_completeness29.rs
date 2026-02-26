@@ -472,7 +472,6 @@ fn vcgen_05_float_to_int_unsigned() {
 /// functional update (mk-StructName). After Plan 05 adds projected LHS support,
 /// the VC will contain `mk-` for the struct reconstruction. RED until Plan 05.
 #[test]
-#[ignore = "TODO Plan 05: projected LHS functional update (mk- constructor) not yet implemented in vcgen"]
 fn vcgen_06_struct_field_mutation() {
     let point_ty = Ty::Struct(
         "Point".to_string(),
@@ -540,7 +539,6 @@ fn vcgen_06_struct_field_mutation() {
 /// May already be partially GREEN (regression guard) or RED (same gap as 06a).
 /// RED until Plan 05.
 #[test]
-#[ignore = "TODO Plan 05: projected LHS functional update (mk- constructor) not yet implemented in vcgen"]
 fn vcgen_06_field_mutation_use() {
     let point_ty = Ty::Struct(
         "Point".to_string(),
