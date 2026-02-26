@@ -662,3 +662,168 @@ fn vcgen_06_set_discriminant_assertion() {
         "VCGEN-06: expected variant index '2' in SMT for SetDiscriminant(_1, 2), but got:\n{all_smt}"
     );
 }
+
+// ===========================================================================
+// Phase 04 Gap Tests (Phase 31 gap closure)
+// ===========================================================================
+
+/// Phase-04-bv2int: When ensures contains `"(result as int) > 0"` (triggering Term::Bv2Int)
+/// with I32 IR params/return (non-SpecInt), the generated SMT script must use
+/// `(set-logic ALL)` not `(set-logic QF_BV)`.
+///
+/// RED: `uses_spec_int_types()` in vcgen.rs only checks IR types (I32 is not SpecInt),
+/// so it returns false and `base_script()` selects QF_BV. Fix in plan 31-02.
+#[test]
+fn phase04_bv2int_logic_selection() {
+    let func = Function {
+        name: "add_positive".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        },
+        params: vec![Local {
+            name: "_1".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        }],
+        locals: vec![],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_0"),
+                Rvalue::Use(Operand::Copy(Place::local("_1"))),
+            )],
+            terminator: Terminator::Return,
+        }],
+        contracts: Contracts {
+            ensures: vec![SpecExpr {
+                raw: "(result as int) > 0".to_string(),
+            }],
+            ..Default::default()
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    assert!(
+        !vcs.conditions.is_empty(),
+        "phase04_bv2int_logic_selection: expected VCs for function with 'as int' in ensures, got 0"
+    );
+
+    let all_smt: String = vcs
+        .conditions
+        .iter()
+        .map(|vc| script_to_text(&vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // RED until plan 31-02: uses_spec_int_types() does not scan spec expression strings,
+    // so the script uses QF_BV instead of ALL.
+    assert!(
+        all_smt.contains("(set-logic ALL)"),
+        "phase04_bv2int_logic_selection: expected '(set-logic ALL)' in SMT when ensures \
+         contains 'as int' expression, but got:\n{all_smt}"
+    );
+}
+
+/// Phase-04-ghost: When a function has a ghost local (`is_ghost: true`) with an assignment
+/// in the basic block, the SMT VCs must NOT contain an assertion for that ghost local.
+///
+/// RED: `encode_assignment()` in vcgen.rs does not check `is_ghost` on the LHS place's
+/// local, so ghost assignments leak into the VC as SMT assertions. Fix in plan 31-03.
+#[test]
+fn phase04_ghost_local_leaks_into_vc() {
+    let func = Function {
+        name: "ghost_filter_test".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        },
+        params: vec![],
+        locals: vec![Local {
+            name: "__ghost_x".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: true,
+        }],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![
+                Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(42, IntTy::I32))),
+                ),
+                Statement::Assign(
+                    Place::local("__ghost_x"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                ),
+            ],
+            terminator: Terminator::Return,
+        }],
+        // A tautological postcondition forces VC generation so we can inspect the SMT output.
+        // Without contracts, no VCs are generated and the ghost leak cannot be observed.
+        contracts: Contracts {
+            ensures: vec![SpecExpr {
+                raw: "true".to_string(),
+            }],
+            ..Default::default()
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    assert!(
+        !vcs.conditions.is_empty(),
+        "phase04_ghost_local_leaks_into_vc: expected VCs from tautological postcondition, got 0"
+    );
+
+    let all_smt: String = vcs
+        .conditions
+        .iter()
+        .map(|vc| script_to_text(&vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // RED until plan 31-03: encode_assignment() currently leaks ghost local assignments
+    // into the VC as SMT assertions. After the fix, __ghost_x must not appear.
+    assert!(
+        !all_smt.contains("__ghost_x"),
+        "phase04_ghost_local_leaks_into_vc: ghost local '__ghost_x' must not appear in SMT VCs, \
+         but it leaked into:\n{all_smt}"
+    );
+}
