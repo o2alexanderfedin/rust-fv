@@ -1,7 +1,7 @@
-//! Phase 29 TDD scaffold: 10 failing tests covering MIRCONV-01, MIRCONV-02, VCGEN-05, VCGEN-06.
+//! Phase 29/30 completeness suite: 11 tests covering MIRCONV-01, MIRCONV-02, VCGEN-05, VCGEN-06.
 //!
-//! All active tests are intentionally RED before the Phase 29 fixes.
-//! Tests marked #[ignore] depend on IR variants that do not yet exist (Plan 03).
+//! All 11 tests are GREEN: Phase 29 fixed MIRCONV-01/02 and VCGEN-05; Phase 30 closed VCGEN-06.
+//! No tests remain #[ignore] — vcgen_06_set_discriminant_assertion fully exercised (variant index 2).
 //!
 //! Requirements: MIRCONV-01, MIRCONV-02, VCGEN-05, VCGEN-06
 
