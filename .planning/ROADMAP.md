@@ -364,3 +364,37 @@ Plans:
 
 Plans:
 - [x] 00-01: Author and execute v0.4-v0.5-UAT.md (22 test items covering phases 19-29) — all 22 PASS
+
+---
+
+## Gap Closure Phases (v0.1 Milestone Audit — 2026-02-26)
+
+### Phase 30: SetDiscriminant VCGen Implementation
+**Goal:** Implement `ir::Statement::SetDiscriminant` and emit discriminant assertion VCs — closes VCGEN-06 and MIRCONV-02 from partial to fully satisfied
+**Requirements:** VCGEN-06, MIRCONV-02
+**Gap Closure:** Closes partial requirements from v0.1 audit; un-ignores `vcgen_06_set_discriminant_assertion` test
+
+Plans:
+- [ ] 30-01: Add `SetDiscriminant { place, variant_index }` to `ir::Statement` + TDD RED test
+- [ ] 30-02: Implement SetDiscriminant VCGen in `vcgen.rs` — emit discriminant assertion VC (GREEN)
+- [ ] 30-03: Remove `#[ignore]` from `vcgen_06_set_discriminant_assertion`, confirm full suite GREEN
+
+### Phase 31: Z3 bv2int Fix + Ghost Locals Filtering
+**Goal:** Fix Z3 `bv2int` "unknown constant" error to make SpecInt/SpecNat unbounded arithmetic functional; implement ghost locals filtering from executable VCs
+**Requirements:** (Phase 04 functional gaps)
+**Gap Closure:** Enables 2 commented-out E2E tests; fixes ghost variable leakage into executable VCs
+
+Plans:
+- [ ] 31-01: Research Z3 bv2int correct syntax + TDD RED tests for both gaps
+- [ ] 31-02: Fix `Term::Bv2Int` SMT-LIB2 serialization + enable 2 commented E2E tests (GREEN)
+- [ ] 31-03: Implement ghost locals filtering at `encode_assignment` level in `vcgen.rs` (GREEN)
+
+### Phase 32: Formal Verification Docs for Early Phases
+**Goal:** Create VERIFICATION.md for the 7 early phases (05, 06, 07, 08, 11, 13, 17) that executed before the verification step was established
+**Requirements:** (Audit process completeness)
+**Gap Closure:** Closes 7 unverified phases from v0.1 audit; all phases covered by Phase 00 UAT (22/22 PASS)
+
+Plans:
+- [ ] 32-01: Verify phases 05, 06, 07 — create VERIFICATION.md for each
+- [ ] 32-02: Verify phases 08, 11 — create VERIFICATION.md for each
+- [ ] 32-03: Verify phases 13, 17 — create VERIFICATION.md for each
