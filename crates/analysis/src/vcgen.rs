@@ -734,6 +734,19 @@ pub fn generate_vcs_with_db(
         }
     }
 
+    // FOR-01 / FOR-02: Generate for-loop iterator VCs (Phase 29.1)
+    {
+        let for_vcs = crate::for_loop_vcgen::generate_for_loop_vcs(func, ghost_pred_db);
+        if !for_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                for_vc_count = for_vcs.len(),
+                "Generated for-loop iterator VCs"
+            );
+            conditions.extend(for_vcs);
+        }
+    }
+
     // Generate floating-point VCs (NaN propagation and infinity overflow)
     {
         let mut float_vcs = crate::float_verification::generate_float_vcs(func);
@@ -2641,6 +2654,8 @@ pub fn detect_loops(func: &Function) -> Vec<LoopInfo> {
             header_block: header,
             back_edge_blocks,
             invariants: invariants.clone(),
+            iterator_kind: None,
+            loop_var: None,
         })
         .collect()
 }
@@ -5996,6 +6011,8 @@ mod tests {
             header_block: 0,
             back_edge_blocks: vec![1],
             invariants: vec![],
+            iterator_kind: None,
+            loop_var: None,
         }];
         let loops = detect_loops(&func);
         assert_eq!(loops.len(), 1);
@@ -6917,6 +6934,8 @@ mod tests {
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants: vec![], // No invariants
+            iterator_kind: None,
+            loop_var: None,
         };
         let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
         let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
@@ -6938,6 +6957,8 @@ mod tests {
             invariants: vec![SpecExpr {
                 raw: "_1 >= 0".to_string(),
             }],
+            iterator_kind: None,
+            loop_var: None,
         };
         let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
         let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
