@@ -496,6 +496,38 @@ pub struct Contracts {
     pub state_invariant: Option<SpecExpr>,
 }
 
+/// Classification of the iterator source for a for-loop.
+#[derive(Debug, Clone, PartialEq)]
+pub enum IteratorKind {
+    /// Integer range: `start..end` (half-open)
+    Range { start: RangeBound, end: RangeBound },
+    /// Integer range: `start..=end` (closed/inclusive)
+    RangeInclusive { start: RangeBound, end: RangeBound },
+    /// Slice or array iteration by reference: `slice.iter()` / `&arr`
+    SliceIter { collection_local: String },
+    /// Vec iteration by reference: `vec.iter()`
+    VecIter { collection_local: String },
+    /// Enumerated iteration: `.enumerate()` over any of the above
+    Enumerate { inner: Box<IteratorKind> },
+    /// Known std adapter: `.map()`, `.filter()`, `.zip()`, `.take()`, `.skip()`, etc.
+    StdAdapter {
+        name: String,
+        inner: Box<IteratorKind>,
+    },
+    /// Unknown/custom iterator — conservative BoolLit(true) VC
+    Unknown { description: String },
+}
+
+/// A range bound: either a statically-known integer or a runtime local variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RangeBound {
+    /// Compile-time known integer constant
+    Literal(i128),
+    /// Runtime local (e.g., function parameter or computation result).
+    /// Uses `{local}_len` naming for slice/vec lengths (consistent with Phase 28).
+    Local(String),
+}
+
 /// Information about a loop detected in the CFG.
 #[derive(Debug, Clone)]
 pub struct LoopInfo {
@@ -505,6 +537,10 @@ pub struct LoopInfo {
     pub back_edge_blocks: Vec<BlockId>,
     /// User-supplied loop invariant expressions
     pub invariants: Vec<SpecExpr>,
+    /// For-loop iterator classification (None for while/loop)
+    pub iterator_kind: Option<IteratorKind>,
+    /// Loop variable local name (e.g., "_5") when classified as for-loop
+    pub loop_var: Option<String>,
 }
 
 /// Prophecy variable information for mutable borrow reasoning.

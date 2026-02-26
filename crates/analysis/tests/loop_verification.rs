@@ -488,6 +488,8 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants,
+            iterator_kind: None,
+            loop_var: None,
         }],
     }
 }
@@ -599,6 +601,8 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants,
+            iterator_kind: None,
+            loop_var: None,
         }],
     }
 }
@@ -839,6 +843,8 @@ fn test_two_variable_loop() {
                     raw: "_5 == _3".to_string(),
                 },
             ],
+            iterator_kind: None,
+            loop_var: None,
         }],
     };
 
@@ -1183,6 +1189,8 @@ fn test_loop_without_invariant_skipped() {
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants: vec![], // No invariant
+            iterator_kind: None,
+            loop_var: None,
         }],
     };
 

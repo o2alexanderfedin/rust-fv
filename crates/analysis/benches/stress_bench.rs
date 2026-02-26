@@ -142,6 +142,8 @@ fn make_loop_stress_function() -> Function {
             invariants: vec![SpecExpr {
                 raw: "_2 >= 0 && _2 <= _1".to_string(),
             }],
+            iterator_kind: None,
+            loop_var: None,
         }],
     }
 }
