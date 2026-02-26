@@ -336,13 +336,13 @@ Plans:
 
 ### Phase 29.2: Prophecy Encoding for Mutable Reference Assignments (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Fix #[ignore] test test_prophecy_basic — make *_1 in postcondition context resolve to _1_prophecy via convert_deref postcondition awareness
+**Requirements**: PROPHECY-01
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 29.2 to break down)
+- [ ] 29.2-01-PLAN.md — TDD: RED unit tests + GREEN fix (convert_deref in_postcondition + parse_spec_postcondition + remove #[ignore])
 
 ### Phase 29.1: For-loop Iterator Range VCGen (INSERTED)
 
