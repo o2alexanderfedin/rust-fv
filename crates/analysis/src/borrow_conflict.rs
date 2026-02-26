@@ -132,17 +132,110 @@ pub fn generate_conflict_vcs(
     vcs
 }
 
+fn collect_locals_in_operand(op: &crate::ir::Operand) -> Vec<String> {
+    use crate::ir::Operand;
+    match op {
+        Operand::Copy(p) | Operand::Move(p) => vec![p.local.clone()],
+        Operand::Constant(_) => vec![],
+    }
+}
+
+fn collect_locals_in_rvalue(rval: &crate::ir::Rvalue) -> Vec<String> {
+    use crate::ir::Rvalue;
+    match rval {
+        Rvalue::Use(op) | Rvalue::Cast(_, op, _) | Rvalue::Repeat(op, _) => {
+            collect_locals_in_operand(op)
+        }
+        Rvalue::Ref(_, place) | Rvalue::Len(place) | Rvalue::Discriminant(place) => {
+            vec![place.local.clone()]
+        }
+        Rvalue::BinaryOp(_, l, r) | Rvalue::CheckedBinaryOp(_, l, r) => {
+            let mut v = collect_locals_in_operand(l);
+            v.extend(collect_locals_in_operand(r));
+            v
+        }
+        Rvalue::UnaryOp(_, op) => collect_locals_in_operand(op),
+        Rvalue::Aggregate(_, ops) => ops.iter().flat_map(collect_locals_in_operand).collect(),
+    }
+}
+
+fn statement_references_local(stmt: &crate::ir::Statement, local: &str) -> bool {
+    use crate::ir::Statement;
+    let locals = match stmt {
+        Statement::Assign(place, rvalue) => {
+            let mut ls = vec![place.local.clone()];
+            ls.extend(collect_locals_in_rvalue(rvalue));
+            ls
+        }
+        Statement::Nop => vec![],
+        Statement::SetDiscriminant(place, _) => vec![place.local.clone()],
+        Statement::Assume(op) => collect_locals_in_operand(op),
+    };
+    locals.iter().any(|l| l == local)
+}
+
 /// Generate verification conditions for borrow expiry violations.
 ///
 /// For each borrow in the context, checks if any basic block uses the borrow
 /// local after its live range ends. If so, generates a BorrowValidity VC.
+///
+/// Note: `compute_live_ranges()` in production uses conservative 0..num_blocks
+/// ranges, so this function only detects expiry when precise NLL ranges are
+/// provided. Unit tests use narrow explicit ranges to exercise this logic.
 pub fn generate_expiry_vcs(
-    _context: &LifetimeContext,
-    _live_ranges: &HashMap<String, Vec<usize>>,
-    _function: &Function,
+    context: &LifetimeContext,
+    live_ranges: &HashMap<String, Vec<usize>>,
+    function: &Function,
 ) -> Vec<VerificationCondition> {
-    // TODO: implement
-    Vec::new()
+    let mut vcs = Vec::new();
+
+    // Check all borrows (shared and mutable) for use-after-expiry.
+    let all_borrows: Vec<_> = context
+        .shared_borrows()
+        .into_iter()
+        .chain(context.mutable_borrows())
+        .collect();
+
+    for borrow in all_borrows {
+        let live_blocks = match live_ranges.get(&borrow.local_name) {
+            Some(blocks) => blocks,
+            None => continue,
+        };
+
+        for (block_idx, block) in function.basic_blocks.iter().enumerate() {
+            // Block is in live range — borrow is valid here, skip
+            if live_blocks.contains(&block_idx) {
+                continue;
+            }
+
+            // Scan statements for any reference to this borrow's local
+            for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+                if statement_references_local(stmt, &borrow.local_name) {
+                    let expiry_block = live_blocks.last().copied().unwrap_or(0);
+                    let description = format!(
+                        "Borrow {} (region {}) used at BB{} stmt {} after expiry at BB{}",
+                        borrow.local_name, borrow.region, block_idx, stmt_idx, expiry_block
+                    );
+                    vcs.push(VerificationCondition {
+                        description,
+                        script: Script::new(),
+                        location: VcLocation {
+                            function: function.name.clone(),
+                            block: block_idx,
+                            statement: stmt_idx,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: None,
+                            vc_kind: VcKind::BorrowValidity,
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    vcs
 }
 
 /// Generate verification conditions for reborrow chain validity.
