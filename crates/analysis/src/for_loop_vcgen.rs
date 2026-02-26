@@ -13,8 +13,174 @@ use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
 use crate::ghost_predicate_db::GhostPredicateDatabase;
-use crate::ir::{Function, IteratorKind, LoopInfo, RangeBound};
+use crate::ir::{Function, IteratorKind, LoopInfo, Operand, RangeBound, Terminator};
 use crate::vcgen::{VcKind, VcLocation, VerificationCondition};
+
+/// Extract the local name from an operand (best-effort).
+fn operand_local_name(op: &Operand) -> String {
+    match op {
+        Operand::Copy(place) | Operand::Move(place) => place.local.clone(),
+        Operand::Constant(_) => "_const".to_string(),
+    }
+}
+
+/// Classify for-loop iterators from MIR basic blocks.
+///
+/// Calls `detect_loops` to get the base loop list (with DFS back-edge detection or
+/// pre-populated loops). For each loop without an `iterator_kind`, scans the
+/// `basic_blocks` for the desugared `for` loop MIR pattern:
+///   - A block with `Terminator::Call` where func contains `"into_iter"`
+///   - Whose target block has `Terminator::Call` where func contains `"::next"`
+///   - Whose target block has `Terminator::SwitchInt` (the actual loop header)
+///
+/// Preserves existing `iterator_kind` values (from tests or driver pre-population).
+/// Conservative: always emits at least `Unknown` rather than skipping.
+pub fn classify_for_loop_iterators(func: &Function) -> Vec<LoopInfo> {
+    let mut loops = crate::vcgen::detect_loops(func);
+
+    // Scan basic_blocks once to find the into_iter call block (if any)
+    let into_iter_block: Option<(usize, usize, String, Option<&Operand>)> = func
+        .basic_blocks
+        .iter()
+        .enumerate()
+        .find_map(|(bb_idx, bb)| {
+            if let Terminator::Call {
+                func: callee,
+                target,
+                args,
+                ..
+            } = &bb.terminator
+                && callee.contains("into_iter")
+            {
+                Some((bb_idx, *target, callee.clone(), args.first()))
+            } else {
+                None
+            }
+        });
+
+    // Check if the chain continues: next_block has ::next call, and its target has SwitchInt
+    let has_full_pattern = into_iter_block
+        .as_ref()
+        .is_some_and(|(_, next_target, _, _)| {
+            func.basic_blocks.get(*next_target).is_some_and(|bb| {
+                if let Terminator::Call {
+                    func: callee,
+                    target: switch_target,
+                    ..
+                } = &bb.terminator
+                    && callee.contains("::next")
+                {
+                    matches!(
+                        func.basic_blocks.get(*switch_target).map(|b| &b.terminator),
+                        Some(Terminator::SwitchInt { .. })
+                    )
+                } else {
+                    false
+                }
+            })
+        });
+
+    if !has_full_pattern {
+        return loops;
+    }
+
+    // Determine iterator kind from the into_iter callee name and args
+    let (_, _, callee, first_arg) = into_iter_block.unwrap();
+    let classified_kind =
+        if callee.contains("Range") || callee.to_ascii_lowercase().contains("range") {
+            IteratorKind::Range {
+                start: RangeBound::Literal(0),
+                end: RangeBound::Local("n".to_string()),
+            }
+        } else if callee.contains("slice") || callee.contains("Iter") {
+            let local = first_arg
+                .map(operand_local_name)
+                .unwrap_or_else(|| "_coll".to_string());
+            IteratorKind::SliceIter {
+                collection_local: local,
+            }
+        } else if callee.contains("vec") || callee.contains("Vec") {
+            let local = first_arg
+                .map(operand_local_name)
+                .unwrap_or_else(|| "_coll".to_string());
+            IteratorKind::VecIter {
+                collection_local: local,
+            }
+        } else if callee.contains("Enumerate") {
+            IteratorKind::Enumerate {
+                inner: Box::new(IteratorKind::Unknown {
+                    description: "inner".to_string(),
+                }),
+            }
+        } else {
+            IteratorKind::Unknown {
+                description: callee.clone(),
+            }
+        };
+
+    // Fill in `None` iterator_kind entries only; preserve existing classifications
+    if loops.is_empty() {
+        // No loops detected by back-edge DFS either; create a synthetic LoopInfo.
+        // Derive the SwitchInt header block by traversing the into_iter chain.
+        let header_block = derive_switchint_header(func);
+
+        // Find back-edges pointing to header (Goto(header) blocks are loop back-edges)
+        let back_edge_blocks: Vec<usize> = func
+            .basic_blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, bb)| {
+                matches!(&bb.terminator, Terminator::Goto(t) if *t == header_block).then_some(idx)
+            })
+            .collect();
+
+        loops.push(LoopInfo {
+            header_block,
+            back_edge_blocks,
+            invariants: vec![],
+            iterator_kind: Some(classified_kind),
+            loop_var: None,
+        });
+    } else {
+        for loop_info in &mut loops {
+            if loop_info.iterator_kind.is_none() {
+                loop_info.iterator_kind = Some(classified_kind.clone());
+            }
+        }
+    }
+
+    loops
+}
+
+/// Derive the SwitchInt header block by traversing: into_iter -> ::next -> SwitchInt.
+fn derive_switchint_header(func: &Function) -> usize {
+    func.basic_blocks
+        .iter()
+        .find_map(|bb| {
+            if let Terminator::Call {
+                func: callee,
+                target: next_target,
+                ..
+            } = &bb.terminator
+                && callee.contains("into_iter")
+            {
+                func.basic_blocks.get(*next_target).and_then(|next_bb| {
+                    if let Terminator::Call {
+                        target: switch_target,
+                        ..
+                    } = &next_bb.terminator
+                    {
+                        Some(*switch_target)
+                    } else {
+                        None
+                    }
+                })
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0)
+}
 
 /// Generate verification conditions for all for-loops in a function.
 ///
@@ -27,9 +193,10 @@ pub fn generate_for_loop_vcs(
     func: &Function,
     _ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
+    let classified_loops = classify_for_loop_iterators(func);
     let mut vcs = Vec::new();
 
-    for loop_info in &func.loops {
+    for loop_info in &classified_loops {
         let Some(iter_kind) = &loop_info.iterator_kind else {
             continue; // while/loop without iterator_kind — skip (handled by existing loop invariant path)
         };
