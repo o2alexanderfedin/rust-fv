@@ -393,6 +393,41 @@ fn mirconv_02_set_discriminant() {
     // The variant exists and vcgen handles it without panicking — that is the goal.
 }
 
+/// VCGEN-06: SetDiscriminant VC emission — unit test.
+///
+/// RED: VCGen currently treats SetDiscriminant as a no-op (0 VCs emitted).
+/// After plan 30-02 adds generate_set_discriminant_vcs(), this test must become GREEN.
+#[test]
+fn vcgen_06_set_discriminant_unit() {
+    let blocks = vec![BasicBlock {
+        statements: vec![Statement::SetDiscriminant(Place::local("_1"), 1)],
+        terminator: Terminator::Return,
+    }];
+    let func = make_func("set_disc_vc", Ty::Int(IntTy::I32), vec![], vec![], blocks);
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    assert!(
+        !vcs.conditions.is_empty(),
+        "VCGEN-06: expected VC for SetDiscriminant, got 0"
+    );
+
+    let all_smt: String = vcs
+        .conditions
+        .iter()
+        .map(|vc| script_to_text(&vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        all_smt.contains("discriminant"),
+        "VCGEN-06: expected 'discriminant' in SMT for SetDiscriminant(_1, 1), but got:\n{all_smt}"
+    );
+    assert!(
+        all_smt.contains('1'),
+        "VCGEN-06: expected variant index '1' in SMT for SetDiscriminant(_1, 1), but got:\n{all_smt}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // VCGEN-05: Float-to-int SMT encoding (fp.to_sbv / fp.to_ubv)
 // ---------------------------------------------------------------------------
@@ -592,12 +627,38 @@ fn vcgen_06_field_mutation_use() {
     );
 }
 
-/// VCGEN-06c: SetDiscriminant + mk- functional update in VC.
+/// VCGEN-06c: SetDiscriminant VC emission — assertion test (variant index 2).
 ///
-/// TODO Plan 03/05: Depends on Statement::SetDiscriminant (Plan 03) and
-/// projected LHS functional update for discriminant (Plan 05).
+/// RED: VCGen currently treats SetDiscriminant as a no-op (0 VCs emitted).
+/// After plan 30-02 adds generate_set_discriminant_vcs(), this test must become GREEN.
+/// Uses variant index 2 to distinguish from vcgen_06_set_discriminant_unit (index 1).
 #[test]
-#[ignore = "TODO Plan 03/05: Statement::SetDiscriminant not yet in ir::Statement"]
 fn vcgen_06_set_discriminant_assertion() {
-    todo!("Plan 03/05: implement after Statement::SetDiscriminant exists")
+    let blocks = vec![BasicBlock {
+        statements: vec![Statement::SetDiscriminant(Place::local("_1"), 2)],
+        terminator: Terminator::Return,
+    }];
+    let func = make_func("set_disc_vc2", Ty::Int(IntTy::I32), vec![], vec![], blocks);
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    assert!(
+        !vcs.conditions.is_empty(),
+        "VCGEN-06: expected VC for SetDiscriminant, got 0"
+    );
+
+    let all_smt: String = vcs
+        .conditions
+        .iter()
+        .map(|vc| script_to_text(&vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        all_smt.contains("discriminant"),
+        "VCGEN-06: expected 'discriminant' in SMT for SetDiscriminant(_1, 2), but got:\n{all_smt}"
+    );
+    assert!(
+        all_smt.contains('2'),
+        "VCGEN-06: expected variant index '2' in SMT for SetDiscriminant(_1, 2), but got:\n{all_smt}"
+    );
 }
