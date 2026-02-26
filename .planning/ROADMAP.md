@@ -339,7 +339,7 @@ Plans:
 **Goal:** Fix #[ignore] test test_prophecy_basic — make *_1 in postcondition context resolve to _1_prophecy via convert_deref postcondition awareness
 **Requirements**: PROPHECY-01
 **Depends on:** Phase 29
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 29.2-01-PLAN.md — TDD: RED unit tests + GREEN fix (convert_deref in_postcondition + parse_spec_postcondition + remove #[ignore])

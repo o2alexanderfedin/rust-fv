@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T04:07:46.082Z"
+last_updated: "2026-02-26T04:40:02.756Z"
 progress:
   total_phases: 34
-  completed_phases: 31
-  total_plans: 96
-  completed_plans: 96
+  completed_phases: 32
+  total_plans: 97
+  completed_plans: 97
 ---
 
 # Project State
@@ -86,6 +86,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29.1 P01 | 480 | 2 tasks | 6 files |
 | Phase 29.1 P02 | 300 | 2 tasks | 3 files |
 | Phase 29.1 P03 | 540 | 2 tasks | 2 files |
+| Phase 29.2 P01 | 594 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -179,6 +180,8 @@ Recent decisions relevant to v0.4:
 - [Phase 29.1]: IntAdd used for bounded unrolling k+start expression (correct Term variant in smtlib crate)
 - [Phase 29.1]: MemorySafety VC emitted as separate QF_LIA script for slice iteration when loop_var is known
 - [Phase 29.1]: classify_for_loop_iterators() uses detect_loops() as base, fills None iterator_kind from MIR into_iter+::next+SwitchInt pattern scan — bridges unit-test path and production driver path
+- [Phase 29.2]: in_postcondition parameter threaded through convert_expr_with_db — *_1 in ensures → _1_prophecy, old(*_1) → _1_initial, preconditions unchanged
+- [Phase 29.2]: Inside old(): in_postcondition=false — old() always wins, never produces prophecy variable
 
 ### Roadmap Evolution
 
@@ -204,12 +207,13 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 29.1-03-PLAN.md — MIR for-loop detection + test 09 GREEN (db8b11c)
+Stopped at: Completed 29.2-01-PLAN.md — prophecy postcondition deref fix (7fca7a5)
 Resume file: None
-Next step: Execute Phase 29.2 — Prophecy Encoding for Mutable Reference Assignments
+Next step: Execute Phase 29.3 — Borrow Conflict Detection Implementation
 
 ---
 
+*Last updated: 2026-02-26 after 29.2-01 — Phase 29.2 plan 1/1 COMPLETE (test_prophecy_basic GREEN, *_1 in ensures → _1_prophecy)*
 *Last updated: 2026-02-26 after 29.1-03 — Phase 29.1 plan 3/3 COMPLETE (classify_for_loop_iterators() + test 09 GREEN)*
 *Last updated: 2026-02-26 after 29.1-02 — Phase 29.1 plan 2/3 complete (for_loop_vcgen full implementation + 8 GREEN tests)*
 *Last updated: 2026-02-25 after 29.1-01 — Phase 29.1 plan 1/3 complete (TDD scaffold + IR extension + 8 RED for-loop VCGen tests)*
