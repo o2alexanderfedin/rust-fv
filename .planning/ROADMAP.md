@@ -316,13 +316,13 @@ Plans:
 
 ### Phase 29.4: Stdlib Contracts Option Doc Test Fixes (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Fix 26 suppressed doc test blocks in stdlib_contracts/option.rs, vec.rs, result.rs by changing ```text to ```rust,ignore — restores Rust syntax highlighting and makes tests visible to doc test harness
+**Requirements**: DOCTEST-FIX-01
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 29.4 to break down)
+- [ ] 29.4-01-PLAN.md — Replace 26 ```text fences with ```rust,ignore in option.rs, vec.rs, result.rs
 
 ### Phase 29.3: Borrow Conflict Detection Implementation (INSERTED)
 
