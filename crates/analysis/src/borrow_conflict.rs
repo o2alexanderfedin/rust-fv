@@ -212,7 +212,7 @@ pub fn generate_reborrow_vcs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BasicBlock, BorrowInfo, Contracts, Local, Terminator, Ty};
+    use crate::ir::{BasicBlock, BorrowInfo, Contracts, Local, Statement, Terminator, Ty};
 
     // ====== detect_borrow_conflicts tests ======
 
@@ -424,8 +424,7 @@ mod tests {
     #[test]
     fn test_generate_expiry_vcs_use_after_expiry() {
         // Borrow used after live range -> BorrowValidity VC
-        // This is simplified - in real implementation we'd scan basic blocks
-        // for actual references to the borrow local
+        use crate::ir::{Operand, Place, Rvalue};
         let mut context = LifetimeContext::new();
         context.register_borrow(BorrowInfo {
             local_name: "_1".to_string(),
@@ -453,7 +452,11 @@ mod tests {
                     terminator: Terminator::Goto(2),
                 },
                 BasicBlock {
-                    statements: vec![],
+                    // Block 2 is outside live range [0, 1]; references _1 -> should emit VC
+                    statements: vec![Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                    )],
                     terminator: Terminator::Return,
                 },
             ],
@@ -478,11 +481,11 @@ mod tests {
             coroutine_info: None,
         };
 
-        // For now this is a placeholder test - actual implementation
-        // would need to scan statements for references to _1
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
-        // This will be 0 until we implement statement scanning
-        assert_eq!(vcs.len(), 0);
+        assert_eq!(vcs.len(), 1);
+        assert_eq!(vcs[0].location.vc_kind, VcKind::BorrowValidity);
+        assert_eq!(vcs[0].location.block, 2);
+        assert_eq!(vcs[0].location.statement, 0);
     }
 
     // ====== generate_reborrow_vcs tests ======
