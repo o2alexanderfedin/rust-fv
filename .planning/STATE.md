@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T09:12:07.796Z"
+last_updated: "2026-02-26T09:17:39.043Z"
 progress:
   total_phases: 37
   completed_phases: 34
   total_plans: 102
-  completed_plans: 100
+  completed_plans: 101
 ---
 
 # Project State
@@ -90,6 +90,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29.3 P01 | 266 | 2 tasks | 1 files |
 | Phase 29.4 P01 | 124 | 2 tasks | 3 files |
 | Phase 30 P01 | 87 | 1 tasks | 1 files |
+| Phase 30 P02 | 87 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -188,6 +189,7 @@ Recent decisions relevant to v0.4:
 - [Phase 29.3]: statement_references_local() checks both LHS (place) and RHS (rvalue) of Assign — exhaustive Rvalue match without wildcard per compiler-enforced completeness pattern
 - [Phase 29.4]: Use ```rust,ignore for stdlib API signature doc blocks — renders with Rust syntax highlighting and skips compilation due to free type parameters T, F, U not in scope
 - [Phase 30]: vcgen_06_set_discriminant_unit uses variant index 1; vcgen_06_set_discriminant_assertion uses variant index 2 to ensure SMT index specificity assertions are distinct
+- [Phase 30]: Term::IntLit takes i128 (not i64) for SetDiscriminant variant_idx cast
 
 ### Roadmap Evolution
 
@@ -213,12 +215,13 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 29.4-01-PLAN.md — 26 ```text fences replaced with ```rust,ignore in stdlib_contracts (c96b396)
+Stopped at: Completed 30-02-PLAN.md — generate_set_discriminant_vcs() implemented, VCGEN-06 GREEN (3b41fa6)
 Resume file: None
-Next step: Phase 29.4 COMPLETE — all phases complete
+Next step: Phase 30 plan 3/3 — run 30-03-PLAN.md
 
 ---
 
+*Last updated: 2026-02-26 after 30-02 — Phase 30 plan 2/3 COMPLETE (generate_set_discriminant_vcs() implemented, vcgen_06 RED→GREEN, 11/11 vcgen_completeness29 pass)*
 *Last updated: 2026-02-26 after 29.4-01 — Phase 29.4 plan 1/1 COMPLETE (26 ```text → ```rust,ignore doc blocks fixed, doc tests now show 28 ignored, 0 failed)*
 *Last updated: 2026-02-25 after 29.3-01 — Phase 29.3 plan 1/1 COMPLETE (generate_expiry_vcs() stub replaced, BorrowValidity VC emitted for use-after-expiry)*
 *Last updated: 2026-02-26 after 29.2-01 — Phase 29.2 plan 1/1 COMPLETE (test_prophecy_basic GREEN, *_1 in ensures → _1_prophecy)*
