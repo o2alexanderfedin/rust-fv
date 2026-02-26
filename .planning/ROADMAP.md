@@ -319,7 +319,7 @@ Plans:
 **Goal:** Fix 26 suppressed doc test blocks in stdlib_contracts/option.rs, vec.rs, result.rs by changing ```text to ```rust,ignore — restores Rust syntax highlighting and makes tests visible to doc test harness
 **Requirements**: DOCTEST-FIX-01
 **Depends on:** Phase 29
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 29.4-01-PLAN.md — Replace 26 ```text fences with ```rust,ignore in option.rs, vec.rs, result.rs

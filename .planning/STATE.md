@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T05:49:51.969Z"
+last_updated: "2026-02-26T06:54:04.177Z"
 progress:
   total_phases: 34
-  completed_phases: 33
-  total_plans: 98
-  completed_plans: 98
+  completed_phases: 34
+  total_plans: 99
+  completed_plans: 99
 ---
 
 # Project State
@@ -88,6 +88,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29.1 P03 | 540 | 2 tasks | 2 files |
 | Phase 29.2 P01 | 594 | 2 tasks | 3 files |
 | Phase 29.3 P01 | 266 | 2 tasks | 1 files |
+| Phase 29.4 P01 | 124 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,7 @@ Recent decisions relevant to v0.4:
 - [Phase 29.2]: in_postcondition parameter threaded through convert_expr_with_db — *_1 in ensures → _1_prophecy, old(*_1) → _1_initial, preconditions unchanged
 - [Phase 29.2]: Inside old(): in_postcondition=false — old() always wins, never produces prophecy variable
 - [Phase 29.3]: statement_references_local() checks both LHS (place) and RHS (rvalue) of Assign — exhaustive Rvalue match without wildcard per compiler-enforced completeness pattern
+- [Phase 29.4]: Use ```rust,ignore for stdlib API signature doc blocks — renders with Rust syntax highlighting and skips compilation due to free type parameters T, F, U not in scope
 
 ### Roadmap Evolution
 
@@ -208,13 +210,14 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 29.3-01-PLAN.md — generate_expiry_vcs() TDD implementation (0d9ffc0)
+Last session: 2026-02-26
+Stopped at: Completed 29.4-01-PLAN.md — 26 ```text fences replaced with ```rust,ignore in stdlib_contracts (c96b396)
 Resume file: None
-Next step: Execute Phase 29.4 — Stdlib Contracts Option Doc Test Fixes
+Next step: Phase 29.4 COMPLETE — all phases complete
 
 ---
 
+*Last updated: 2026-02-26 after 29.4-01 — Phase 29.4 plan 1/1 COMPLETE (26 ```text → ```rust,ignore doc blocks fixed, doc tests now show 28 ignored, 0 failed)*
 *Last updated: 2026-02-25 after 29.3-01 — Phase 29.3 plan 1/1 COMPLETE (generate_expiry_vcs() stub replaced, BorrowValidity VC emitted for use-after-expiry)*
 *Last updated: 2026-02-26 after 29.2-01 — Phase 29.2 plan 1/1 COMPLETE (test_prophecy_basic GREEN, *_1 in ensures → _1_prophecy)*
 *Last updated: 2026-02-26 after 29.1-03 — Phase 29.1 plan 3/3 COMPLETE (classify_for_loop_iterators() + test 09 GREEN)*
