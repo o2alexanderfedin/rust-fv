@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T04:45:12.768Z"
+last_updated: "2026-02-26T05:44:09.061Z"
 progress:
   total_phases: 34
-  completed_phases: 32
-  total_plans: 97
-  completed_plans: 97
+  completed_phases: 33
+  total_plans: 98
+  completed_plans: 98
 ---
 
 # Project State
@@ -87,6 +87,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29.1 P02 | 300 | 2 tasks | 3 files |
 | Phase 29.1 P03 | 540 | 2 tasks | 2 files |
 | Phase 29.2 P01 | 594 | 2 tasks | 3 files |
+| Phase 29.3 P01 | 266 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -182,6 +183,7 @@ Recent decisions relevant to v0.4:
 - [Phase 29.1]: classify_for_loop_iterators() uses detect_loops() as base, fills None iterator_kind from MIR into_iter+::next+SwitchInt pattern scan — bridges unit-test path and production driver path
 - [Phase 29.2]: in_postcondition parameter threaded through convert_expr_with_db — *_1 in ensures → _1_prophecy, old(*_1) → _1_initial, preconditions unchanged
 - [Phase 29.2]: Inside old(): in_postcondition=false — old() always wins, never produces prophecy variable
+- [Phase 29.3]: statement_references_local() checks both LHS (place) and RHS (rvalue) of Assign — exhaustive Rvalue match without wildcard per compiler-enforced completeness pattern
 
 ### Roadmap Evolution
 
@@ -206,13 +208,14 @@ Recent decisions relevant to v0.4:
 
 ## Session Continuity
 
-Last session: 2026-02-26
-Stopped at: Completed 29.2-01-PLAN.md — prophecy postcondition deref fix (7fca7a5)
+Last session: 2026-02-25
+Stopped at: Completed 29.3-01-PLAN.md — generate_expiry_vcs() TDD implementation (0d9ffc0)
 Resume file: None
-Next step: Execute Phase 29.3 — Borrow Conflict Detection Implementation
+Next step: Execute Phase 29.4 — Stdlib Contracts Option Doc Test Fixes
 
 ---
 
+*Last updated: 2026-02-25 after 29.3-01 — Phase 29.3 plan 1/1 COMPLETE (generate_expiry_vcs() stub replaced, BorrowValidity VC emitted for use-after-expiry)*
 *Last updated: 2026-02-26 after 29.2-01 — Phase 29.2 plan 1/1 COMPLETE (test_prophecy_basic GREEN, *_1 in ensures → _1_prophecy)*
 *Last updated: 2026-02-26 after 29.1-03 — Phase 29.1 plan 3/3 COMPLETE (classify_for_loop_iterators() + test 09 GREEN)*
 *Last updated: 2026-02-26 after 29.1-02 — Phase 29.1 plan 2/3 complete (for_loop_vcgen full implementation + 8 GREEN tests)*

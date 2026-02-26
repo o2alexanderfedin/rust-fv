@@ -329,7 +329,7 @@ Plans:
 **Goal:** Implement generate_expiry_vcs() — the stub in borrow_conflict.rs:144 that returns Vec::new() unconditionally — to detect use-after-lifetime-end via statement scanning
 **Requirements**: BORROW-EXPIRY-01
 **Depends on:** Phase 29
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 29.3-01-PLAN.md — TDD: RED test (len==1) + GREEN generate_expiry_vcs() implementation with statement scanning helpers
