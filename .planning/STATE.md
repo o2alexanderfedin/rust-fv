@@ -162,6 +162,10 @@ Recent decisions relevant to v0.4:
 ### Roadmap Evolution
 
 - Phase 29 added: to fix the identified gaps
+- Phase 29.1 inserted after Phase 29: For-loop Iterator Range VCGen (URGENT — VCGEN-01 partial, for/range/slice deferred from v0.5)
+- Phase 29.2 inserted after Phase 29: Prophecy Encoding for Mutable Reference Assignments (URGENT — #[ignore] test in e2e_verification.rs:2765)
+- Phase 29.3 inserted after Phase 29: Borrow Conflict Detection Implementation (URGENT — borrow_conflict.rs:144 is a stub returning 0 always)
+- Phase 29.4 inserted after Phase 29: Stdlib Contracts Option Doc Test Fixes (URGENT — 26 doc tests suppressed with ```text workaround)
 
 ### Pending Todos
 
