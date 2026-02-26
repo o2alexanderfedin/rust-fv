@@ -1346,8 +1346,11 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
         decls.push(Command::DeclareConst(param.name.clone(), sort));
     }
 
-    // Locals (including ghost locals - they're declared but may not be used in executable VCs)
+    // Locals (ghost locals are specification-only and excluded from SMT declarations)
     for local in &func.locals {
+        if local.is_ghost {
+            continue;
+        }
         let sort = encode_type(&local.ty);
         decls.push(Command::DeclareConst(local.name.clone(), sort));
     }
@@ -1652,6 +1655,12 @@ fn encode_assignment(
     func: &Function,
     _ssa_counter: &mut HashMap<String, u32>,
 ) -> Option<Command> {
+    // Ghost locals are specification-only — skip encoding their assignments into
+    // executable VCs. They remain declared as SMT constants so spec expressions
+    // can reference them, but assignments are erased.
+    if is_ghost_place(place, func) {
+        return None;
+    }
     // Handle projected LHS (field access on left side)
     if !place.projections.is_empty() {
         // Single-level Field projection: try functional record update for struct mutation.
@@ -3466,6 +3475,29 @@ fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
         }
     }
     None
+}
+
+/// Returns true if the place's root local is a ghost variable.
+/// Ghost locals must not generate assignment assertions in executable VCs.
+/// They remain declared as SMT constants so spec expressions can reference them.
+fn is_ghost_place(place: &Place, func: &Function) -> bool {
+    // Check return local
+    if func.return_local.name == place.local {
+        return func.return_local.is_ghost;
+    }
+    // Check params
+    for p in &func.params {
+        if p.name == place.local {
+            return p.is_ghost;
+        }
+    }
+    // Check locals
+    for l in &func.locals {
+        if l.name == place.local {
+            return l.is_ghost;
+        }
+    }
+    false
 }
 
 /// Infer the type of an operand.
