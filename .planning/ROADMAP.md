@@ -326,13 +326,13 @@ Plans:
 
 ### Phase 29.3: Borrow Conflict Detection Implementation (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Implement generate_expiry_vcs() — the stub in borrow_conflict.rs:144 that returns Vec::new() unconditionally — to detect use-after-lifetime-end via statement scanning
+**Requirements**: BORROW-EXPIRY-01
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 29.3 to break down)
+- [ ] 29.3-01-PLAN.md — TDD: RED test (len==1) + GREEN generate_expiry_vcs() implementation with statement scanning helpers
 
 ### Phase 29.2: Prophecy Encoding for Mutable Reference Assignments (INSERTED)
 
