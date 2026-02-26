@@ -1542,6 +1542,30 @@ fn uses_spec_int_types(func: &Function) -> bool {
             return true;
         }
     }
+    // Check spec expressions for "as int" / "as nat" casts (produce Term::Bv2Int).
+    // This covers the common case: I32 params/return with "as int" in ensures/requires.
+    let spec_uses_bv2int =
+        |expr: &SpecExpr| expr.raw.contains("as int") || expr.raw.contains("as nat");
+    for pre in &func.contracts.requires {
+        if spec_uses_bv2int(pre) {
+            return true;
+        }
+    }
+    for post in &func.contracts.ensures {
+        if spec_uses_bv2int(post) {
+            return true;
+        }
+    }
+    for inv in &func.contracts.invariants {
+        if spec_uses_bv2int(inv) {
+            return true;
+        }
+    }
+    if let Some(ref inv) = func.contracts.state_invariant
+        && spec_uses_bv2int(inv)
+    {
+        return true;
+    }
     false
 }
 
