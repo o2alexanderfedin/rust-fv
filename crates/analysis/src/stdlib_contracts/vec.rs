@@ -43,7 +43,7 @@ pub fn register_vec_contracts(registry: &mut StdlibContractRegistry) {
 
 /// Contract for `Vec::push`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn push(&mut self, value: T)
 /// ```
 ///
@@ -83,7 +83,7 @@ fn vec_push_contract() -> StdlibContract {
 
 /// Contract for `Vec::pop`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn pop(&mut self) -> Option<T>
 /// ```
 ///
@@ -123,7 +123,7 @@ fn vec_pop_contract() -> StdlibContract {
 
 /// Contract for `Vec::len`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn len(&self) -> usize
 /// ```
 ///
@@ -156,7 +156,7 @@ fn vec_len_contract() -> StdlibContract {
 
 /// Contract for `Vec::capacity`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn capacity(&self) -> usize
 /// ```
 ///
@@ -192,7 +192,7 @@ fn vec_capacity_contract() -> StdlibContract {
 
 /// Contract for `Vec::get`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn get(&self, index: usize) -> Option<&T>
 /// ```
 ///
@@ -237,7 +237,7 @@ fn vec_get_contract() -> StdlibContract {
 
 /// Contract for `Vec::reserve`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn reserve(&mut self, additional: usize)
 /// ```
 ///
@@ -281,7 +281,7 @@ fn vec_reserve_contract() -> StdlibContract {
 
 /// Contract for `Vec::shrink_to_fit`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn shrink_to_fit(&mut self)
 /// ```
 ///
@@ -325,7 +325,7 @@ fn vec_shrink_to_fit_contract() -> StdlibContract {
 
 /// Contract for `Vec::is_empty`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn is_empty(&self) -> bool
 /// ```
 ///
@@ -361,7 +361,7 @@ fn vec_is_empty_contract() -> StdlibContract {
 
 /// Contract for `Vec::clear`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn clear(&mut self)
 /// ```
 ///
