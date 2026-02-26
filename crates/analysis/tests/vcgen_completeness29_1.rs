@@ -460,6 +460,79 @@ fn vcgen_for_07_unknown_iterator() {
 // Test 8: Slice element bounds check produces MemorySafety VC
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Test 9: MIR range detection — loops empty, classify from basic_blocks
+// ---------------------------------------------------------------------------
+
+/// vcgen_for_09_mir_range_detection: VCs generated even when func.loops is empty.
+///
+/// Simulates a function with the for-loop MIR desugaring pattern in basic_blocks
+/// (into_iter -> ::next -> SwitchInt). func.loops is NOT pre-populated, so
+/// classify_for_loop_iterators() must detect the loop from the MIR.
+#[test]
+fn vcgen_for_09_mir_range_detection() {
+    // Simulate a function with a for-loop MIR desugaring pattern:
+    //   bb0: _iter = into_iter(0..5)  [Terminator::Call with "into_iter"]
+    //   bb1: _opt  = _iter.next()      [Terminator::Call with "::next"]
+    //   bb2: SwitchInt(_opt) -> [1: bb3, otherwise: bb4]  (loop header)
+    //   bb3: body  [Goto(bb1)]   (back-edge)
+    //   bb4: Return
+    let blocks = vec![
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "core::iter::traits::collect::IntoIterator::into_iter".to_string(),
+                args: vec![Operand::Copy(Place::local("_range"))],
+                destination: Place::local("_iter"),
+                target: 1,
+            },
+        },
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "core::iter::traits::iterator::Iterator::next".to_string(),
+                args: vec![Operand::Copy(Place::local("_iter"))],
+                destination: Place::local("_opt"),
+                target: 2,
+            },
+        },
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::SwitchInt {
+                discr: Operand::Copy(Place::local("_opt")),
+                targets: vec![(1, 3)], // Some branch -> body
+                otherwise: 4,          // None -> exit
+            },
+        },
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Goto(1), // back-edge to "loop header" (bb1/bb2)
+        },
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        },
+    ];
+    // loops is EMPTY — forces classify_for_loop_iterators to scan basic_blocks
+    let func = make_func("range_loop_fn", Ty::Bool, vec![], vec![], blocks);
+    // func.loops is already vec![] from make_func
+
+    let vcs = rust_fv_analysis::for_loop_vcgen::generate_for_loop_vcs(
+        &func,
+        &rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase::default(),
+    );
+
+    // Should produce at least one VC (either classified or conservative Unknown)
+    assert!(
+        !vcs.is_empty(),
+        "Expected at least one VC for for-loop detected from MIR pattern; got 0"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: Slice element bounds check produces MemorySafety VC
+// ---------------------------------------------------------------------------
+
 /// vcgen_for_08_element_bounds_check: Slice iter with loop_var produces MemorySafety VC.
 ///
 /// RED: `generate_for_loop_vcs` does not exist until Plan 02.
