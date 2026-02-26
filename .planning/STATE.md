@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T06:57:21.913Z"
+last_updated: "2026-02-26T09:12:07.796Z"
 progress:
-  total_phases: 34
+  total_phases: 37
   completed_phases: 34
-  total_plans: 99
-  completed_plans: 99
+  total_plans: 102
+  completed_plans: 100
 ---
 
 # Project State
@@ -89,6 +89,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29.2 P01 | 594 | 2 tasks | 3 files |
 | Phase 29.3 P01 | 266 | 2 tasks | 1 files |
 | Phase 29.4 P01 | 124 | 2 tasks | 3 files |
+| Phase 30 P01 | 87 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,7 @@ Recent decisions relevant to v0.4:
 - [Phase 29.2]: Inside old(): in_postcondition=false — old() always wins, never produces prophecy variable
 - [Phase 29.3]: statement_references_local() checks both LHS (place) and RHS (rvalue) of Assign — exhaustive Rvalue match without wildcard per compiler-enforced completeness pattern
 - [Phase 29.4]: Use ```rust,ignore for stdlib API signature doc blocks — renders with Rust syntax highlighting and skips compilation due to free type parameters T, F, U not in scope
+- [Phase 30]: vcgen_06_set_discriminant_unit uses variant index 1; vcgen_06_set_discriminant_assertion uses variant index 2 to ensure SMT index specificity assertions are distinct
 
 ### Roadmap Evolution
 
