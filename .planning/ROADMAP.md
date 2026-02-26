@@ -383,7 +383,7 @@ Plans:
 **Goal:** Fix Z3 `bv2int` "unknown constant" error to make SpecInt/SpecNat unbounded arithmetic functional; implement ghost locals filtering from executable VCs
 **Requirements:** Phase-04-bv2int, Phase-04-ghost
 **Gap Closure:** Enables 2 commented-out E2E tests; fixes ghost variable leakage into executable VCs
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 31-01-PLAN.md — TDD RED tests for both gaps (bv2int logic selection + ghost local leakage)

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T21:13:14.256Z"
+last_updated: "2026-02-26T21:17:29.055Z"
 progress:
   total_phases: 37
-  completed_phases: 35
+  completed_phases: 36
   total_plans: 105
-  completed_plans: 104
+  completed_plans: 105
 ---
 
 # Project State
@@ -94,6 +94,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 30 P03 | 102 | 1 tasks | 1 files |
 | Phase 31-z3-bv2int-fix-ghost-locals P01 | 160 | 1 tasks | 1 files |
 | Phase 31 P02 | 288 | 2 tasks | 2 files |
+| Phase 31 P03 | 300 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -198,6 +199,7 @@ Recent decisions relevant to v0.4:
 - [Phase 31-01]: Phase-04-ghost: RED test uses full Function struct literal (not make_func helper) and ensures:true to expose __ghost_x leak in SMT assert and declare-const output
 - [Phase 31-02]: Extended uses_spec_int_types() with substring scan over spec expressions (contains 'as int' / 'as nat') — minimal change enabling ALL logic for common BV-typed functions with integer-cast specs
 - [Phase 31-02]: Used ..Default::default() for Contracts missing fields; explicit field list for Function (no Default derive) — matches make_add_function() helper pattern
+- [Phase 31]: Ghost locals filtered from both encode_assignment() and collect_declarations() — complete SMT erasure; test contract takes precedence over plan prose
 
 ### Roadmap Evolution
 
@@ -223,12 +225,13 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 30-02-PLAN.md — generate_set_discriminant_vcs() implemented, VCGEN-06 GREEN (3b41fa6)
+Stopped at: Completed 31-03-PLAN.md — is_ghost_place() + ghost guard in encode_assignment() + collect_declarations() filter, phase04_ghost_local_leaks_into_vc GREEN (3835d0d)
 Resume file: None
-Next step: Phase 30 plan 3/3 — run 30-03-PLAN.md
+Next step: Phase 32 — next gap closure phase
 
 ---
 
+*Last updated: 2026-02-26 after 31-03 — Phase 31 plan 3/3 COMPLETE (is_ghost_place() + ghost erasure from encode_assignment + collect_declarations, phase04_ghost RED→GREEN, 13/13 vcgen_completeness29 pass)*
 *Last updated: 2026-02-26 after 30-02 — Phase 30 plan 2/3 COMPLETE (generate_set_discriminant_vcs() implemented, vcgen_06 RED→GREEN, 11/11 vcgen_completeness29 pass)*
 *Last updated: 2026-02-26 after 29.4-01 — Phase 29.4 plan 1/1 COMPLETE (26 ```text → ```rust,ignore doc blocks fixed, doc tests now show 28 ignored, 0 failed)*
 *Last updated: 2026-02-25 after 29.3-01 — Phase 29.3 plan 1/1 COMPLETE (generate_expiry_vcs() stub replaced, BorrowValidity VC emitted for use-after-expiry)*
