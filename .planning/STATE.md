@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: Milestone UAT ✅
+status: unknown
+last_updated: "2026-02-26T03:33:21.797Z"
+progress:
+  total_phases: 34
+  completed_phases: 30
+  total_plans: 96
+  completed_plans: 94
+---
+
 # Project State
 
 ## Project Reference
@@ -70,6 +83,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 29 P04 | 648 | 1 tasks | 4 files |
 | Phase 29 P05 | 250 | 1 tasks | 2 files |
 | Phase 00-milestone-uat P01 | 19 | 2 tasks | 1 files |
+| Phase 29.1 P01 | 480 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -158,6 +172,8 @@ Recent decisions relevant to v0.4:
 - [Phase 29]: Cow<Ty> used in encode_place_with_type so Downcast can produce an owned variant-struct Ty alongside borrowed Tys from find_local_type
 - [Phase 29]: Functional update mk-StructName emits ALL fields in order — changed field gets new_val, others get selector(base) — correct constructor arity guaranteed by construction
 - [Phase 00-milestone-uat]: Used integration test file filters for mirconv/vcgen_06 tests (vcgen_completeness29) rather than lib binary filters which match 0; npx tsc --noEmit exits 0 confirming Phase 25 TypeScript integration is type-safe
+- [Phase 29.1]: Stub for_loop_vcgen module with todo!() panic preferred over compile-failure RED — pre-commit hook requires all targets to compile; runtime panic is valid TDD RED state
+- [Phase 29.1]: vc.location.vc_kind used in for-loop tests (not vc.kind) — VerificationCondition has no top-level kind field, VcKind is nested in VcLocation
 
 ### Roadmap Evolution
 
@@ -183,12 +199,13 @@ Recent decisions relevant to v0.4:
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Phase 00 UAT complete — v0.4+v0.5 UAT all 22 test items pass (393b719)
+Stopped at: Completed 29.1-01-PLAN.md — TDD scaffold + IR extension done, 8 RED tests, for_loop_vcgen stub (51283cb)
 Resume file: None
-Next step: v0.5 FULLY COMPLETE (UAT validated) — run /gsd:new-milestone to plan v0.6
+Next step: Execute 29.1-02 — implement generate_for_loop_vcs to make 8 RED tests GREEN
 
 ---
 
+*Last updated: 2026-02-25 after 29.1-01 — Phase 29.1 plan 1/3 complete (TDD scaffold + IR extension + 8 RED for-loop VCGen tests)*
 *State initialized: 2026-02-14*
 *Last updated: 2026-02-24 after 29-05 — Phase 29 COMPLETE (5/5 plans done; MIRCONV-01/02 + VCGEN-05/06 all satisfied)*
 *Last updated: 2026-02-24 after 29-04 — Phase 29 plan 4/5 complete (TyKind::Param→Generic; Rvalue::Repeat; CopyForDeref/RawPtr/Repeat)*

@@ -349,7 +349,7 @@ Plans:
 **Goal:** Add VCGen support for for-loops over ranges and iterators — AUFLIA quantified VCs + QF_LIA bounded unrolling VCs + MIR pattern detection
 **Requirements**: VCGEN-01-FORLOOP
 **Depends on:** Phase 29
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 29.1-01-PLAN.md — TDD scaffold: 8 RED tests + IteratorKind IR extension
