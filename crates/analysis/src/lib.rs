@@ -13,6 +13,7 @@ pub mod encode_quantifier;
 pub mod encode_sort;
 pub mod encode_term;
 pub mod float_verification;
+pub mod for_loop_vcgen;
 pub mod ghost_predicate_db;
 pub mod heap_model;
 pub mod hof_vcgen;
