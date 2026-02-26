@@ -381,13 +381,14 @@ Plans:
 
 ### Phase 31: Z3 bv2int Fix + Ghost Locals Filtering
 **Goal:** Fix Z3 `bv2int` "unknown constant" error to make SpecInt/SpecNat unbounded arithmetic functional; implement ghost locals filtering from executable VCs
-**Requirements:** (Phase 04 functional gaps)
+**Requirements:** Phase-04-bv2int, Phase-04-ghost
 **Gap Closure:** Enables 2 commented-out E2E tests; fixes ghost variable leakage into executable VCs
+**Plans:** 3 plans
 
 Plans:
-- [ ] 31-01: Research Z3 bv2int correct syntax + TDD RED tests for both gaps
-- [ ] 31-02: Fix `Term::Bv2Int` SMT-LIB2 serialization + enable 2 commented E2E tests (GREEN)
-- [ ] 31-03: Implement ghost locals filtering at `encode_assignment` level in `vcgen.rs` (GREEN)
+- [ ] 31-01-PLAN.md — TDD RED tests for both gaps (bv2int logic selection + ghost local leakage)
+- [ ] 31-02-PLAN.md — Fix `uses_spec_int_types()` to detect "as int" in spec strings + enable 2 E2E tests (GREEN)
+- [ ] 31-03-PLAN.md — Add `is_ghost_place()` guard in `encode_assignment()` — ghost locals filtering (GREEN)
 
 ### Phase 32: Formal Verification Docs for Early Phases
 **Goal:** Create VERIFICATION.md for the 7 early phases (05, 06, 07, 08, 11, 13, 17) that executed before the verification step was established
