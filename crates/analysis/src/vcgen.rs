@@ -1656,8 +1656,8 @@ fn encode_assignment(
     _ssa_counter: &mut HashMap<String, u32>,
 ) -> Option<Command> {
     // Ghost locals are specification-only — skip encoding their assignments into
-    // executable VCs. They remain declared as SMT constants so spec expressions
-    // can reference them, but assignments are erased.
+    // executable VCs. Ghost locals are fully erased from SMT output (no DeclareConst,
+    // no assignment assertions).
     if is_ghost_place(place, func) {
         return None;
     }
@@ -3478,8 +3478,7 @@ fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
 }
 
 /// Returns true if the place's root local is a ghost variable.
-/// Ghost locals must not generate assignment assertions in executable VCs.
-/// They remain declared as SMT constants so spec expressions can reference them.
+/// Ghost locals are fully erased from executable VCs — no DeclareConst, no assignment assertions.
 fn is_ghost_place(place: &Place, func: &Function) -> bool {
     // Check return local
     if func.return_local.name == place.local {
