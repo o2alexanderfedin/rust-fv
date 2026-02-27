@@ -83,9 +83,12 @@ jobs:
           }
           # Add bin to PATH for z3 executable
           echo "C:\tools\z3\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          # Set env vars for z3-sys build script (bindgen needs z3.h, linker needs libz3.lib)
+          # Set env vars for z3-sys build script:
+          # - Z3_SYS_Z3_HEADER: path to z3.h for bindgen
+          # - Z3_LIBRARY_PATH_OVERRIDE: directory containing libz3.lib (in bin/, not lib/)
+          #   z3-sys uses this to emit cargo:rustc-link-search=native=<path>
           echo "Z3_SYS_Z3_HEADER=C:\tools\z3\include\z3.h" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "LIB=C:\tools\z3\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "Z3_LIBRARY_PATH_OVERRIDE=C:\tools\z3\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Z3 installed at C:\tools\z3"
 
       - name: Verify Z3 installation
