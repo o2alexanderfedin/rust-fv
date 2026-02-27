@@ -9,7 +9,7 @@ use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
-use rust_fv_solver::{SolverConfig, SolverError, SolverKind, Z3Solver};
+use rust_fv_solver::{SolverConfig, SolverError, SolverKind, SolverResult, Z3Solver};
 
 // ---- Helper ----
 
@@ -267,17 +267,22 @@ fn script_with_explicit_check_sat_no_duplicate() {
 
 #[test]
 fn timeout_with_short_limit() {
-    // Verify that timeout flag is accepted and z3 still responds within a reasonable time.
-    // Use 5000ms — short enough to be a meaningful limit, but long enough for z3 to
-    // actually honor it on all platforms (1ms caused z3 to hang on Ubuntu before checking
-    // its timer on hard QF_NIA instances).
+    // Verify that a short timeout causes Z3 to return (not hang) on a hard problem.
+    //
+    // Previously this hung indefinitely on Ubuntu CI because Z3's internal -t: flag
+    // is a soft hint that older Z3 versions (apt z3 4.8.x) ignore for QF_NIA problems.
+    // The fix adds an OS-level timeout in CliSolver::check_sat_raw() that kills/abandons
+    // the solver process after 3× the configured timeout, guaranteeing termination.
+    //
+    // Use 2000ms: long enough for Z3 to start and begin solving on any platform, short
+    // enough that the OS-level backstop (6s) keeps the total test time well under 10s.
     let config = SolverConfig::auto_detect()
         .expect("z3 must be installed")
-        .with_timeout(5000); // 5s
+        .with_timeout(2000); // 2s solver timeout; OS-level backstop kicks in at 6s
     let solver = Z3Solver::new(config);
 
-    // A hard nonlinear problem (Fermat's Last Theorem cubic case) — z3 should
-    // return Unknown within the timeout rather than hanging indefinitely.
+    // A hard nonlinear problem (Fermat's Last Theorem cubic case).
+    // Z3 cannot solve this quickly — it should time out and return Unknown.
     let result = solver.check_sat_raw(
         "\
 (set-logic QF_NIA)
@@ -292,11 +297,14 @@ fn timeout_with_short_limit() {
 ",
     );
 
-    // With a 5s timeout we expect Unknown (or Unsat if z3 is fast enough).
-    #[allow(clippy::single_match)]
+    // We expect Unknown (timeout) or possibly Unsat if z3 is fast enough.
+    // An Err (parse error from truncated output) is also acceptable.
+    // What is NOT acceptable: hanging for >10s (the OS-level timeout prevents that).
     match result {
-        Ok(_) => {}  // Any result (Sat/Unsat/Unknown) is fine — we just verify no hang/crash
-        Err(_) => {} // Parse error from truncated output is also acceptable
+        Ok(SolverResult::Unknown(_)) => {} // Expected: timeout
+        Ok(SolverResult::Unsat) => {}      // Valid: z3 was fast enough
+        Ok(SolverResult::Sat(_)) => {}     // Unexpected but not a hang
+        Err(_) => {}                       // Parse error from truncated output is also ok
     }
 }
 

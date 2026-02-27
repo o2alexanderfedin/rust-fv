@@ -1,5 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use rust_fv_smtlib::script::Script;
 
@@ -75,17 +77,71 @@ impl CliSolver {
                 SolverError::ProcessError(format!("Failed to start {solver_name}: {e}"))
             })?;
 
-        // Write SMT-LIB to stdin
+        // Write SMT-LIB to stdin and close it so the solver sees EOF
         {
-            let stdin = child.stdin.as_mut().ok_or_else(|| {
+            let stdin = child.stdin.take().ok_or_else(|| {
                 SolverError::ProcessError(format!("Failed to open {solver_name} stdin"))
             })?;
+            let mut stdin = stdin;
             stdin.write_all(smtlib.as_bytes()).map_err(|e| {
                 SolverError::ProcessError(format!("Failed to write to {solver_name} stdin: {e}"))
             })?;
+            // stdin is dropped here, closing the pipe and signaling EOF to the solver
         }
 
-        // Wait for solver to finish and collect output
+        // If a timeout is configured, enforce it at the OS level via a background thread.
+        // Z3's internal -t: flag is a solver heuristic: it can be ignored on hard problems
+        // or older Z3 versions (e.g. Ubuntu apt z3 4.8.x with QF_NIA). Without an OS-level
+        // timeout the test thread blocks in wait_with_output() indefinitely.
+        let timeout_ms = self.config.timeout_ms;
+        if timeout_ms > 0 {
+            // Capture the OS PID before moving `child` into the background thread.
+            // This lets us kill the process by PID when the OS-level timeout fires,
+            // guaranteeing termination even when Z3 ignores its internal -t: flag.
+            let child_pid = child.id();
+
+            let (tx, rx) = mpsc::channel();
+            // Move child into background thread that waits for the solver
+            let handle = std::thread::spawn(move || {
+                let result = child.wait_with_output();
+                // Send result; ignore send error if receiver timed out and dropped
+                let _ = tx.send(result);
+            });
+
+            // Add a generous OS-level margin: give the solver 3x its configured timeout
+            // to account for startup overhead and allow the solver's own timeout to fire first.
+            // Cap at a minimum of 10 seconds so tiny timeouts still have room to work.
+            let os_timeout_ms = (timeout_ms * 3).max(10_000);
+            match rx.recv_timeout(Duration::from_millis(os_timeout_ms)) {
+                Ok(wait_result) => {
+                    let output = wait_result.map_err(|e| {
+                        SolverError::ProcessError(format!("Failed to wait for {solver_name}: {e}"))
+                    })?;
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stderr.contains("timeout") || stdout.trim() == "timeout" {
+                        return Ok(SolverResult::Unknown("timeout".to_string()));
+                    }
+                    // Background thread finished; ignore join result
+                    let _ = handle.join();
+                    return parse_solver_output(&stdout, &stderr);
+                }
+                Err(_) => {
+                    // OS-level timeout expired. Kill the solver process by PID to guarantee
+                    // it terminates. The background thread unblocks once the child exits,
+                    // preventing thread and process leaks in CI.
+                    kill_process(child_pid);
+                    // Give the background thread a moment to notice the kill and unblock.
+                    let _ = handle.join();
+                    return Ok(SolverResult::Unknown(format!(
+                        "OS-level timeout after {}ms: {solver_name} process killed after {}ms",
+                        timeout_ms, os_timeout_ms
+                    )));
+                }
+            }
+        }
+
+        // No timeout configured — wait indefinitely (original behavior)
         let output = child.wait_with_output().map_err(|e| {
             SolverError::ProcessError(format!("Failed to wait for {solver_name}: {e}"))
         })?;
@@ -110,6 +166,46 @@ impl CliSolver {
     /// Create a Z3 solver with auto-detected location and default settings.
     pub fn with_default_config() -> Result<Self, SolverError> {
         Self::with_default_config_for(SolverKind::Z3)
+    }
+}
+
+/// Kill a process by PID at the OS level.
+///
+/// On Unix-like systems, sends SIGKILL (unconditional kill).
+/// On Windows, calls TerminateProcess.
+///
+/// This is used as a backstop when a solver process does not terminate within
+/// the configured timeout. Errors are intentionally ignored: if the process
+/// already exited, killing it is a no-op.
+fn kill_process(pid: u32) {
+    #[cfg(unix)]
+    {
+        // Safety: SIGKILL(9) is always valid; pid is obtained from a live child.
+        // Ignore ESRCH (process already dead) and other errors.
+        unsafe {
+            libc::kill(pid as libc::pid_t, libc::SIGKILL);
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::RawHandle;
+        // SAFETY: OpenProcess/TerminateProcess are safe with valid PID and access rights.
+        unsafe {
+            let handle = winapi::um::processthreadsapi::OpenProcess(
+                winapi::um::winnt::PROCESS_TERMINATE,
+                0,
+                pid,
+            );
+            if !handle.is_null() {
+                winapi::um::processthreadsapi::TerminateProcess(handle as RawHandle, 1);
+                winapi::um::handleapi::CloseHandle(handle);
+            }
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        // Unsupported platform: no-op; OS may eventually reap the orphan.
+        let _ = pid;
     }
 }
 
