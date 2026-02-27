@@ -283,6 +283,104 @@ The `analysis` crate includes:
 
 Verification results are cached in `target/verify-cache/`. Cache keys are SHA-256 hashes of the function name, all contracts, and the MIR representation. On subsequent runs, functions whose source hasn't changed reuse cached results and show as `[SKIP]`. Use `--fresh` to bypass the cache, or `cargo verify clean` to delete it.
 
+## CI/CD Integration
+
+### Minimal GitHub Actions workflow (Ubuntu)
+
+```yaml
+name: Verify
+
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Z3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y z3
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Build rust-fv-driver
+        run: cargo build -p rust-fv-driver --release
+
+      - name: Run formal verification
+        run: RUSTC=$PWD/target/release/rust-fv-driver RUST_FV_VERIFY=1 cargo check
+```
+
+Verification fails the build (non-zero exit) when any function fails — no extra configuration needed.
+
+### Cross-platform matrix (Linux / macOS / Windows)
+
+This repository's own CI workflow (`.github/workflows/ci.yml`) is prior art for cross-platform Z3 installation:
+
+| Platform | Install |
+|----------|---------|
+| Ubuntu | `sudo apt-get install -y z3` |
+| macOS | `brew install z3` |
+| Windows | Download Z3 release zip from GitHub, add `bin/` to PATH, set `Z3_SYS_Z3_HEADER` and `Z3_LIBRARY_PATH_OVERRIDE` |
+
+```yaml
+strategy:
+  matrix:
+    os: [ubuntu-latest, macos-latest, windows-latest]
+runs-on: ${{ matrix.os }}
+```
+
+See `.github/workflows/ci.yml` for the complete cross-platform Z3 setup used in this project.
+
+### Structured JSON output for CI reporting
+
+```yaml
+- name: Run formal verification (JSON output)
+  run: |
+    RUSTC=$PWD/target/release/rust-fv-driver \
+    RUST_FV_VERIFY=1 \
+    RUST_FV_OUTPUT_FORMAT=json \
+    cargo check 2>&1 | tee verification-results.json
+
+- name: Upload verification results
+  uses: actions/upload-artifact@v4
+  with:
+    name: verification-results
+    path: verification-results.json
+```
+
+### Caching the verification cache across runs
+
+The cache directory `target/verify-cache/` stores SHA-256-keyed results per function. Cache it across workflow runs to skip unchanged functions:
+
+```yaml
+- name: Cache verification results
+  uses: actions/cache@v4
+  with:
+    path: |
+      ~/.cargo/registry/index/
+      ~/.cargo/registry/cache/
+      ~/.cargo/git/db/
+      target/
+    key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    restore-keys: |
+      ${{ runner.os }}-cargo-
+```
+
+Functions whose source hasn't changed show as `[SKIP]` on subsequent runs. Use `RUST_FV_FRESH=1` to bypass the cache when needed.
+
+### Environment variable reference for CI
+
+The subcommand approach (`cargo verify`) requires building and installing `rust-fv-driver` first. The environment variable approach works without a subcommand install:
+
+```bash
+RUSTC=/path/to/rust-fv-driver RUST_FV_VERIFY=1 cargo check
+```
+
+All `cargo verify` flags have environment variable equivalents — see the [Environment variable alternative](#environment-variable-alternative) table above.
+
 ## Requirements
 
 | Requirement | Details |
