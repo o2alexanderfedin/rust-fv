@@ -57,6 +57,24 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Helper: Copy e2e-bench to a temp directory and patch Cargo.toml to use the
+/// absolute path to rust-fv-macros (since the relative `../../crates/macros`
+/// path does not resolve when the crate is in a temp directory).
+fn setup_crate_copy(source: &Path, dest: &Path) {
+    copy_dir_all(source, dest).expect("Failed to copy e2e-bench");
+
+    // Patch Cargo.toml: replace relative macros path with absolute workspace path
+    let cargo_toml = dest.join("Cargo.toml");
+    let macros_abs = workspace_root().join("crates/macros");
+    let macros_abs_str = macros_abs.display().to_string();
+    // Escape backslashes on Windows (no-op on Unix)
+    let macros_abs_escaped = macros_abs_str.replace('\\', "\\\\");
+
+    let content = fs::read_to_string(&cargo_toml).expect("Failed to read Cargo.toml");
+    let patched = content.replace("../../crates/macros", &macros_abs_escaped);
+    fs::write(&cargo_toml, patched).expect("Failed to write patched Cargo.toml");
+}
+
 /// Helper: Get path to rust-fv-driver binary
 fn driver_binary_path() -> PathBuf {
     // Try to find the built driver in target/debug or target/release
@@ -95,6 +113,8 @@ fn run_cargo_verify(crate_path: &Path, cache_dir: Option<&Path>, fresh: bool) ->
 
     let mut cmd = Command::new("cargo");
     cmd.arg("check")
+        .arg("--features")
+        .arg("verify")
         .current_dir(crate_path)
         .env("RUSTC", &driver_path)
         .env("RUST_FV_VERIFY", "1")
@@ -197,7 +217,7 @@ fn e2e_incremental_body_change_under_1s() {
 
     let test_dir = temp_test_dir("incremental_body");
     let crate_copy = test_dir.join("e2e-bench");
-    copy_dir_all(&source, &crate_copy).expect("Failed to copy e2e-bench");
+    setup_crate_copy(&source, &crate_copy);
 
     let cache_dir = test_dir.join("verify-cache");
     fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
@@ -317,7 +337,7 @@ fn e2e_no_change_all_cached() {
 
     let test_dir = temp_test_dir("no_change");
     let crate_copy = test_dir.join("e2e-bench");
-    copy_dir_all(&source, &crate_copy).expect("Failed to copy e2e-bench");
+    setup_crate_copy(&source, &crate_copy);
 
     let cache_dir = test_dir.join("verify-cache");
     fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
@@ -409,7 +429,7 @@ fn e2e_contract_change_transitive() {
 
     let test_dir = temp_test_dir("contract_change");
     let crate_copy = test_dir.join("e2e-bench");
-    copy_dir_all(&source, &crate_copy).expect("Failed to copy e2e-bench");
+    setup_crate_copy(&source, &crate_copy);
 
     let cache_dir = test_dir.join("verify-cache");
     fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
@@ -509,7 +529,7 @@ fn e2e_fresh_flag_bypasses_cache() {
 
     let test_dir = temp_test_dir("fresh_flag");
     let crate_copy = test_dir.join("e2e-bench");
-    copy_dir_all(&source, &crate_copy).expect("Failed to copy e2e-bench");
+    setup_crate_copy(&source, &crate_copy);
 
     let cache_dir = test_dir.join("verify-cache");
     fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
