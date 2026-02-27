@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-27T05:24:23.801Z"
+last_updated: "2026-02-27T05:39:50.183Z"
 progress:
   total_phases: 38
   completed_phases: 37
   total_plans: 114
-  completed_plans: 113
+  completed_plans: 114
 ---
 
 # Project State
@@ -102,6 +102,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 33 P05 | 391 | 2 tasks | 3 files |
 | Phase 33 P02 | 397 | 2 tasks | 4 files |
 | Phase 33-v0-1-tech-debt-resolution P04 | 978 | 2 tasks | 4 files |
+| Phase 33 P01 | 90 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -219,6 +220,8 @@ Recent decisions relevant to v0.4:
 - [Phase 33-04]: test_trigger_on_arithmetic_result_as_arg: validator checks recursively inside trigger args, not just outermost symbol
 - [Phase 33-04]: spec_parser body vs trigger: convert_trigger_expr (uninterpreted apps OK) vs convert_call (strict, None for unknown). E2E test body must be parseable expression
 - [Phase 33-04]: i64 maps to Sort::BitVec(64) in spec_parser, not Sort::Int. int (unbounded) maps to Sort::Int
+- [Phase 33]: Doc attributes over proc macros in e2e-bench: driver reads HIR doc attrs, proc macro compilation fails when driver stops codegen
+- [Phase 33]: CallGraph bidirectional name_map: normalize caller names internally, return full names via name_map in all API methods
 
 ### Roadmap Evolution
 
