@@ -219,7 +219,9 @@ Recent decisions relevant to v0.4:
 
 ### Pending Todos
 
-0 pending.
+1 pending.
+
+- **Fix v0.1 milestone tech debt and human-pending items** — Phase 14 E2E perf test, Phase 18 docs decision, Phase 10/15 edge cases, Phase 11 placeholder design note → `.planning/todos/pending/2026-02-27-fix-v0-1-milestone-tech-debt-and-human-pending-items.md`
 
 ### Blockers/Concerns
 
