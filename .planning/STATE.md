@@ -216,6 +216,7 @@ Recent decisions relevant to v0.4:
 - Phase 29.2 inserted after Phase 29: Prophecy Encoding for Mutable Reference Assignments (URGENT — #[ignore] test in e2e_verification.rs:2765)
 - Phase 29.3 inserted after Phase 29: Borrow Conflict Detection Implementation (URGENT — borrow_conflict.rs:144 is a stub returning 0 always)
 - Phase 29.4 inserted after Phase 29: Stdlib Contracts Option Doc Test Fixes (URGENT — 26 doc tests suppressed with ```text workaround)
+- Phase 33 added: v0.1 Tech Debt Resolution — E2E benchmarks (Phase 14), bv2int docs (Phase 18), pointer aliasing edge cases (Phase 10), trigger edge cases (Phase 15), float VC placeholders (Phase 11)
 
 ### Pending Todos
 
