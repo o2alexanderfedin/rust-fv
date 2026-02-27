@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-26T21:24:11.143Z"
+last_updated: "2026-02-27T00:29:55.618Z"
 progress:
   total_phases: 37
   completed_phases: 36
-  total_plans: 105
-  completed_plans: 105
+  total_plans: 108
+  completed_plans: 106
 ---
 
 # Project State
@@ -95,6 +95,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 31-z3-bv2int-fix-ghost-locals P01 | 160 | 1 tasks | 1 files |
 | Phase 31 P02 | 288 | 2 tasks | 2 files |
 | Phase 31 P03 | 300 | 1 tasks | 1 files |
+| Phase 32 P02 | 188 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -200,6 +201,7 @@ Recent decisions relevant to v0.4:
 - [Phase 31-02]: Extended uses_spec_int_types() with substring scan over spec expressions (contains 'as int' / 'as nat') — minimal change enabling ALL logic for common BV-typed functions with integer-cast specs
 - [Phase 31-02]: Used ..Default::default() for Contracts missing fields; explicit field list for Function (no Default derive) — matches make_add_function() helper pattern
 - [Phase 31]: Ghost locals filtered from both encode_assignment() and collect_declarations() — complete SMT erasure; test contract takes precedence over plan prose
+- [Phase 32]: Phase 11 placeholder terms (lhs/rhs/result in float_verification.rs VCs) documented as intentional PASS by design — not a gap requiring a fix phase
 
 ### Roadmap Evolution
 
