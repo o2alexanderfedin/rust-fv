@@ -3,7 +3,7 @@ created: 2026-02-27T20:30:30.345Z
 title: Emphasize annotations are optional in README
 area: docs
 files:
-  - README.md
+  - README.md (root — NOT docs/README.md)
 ---
 
 ## Problem
