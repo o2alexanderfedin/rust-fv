@@ -56,9 +56,15 @@ jobs:
           if ($extracted) {
             Rename-Item -Path $extracted.FullName -NewName "z3" -Force
           }
-          # Add to PATH for subsequent steps
+          # Add bin to PATH for z3 executable
           echo "C:\tools\z3\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          Write-Host "Z3 installed at C:\tools\z3\bin"
+          # Set env vars for z3-sys build script (bindgen needs z3.h, linker needs libz3.lib)
+          echo "Z3_SYS_Z3_HEADER=C:\tools\z3\include\z3.h" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "LIB=C:\tools\z3\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Z3 installed at C:\tools\z3"
+          Write-Host "  bin:     C:\tools\z3\bin"
+          Write-Host "  include: C:\tools\z3\include"
+          Write-Host "  lib:     C:\tools\z3\lib"
 
       - name: Verify Z3 installation
         shell: bash
