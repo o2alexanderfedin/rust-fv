@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-27T05:13:21.440Z"
+last_updated: "2026-02-27T05:24:23.801Z"
 progress:
   total_phases: 38
   completed_phases: 37
   total_plans: 114
-  completed_plans: 112
+  completed_plans: 113
 ---
 
 # Project State
@@ -101,6 +101,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 33 P03 | 296 | 2 tasks | 4 files |
 | Phase 33 P05 | 391 | 2 tasks | 3 files |
 | Phase 33 P02 | 397 | 2 tasks | 4 files |
+| Phase 33-v0-1-tech-debt-resolution P04 | 978 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -215,6 +216,9 @@ Recent decisions relevant to v0.4:
 - [Phase 33]: Phase 33-03: PtrCast alignment-check VC not yet generated — test_pointer_cast_chain documents this as DEBTLINE with 0 VCs assertion
 - [Phase 33]: encode_operand() from encode_term.rs called directly in generate_float_vcs() with lhs_op/rhs_op from Rvalue::BinaryOp — 3-line change closing Phase 11 float VC placeholder tech debt
 - [Phase 33]: Product decision: create docs/bv2int.md as standalone user-facing reference; Phase 18 tech debt CLOSED (PERF-05/PERF-06 satisfied)
+- [Phase 33-04]: test_trigger_on_arithmetic_result_as_arg: validator checks recursively inside trigger args, not just outermost symbol
+- [Phase 33-04]: spec_parser body vs trigger: convert_trigger_expr (uninterpreted apps OK) vs convert_call (strict, None for unknown). E2E test body must be parseable expression
+- [Phase 33-04]: i64 maps to Sort::BitVec(64) in spec_parser, not Sort::Int. int (unbounded) maps to Sort::Int
 
 ### Roadmap Evolution
 
@@ -249,6 +253,7 @@ Next step: Phase 33 Plan 06 — next tech debt closure plan
 
 ---
 
+*Last updated: 2026-02-27 after 33-04 — Phase 33 plan 4/6 COMPLETE (9 trigger edge case tests added, spec_parser E2E test, Phase 15 DEBTLINES resolved, 26/26 trigger_integration tests GREEN)*
 *Last updated: 2026-02-27 after 33-05 — Phase 33 plan 5/6 COMPLETE (encode_operand() wired into generate_float_vcs(), Phase 11 float VC placeholder tech debt CLOSED, 19/19 float tests GREEN)*
 *Last updated: 2026-02-26 after 31-03 — Phase 31 plan 3/3 COMPLETE (is_ghost_place() + ghost erasure from encode_assignment + collect_declarations, phase04_ghost RED→GREEN, 13/13 vcgen_completeness29 pass)*
 *Last updated: 2026-02-26 after 30-02 — Phase 30 plan 2/3 COMPLETE (generate_set_discriminant_vcs() implemented, vcgen_06 RED→GREEN, 11/11 vcgen_completeness29 pass)*
