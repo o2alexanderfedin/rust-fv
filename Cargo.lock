@@ -1388,6 +1388,7 @@ version = "0.1.0"
 name = "rust-fv-solver"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "rust-fv-smtlib",
  "tracing",
  "z3",

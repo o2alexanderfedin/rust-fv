@@ -13,10 +13,10 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  build-and-release:
-    name: Build, Test, and Release
+  verify-tag:
+    name: Verify tag is on main
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -32,10 +32,61 @@ jobs:
             exit 1
           fi
 
-      - name: Install Z3 SMT solver
+  build:
+    name: Build (${{ matrix.os }})
+    needs: verify-tag
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_suffix: linux-x86_64
+            binary_ext: ""
+          - os: macos-latest
+            artifact_suffix: macos-aarch64
+            binary_ext: ""
+          - os: windows-latest
+            artifact_suffix: windows-x86_64
+            binary_ext: ".exe"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Z3 SMT solver (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y z3 libz3-dev
+          sudo apt-get install -y z3
+
+      - name: Install Z3 SMT solver (macOS)
+        if: runner.os == 'macOS'
+        run: brew install z3
+
+      - name: Install Z3 SMT solver (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $z3Version = "4.13.4"
+          $z3Url = "https://github.com/Z3Prover/z3/releases/download/z3-${z3Version}/z3-${z3Version}-x64-win.zip"
+          $z3Zip = "$env:TEMP\z3.zip"
+          Write-Host "Downloading Z3 $z3Version..."
+          Invoke-WebRequest -Uri $z3Url -OutFile $z3Zip
+          Write-Host "Extracting Z3..."
+          Expand-Archive -Path $z3Zip -DestinationPath "C:\tools" -Force
+          $extracted = Get-ChildItem "C:\tools" -Filter "z3-*" -Directory | Select-Object -First 1
+          if ($extracted) {
+            Rename-Item -Path $extracted.FullName -NewName "z3" -Force
+          }
+          echo "C:\tools\z3\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Z3 installed at C:\tools\z3\bin"
+
+      - name: Verify Z3 installation
+        shell: bash
+        run: z3 --version
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
         run: rustup show
@@ -48,23 +99,64 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-release-
             ${{ runner.os }}-cargo-
 
       - name: Run tests
+        shell: bash
         run: cargo test --workspace --all-features
 
       - name: Build release binaries
+        shell: bash
         run: cargo build --release --package rust-fv-driver
 
-      - name: Prepare release artifacts
+      - name: Prepare release artifacts (Unix)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p dist
-          cp target/release/cargo-verify dist/cargo-verify-linux-x86_64
-          cp target/release/rust-fv-driver dist/rust-fv-driver-linux-x86_64
-          chmod +x dist/cargo-verify-linux-x86_64 dist/rust-fv-driver-linux-x86_64
-          sha256sum dist/cargo-verify-linux-x86_64 dist/rust-fv-driver-linux-x86_64 > dist/SHA256SUMS.txt
+          cp target/release/cargo-verify dist/cargo-verify-${{ matrix.artifact_suffix }}
+          cp target/release/rust-fv-driver dist/rust-fv-driver-${{ matrix.artifact_suffix }}
+          chmod +x dist/cargo-verify-${{ matrix.artifact_suffix }} dist/rust-fv-driver-${{ matrix.artifact_suffix }}
+          sha256sum dist/cargo-verify-${{ matrix.artifact_suffix }} dist/rust-fv-driver-${{ matrix.artifact_suffix }} > dist/SHA256SUMS-${{ matrix.artifact_suffix }}.txt
+
+      - name: Prepare release artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item "target\release\cargo-verify.exe" "dist\cargo-verify-${{ matrix.artifact_suffix }}.exe"
+          Copy-Item "target\release\rust-fv-driver.exe" "dist\rust-fv-driver-${{ matrix.artifact_suffix }}.exe"
+          $hash1 = (Get-FileHash "dist\cargo-verify-${{ matrix.artifact_suffix }}.exe" -Algorithm SHA256).Hash.ToLower()
+          $hash2 = (Get-FileHash "dist\rust-fv-driver-${{ matrix.artifact_suffix }}.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash1  cargo-verify-${{ matrix.artifact_suffix }}.exe" | Out-File -FilePath "dist\SHA256SUMS-${{ matrix.artifact_suffix }}.txt" -Encoding utf8
+          "$hash2  rust-fv-driver-${{ matrix.artifact_suffix }}.exe" | Out-File -FilePath "dist\SHA256SUMS-${{ matrix.artifact_suffix }}.txt" -Encoding utf8 -Append
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.artifact_suffix }}
+          path: dist/
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Combine SHA256SUMS
+        run: |
+          cat dist/SHA256SUMS-*.txt > dist/SHA256SUMS.txt
+          rm dist/SHA256SUMS-*.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -76,4 +168,8 @@ jobs:
           files: |
             dist/cargo-verify-linux-x86_64
             dist/rust-fv-driver-linux-x86_64
+            dist/cargo-verify-macos-aarch64
+            dist/rust-fv-driver-macos-aarch64
+            dist/cargo-verify-windows-x86_64.exe
+            dist/rust-fv-driver-windows-x86_64.exe
             dist/SHA256SUMS.txt

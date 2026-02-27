@@ -27,16 +27,29 @@ impl SolverKind {
     /// Common installation paths to check when PATH lookup fails.
     fn common_paths(&self) -> &'static [&'static str] {
         match self {
-            SolverKind::Z3 => &["/opt/homebrew/bin/z3", "/usr/local/bin/z3", "/usr/bin/z3"],
+            SolverKind::Z3 => &[
+                // macOS (Homebrew)
+                "/opt/homebrew/bin/z3",
+                "/usr/local/bin/z3",
+                // Linux
+                "/usr/bin/z3",
+                // Windows (common Z3 release locations)
+                "C:\\Program Files\\Z3\\bin\\z3.exe",
+                "C:\\tools\\z3\\bin\\z3.exe",
+            ],
             SolverKind::Cvc5 => &[
                 "/opt/homebrew/bin/cvc5",
                 "/usr/local/bin/cvc5",
                 "/usr/bin/cvc5",
+                "C:\\Program Files\\cvc5\\bin\\cvc5.exe",
+                "C:\\tools\\cvc5\\bin\\cvc5.exe",
             ],
             SolverKind::Yices => &[
                 "/opt/homebrew/bin/yices-smt2",
                 "/usr/local/bin/yices-smt2",
                 "/usr/bin/yices-smt2",
+                "C:\\Program Files\\Yices\\bin\\yices-smt2.exe",
+                "C:\\tools\\yices\\bin\\yices-smt2.exe",
             ],
         }
     }
@@ -131,15 +144,25 @@ impl SolverConfig {
 
     /// Auto-detect solver location for the given kind.
     ///
-    /// Tries `which <binary>` first, then checks common installation paths.
+    /// On Unix-like systems, tries `which <binary>` via PATH lookup.
+    /// On Windows, tries `where <binary>` via PATH lookup.
+    /// Falls back to checking common installation paths on all platforms.
     pub fn auto_detect_for(kind: SolverKind) -> Result<Self, SolverError> {
         let binary = kind.binary_name();
 
-        // Try `which` via PATH lookup
-        if let Ok(output) = std::process::Command::new("which").arg(binary).output()
+        // On Windows, use `where`; on Unix, use `which`
+        #[cfg(windows)]
+        let which_cmd = "where";
+        #[cfg(not(windows))]
+        let which_cmd = "which";
+
+        // Try PATH lookup
+        if let Ok(output) = std::process::Command::new(which_cmd).arg(binary).output()
             && output.status.success()
         {
-            let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            // `where` on Windows may return multiple lines; take the first
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let path_str = stdout.lines().next().unwrap_or("").trim().to_string();
             if !path_str.is_empty() {
                 let path = PathBuf::from(&path_str);
                 if path.exists() {
