@@ -365,6 +365,21 @@ Plans:
 Plans:
 - [x] 00-01: Author and execute v0.4-v0.5-UAT.md (22 test items covering phases 19-29) — all 22 PASS
 
+### Phase 33: v0.1 Tech Debt Resolution
+
+**Goal:** Resolve all 5 tech debt items from the v0.1 milestone audit: (1) run E2E incremental performance benchmarks (Phase 14), (2) create docs/bv2int.md user-facing documentation (Phase 18), (3) fix raw pointer aliasing edge cases (Phase 10), (4) add E2E tests for trigger edge cases with complex quantifier schemas (Phase 15), (5) replace float VC placeholder terms with real assertions (Phase 11)
+**Requirements**: PERF-01, PERF-03, PERF-04, PERF-05, PERF-06, USF-02, USF-03, FLOAT-PLACEHOLDER-01, MILESTONE-CLOSURE-01
+**Depends on:** Phase 32
+**Plans:** 6 plans
+
+Plans:
+- [ ] 33-01-PLAN.md — Run 4 ignored E2E perf tests, remove #[ignore], update Phase 14 VERIFICATION.md to passed
+- [ ] 33-02-PLAN.md — Create docs/bv2int.md + expand inline docs, update Phase 18 VERIFICATION.md to 5/5
+- [ ] 33-03-PLAN.md — Add 12 edge case E2E tests for raw pointer aliasing, remove Phase 10 DEBTLINES
+- [ ] 33-04-PLAN.md — Add 9 edge case E2E tests for trigger/quantifier schemas, remove Phase 15 DEBTLINES
+- [ ] 33-05-PLAN.md — Replace float VC placeholder terms with encode_operand(), update Phase 11 VERIFICATION.md to passed
+- [ ] 33-06-PLAN.md — Update v0.1-MILESTONE-AUDIT.md from tech_debt to passed (capstone)
+
 ---
 
 ## Gap Closure Phases (v0.1 Milestone Audit — 2026-02-26)
