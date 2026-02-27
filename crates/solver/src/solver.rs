@@ -188,17 +188,16 @@ fn kill_process(pid: u32) {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::io::RawHandle;
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_TERMINATE, TerminateProcess,
+        };
         // SAFETY: OpenProcess/TerminateProcess are safe with valid PID and access rights.
         unsafe {
-            let handle = winapi::um::processthreadsapi::OpenProcess(
-                winapi::um::winnt::PROCESS_TERMINATE,
-                0,
-                pid,
-            );
-            if !handle.is_null() {
-                winapi::um::processthreadsapi::TerminateProcess(handle as RawHandle, 1);
-                winapi::um::handleapi::CloseHandle(handle);
+            let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+            if handle != 0 {
+                TerminateProcess(handle, 1);
+                CloseHandle(handle);
             }
         }
     }
