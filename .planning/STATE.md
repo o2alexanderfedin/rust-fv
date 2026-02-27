@@ -236,7 +236,9 @@ Recent decisions relevant to v0.4:
 
 ### Pending Todos
 
-0 pending.
+1 pending.
+
+- **Build VSCode extension in CI/CD for all platforms** — Extension build not in CI; .vsix may become stale; no cross-platform packaging step → `.planning/todos/pending/2026-02-27-build-vscode-extension-in-ci-cd-for-all-platforms.md`
 
 ### Blockers/Concerns
 
