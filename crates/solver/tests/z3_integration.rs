@@ -269,8 +269,9 @@ fn script_with_explicit_check_sat_no_duplicate() {
 fn timeout_with_short_limit() {
     // Use a very hard problem with an extremely short timeout to trigger timeout/unknown.
     // Alternatively, we just verify the timeout flag is passed correctly.
-    let config =
-        SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3")).with_timeout(1); // 1ms
+    let config = SolverConfig::auto_detect()
+        .expect("z3 must be installed")
+        .with_timeout(1); // 1ms
     let solver = Z3Solver::new(config);
 
     // A problem that might timeout with 1ms limit (nonlinear integer arithmetic)
@@ -301,7 +302,8 @@ fn timeout_with_short_limit() {
 #[test]
 fn normal_timeout_succeeds() {
     // Verify that a reasonable timeout doesn't interfere with solvable problems
-    let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3"))
+    let config = SolverConfig::auto_detect()
+        .expect("z3 must be installed")
         .with_timeout(30000); // 30s
     let solver = Z3Solver::new(config);
 
@@ -363,7 +365,8 @@ fn with_default_config_succeeds() {
 
 #[test]
 fn config_extra_args() {
-    let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3"))
+    let config = SolverConfig::auto_detect()
+        .expect("z3 must be installed")
         .with_extra_args(vec!["-v:0".to_string()]);
     let solver = Z3Solver::new(config);
 
