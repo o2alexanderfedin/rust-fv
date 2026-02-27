@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-27T00:31:02.592Z"
+last_updated: "2026-02-27T00:32:06.595Z"
 progress:
   total_phases: 37
   completed_phases: 37
   total_plans: 108
-  completed_plans: 108
+  completed_plans: 109
 ---
 
 # Project State
@@ -97,6 +97,7 @@ Progress: [████████████████████] 93/93 p
 | Phase 31 P03 | 300 | 1 tasks | 1 files |
 | Phase 32 P02 | 188 | 2 tasks | 2 files |
 | Phase 32 P01 | 289 | 3 tasks | 3 files |
+| Phase 32 P03 | 222 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -204,6 +205,9 @@ Recent decisions relevant to v0.4:
 - [Phase 31]: Ghost locals filtered from both encode_assignment() and collect_declarations() — complete SMT erasure; test contract takes precedence over plan prose
 - [Phase 32]: Phase 11 placeholder terms (lhs/rhs/result in float_verification.rs VCs) documented as intentional PASS by design — not a gap requiring a fix phase
 - [Phase 32]: Retrospective VERIFICATION.md format matches 31-VERIFICATION.md exactly; cargo tests run live during retrospective audit to provide current evidence; all three phases PASS
+- [Phase 32]: Phase 13 PASS: StdlibContractRegistry + load_default_contracts + 37 oracle/10 E2E tests confirm stdlib contract coverage for Vec/Option/Result/HashMap/Iterator
+- [Phase 32]: Phase 17 PASS: raMode.ts overrideCommand + --message-format=json + npx tsc exits 0; live RA session covered by Phase 00 UAT
+- [Phase 32]: Phase 32 audit: 6/7 PASS, 1/7 PASS WITH NOTES (Phase 11 placeholder terms intentional), 0 fix phases needed
 
 ### Roadmap Evolution
 
