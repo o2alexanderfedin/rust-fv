@@ -86,19 +86,26 @@ fn setup_crate_copy(source: &Path, dest: &Path) {
 
 /// Helper: Get path to rust-fv-driver binary
 fn driver_binary_path() -> PathBuf {
+    // On Windows, binaries have a .exe extension
+    let binary_name = if cfg!(windows) {
+        "rust-fv-driver.exe"
+    } else {
+        "rust-fv-driver"
+    };
+
     // Try to find the built driver in target/debug or target/release
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let base_path = PathBuf::from(manifest_dir);
     let workspace_root = base_path.parent().unwrap().parent().unwrap();
 
     // Try debug first
-    let debug_path = workspace_root.join("target/debug/rust-fv-driver");
+    let debug_path = workspace_root.join("target/debug").join(binary_name);
     if debug_path.exists() {
         return debug_path;
     }
 
     // Try release
-    let release_path = workspace_root.join("target/release/rust-fv-driver");
+    let release_path = workspace_root.join("target/release").join(binary_name);
     if release_path.exists() {
         return release_path;
     }
