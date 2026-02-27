@@ -1,14 +1,18 @@
 # Rust Formal Verification
 
-Formal verification as a Rust compiler plugin. Verification happens **during compilation** — annotate your functions, run `cargo verify`, and get mathematical proof (or a counterexample) without leaving your normal build workflow.
+Formal verification as a Rust compiler plugin. Run `cargo verify` on your **existing Rust code** — no annotations required. The tool automatically infers SMT constraints from your code and checks them mathematically during compilation.
+
+> **Annotations are optional.** `rust-fv` infers SMT constraints directly from your Rust code: overflow safety, division-by-zero absence, array bounds, and more — all verified automatically. Annotations (`#[requires]`, `#[ensures]`, etc.) are an *optional enhancement* for expressing custom preconditions, postconditions, and invariants beyond what can be inferred.
 
 ## How It Works
 
 `rust-fv` hooks into the Rust compiler (`rustc`) at the `after_analysis` phase. When you run `cargo verify`, it replaces `rustc` with the `rust-fv-driver` binary, which:
 
 1. Compiles your crate normally (type checking, borrow checking — all standard)
-2. At the end of compilation, extracts annotated functions as SMT-LIB2 constraints
-3. Submits them to Z3 (or CVC5 / Yices) and reports results alongside your build output
+2. At the end of compilation, generates two independent SMT constraint sets per function:
+   - **Code-inferred** (zero config): overflow safety, division-by-zero, array bounds, etc. — derived directly from the code AST
+   - **Annotation-derived** (optional): preconditions and postconditions from `#[requires]`/`#[ensures]` contracts
+3. Submits the combined constraints to Z3 (or CVC5 / Yices) and reports results alongside your build output
 
 **Verification is not a separate step** — it runs as part of `cargo check`.
 
@@ -43,7 +47,27 @@ cargo install --path crates/driver
 alias cargo-verify="./target/release/cargo-verify"
 ```
 
-### 4. Add annotations to your code
+### 4. Run verification on your existing code
+
+No annotations needed. Just run:
+
+```bash
+cargo verify
+```
+
+Verification runs **during compilation**. Inferred constraints (overflow, division-by-zero, bounds) are checked automatically:
+
+```
+Verifying my-crate (src/lib.rs)
+  [OK]      add_numbers — overflow safety verified
+  [OK]      get_element — bounds safety verified
+
+2 functions verified, 0 failed (0.8s)
+```
+
+### 5. Optionally add annotations for custom contracts
+
+Annotations let you express domain-specific properties beyond what can be inferred:
 
 ```rust
 use rust_fv_macros::{requires, ensures, pure};
@@ -60,22 +84,6 @@ fn increment(x: i32) -> i32 {
 fn abs_val(n: i32) -> i32 {
     if n < 0 { -n } else { n }
 }
-```
-
-### 5. Run verification
-
-```bash
-cargo verify
-```
-
-Verification runs **during compilation**. Output appears alongside your normal build output:
-
-```
-Verifying my-crate (src/lib.rs)
-  [OK]      increment — all conditions verified
-  [OK]      abs_val — all conditions verified
-
-2 functions verified, 0 failed (1.2s)
 ```
 
 If a postcondition fails, you get a typed counterexample:
@@ -247,12 +255,12 @@ cargo verify --message-format json
 
 Verification runs as a compiler plugin — it is **not** a separate tool or external pass:
 
-1. **Annotation expansion**: `#[requires]`/`#[ensures]` macros embed specifications as hidden doc attributes. The function body is unchanged.
-2. **Compiler hook**: After Rust type-checking and borrow-checking, the driver's `after_analysis` callback fires.
-3. **MIR extraction**: The function's MIR (Mid-level IR) is converted to a stable `ir::Function` representation.
-4. **SMT constraint generation**: Two independent constraint sets are produced and concatenated:
-   - **Set A** (code-inferred): Derived from the code AST — overflow safety, division-by-zero absence, etc.
-   - **Set B** (annotation-derived): Derived from `#[requires]`/`#[ensures]` contracts.
+1. **Compiler hook**: After Rust type-checking and borrow-checking, the driver's `after_analysis` callback fires.
+2. **MIR extraction**: The function's MIR (Mid-level IR) is converted to a stable `ir::Function` representation.
+3. **SMT constraint generation**: Two independent constraint sets are produced and concatenated:
+   - **Set A** (code-inferred, always active): Derived from the code AST — overflow safety, division-by-zero absence, array bounds, etc. No annotations required.
+   - **Set B** (annotation-derived, optional): Derived from `#[requires]`/`#[ensures]` contracts when present.
+4. **Annotation expansion** (if used): `#[requires]`/`#[ensures]` macros embed specifications as hidden doc attributes. The function body is unchanged.
 5. **Solver invocation**: The combined constraint list is submitted to Z3. No client-side deduplication or contradiction checking — the solver handles everything.
 6. **Result reporting**: `UNSAT` → verified. `SAT` → counterexample extracted and reported with typed Rust values.
 
@@ -281,7 +289,7 @@ Verification results are cached in `target/verify-cache/`. Cache keys are SHA-25
 |------------|---------|
 | Rust toolchain | Nightly (pinned in `rust-toolchain.toml`, currently `nightly-2026-02-11`) |
 | Z3 | Any recent version; auto-detected from `PATH` or common install locations |
-| OS | macOS, Linux (Windows untested) |
+| OS | macOS, Linux, Windows |
 
 > **Note:** The entire workspace is built with the pinned nightly toolchain. The `driver` crate requires nightly for `rustc_private` access; the other crates (`smtlib`, `macros`, `solver`, `analysis`) use only stable APIs but are built with the same pinned toolchain for consistency.
 
