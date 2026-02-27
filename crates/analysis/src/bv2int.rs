@@ -7,6 +7,42 @@
 //! - `encode_type_with_mode`: mode-aware type-to-sort mapping
 //! - `encode_binop_with_mode`: mode-aware binary operation encoding
 //! - `wrap_overflow`: wrapping arithmetic modulo constraint per Rust RFC 0560
+//!
+//! # Eligibility Decision Logic
+//!
+//! [`is_bv2int_eligible`] walks every MIR statement in the function and rejects
+//! the function at the first sign of bitwise or shift operations.  The check is
+//! **conservative**: a single ineligible operation makes the entire function
+//! ineligible — partial per-expression encoding is not supported.
+//!
+//! Operations that trigger ineligibility:
+//!
+//! | MIR `BinOp` | Rust syntax | `IneligibilityReason` variant |
+//! |-------------|-------------|-------------------------------|
+//! | `BitAnd`    | `a & b`     | `BitwiseOp { op_symbol: "&" }` |
+//! | `BitOr`     | `a \| b`    | `BitwiseOp { op_symbol: "\|" }` |
+//! | `BitXor`    | `a ^ b`     | `BitwiseOp { op_symbol: "^" }` |
+//! | `Shl`       | `a << b`    | `ShiftOp { op_symbol: "<<" }` |
+//! | `Shr`       | `a >> b`    | `ShiftOp { op_symbol: ">>" }` |
+//!
+//! Additionally, the `#[fv::no_bv2int]` attribute on a function triggers
+//! `IneligibilityReason::OptOut` regardless of the function body.
+//!
+//! # `IneligibilityReason` Variants
+//!
+//! - **`BitwiseOp { op_symbol, location }`** — a bitwise AND/OR/XOR was found.
+//!   `op_symbol` is `"&"`, `"|"`, or `"^"`.  `location` is a human-readable
+//!   MIR location string such as `"basic block 0, statement 2"`.
+//! - **`ShiftOp { op_symbol, location }`** — a shift left/right was found.
+//!   `op_symbol` is `"<<"` or `">>"`.
+//! - **`OptOut`** — the function carries the `#[fv::no_bv2int]` attribute,
+//!   opting out explicitly.
+//!
+//! # Further Documentation
+//!
+//! See `docs/bv2int.md` at the project root for a user-facing reference covering
+//! when to use bv2int, activation commands, known limitations, and performance
+//! characteristics.
 
 // ============================================================
 // Public types

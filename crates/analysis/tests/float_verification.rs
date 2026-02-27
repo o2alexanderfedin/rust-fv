@@ -842,3 +842,78 @@ fn test_safe_function_no_float_vcs() {
         "Integer function should have no FloatingPointNaN VCs"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Phase 33 Plan 05: Real operand encoding tests
+// These tests are RED before the fix (current output contains "lhs"/"rhs" placeholder strings).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_float_vc_uses_real_operand_terms() {
+    let func = build_float_add_function(FloatTy::F32);
+    let vcs = rust_fv_analysis::float_verification::generate_float_vcs(&func);
+    assert!(!vcs.is_empty(), "Expected at least 1 float VC");
+
+    let nan_vc = &vcs[0];
+    let smt = script_to_smtlib(&nan_vc.script);
+
+    // These assertions fail BEFORE the fix (placeholder terms present):
+    // Term::Const("lhs") formats as `lhs` (no quotes) in SMT output
+    assert!(
+        !smt.contains(" lhs)") && !smt.contains(" lhs "),
+        "SMT should not contain placeholder 'lhs', got: {smt}"
+    );
+    assert!(
+        !smt.contains(" rhs)") && !smt.contains(" rhs "),
+        "SMT should not contain placeholder 'rhs', got: {smt}"
+    );
+    // After the fix, the actual param names x/y appear:
+    assert!(
+        smt.contains(" x)") || smt.contains(" y)") || smt.contains(" x ") || smt.contains(" y "),
+        "SMT should reference actual param names (x or y), got: {smt}"
+    );
+}
+
+#[test]
+fn test_float_vc_mul_uses_real_operand_terms() {
+    let func = build_float_mul_function(FloatTy::F64);
+    let vcs = rust_fv_analysis::float_verification::generate_float_vcs(&func);
+    assert!(!vcs.is_empty(), "Expected at least 1 float VC for f64 mul");
+
+    for vc in &vcs {
+        let smt = script_to_smtlib(&vc.script);
+        // Term::Const("lhs") formats as `lhs` (no quotes) in SMT output
+        assert!(
+            !smt.contains(" lhs)") && !smt.contains(" lhs "),
+            "VC '{}' SMT should not contain placeholder 'lhs': {smt}",
+            vc.description
+        );
+        assert!(
+            !smt.contains(" rhs)") && !smt.contains(" rhs "),
+            "VC '{}' SMT should not contain placeholder 'rhs': {smt}",
+            vc.description
+        );
+    }
+}
+
+#[test]
+fn test_float_vc_div_uses_real_operand_terms() {
+    let func = build_float_div_function(FloatTy::F32);
+    let vcs = rust_fv_analysis::float_verification::generate_float_vcs(&func);
+    assert_eq!(vcs.len(), 2, "Expected 2 VCs for f32 div (NaN + Infinity)");
+
+    for vc in &vcs {
+        let smt = script_to_smtlib(&vc.script);
+        // Term::Const("lhs") formats as `lhs` (no quotes) in SMT output
+        assert!(
+            !smt.contains(" lhs)") && !smt.contains(" lhs "),
+            "VC '{}' should use real terms not 'lhs': {smt}",
+            vc.description
+        );
+        assert!(
+            !smt.contains(" rhs)") && !smt.contains(" rhs "),
+            "VC '{}' should use real terms not 'rhs': {smt}",
+            vc.description
+        );
+    }
+}
