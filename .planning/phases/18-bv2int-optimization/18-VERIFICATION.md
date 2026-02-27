@@ -1,21 +1,17 @@
 ---
 phase: 18-bv2int-optimization
 verified: 2026-02-17T21:00:00Z
-status: human_needed
-score: 4/5 success criteria verified (5th needs human judgment)
+status: passed
+score: 5/5 success criteria verified
 re_verification: false
-human_verification:
-  - test: "Confirm that inline Rust doc comments and --help text satisfy the 'Documentation clearly explains when/how to use bv2int and known limitations' criterion"
-    expected: "Either (a) the existing --help text + module-level doc comments in bv2int.rs are accepted as sufficient documentation, or (b) a separate user-facing doc file (docs/bv2int.md or similar) is needed"
-    why_human: "The ROADMAP criterion says 'Documentation clearly explains when/how to use bv2int and known limitations' — this is ambiguous between a standalone docs file and inline help text. The help text covers activation, eligibility, and env vars. Module docs cover conservative analysis strategy. No docs/ file exists outside .planning/. A human must decide if this meets the bar."
 ---
 
 # Phase 18: bv2int Optimization Verification Report
 
 **Phase Goal:** Developer can enable bv2int optimization for arithmetic-heavy verification with proven equivalence and performance measurement
 **Verified:** 2026-02-17T21:00:00Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Status:** passed
+**Re-verification:** No — initial verification; tech debt closed 2026-02-27
 
 ## Goal Achievement
 
@@ -27,9 +23,9 @@ human_verification:
 | 2  | Differential testing suite proves equivalence between bitvector and bv2int encodings across all test cases | VERIFIED | `crates/analysis/src/differential.rs` (480 lines, 13 tests): `test_encoding_equivalence` runs both encoding modes, compares SAT/UNSAT outcomes, returns `EquivalenceResult` with timing and divergence detection. Wired into `callbacks.rs` via `run_differential_test`. |
 | 3  | Conservative applicability analysis restricts bv2int to arithmetic-only verification (no bitwise operations) | VERIFIED | `is_bv2int_eligible` in `bv2int.rs` lines 95-145: rejects any function containing `BinOp::BitAnd`, `BitOr`, `BitXor`, `Shl`, or `Shr` with actionable `IneligibilityReason` message. 5 distinct bitwise rejection tests pass. |
 | 4  | Performance regression tests detect cases where bv2int causes slowdowns (>2x slower triggers warning) | VERIFIED | `check_slowdown_warning` in `output.rs` line 321-337: triggers when `speedup_factor < 1.0 / threshold` (default 2.0), i.e. bv2int strictly more than 2x slower. Threshold configurable via `--bv2int-threshold` or `RUST_FV_BV2INT_THRESHOLD`. Wired into `callbacks.rs` line 707-713. 6 unit tests. |
-| 5  | Documentation clearly explains when/how to use bv2int and known limitations | UNCERTAIN | Help text in `cargo_verify.rs` lines 486-503, 525-529 covers activation, eligibility, QF_LIA/QF_NIA encoding, and env vars. Module-level doc comments in `bv2int.rs` lines 1-9 explain encoding modes, eligibility analysis, and conservative rejection strategy. No standalone user-facing doc file exists outside `.planning/`. Needs human judgment. |
+| 5  | Documentation clearly explains when/how to use bv2int and known limitations | VERIFIED | `docs/bv2int.md` created at project root (161 lines, 5 sections: When to Use, How to Activate, Known Limitations, Performance Characteristics, Environment Variables). Module-level doc comments in `bv2int.rs` expanded with eligibility decision logic table and `IneligibilityReason` variant descriptions. `cargo_verify.rs` --help expanded with use-case summary, `--bv2int-report` tip, and `docs/bv2int.md` reference. Phase 33 Plan 02 created these artifacts. |
 
-**Score:** 4/5 truths verified (1 uncertain pending human assessment)
+**Score:** 5/5 truths verified (all success criteria met)
 
 ### Required Artifacts
 
@@ -42,6 +38,7 @@ human_verification:
 | `crates/driver/src/callbacks.rs` | — | 1196 | VERIFIED | `EncodingMode` used, `is_bv2int_eligible` called per-function. `run_differential_test` wires `generate_vcs_with_mode` + `test_encoding_equivalence`. `Z3SolverAdapter` implements `SolverInterface`. |
 | `crates/driver/src/output.rs` | — | 811 | VERIFIED | `Bv2intFunctionReport`, `format_bv2int_timing`, `check_slowdown_warning`, `print_bv2int_report` all present. 20 integration tests. |
 | `crates/driver/src/diagnostics.rs` | — | 2474 | VERIFIED | `report_bv2int_divergence` (V002) and `report_bv2int_ineligibility` (V003) present. 4 smoke tests. |
+| `docs/bv2int.md` | 100 | 161 | VERIFIED | Standalone user-facing reference: When to Use, How to Activate, Known Limitations, Performance Characteristics, Environment Variables. Created by Phase 33 Plan 02. |
 
 ### Key Link Verification
 
@@ -54,13 +51,15 @@ human_verification:
 | `differential.rs` | `vcgen.rs` | `generate_vcs_with_mode` called | WIRED | `callbacks.rs`:`run_differential_test` calls `rust_fv_analysis::vcgen::generate_vcs_with_mode` |
 | `output.rs` | `callbacks.rs` | `format_bv2int_timing` and `check_slowdown_warning` called | WIRED | `callbacks.rs` lines 703, 707 call `output::format_bv2int_timing` and `output::check_slowdown_warning` |
 | `cache.rs` | `differential.rs` | `bv2int_equiv_tested` fields store equivalence results | WIRED | `CacheEntry::store_equivalence_result` method present and called from callback pipeline |
+| `docs/bv2int.md` | `bv2int.rs` | references `IneligibilityReason` variants by name | WIRED | docs/bv2int.md Known Limitations section names BitwiseOp/ShiftOp/OptOut variants |
+| `docs/bv2int.md` | `cargo_verify.rs` | documents --bv2int flag and RUST_FV_BV2INT env var | WIRED | docs/bv2int.md How to Activate section covers CLI and env var activation |
 
 ### Requirements Coverage
 
 | Requirement | Source Plans | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|---------|
-| PERF-05 | 18-01, 18-03 | Developer can enable bv2int optimization for arithmetic-heavy verification via environment variable | SATISFIED in code — PENDING in tracker | `RUST_FV_BV2INT=1` activates bv2int mode. `cargo_verify.rs` line 320 reads env var. **Note: REQUIREMENTS.md still shows `[ ]` (Pending) — tracker not updated after implementation.** |
-| PERF-06 | 18-02, 18-03 | bv2int differential testing ensures equivalence with bitvector encoding | SATISFIED in code — PENDING in tracker | `differential.rs` implements `test_encoding_equivalence` with timing and divergence detection. Cached via `CacheEntry` bv2int fields. **Note: REQUIREMENTS.md still shows `[ ]` (Pending) — tracker not updated after implementation.** |
+| PERF-05 | 18-01, 18-03 | Developer can enable bv2int optimization for arithmetic-heavy verification via environment variable | SATISFIED | `RUST_FV_BV2INT=1` activates bv2int mode. `cargo_verify.rs` line 320 reads env var. Documentation in `docs/bv2int.md`. |
+| PERF-06 | 18-02, 18-03 | bv2int differential testing ensures equivalence with bitvector encoding | SATISFIED | `differential.rs` implements `test_encoding_equivalence` with timing and divergence detection. Cached via `CacheEntry` bv2int fields. |
 
 ### Anti-Patterns Found
 
@@ -68,35 +67,14 @@ No anti-patterns found in the phase artifacts. Scanned for `TODO`, `FIXME`, `PLA
 
 The graceful degradation pattern (`run_differential_test` returns `(None, None, None)` when Z3 unavailable) is intentional, not a stub — it preserves correctness when the solver binary is absent.
 
-### Human Verification Required
-
-#### 1. Documentation Sufficiency Assessment
-
-**Test:** Review the following documentation surfaces and determine if they collectively satisfy "Documentation clearly explains when/how to use bv2int and known limitations":
-
-1. Run `cargo verify --help` and read the bv2int section
-2. Read `crates/analysis/src/bv2int.rs` lines 1-95 (module doc + `EncodingMode` + `IneligibilityReason` + `is_bv2int_eligible` doc)
-3. Confirm there is no standalone `docs/bv2int.md` or similar file outside `.planning/`
-
-**Expected:** Either (a) the help text + module docs are accepted as sufficient, or (b) a separate user-facing documentation file is required.
-
-**Why human:** "Documentation clearly explains when/how to use bv2int and known limitations" is inherently a quality judgment. The implementation provides:
-- `--help` text covering: activation flags, env vars, eligibility concept (QF_LIA/QF_NIA), threshold configuration
-- Module-level Rust doc comments: encoding mode explanation, conservative rejection strategy, ineligibility reasons with actionable messages
-- Runtime per-function warnings explaining why a function was skipped (the "known limitations" surfaced dynamically)
-- No separate `docs/bv2int.md` file exists
-
-The sufficiency of inline docs + help text vs. a standalone user doc file is a product decision, not a code question.
-
 ## Gaps Summary
 
-No implementation gaps found. All code artifacts are substantive, wired, and non-stub. The 4 programmatically-verifiable success criteria pass.
-
-One item requires human judgment: whether the existing --help text and Rust doc comments constitute sufficient "Documentation" for success criterion 5, or whether a standalone user-facing docs file is required.
-
-Additionally, REQUIREMENTS.md bookkeeping is stale: PERF-05 and PERF-06 both show `[ ]` (Pending) at lines 24-25 and 80-81, despite being implemented. This does not affect goal achievement but means the requirements tracker is out of sync with reality.
+All 5 success criteria now verified. `docs/bv2int.md` created at project root as per Phase 33 tech debt resolution (Plan 02). Inline docs expanded in `bv2int.rs` and `cargo_verify.rs`. PERF-05 and PERF-06 requirements confirmed SATISFIED in tracker.
 
 ---
 
+**Phase 18 tech debt item CLOSED — docs/bv2int.md created, inline docs expanded. 2026-02-27**
+
 _Verified: 2026-02-17T21:00:00Z_
+_Tech debt closed: 2026-02-27 (Phase 33 Plan 02)_
 _Verifier: Claude (gsd-verifier)_
