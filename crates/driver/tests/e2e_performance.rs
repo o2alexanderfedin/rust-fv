@@ -188,7 +188,9 @@ fn parse_verify_output(output: &str) -> (usize, usize, usize) {
 
 /// Modify a function body in lib.rs without changing its contract
 fn modify_function_body(lib_rs_path: &Path, old_value: &str, new_value: &str) {
-    let content = fs::read_to_string(lib_rs_path).expect("Failed to read lib.rs");
+    let raw_content = fs::read_to_string(lib_rs_path).expect("Failed to read lib.rs");
+    // Normalize CRLF to LF for cross-platform compatibility (Windows git may use CRLF)
+    let content = raw_content.replace("\r\n", "\n");
     let modified = content.replace(old_value, new_value);
 
     if content == modified {
@@ -203,7 +205,9 @@ fn modify_function_body(lib_rs_path: &Path, old_value: &str, new_value: &str) {
 
 /// Modify a contract in lib.rs
 fn modify_contract(lib_rs_path: &Path, old_contract: &str, new_contract: &str) {
-    let content = fs::read_to_string(lib_rs_path).expect("Failed to read lib.rs");
+    let raw_content = fs::read_to_string(lib_rs_path).expect("Failed to read lib.rs");
+    // Normalize CRLF to LF for cross-platform compatibility (Windows git may use CRLF)
+    let content = raw_content.replace("\r\n", "\n");
     let modified = content.replace(old_contract, new_contract);
 
     if content == modified {
