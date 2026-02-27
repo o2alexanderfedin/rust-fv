@@ -225,7 +225,8 @@ mod tests {
 
     #[test]
     fn validate_existing_binary() {
-        let config = SolverConfig::new(SolverKind::Z3, PathBuf::from("/opt/homebrew/bin/z3"));
+        // Use auto-detected z3 path (cross-platform: works on macOS, Linux CI, etc.)
+        let config = SolverConfig::auto_detect().expect("Z3 must be installed for this test");
         assert!(config.validate().is_ok());
     }
 

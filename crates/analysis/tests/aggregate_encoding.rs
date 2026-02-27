@@ -1144,7 +1144,9 @@ fn test_enum_variant_construction() {
     use rust_fv_smtlib::term::Term;
 
     let mut script = Script::new();
-    script.push(Command::SetLogic("QF_UFBVDT".to_string()));
+    // Use ALL instead of QF_UFBVDT: older Z3 (4.8.x, Ubuntu apt) rejects QF_UFBVDT
+    // with "unsupported", which the solver parser treats as a ParseError in CI.
+    script.push(Command::SetLogic("ALL".to_string()));
     script.push(Command::SetOption(
         "produce-models".to_string(),
         "true".to_string(),

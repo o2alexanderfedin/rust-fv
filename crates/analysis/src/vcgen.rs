@@ -603,19 +603,13 @@ pub fn generate_vcs_with_db(
                 };
 
                 // Build null-check VC script
-                let mut script = rust_fv_smtlib::script::Script::new();
-                // Use QF_BV for null-checks (no heap model needed, just pointer comparison)
-                script.push(rust_fv_smtlib::command::Command::SetLogic(
-                    "QF_BV".to_string(),
-                ));
-
-                // Add datatype and variable declarations
-                for cmd in &datatype_declarations {
-                    script.push(cmd.clone());
-                }
-                for cmd in &declarations {
-                    script.push(cmd.clone());
-                }
+                // Use base_script so QF_BV upgrades to ALL when datatypes are present
+                // (older Z3, e.g. Ubuntu apt 4.8.x, rejects QF_BV with declare-datatype).
+                let mut script = base_script(
+                    &datatype_declarations,
+                    &declarations,
+                    uses_spec_int_types(func),
+                );
 
                 // Assert the null-check condition (ptr == 0 is the violation)
                 let null_check_assertion =
@@ -656,12 +650,16 @@ pub fn generate_vcs_with_db(
                     _ => continue, // shouldn't happen based on needs_bounds_check logic
                 };
 
-                // Build bounds-check VC script
-                let mut script = rust_fv_smtlib::script::Script::new();
-                // Use QF_AUFBV for bounds-checks (requires heap model with uninterpreted functions)
-                script.push(rust_fv_smtlib::command::Command::SetLogic(
-                    "QF_AUFBV".to_string(),
-                ));
+                // Build bounds-check VC script.
+                // Use base_script so the logic upgrades to ALL when datatypes are present
+                // (older Z3, e.g. Ubuntu apt 4.8.x, rejects QF_AUFBV with declare-datatype).
+                // Bounds-checks need arrays and uninterpreted functions, so if no datatypes
+                // are present we use ALL anyway to cover the heap model's array sorts.
+                let mut script = base_script(
+                    &datatype_declarations,
+                    &declarations,
+                    true, // treat as "uses_int" to force ALL — needed for array/heap model
+                );
 
                 // Add heap model declarations
                 if heap_model_added {
@@ -669,14 +667,6 @@ pub fn generate_vcs_with_db(
                     for cmd in heap_model_cmds {
                         script.push(cmd);
                     }
-                }
-
-                // Add datatype and variable declarations
-                for cmd in &datatype_declarations {
-                    script.push(cmd.clone());
-                }
-                for cmd in &declarations {
-                    script.push(cmd.clone());
                 }
 
                 // Assert the bounds-check condition (offset out of bounds is the violation)
@@ -1403,19 +1393,14 @@ fn generate_index_bounds_vcs(
                 let len_term = Term::Const(crate::encode_term::len_constant_name(arr_local));
                 let bounds_ok = crate::encode_term::bounds_check_term(idx_term, idx_bits, len_term);
 
-                // Build VC script: assert NOT bounds_ok — UNSAT proves safety
-                let mut script = Script::new();
-                script.push(Command::SetLogic("QF_BV".to_string()));
-                script.push(Command::SetOption(
-                    "produce-models".to_string(),
-                    "true".to_string(),
-                ));
-                for cmd in datatype_declarations {
-                    script.push(cmd.clone());
-                }
-                for cmd in declarations {
-                    script.push(cmd.clone());
-                }
+                // Build VC script: assert NOT bounds_ok — UNSAT proves safety.
+                // Use base_script so QF_BV upgrades to ALL when datatypes are present
+                // (older Z3, e.g. Ubuntu apt 4.8.x, rejects QF_BV with declare-datatype).
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
                 script.push(Command::Assert(Term::Not(Box::new(bounds_ok))));
                 script.push(Command::CheckSat);
                 script.push(Command::GetModel);
@@ -1471,7 +1456,7 @@ fn generate_set_discriminant_vcs(
                 let idx_term = Term::IntLit(*variant_idx as i128);
                 let assertion = Term::Eq(Box::new(disc_term), Box::new(idx_term));
 
-                // base_script selects: QF_BV (no datatypes), QF_UFBVDT (datatypes), ALL (spec-int)
+                // base_script selects: QF_BV (no datatypes, no int), ALL (datatypes or spec-int)
                 let mut script = base_script(
                     datatype_declarations,
                     declarations,
@@ -1578,11 +1563,14 @@ fn uses_spec_int_types(func: &Function) -> bool {
 /// but BEFORE DeclareConst, since SMT-LIB requires sorts to be declared before use.
 ///
 /// Logic selection:
-/// - QF_BV: bitvectors only
-/// - QF_UFBVDT: bitvectors + datatypes
-/// - AUFLIRA: arrays, uninterpreted functions, linear integer/real arithmetic
-/// - When Int theory is needed (for SpecInt/SpecNat or Bv2Int terms), use AUFLIRA
-///   or omit set-logic to let Z3 auto-detect (more robust)
+/// - QF_BV: bitvectors only (no datatypes, no int theory)
+/// - ALL: when datatypes or Int theory is needed
+///
+/// Note: `QF_UFBVDT` is NOT used even though it is more precise, because older
+/// Z3 versions (e.g. 4.8.x shipped with Ubuntu apt) do not support that logic
+/// name and print "unsupported" to stdout, which the solver parser treats as a
+/// `ParseError`. Using `ALL` is universally supported in Z3 4.6+ and enables
+/// all theories including bitvectors and algebraic datatypes.
 fn base_script(
     datatype_declarations: &[Command],
     variable_declarations: &[Command],
@@ -1591,15 +1579,19 @@ fn base_script(
     let mut script = Script::new();
 
     // Logic selection based on features used
-    if uses_int {
-        // Int theory needed: use ALL logic to get all Z3 theories including bv2int/int2bv
-        // These conversion functions are Z3 extensions, not standard SMT-LIB2
+    if uses_int || !datatype_declarations.is_empty() {
+        // Use ALL logic whenever datatypes or Int theory is needed.
+        // QF_UFBVDT would be more precise for the datatypes-only case, but it is
+        // not supported by Z3 4.8.x (Ubuntu apt), which prints "unsupported" and
+        // causes a ParseError in CI.  ALL is a Z3 extension supported since 4.6.
         script.push(Command::SetLogic("ALL".to_string()));
-        tracing::debug!("Using ALL logic for Int theory + bitvectors with bv2int/int2bv");
-    } else if datatype_declarations.is_empty() {
-        script.push(Command::SetLogic("QF_BV".to_string()));
+        tracing::debug!(
+            "Using ALL logic (datatypes={}, int={})",
+            !datatype_declarations.is_empty(),
+            uses_int
+        );
     } else {
-        script.push(Command::SetLogic("QF_UFBVDT".to_string()));
+        script.push(Command::SetLogic("QF_BV".to_string()));
     }
 
     script.push(Command::SetOption(
@@ -6734,7 +6726,9 @@ mod tests {
     fn base_script_with_datatypes() {
         let script = base_script(&[Command::Comment("datatype".to_string())], &[], false);
         let s = script.to_string();
-        assert!(s.contains("QF_UFBVDT"));
+        // QF_UFBVDT is not used: older Z3 (4.8.x, Ubuntu apt) rejects it with
+        // "unsupported", causing a ParseError in CI.  We use ALL instead.
+        assert!(s.contains("ALL"));
     }
 
     #[test]
