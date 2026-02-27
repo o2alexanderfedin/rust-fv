@@ -387,10 +387,13 @@ fn fresh_flag_bypasses_cache() {
     for (name, func, contracts) in &functions {
         let mir_hash = VcCache::compute_mir_hash(name, &format!("{:?}", func));
         let contract_hash = VcCache::compute_contract_hash(name, contracts);
+        #[allow(deprecated)]
+        let cache_key = VcCache::compute_key(name, contracts, &format!("{:?}", func));
 
         let decision = decide_verification(
             &cache,
             name,
+            &cache_key,
             mir_hash,
             contract_hash,
             true, // fresh flag
