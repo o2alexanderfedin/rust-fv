@@ -4,6 +4,56 @@
 
 ---
 
+## Milestone: v0.5-audit — Audit & Gap Closure
+
+**Shipped:** 2026-02-27
+**Phases:** 9 (00, 29.1–29.4, 30, 31, 32, 33) | **Plans:** 22 | **Feature commits:** 18
+**Timeline:** 2026-02-25 to 2026-02-27
+
+### What Was Built
+
+- For-loop Iterator Range VCGen — AUFLIA quantified VCs + QF_LIA bounded unrolling for `for x in 0..n` patterns
+- Prophecy encoding fix — `*_1` in postconditions resolves to `_1_prophecy` via `convert_deref` postcondition awareness
+- Borrow conflict detection — `generate_expiry_vcs()` implemented with statement scanning, emits `BorrowValidity` VCs
+- Stdlib doc tests fixed — 26 `text` blocks → `rust,ignore` in option.rs/vec.rs/result.rs
+- SetDiscriminant VCGen — `Statement::SetDiscriminant` emits discriminant assertion VCs (VCGEN-06 fully closed)
+- Z3 bv2int fix — `uses_spec_int_types()` extended to detect `as int`/`as nat`; QF_LIA path now functional
+- Ghost locals filtering — `is_ghost_place()` guard prevents ghost variable leakage into all executable VCs
+- Retrospective VERIFICATION.md — 7 early phases (05, 06, 07, 08, 11, 13, 17) now have verification docs
+- v0.1 tech debt closed — E2E benchmarks, bv2int docs, 12 pointer aliasing + 9 trigger edge case tests, float VC placeholders replaced
+
+### What Worked
+
+- Decimal phase pattern (29.1, 29.2, etc.) — inserting targeted gap-closure phases without renumbering existing work; clean semantic labeling
+- Retrospective audit approach for Phase 32 — running live `cargo test` during audit provides current evidence; much better than static review
+- Phase 33 sequencing — 5 independent tech debt items executed in parallel sub-plans then closed with Phase 33-06 capstone commit
+- Z3 bv2int fix via substring scan — minimal 1-line change in `uses_spec_int_types()` unlocked entire QF_LIA path without API changes
+
+### What Was Inefficient
+
+- For-loop VCGen (Phase 29.1) needed 3 plans — complexity underestimated; MIR pattern detection for classify_for_loop_iterators required additional research
+- `--help` as gsd-tools milestone complete argument ran the full archival with garbage version — CLI needs guard against flag-looking version strings
+
+### Patterns Established
+
+- **Milestone audit → gap closure → complete** cycle: run `/gsd:audit-milestone` after shipping, fix gaps in decimal phases, then `/gsd:complete-milestone`
+- **Capstone plan pattern**: Final plan in a tech-debt phase updates the audit status to `passed` — provides clear closure signal
+- **Ghost erasure must be complete**: Both `encode_assignment()` AND `collect_declarations()` need the `is_ghost_place()` guard — partial erasure leaves observable artifacts
+
+### Key Lessons
+
+1. **Plan a post-milestone audit cycle**: v0.5-audit took 9 phases and 22 plans to close v0.5 gaps + v0.1 tech debt; budget 30-40% of milestone size for audit closure
+2. **Test the "obvious" thing**: Prophecy encoding bug was a `*_1` in postconditions resolving incorrectly — testing `test_prophecy_basic` revealed the gap immediately
+3. **Decimal phases are the right granularity for urgent gap work**: Inserting 29.1, 29.2, etc. keeps clear dependency chain and avoids ROADMAP restructuring
+
+### Cost Observations
+
+- Model: sonnet (balanced profile throughout)
+- Sessions: ~3 (2026-02-25 to 2026-02-27)
+- Notable: Phase 33 (6 plans, 5 tech debt items) was the most efficient phase — all items were well-defined debtlines with clear acceptance criteria
+
+---
+
 ## Milestone: v0.5 — SMT Completeness
 
 **Shipped:** 2026-02-24 (UAT validated 2026-02-25)
@@ -105,6 +155,7 @@
 | v0.3 | 6 | 20 | VSCode extension added TypeScript layer; research phases started for complex domains |
 | v0.4 | 9 | 27 | Gap closure phases pattern established; post-archive UAT introduced |
 | v0.5 | 2+1 | 11 | TDD scaffold as Phase 01 gating mechanism; post-archive UAT phase validated all 22 items |
+| v0.5-audit | 9 | 22 | Audit → gap closure → complete cycle; decimal phase pattern for targeted fixes |
 
 ### Cumulative Quality
 

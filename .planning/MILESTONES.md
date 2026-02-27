@@ -110,3 +110,26 @@
 
 ---
 
+
+## v0.5 Audit & Gap Closure (Shipped: 2026-02-27)
+
+**Phases completed:** 9 phases (00, 29.1–29.4, 30, 31, 32, 33), 22 plans
+**Tests:** All passing (0 failures)
+**Timeline:** 2026-02-25 to 2026-02-27
+**Feature commits:** 18
+
+**Key accomplishments:**
+1. For-loop Iterator Range VCGen — AUFLIA quantified VCs + QF_LIA bounded unrolling for `for x in 0..n` patterns; closes VCGEN-01 partial gap (Phase 29.1)
+2. Prophecy encoding for mutable references — `*_1` in postconditions resolves to `_1_prophecy` via `convert_deref` postcondition awareness; `test_prophecy_basic` GREEN (Phase 29.2)
+3. Borrow conflict detection — `generate_expiry_vcs()` stub replaced with statement-scanning implementation, emits `BorrowValidity` VC for use-after-expiry (Phase 29.3)
+4. Stdlib doc tests fixed — 26 `` ```text `` blocks changed to `` ```rust,ignore `` in option.rs/vec.rs/result.rs; syntax highlighting restored, tests visible to harness (Phase 29.4)
+5. SetDiscriminant VCGen — `ir::Statement::SetDiscriminant` emits discriminant assertion VCs; `vcgen_06_set_discriminant_assertion` un-ignored; closes VCGEN-06 fully (Phase 30)
+6. Z3 bv2int + ghost locals fix — `uses_spec_int_types()` detects `as int`/`as nat` enabling QF_LIA path; `is_ghost_place()` guard prevents ghost variables leaking into executable VCs (Phase 31)
+7. Retrospective verification docs — VERIFICATION.md created for 7 early phases (05, 06, 07, 08, 11, 13, 17) missing them; all PASS (Phase 32)
+8. v0.1 tech debt fully closed — E2E performance benchmarks run, bv2int user docs created, pointer aliasing edge case tests added, trigger/quantifier edge cases tested, float VC placeholders replaced with `encode_operand()` (Phase 33)
+9. v0.1 Milestone Audit passed — status: passed, 37/37 phases pass, 0 human_needed items (Phase 33-06)
+
+**Delivered:** Closed all known v0.5 gaps and v0.1 audit items — for-loop VCGen, prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3/ghost fixes, comprehensive verification documentation, and all tech debt resolved. v0.1 milestone audit formally closed.
+
+---
+

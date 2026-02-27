@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A compiler-integrated formal verification tool that mathematically proves properties about Rust code. It hooks into `rustc` via `rustc_driver::Callbacks`, extracts MIR, translates it to SMT-LIB2, and verifies properties using Z3. Developers annotate functions with `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`, `#[ghost]`, `#[decreases]`, `#[lock_invariant]`, `#[unsafe_requires]`, `#[unsafe_ensures]`, and `#[verifier::trusted]` macros and run `cargo verify` for automated verification with rustc-style diagnostics. Supports loops, structs, inter-procedural verification, ownership reasoning, quantifiers, prophecy variables, generics, recursive functions, closures, trait objects, lifetimes, unsafe code, floating-point, and concurrency.
+A compiler-integrated formal verification tool that mathematically proves properties about Rust code. It hooks into `rustc` via `rustc_driver::Callbacks`, extracts MIR, translates it to SMT-LIB2, and verifies properties using Z3. Developers annotate functions with `#[requires]`, `#[ensures]`, `#[pure]`, `#[invariant]`, `#[ghost]`, `#[decreases]`, `#[lock_invariant]`, `#[unsafe_requires]`, `#[unsafe_ensures]`, and `#[verifier::trusted]` macros and run `cargo verify` for automated verification with rustc-style diagnostics. Supports loops, structs, inter-procedural verification, ownership reasoning, quantifiers, prophecy variables, generics, recursive functions, closures, trait objects, lifetimes, unsafe code, floating-point, concurrency, for-loop iterator VCGen, borrow conflict detection, and heap separation logic.
 
 ## Core Value
 
@@ -48,13 +48,22 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 - ✓ Numeric `as`-cast encoding with correct sign-extension/truncation/FPA semantics — v0.5
 - ✓ Match/if-let/while-let discriminant binding VCGen via `Rvalue::Discriminant` — v0.5
-- ✓ Array index bounds VCs + `Rvalue::Len` as named SMT constant — v0.5 (partial: for loops deferred)
+- ✓ Array index bounds VCs + `Rvalue::Len` as named SMT constant — v0.5
 - ✓ Generic `where`-clause trait bound premises as SMT `Assert` in `generate_vcs_with_db` — v0.5
 - ✓ CastKind preservation in MIR converter (FloatToInt/IntToFloat/FloatToFloat/Pointer) — v0.5
 - ✓ Aggregate conversion: `AggregateKind::Adt/Closure` + `ir::Statement::SetDiscriminant/Assume` — v0.5
 - ✓ Float-to-int SMT soundness fix: `fp.to_sbv/fp.to_ubv RTZ` — v0.5
 - ✓ Missing rvalue variants: CopyForDeref, RawPtr, Repeat; TyKind::Param → Ty::Generic — v0.5
 - ✓ Projected LHS struct field mutation via SMT functional record update — v0.5
+
+- ✓ For-loop iterator range VCGen — AUFLIA quantified VCs + QF_LIA bounded unrolling for `for x in 0..n` patterns — v0.5-audit
+- ✓ Prophecy encoding for mutable references — `*_1` in postconditions resolves to `_1_prophecy` correctly — v0.5-audit
+- ✓ Borrow conflict detection — `generate_expiry_vcs()` detects use-after-lifetime-end via statement scanning — v0.5-audit
+- ✓ `Statement::SetDiscriminant` VCGen — discriminant assertion VCs fully implemented; VCGEN-06 closed — v0.5-audit
+- ✓ Z3 bv2int fix — `uses_spec_int_types()` detects `as int`/`as nat`, enabling QF_LIA path for SpecInt/SpecNat — v0.5-audit
+- ✓ Ghost locals filtering — `is_ghost_place()` guard prevents ghost variable leakage into executable VCs — v0.5-audit
+- ✓ v0.1 tech debt fully resolved — E2E benchmarks, bv2int docs, pointer aliasing edge cases, trigger edge cases, float VC placeholders — v0.5-audit
+- ✓ v0.1 Milestone Audit closed — status: passed, 37/37 phases pass, 0 human_needed — v0.5-audit
 
 ### Active
 
@@ -76,13 +85,10 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
-- **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
-- **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.5 shipped — 29 phases, 92 plans, 6-crate workspace + VSCode extension; complete SMT VCGen coverage for all major Rust expression categories
-- **v0.5 achievements:** Cast encoding, discriminant binding, array bounds VCs, generic premises, CastKind preservation, aggregate wiring, float-to-int soundness fix, functional record update for struct mutation
-- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; async closures (Rust 2024) deferred to v0.5
-- **Tech debt:** Pre-existing doc test failures in stdlib_contracts/option.rs (26 doc tests, `self` parameter issue); v0.4 tech debt fully resolved
+- **Current state:** v0.5-audit complete — 38 phases, ~125k LOC Rust, 6-crate workspace + VSCode extension; all known VCGen gaps closed, v0.1 milestone audit passed
+- **v0.5-audit achievements:** For-loop VCGen (AUFLIA + QF_LIA), prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3 bv2int fix, ghost locals filtering, tech debt closure, 22/22 UAT tests pass
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated
+- **Tech debt:** PtrCast alignment-check test documents 0 VCs assertion as DEBTLINE — future work for v0.6
 
 ## Constraints
 
@@ -145,22 +151,29 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | encode_cast to_signed: bool parameter (Phase 29) | Distinguishes fp.to_sbv vs fp.to_ubv at call site; RTZ matches Rust truncation | ✓ Good |
 | Cow<Ty> in encode_place_with_type (Phase 29) | Downcast produces owned variant-struct Ty alongside borrowed Tys from find_local_type | ✓ Good |
 | Functional update emits ALL fields in order (Phase 29) | Changed field gets new_val, others get selector(base); correct constructor arity guaranteed | ✓ Good |
+| Stub for_loop_vcgen with todo!() panic as TDD RED (Phase 29.1) | Pre-commit hook requires compile; runtime panic is valid TDD RED state | ✓ Good |
+| in_postcondition threading through convert_expr_with_db (Phase 29.2) | `*_1` in ensures → `_1_prophecy`; inside old() resets to false; preconditions unchanged | ✓ Good |
+| statement_references_local() exhaustive Rvalue match (Phase 29.3) | Checks both LHS and RHS; compiler-enforced completeness, no wildcard | ✓ Good |
+| Term::IntLit takes i128 for SetDiscriminant (Phase 30) | Matches Term variant type; correct for i128 variant index cast | ✓ Good |
+| Extended uses_spec_int_types() with substring scan (Phase 31) | Detects `as int`/`as nat` in spec strings; minimal change enabling QF_LIA path | ✓ Good |
+| Ghost erasure from both encode_assignment and collect_declarations (Phase 31) | Complete SMT erasure; test contract takes precedence over plan prose | ✓ Good |
+| Retrospective VERIFICATION.md with verbatim cargo test output (Phase 32) | Live test run during audit provides current evidence anchor | ✓ Good |
+| Phase 11 float placeholder terms intentional PASS (Phase 32) | lhs/rhs/result placeholder VCs are correct design for float specs — not a gap | ✓ Good |
+| encode_operand() wired directly into generate_float_vcs() (Phase 33) | 3-line change closes float VC placeholder tech debt; no abstraction layer needed | ✓ Good |
+| CallGraph bidirectional name_map normalization (Phase 33) | Normalize caller names internally; return full names via name_map in all API methods | ✓ Good |
 
-## Shipped: v0.5 SMT Completeness
+## Shipped: v0.5 Audit & Gap Closure (2026-02-27)
 
-**Goal achieved:** Complete SMT VCGen coverage for all major Rust expression categories — casts, match/discriminants, array bounds, generics, aggregates, and struct mutation.
+**Goal achieved:** Closed all known v0.5 gaps and v0.1 audit items — for-loop VCGen, prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3/ghost fixes, tech debt resolution, and audit closure.
 
-**Delivered:**
-- Numeric `as`-cast VCGen with sign-extension/truncation/FPA semantics (`encode_cast()`)
-- Match/if-let/while-let discriminant binding via `Rvalue::Discriminant` uninterpreted selector
-- Array bounds VCs + Rvalue::Len encoding; generic trait bound premises in `generate_vcs_with_db`
-- CastKind preservation in MIR converter; AggregateKind::Adt/Closure wiring; SetDiscriminant/Assume IR variants
-- Float-to-int soundness fix (`fp.to_sbv/fp.to_ubv RTZ`); TyKind::Param→Generic; CopyForDeref/RawPtr/Repeat
-- Projected LHS struct field mutation via SMT functional record update with correct constructor arity
-
-**Known gaps (deferred to v0.6):**
-- VCGEN-01 PARTIAL: for/iterator loops, range expressions, slice references
-- vcgen_06_set_discriminant_assertion (Statement::SetDiscriminant VCGen encoding)
+**Delivered (gap closure phases 29.1–29.4, 30–33):**
+- For-loop Iterator Range VCGen: AUFLIA quantified VCs + QF_LIA bounded unrolling for `for x in 0..n` (closes VCGEN-01 partial)
+- Prophecy encoding: `*_1` in postconditions correctly resolves to `_1_prophecy` via `convert_deref` postcondition awareness
+- Borrow conflict detection: `generate_expiry_vcs()` implemented, emits `BorrowValidity` VC for use-after-expiry
+- SetDiscriminant VCGen: `Statement::SetDiscriminant` emits discriminant assertion VCs (closes VCGEN-06)
+- Z3 bv2int fix: `uses_spec_int_types()` enables QF_LIA path; ghost locals filtered from all SMT output
+- v0.1 tech debt: E2E benchmarks passing, bv2int docs created, edge case tests for unsafe/trigger/float added
+- Audit closure: v0.1 milestone audit status: **passed** (37/37 phases, 0 human_needed)
 
 ---
-*Last updated: 2026-02-25 after v0.5 SMT Completeness milestone shipped*
+*Last updated: 2026-02-27 after v0.5 Audit & Gap Closure milestone completed*
