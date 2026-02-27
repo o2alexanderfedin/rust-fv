@@ -430,9 +430,16 @@ impl Callbacks for VerificationCallbacks {
             stdlib_registry.merge_into(&mut contract_db);
         }
 
-        // Determine cache directory (target/verify-cache/)
-        let cache_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
-        let cache_path = std::path::PathBuf::from(cache_dir).join("verify-cache");
+        // Determine cache directory.
+        // RUST_FV_CACHE_DIR overrides the default (used by tests to isolate cache per test run).
+        // Otherwise fall back to CARGO_TARGET_DIR/verify-cache (production default).
+        let cache_path = if let Ok(explicit) = std::env::var("RUST_FV_CACHE_DIR") {
+            std::path::PathBuf::from(explicit)
+        } else {
+            let cache_dir =
+                std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+            std::path::PathBuf::from(cache_dir).join("verify-cache")
+        };
 
         // Load cache
         let mut cache = crate::cache::VcCache::new(cache_path);
@@ -489,27 +496,41 @@ impl Callbacks for VerificationCallbacks {
                 .collect::<Vec<_>>(),
         );
 
-        // Compute per-function hashes and dependencies
+        // Compute per-function hashes, cache keys, and dependencies.
+        // We store the cache key here so the changed_contracts closure below can
+        // look up the CORRECT cached entry (same key used during cache writes).
         let mut func_hashes = std::collections::HashMap::new();
+        let mut func_cache_keys: std::collections::HashMap<String, [u8; 32]> =
+            std::collections::HashMap::new();
         for (name, ir_func, _source_locs) in &func_infos {
-            let ir_debug = format!("{:?}", ir_func);
+            // Compute ir_debug without source_names (HashMap has non-deterministic
+            // iteration order in Debug format, which would make the cache key unstable
+            // across runs). source_names is diagnostic metadata only.
+            let ir_debug = {
+                let mut canonical = ir_func.clone();
+                canonical.source_names.clear();
+                format!("{:?}", canonical)
+            };
             let mir_hash = crate::cache::VcCache::compute_mir_hash(name, &ir_debug);
             let contract_hash =
                 crate::cache::VcCache::compute_contract_hash(name, &ir_func.contracts);
+            #[allow(deprecated)]
+            let cache_key = crate::cache::VcCache::compute_key(name, &ir_func.contracts, &ir_debug);
             func_hashes.insert(name.clone(), (mir_hash, contract_hash));
+            func_cache_keys.insert(name.clone(), cache_key);
         }
 
-        // Determine which functions have changed contracts
+        // Determine which functions have changed contracts.
+        // The closure must use the correct (full) cache key — not the legacy empty-contracts key —
+        // so that cache lookups actually find previously-stored entries.
         let all_funcs_with_hashes: Vec<_> = func_hashes
             .iter()
             .map(|(name, (_mir_hash, contract_hash))| (name.clone(), *contract_hash))
             .collect();
         let changed_contracts =
             call_graph.changed_contract_functions(&all_funcs_with_hashes, |func_name: &str| {
-                let contracts = rust_fv_analysis::ir::Contracts::default();
-                #[allow(deprecated)]
-                let key = crate::cache::VcCache::compute_key(func_name, &contracts, "");
-                cache.get(&key).map(|entry| entry.contract_hash)
+                let key = func_cache_keys.get(func_name)?;
+                cache.get(key).map(|entry| entry.contract_hash)
             });
 
         // Perform bv2int eligibility analysis and differential testing when enabled.
@@ -600,11 +621,8 @@ impl Callbacks for VerificationCallbacks {
         for (name, ir_func, source_locations) in func_infos.into_iter() {
             let (mir_hash, contract_hash) = func_hashes.get(&name).unwrap();
 
-            // Compute legacy cache key for backward compatibility
-            let ir_debug = format!("{:?}", ir_func);
-            #[allow(deprecated)]
-            let cache_key =
-                crate::cache::VcCache::compute_key(&name, &ir_func.contracts, &ir_debug);
+            // Reuse the cache key computed earlier (avoids redundant ir_debug computation).
+            let cache_key = *func_cache_keys.get(&name).unwrap();
 
             // Get direct dependencies
             let dependencies = call_graph.direct_callees(&name);
@@ -613,6 +631,7 @@ impl Callbacks for VerificationCallbacks {
             let invalidation_decision = crate::invalidation::decide_verification(
                 &cache,
                 &name,
+                &cache_key,
                 *mir_hash,
                 *contract_hash,
                 self.fresh,

@@ -38,23 +38,43 @@ impl RecursiveGroup {
 }
 
 /// Call graph representation.
+///
+/// Internally stores normalized (short) function names for edges and the
+/// all_functions set so that callee references from MIR debug output
+/// (which are short names like "abs") match against verified function names
+/// (which are full paths like "e2e_bench::abs").
+///
+/// The `name_map` field maps normalized → full names to restore full paths
+/// in public API return values.
 pub struct CallGraph {
-    /// Edges: caller -> list of callees
+    /// Edges: caller (normalized) -> list of callees (normalized)
     edges: HashMap<String, Vec<String>>,
-    /// All function names in the graph
+    /// All function names in the graph (normalized short names)
     all_functions: HashSet<String>,
+    /// Mapping from normalized name → full name for API outputs
+    name_map: HashMap<String, String>,
 }
 
 impl CallGraph {
     /// Build a call graph from a list of functions.
     ///
     /// Scans each function's basic blocks for `Terminator::Call` to extract call edges.
+    ///
+    /// Both caller names and callee references from MIR are normalized to their
+    /// short (last-segment) forms internally.  The `name_map` records the mapping
+    /// from normalized → full so that public API methods can return full names.
     pub fn from_functions(functions: &[(String, &Function)]) -> Self {
         let mut edges: HashMap<String, Vec<String>> = HashMap::new();
         let mut all_functions: HashSet<String> = HashSet::new();
+        let mut name_map: HashMap<String, String> = HashMap::new();
 
         for (name, func) in functions {
-            all_functions.insert(name.clone());
+            // Normalize caller name so it matches normalized callee references
+            let norm_name = normalize_func_name(name);
+            all_functions.insert(norm_name.clone());
+            name_map
+                .entry(norm_name.clone())
+                .or_insert_with(|| name.clone());
 
             // Scan basic blocks for calls
             let mut callees = Vec::new();
@@ -70,13 +90,14 @@ impl CallGraph {
             }
 
             if !callees.is_empty() {
-                edges.insert(name.clone(), callees);
+                edges.insert(norm_name, callees);
             }
         }
 
         Self {
             edges,
             all_functions,
+            name_map,
         }
     }
 
@@ -150,7 +171,11 @@ impl CallGraph {
             result.extend(remaining);
         }
 
+        // Translate normalized names back to full names for callers
         result
+            .into_iter()
+            .map(|norm| self.name_map.get(&norm).cloned().unwrap_or(norm))
+            .collect()
     }
 
     /// Detect recursive functions using Tarjan's SCC algorithm.
@@ -191,16 +216,31 @@ impl CallGraph {
         let mut groups = Vec::new();
         for scc in sccs {
             if scc.len() > 1 {
-                // Mutual recursion: multi-node SCC
-                let functions: Vec<String> = scc.iter().map(|&idx| graph[idx].clone()).collect();
+                // Mutual recursion: multi-node SCC — translate normalized → full names
+                let functions: Vec<String> = scc
+                    .iter()
+                    .map(|&idx| {
+                        let norm = &graph[idx];
+                        self.name_map
+                            .get(norm)
+                            .cloned()
+                            .unwrap_or_else(|| norm.clone())
+                    })
+                    .collect();
                 groups.push(RecursiveGroup { functions });
             } else if scc.len() == 1 {
                 // Check for self-edge (direct recursion)
                 let node = scc[0];
                 let has_self_edge = graph.edges(node).any(|e| e.target() == node);
                 if has_self_edge {
+                    let norm = &graph[node];
+                    let full = self
+                        .name_map
+                        .get(norm)
+                        .cloned()
+                        .unwrap_or_else(|| norm.clone());
                     groups.push(RecursiveGroup {
-                        functions: vec![graph[node].clone()],
+                        functions: vec![full],
                     });
                 }
             }
@@ -220,7 +260,10 @@ impl CallGraph {
     /// # Returns
     /// List of function names that transitively call `func_name`
     pub fn transitive_callers(&self, func_name: &str) -> Vec<String> {
-        // Build reverse edges (callee -> list of callers)
+        // Normalize the input name to match internal storage
+        let norm_start = normalize_func_name(func_name);
+
+        // Build reverse edges (callee -> list of callers), using normalized names
         let mut reverse_edges: HashMap<String, Vec<String>> = HashMap::new();
 
         for (caller, callees) in &self.edges {
@@ -235,13 +278,13 @@ impl CallGraph {
             }
         }
 
-        // BFS from func_name through reverse edges
+        // BFS from norm_start through reverse edges
         let mut visited: HashSet<String> = HashSet::new();
         let mut queue: VecDeque<String> = VecDeque::new();
         let mut result: Vec<String> = Vec::new();
 
         // Start with direct callers
-        if let Some(direct_callers) = reverse_edges.get(func_name) {
+        if let Some(direct_callers) = reverse_edges.get(&norm_start) {
             for caller in direct_callers {
                 if !visited.contains(caller) {
                     visited.insert(caller.clone());
@@ -264,7 +307,11 @@ impl CallGraph {
             }
         }
 
+        // Translate normalized names back to full names
         result
+            .into_iter()
+            .map(|norm| self.name_map.get(&norm).cloned().unwrap_or(norm))
+            .collect()
     }
 
     /// Get direct callees of a function.
@@ -277,13 +324,21 @@ impl CallGraph {
     /// # Returns
     /// List of direct callees
     pub fn direct_callees(&self, func_name: &str) -> Vec<String> {
+        // Normalize the input name to match internal storage
+        let norm_name = normalize_func_name(func_name);
         self.edges
-            .get(func_name)
+            .get(&norm_name)
             .map(|callees| {
                 callees
                     .iter()
                     .filter(|callee| self.all_functions.contains(*callee))
-                    .cloned()
+                    .map(|callee| {
+                        // Translate normalized callee name back to full name
+                        self.name_map
+                            .get(callee)
+                            .cloned()
+                            .unwrap_or_else(|| callee.clone())
+                    })
                     .collect()
             })
             .unwrap_or_default()
