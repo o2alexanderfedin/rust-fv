@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Milestone UAT ✅
 status: unknown
-last_updated: "2026-02-27T05:12:06.970Z"
+last_updated: "2026-02-27T05:13:21.440Z"
 progress:
   total_phases: 38
   completed_phases: 37
   total_plans: 114
-  completed_plans: 110
+  completed_plans: 112
 ---
 
 # Project State
@@ -99,6 +99,8 @@ Progress: [████████████████████] 93/93 p
 | Phase 32 P01 | 289 | 3 tasks | 3 files |
 | Phase 32 P03 | 222 | 3 tasks | 3 files |
 | Phase 33 P03 | 296 | 2 tasks | 4 files |
+| Phase 33 P05 | 391 | 2 tasks | 3 files |
+| Phase 33 P02 | 397 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -211,6 +213,8 @@ Recent decisions relevant to v0.4:
 - [Phase 32]: Phase 32 audit: 6/7 PASS, 1/7 PASS WITH NOTES (Phase 11 placeholder terms intentional), 0 fix phases needed
 - [Phase 33]: Phase 33-03: All 12 new unsafe_verification edge case tests GREEN immediately — existing VCGen handles all RawDeref/PtrArithmetic scenarios correctly
 - [Phase 33]: Phase 33-03: PtrCast alignment-check VC not yet generated — test_pointer_cast_chain documents this as DEBTLINE with 0 VCs assertion
+- [Phase 33]: encode_operand() from encode_term.rs called directly in generate_float_vcs() with lhs_op/rhs_op from Rvalue::BinaryOp — 3-line change closing Phase 11 float VC placeholder tech debt
+- [Phase 33]: Product decision: create docs/bv2int.md as standalone user-facing reference; Phase 18 tech debt CLOSED (PERF-05/PERF-06 satisfied)
 
 ### Roadmap Evolution
 
