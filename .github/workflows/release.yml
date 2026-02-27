@@ -16,6 +16,7 @@ jobs:
   build-and-release:
     name: Build, Test, and Release
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
