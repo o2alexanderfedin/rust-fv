@@ -52,16 +52,15 @@ milestone: "v0.2 Advanced Verification (shipped 2026-02-14)"
 | `emit_float_verification_warning()` | `report_text_only()` | AtomicBool one-time guard | VERIFIED | diagnostics.rs line 193: called from within FloatingPointNaN branch; AtomicBool prevents duplicate warnings per run |
 | Float constants | `FpFromBits` with IEEE 754 bit layout | encode_float_constant in encode_term.rs | VERIFIED | f32: eb=8, sb=24; f64: eb=11, sb=53; sign/exp/sig bit extraction per IEEE 754 |
 
-### Code Quality — Placeholder Terms Design (Intentional)
+### Code Quality — Placeholder Terms Design (RESOLVED in Phase 33 Plan 05)
 
-**Phase 11 uses placeholder terms (lhs, rhs, result) in float VCs intentionally.**
+**Phase 11 originally used placeholder terms (lhs, rhs) in float VCs. This was resolved in Phase 33 Plan 05.**
 
-When `generate_float_vcs()` in float_verification.rs generates NaN propagation and infinity overflow VCs, the operand terms reference symbolic names ("lhs", "rhs") rather than fully-encoded SMT bit-vector expressions. This is a deliberate infrastructure-level design:
+When `generate_float_vcs()` in float_verification.rs generates NaN propagation and infinity overflow VCs, the operand terms now reference real IR operand names (e.g., "x", "y") via `encode_operand()` from `encode_term.rs`.
 
-- **Rationale:** The float verification module was designed to validate VC structure (NaN propagation logic, infinity overflow logic, FP predicate application) independently of the full SMT encoding pipeline. The VCs are infrastructure contracts, not concrete Z3 queries.
-- **Z3 submission:** Tests do NOT submit float_verification VCs to Z3 (doing so would cause "unknown constant lhs" errors). This was explicitly documented as an auto-fixed bug in 11-03 (Rule 1) and converted to VC structure validation.
-- **Verdict: PASS by design.** The placeholder terms do not represent a gap or incomplete implementation. The real encoding pipeline (encode_term.rs → encode_float_constant, encode_fp_binop, encode_fp_unop) is complete and tested independently. Float VCs in the full verification driver use the encode_term.rs path, not the float_verification.rs placeholder path.
-- **Future work:** A future phase could wire float_verification.rs VCs to use the encode_term.rs encoding, enabling Z3 SAT/UNSAT checking. This is tracked as a known limitation, not a defect.
+- **RESOLVED:** Phase 33 Plan 05 wired `encode_operand(lhs_op)` and `encode_operand(rhs_op)` into `generate_float_vcs()`, replacing the `Term::Const("lhs")` and `Term::Const("rhs")` placeholder strings.
+- **Verification:** 3 new tests (`test_float_vc_uses_real_operand_terms`, `test_float_vc_mul_uses_real_operand_terms`, `test_float_vc_div_uses_real_operand_terms`) confirm SMT output does not contain "lhs"/"rhs" placeholder identifiers.
+- **Phase 11 tech debt item CLOSED** — encode_operand() wired into generate_float_vcs(). 2026-02-27
 
 ### Requirements Coverage
 
@@ -147,11 +146,11 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 ## Verdict
 
-**PASS WITH NOTES**
+**PASSED**
 
-All 7 observable truths verified. All 7 requirements (FPV-01 through FPV-06, INF-02) satisfied. 16/16 float_verification E2E tests pass. 165/165 smtlib crate tests pass.
+All 7 observable truths verified. All 7 requirements (FPV-01 through FPV-06, INF-02) satisfied. 19/19 float_verification E2E tests pass. 165/165 smtlib crate tests pass.
 
-**Note:** float_verification.rs VCs use placeholder terms (lhs, rhs, result) by intentional design — tests validate VC structure rather than Z3 SAT/UNSAT. This is a known, accepted design choice documented in 11-03-SUMMARY.md (Rule 1 auto-fix). The real IEEE 754 encoding pipeline in encode_term.rs is complete, tested, and wired into the main vcgen.rs pipeline. The placeholder terms are in the separate float_verification.rs infrastructure layer only.
+**Phase 11 tech debt CLOSED (Phase 33 Plan 05):** float_verification.rs VCs now use real operand encoding via `encode_operand()` from encode_term.rs. The 3 new tests (`test_float_vc_uses_real_operand_terms`, `test_float_vc_mul_uses_real_operand_terms`, `test_float_vc_div_uses_real_operand_terms`) confirm SMT output references actual IR operand names (x, y) instead of placeholder strings.
 
 ---
 

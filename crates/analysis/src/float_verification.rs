@@ -6,6 +6,7 @@ use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::term::Term;
 
+use crate::encode_term::encode_operand;
 use crate::ir::{BinOp, Function, Rvalue, Statement, Ty};
 use crate::vcgen::{VcKind, VcLocation, VerificationCondition};
 
@@ -101,7 +102,7 @@ pub fn generate_float_vcs(func: &Function) -> Vec<VerificationCondition> {
                     }
 
                     // Handle BinaryOp
-                    if let Rvalue::BinaryOp(op, _lhs, _rhs) = rvalue {
+                    if let Rvalue::BinaryOp(op, lhs_op, rhs_op) = rvalue {
                         if !is_float_arithmetic(op) {
                             continue; // Skip comparisons
                         }
@@ -117,10 +118,10 @@ pub fn generate_float_vcs(func: &Function) -> Vec<VerificationCondition> {
                             vc_kind: VcKind::FloatingPointNaN,
                         };
 
-                        // Encode operands and result as terms (placeholder - real encoding in VCGen)
+                        // Encode operands using real IR operand encoding (not placeholders)
                         let result_term = Term::Const(place.local.clone());
-                        let lhs_term = Term::Const("lhs".to_string());
-                        let rhs_term = Term::Const("rhs".to_string());
+                        let lhs_term = encode_operand(lhs_op);
+                        let rhs_term = encode_operand(rhs_op);
                         let operands = vec![lhs_term, rhs_term];
 
                         let op_name = format!("{:?}", op);
