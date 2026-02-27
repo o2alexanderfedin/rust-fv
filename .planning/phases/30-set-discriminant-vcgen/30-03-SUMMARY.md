@@ -102,6 +102,13 @@ None - no external service configuration required.
 - Ready for Phase 31 (next gap closure phase per ROADMAP)
 - v0.1 milestone gap closure progressing
 
+## Self-Check: PASSED
+
+- [x] `crates/analysis/tests/vcgen_completeness29.rs` — FOUND
+- [x] `.planning/phases/30-set-discriminant-vcgen/30-03-SUMMARY.md` — FOUND
+- [x] Commit `fea0edd` (Task 1: feat) — FOUND
+- [x] Commit `be43239` (docs: final metadata) — FOUND
+
 ---
 *Phase: 30-set-discriminant-vcgen*
 *Completed: 2026-02-26*
