@@ -11,7 +11,8 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "MIT OR Apache-2.0"
+license-file = "LICENSE"
+authors = ["Alex Fedin <sales@hupyy.com>"]
 repository = "https://github.com/o2alexanderfedin/rust-fv"
 rust-version = "1.85.0"
 

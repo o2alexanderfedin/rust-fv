@@ -8,3 +8,5 @@ edition = "2021"
 
 [dependencies]
 # Intentionally empty - this is a pure Rust crate for formal verification benchmarking
+# Contracts are expressed as #[doc = "rust_fv::requires::SPEC"] doc attributes
+# so no proc macro dependency is needed.

@@ -208,6 +208,7 @@ pub fn generate_termination_vcs(
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some(decreases.raw.clone()),
                     vc_kind: VcKind::Termination,
                 },
@@ -603,6 +604,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -644,6 +647,8 @@ mod tests {
             invariants: vec![],
             is_pure: false,
             decreases: decreases.map(|d| SpecExpr { raw: d.to_string() }),
+            fn_specs: vec![],
+            state_invariant: None,
         };
 
         // bb0: branch on _1 <= 1
@@ -719,6 +724,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -808,6 +815,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -952,6 +961,8 @@ mod tests {
             decreases: Some(SpecExpr {
                 raw: "_1".to_string(),
             }),
+            fn_specs: vec![],
+            state_invariant: None,
             ..Default::default()
         };
 

@@ -103,6 +103,32 @@ None found. All implementations are substantive with full logic.
 **Clippy:** 0 warnings
 **Rustfmt:** 0 formatting issues
 
+#### Phase 33 Edge Case Tests (12 new) — DEBTLINES RESOLVED
+
+12 DEBTLINES from v0.1 milestone audit — **RESOLVED**. 12 edge case tests added covering all aliasing
+and provenance scenarios. See Phase 33 Plan 03 (`33-03-PLAN.md`).
+
+| # | Test Name | Expected Behavior | Status |
+|---|-----------|-------------------|--------|
+| 1 | `test_aliased_raw_pointers` | Two Unknown-provenance RawDeref → 2 null-check VCs | PASS |
+| 2 | `test_ptr_arithmetic_negative_offset` | Signed offset PtrArithmetic → bounds-check VC | PASS |
+| 3 | `test_pointer_to_pointer` | *const *const u8 chain → 2 null-check VCs (outer + inner) | PASS |
+| 4 | `test_volatile_read_via_raw_ptr` | FromInt provenance RawDeref → 1 null-check VC | PASS |
+| 5 | `test_transmute_then_deref` | FromInt (transmute) RawDeref → 1 null-check VC | PASS |
+| 6 | `test_null_check_from_option_unwrap` | Unknown provenance RawDeref → 1 null-check VC | PASS |
+| 7 | `test_raw_ptr_in_struct_field` | Struct field *mut T RawDeref → 1 null-check VC | PASS |
+| 8 | `test_pointer_cast_chain` | PtrCast *u8→*u32 → 0 VCs (alignment check not yet implemented) | PASS (documents gap) |
+| 9 | `test_interior_mutability_via_raw_ptr` | UnsafeCell get() RawDeref → 1 null-check VC | PASS |
+| 10 | `test_array_index_through_raw_ptr` | PtrArithmetic array index → bounds-check VC | PASS |
+| 11 | `test_function_pointer_via_raw_ptr` | *const fn() RawDeref → VC emitted, no crash | PASS |
+| 12 | `test_cross_function_pointer_aliasing` | Intra-procedural null-check VC at use site (1 VC); cross-fn aliasing gap documented | PASS (documents gap) |
+
+**Updated total: 88 tests (76 original + 12 Phase 33 edge cases)**
+
+**Remaining known gaps (documented, not blocking):**
+- Test 8: PtrCast alignment-check VC not yet generated (VCGen only handles RawDeref and PtrArithmetic)
+- Test 12: Cross-function pointer aliasing requires inter-procedural analysis (beyond Phase 10 scope)
+
 ### Success Criteria Validation
 
 All 5 Phase 10 success criteria from ROADMAP.md validated:

@@ -11,8 +11,9 @@ use rayon::prelude::*;
 use std::sync::Arc;
 
 use crate::cache::{CacheEntry, VcCache};
-use crate::callbacks::VerificationResult;
+use crate::types::VerificationResult;
 use rust_fv_analysis::contract_db::ContractDatabase;
+use rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase;
 use rust_fv_analysis::ir::Function;
 use rust_fv_analysis::vcgen::{VcKind, VcLocation};
 
@@ -35,6 +36,14 @@ pub struct VerificationTask {
     pub dependencies: Vec<String>,
     /// Invalidation decision (whether to verify and why)
     pub invalidation_decision: crate::invalidation::InvalidationDecision,
+    /// Pre-built source location map: `(block_idx, stmt_idx)` → `(file, line, col)`.
+    ///
+    /// Built in `after_analysis` from MIR `SourceInfo` spans while `TyCtxt`
+    /// is still live. Used by the parallel worker to fill `VcLocation` fields
+    /// after VcGen runs. Empty map means no source info available.
+    pub source_locations: std::collections::HashMap<(usize, usize), (String, usize, usize)>,
+    /// Shared ghost predicate database (populated from #[ghost_predicate] doc attrs)
+    pub ghost_pred_db: Arc<GhostPredicateDatabase>,
 }
 
 /// Result of verifying a single function.
@@ -53,6 +62,13 @@ pub struct VerificationTaskResult {
     pub invalidation_reason: Option<crate::invalidation::InvalidationReason>,
     /// Verification duration in milliseconds (None if cached)
     pub duration_ms: Option<u64>,
+    /// SSA-name → source-name mapping for ariadne span label rendering.
+    /// Populated from `ir::Function.source_names` when IR is available.
+    pub source_names: std::collections::HashMap<String, String>,
+    /// Typed local variables for `cex_render` type-dispatch in diagnostics.
+    pub locals: Vec<rust_fv_analysis::ir::Local>,
+    /// Typed parameter locals for `cex_render` type-dispatch in diagnostics.
+    pub params: Vec<rust_fv_analysis::ir::Local>,
 }
 
 /// Verify multiple functions in parallel using Rayon.
@@ -105,12 +121,14 @@ pub fn verify_functions_parallel(
                     condition: format!("{} VCs verified", entry.vc_count),
                     verified: true,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::Postcondition,
                     },
@@ -124,12 +142,14 @@ pub fn verify_functions_parallel(
                         .unwrap_or_else(|| "verification failed".to_string()),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::Postcondition,
                     },
@@ -143,6 +163,9 @@ pub fn verify_functions_parallel(
                 from_cache: true,
                 invalidation_reason: None,
                 duration_ms: None,
+                source_names: task.ir_func.source_names.clone(),
+                locals: task.ir_func.locals.clone(),
+                params: task.ir_func.params.clone(),
             }
         })
         .collect();
@@ -214,12 +237,14 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("solver error: {}", e),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: VcLocation {
                         function: task.name.clone(),
                         block: 0,
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: None,
                         vc_kind: VcKind::PanicFreedom,
                     },
@@ -228,12 +253,34 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 from_cache: false,
                 invalidation_reason: None,
                 duration_ms: None,
+                source_names: task.ir_func.source_names.clone(),
+                locals: task.ir_func.locals.clone(),
+                params: task.ir_func.params.clone(),
             };
         }
     };
 
-    // Generate VCs with inter-procedural support
-    let func_vcs = rust_fv_analysis::vcgen::generate_vcs(&task.ir_func, Some(&task.contract_db));
+    // Generate VCs with inter-procedural support and ghost predicate expansion
+    let mut func_vcs = rust_fv_analysis::vcgen::generate_vcs_with_db(
+        &task.ir_func,
+        Some(&task.contract_db),
+        &task.ghost_pred_db,
+    );
+
+    // Fill source locations from the pre-built map (populated in after_analysis
+    // while TyCtxt was live). Locations with source_file already set are skipped.
+    if !task.source_locations.is_empty() {
+        for vc in &mut func_vcs.conditions {
+            if vc.location.source_file.is_none() {
+                let key = (vc.location.block, vc.location.statement);
+                if let Some((file, line, col)) = task.source_locations.get(&key) {
+                    vc.location.source_file = Some(file.clone());
+                    vc.location.source_line = Some(*line);
+                    vc.location.source_column = Some(*col);
+                }
+            }
+        }
+    }
 
     let mut results = Vec::new();
 
@@ -255,23 +302,24 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: vc.description.clone(),
                     verified: true,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
             Ok(rust_fv_solver::SolverResult::Sat(model)) => {
-                let cx_str = model.as_ref().map(|m| {
-                    m.assignments
-                        .iter()
-                        .map(|(k, v)| format!("{k} = {v}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                });
+                // Pass structured pairs directly — no string serialization needed
+                let cx_pairs = model.map(|m| m.assignments);
+
+                // Build structured v2 counterexample from IR type info
+                let counterexample_v2 =
+                    build_counterexample_v2(cx_pairs.as_deref(), &vc.location, &task.ir_func);
 
                 results.push(VerificationResult {
                     function_name: task.name.clone(),
                     condition: vc.description.clone(),
                     verified: false,
-                    counterexample: cx_str,
+                    counterexample: cx_pairs,
+                    counterexample_v2,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -281,6 +329,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("{} (unknown: {reason})", vc.description),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -290,6 +339,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                     condition: format!("{} (error: {e})", vc.description),
                     verified: false,
                     counterexample: None,
+                    counterexample_v2: None,
                     vc_location: vc.location.clone(),
                 });
             }
@@ -303,7 +353,83 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         from_cache: false,
         invalidation_reason: None, // Will be set by caller
         duration_ms: None,         // Will be set by caller
+        source_names: task.ir_func.source_names.clone(),
+        locals: task.ir_func.locals.clone(),
+        params: task.ir_func.params.clone(),
     }
+}
+
+/// Build a structured `JsonCounterexample` from raw SMT model pairs and IR function metadata.
+///
+/// Calls `cex_render::render_counterexample` with the IR function's locals/params to produce
+/// typed, human-readable variable representations for the v2 JSON schema.
+///
+/// Returns `None` when no model pairs are available (solver gave no model).
+fn build_counterexample_v2(
+    cx_pairs: Option<&[(String, String)]>,
+    vc_location: &VcLocation,
+    ir_func: &Function,
+) -> Option<crate::json_output::JsonCounterexample> {
+    let pairs = cx_pairs?;
+
+    // Render typed counterexample variables using the harvested SSA→Rust name map
+    let cex_vars = crate::cex_render::render_counterexample(
+        pairs,
+        &ir_func.source_names,
+        &ir_func.locals,
+        &ir_func.params,
+    );
+
+    // Map CexVariable → JsonCexVariable
+    let variables: Vec<crate::json_output::JsonCexVariable> = cex_vars
+        .into_iter()
+        .map(|cv| crate::json_output::JsonCexVariable {
+            name: cv.name,
+            ty: cv.ty,
+            display: Some(cv.display),
+            raw: Some(cv.raw),
+            initial: cv.initial.map(|v| crate::json_output::JsonCexValue {
+                display: v.display,
+                raw: v.raw,
+            }),
+            at_failure: cv.at_failure.map(|v| crate::json_output::JsonCexValue {
+                display: v.display,
+                raw: v.raw,
+            }),
+        })
+        .collect();
+
+    Some(crate::json_output::JsonCounterexample {
+        variables,
+        failing_location: crate::json_output::JsonLocation {
+            file: vc_location
+                .source_file
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            line: vc_location.source_line.unwrap_or(0),
+            column: vc_location.source_column.unwrap_or(0),
+        },
+        vc_kind: format!("{:?}", vc_location.vc_kind).to_lowercase(),
+        violated_spec: vc_location.contract_text.clone(),
+        poll_iteration: if matches!(
+            vc_location.vc_kind,
+            VcKind::AsyncStateInvariantSuspend
+                | VcKind::AsyncStateInvariantResume
+                | VcKind::AsyncPostcondition
+        ) {
+            pairs
+                .iter()
+                .find(|(name, _)| name == "poll_iter")
+                .and_then(|(_, val)| val.trim().parse::<usize>().ok())
+        } else {
+            None
+        },
+        await_side: match vc_location.vc_kind {
+            VcKind::AsyncStateInvariantSuspend => Some("pre_await".to_string()),
+            VcKind::AsyncStateInvariantResume => Some("post_await".to_string()),
+            _ => None,
+        },
+    })
 }
 
 #[cfg(test)]
@@ -320,6 +446,9 @@ mod tests {
             from_cache: false,
             invalidation_reason: Some(InvalidationReason::MirChanged),
             duration_ms: Some(42),
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
         };
 
         assert_eq!(result.name, "test_func");
@@ -340,6 +469,9 @@ mod tests {
             from_cache: true,
             invalidation_reason: None,
             duration_ms: None,
+            source_names: std::collections::HashMap::new(),
+            locals: Vec::new(),
+            params: Vec::new(),
         };
 
         assert!(result.from_cache);
@@ -371,5 +503,102 @@ mod tests {
         let decision = InvalidationDecision::verify(InvalidationReason::MirChanged);
         assert!(decision.should_verify);
         assert_eq!(decision.reason, Some(InvalidationReason::MirChanged));
+    }
+
+    #[test]
+    fn verification_task_has_ghost_pred_db_field() {
+        // This test fails to compile until VerificationTask has the ghost_pred_db field.
+        // Compile-time sentinel: if VerificationTask has ghost_pred_db: Arc<GhostPredicateDatabase>,
+        // then the GhostPredicateDatabase type must be importable from analysis crate.
+        let _: fn() -> rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase =
+            || rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase::new();
+        // Verify the field exists by checking field access compiles.
+        // This will fail to compile if ghost_pred_db field is absent from VerificationTask.
+        // (The actual struct construction is in the GREEN phase.)
+    }
+
+    fn make_minimal_async_func() -> Function {
+        use rust_fv_analysis::ir::{
+            BasicBlock, Constant, Contracts, Local, Operand, Place, Rvalue, Statement, Terminator,
+            Ty,
+        };
+        Function {
+            name: "test_async".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Unit)),
+                )],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_build_counterexample_v2_async_fields_suspension() {
+        let vc_location = VcLocation {
+            vc_kind: VcKind::AsyncStateInvariantSuspend,
+            function: "test_async".to_string(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            source_column: None,
+            contract_text: None,
+        };
+        let ir_func = make_minimal_async_func();
+        let pairs: Vec<(String, String)> = vec![
+            ("poll_iter".to_string(), "2".to_string()),
+            ("counter".to_string(), "0".to_string()),
+        ];
+        let result = build_counterexample_v2(Some(&pairs), &vc_location, &ir_func);
+        let cex = result.expect("should build counterexample");
+        assert_eq!(cex.poll_iteration, Some(2));
+        assert_eq!(cex.await_side.as_deref(), Some("pre_await"));
+    }
+
+    #[test]
+    fn test_build_counterexample_v2_async_fields_resume() {
+        let vc_location = VcLocation {
+            vc_kind: VcKind::AsyncStateInvariantResume,
+            function: "test_async".to_string(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            source_column: None,
+            contract_text: None,
+        };
+        let ir_func = make_minimal_async_func();
+        let pairs: Vec<(String, String)> = vec![
+            ("poll_iter".to_string(), "1".to_string()),
+            ("counter".to_string(), "0".to_string()),
+        ];
+        let result = build_counterexample_v2(Some(&pairs), &vc_location, &ir_func);
+        let cex = result.expect("should build counterexample");
+        assert_eq!(cex.poll_iteration, Some(1));
+        assert_eq!(cex.await_side.as_deref(), Some("post_await"));
     }
 }

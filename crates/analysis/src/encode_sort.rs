@@ -75,10 +75,11 @@ pub fn encode_type(ty: &Ty) -> Sort {
             Sort::Int
         }
         Ty::Generic(name) => {
-            panic!(
-                "Cannot encode generic type parameter '{}' -- must be monomorphized first",
-                name
-            )
+            tracing::trace!(
+                type_name = %name,
+                "Encoding generic type parameter as uninterpreted sort (parametric verification)"
+            );
+            Sort::Uninterpreted(name.clone())
         }
         Ty::Closure(info) => {
             tracing::trace!(closure_name = %info.name, "Encoding closure as datatype sort");
@@ -493,6 +494,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -548,6 +551,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -582,6 +587,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -630,6 +637,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -717,6 +726,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -781,6 +792,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let decls = collect_datatype_declarations(&func);

@@ -1,407 +1,561 @@
-# Feature Landscape: Production Usability Features (v0.3)
+# Feature Landscape: v0.4 Full Rust Verification
 
-**Domain:** Production-Ready Formal Verification Tools
-**Researched:** 2026-02-14
+**Domain:** SMT-based formal verification for Rust — advanced language features
+**Researched:** 2026-02-19
 **Confidence:** MEDIUM-HIGH
+
+---
 
 ## Context
 
-This research focuses on **5 production usability features** for rust-fv v0.3, building on v0.2's comprehensive language support:
+This research covers **5 advanced verification features** for rust-fv v0.4, building on v0.3's production usability (stdlib contracts, triggers, IDE integration, bv2int).
 
-**Already implemented (v0.2 Complete - all major Rust features):**
-- Recursive functions with termination checking (`#[decreases]`)
-- Closures (Fn/FnMut/FnOnce with environment capture)
-- Trait objects (behavioral subtyping, sealed traits, dynamic dispatch)
-- Lifetime reasoning (NLL, prophecy variables, SSA-based &mut)
-- Unsafe code detection (null checks, bounds checks, `#[unsafe_requires]`)
-- Floating-point verification (IEEE 754, NaN/Inf VCs)
-- Concurrency verification (happens-before, data race freedom, atomics)
-- Path-sensitive VCGen, inter-procedural verification, quantifiers, prophecy variables
-- Z3 subprocess + native API backends, formula simplification, VC caching
-- cargo verify with diagnostics and JSON output
+**Already implemented (v0.1–v0.3 Complete):**
+- Proc macro annotations, path-sensitive VCGen, inter-procedural verification
+- Z3/CVC5/Yices multi-solver backends, incremental VC caching
+- VSCode/rust-analyzer IDE integration, stdlib contracts (Vec/HashMap/Option/Result/Iterator)
+- Closures via defunctionalization (Fn/FnMut/FnOnce), traits/behavioral subtyping
+- Lifetimes/NLL, unsafe/heap-as-array, IEEE 754 FPA
+- Bounded concurrency/happens-before (SeqCst only), bv2int optimization, trigger customization
 
-**New features to research (v0.3 focus):**
-1. Standard library contracts (Vec, HashMap, Option, Result, Iterator)
-2. Trigger customization (`#[trigger]` for quantifier performance)
-3. VSCode extension (inline diagnostics, verification status)
-4. rust-analyzer integration (LSP diagnostics, flycheck)
-5. bv2int optimization (Z3 theory combination performance)
+**New features to research (v0.4 focus):**
+1. Counterexample generation (from SMT models)
+2. Async/await verification (Future state machines)
+3. Weak memory models (Relaxed/Acquire/Release atomics)
+4. Higher-order closures with specification entailments
+5. Separation logic for heap reasoning (unsafe raw pointer contracts)
 
 ---
 
 ## Table Stakes
 
-Features users expect from production verification tools. Missing = tool feels incomplete or academic-only.
+Features that, once v0.4 is scoped this way, users expect to be present. Missing these = the feature feels half-done.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Standard Library Contracts** | Real code depends on stdlib; can't verify `vec.push()` calls without Vec contracts. Users expect verification of "normal Rust code" not just toy examples. | High | Prusti provides iterator specs; Verus has "verification standard library" (14k LOC); Dafny has extensive stdlib lemmas; Kani verifies against Rust std. Blocks production adoption. |
-| **Solver Performance Feedback** | Developers need to know *why* verification is slow (quantifiers, timeouts, theory combination) not just "timeout after 60s". | Medium | Dafny provides `measure-complexity` + dafny-reportgenerator for detecting unstable assertions; performance warnings common (e.g., "FP theory 2-10x slower"). Prevents "black box" frustration. |
-| **Incremental Verification** | Re-verifying entire codebase on every change kills workflow; must cache results and re-verify only changed functions. | High | Dafny shows 30x speedup for incremental re-runs; push/pop frame stacks preserve solver state; LSP integration enables per-function verification. Critical for IDE integration. |
-| **IDE Real-Time Feedback** | Waiting 30s for CLI output breaks developer flow; need inline diagnostics like rustc errors (red squiggles, hover info). | Medium | Kani VSCode shows harness tree, inline errors, debug traces; Dafny VSCode shows "Verifying..." status, F7 for verification trace, live-as-you-type checking. Industry standard for static analysis tools. |
-| **Custom Diagnostics Integration** | Verification errors must appear in familiar IDE (VSCode, rust-analyzer) not separate tool window. Seamless cargo workflow. | Medium | rust-analyzer extends LSP with `rust-analyzer/*` custom requests; Why3 IDE shows green checkmarks for proved goals; Kani integrates into VSCode testing panel. Matches Rust ecosystem expectations. |
-| **Timeout Handling** | Solver timeouts are expected (undecidable logic); tool must provide actionable guidance not just "timeout". | Low | Dafny docs recommend `{:isolate_assertions}`, opaque predicates, manual lemmas; timeout prediction via ML (Springer 2024); incremental solving reduces risk. Prevents "tool is broken" perception. |
+| **Counterexample generation** | When a VC fails, "assertion failed at line 42" is useless without knowing *what values* triggered it. Every mature verifier (Dafny, Kani, Why3) shows concrete variable values when the SMT solver returns SAT (the negated VC is satisfiable). | MEDIUM | Z3's `get-model` returns a SAT model when the negated VC is satisfiable. The hard part is mapping SMT model variables back to Rust source identifiers, pretty-printing types (structs, enums, references), and filtering out internal SSA temporaries. This is a prerequisite for all other features: without it, debugging any v0.4 failure is blind. |
+| **Higher-order closures: basic spec entailment** | rust-fv already handles closures via defunctionalization. When a closure is passed to a higher-order function (e.g., `map`, `filter`, user-defined HOF), the callee's spec must be able to express what the closure must guarantee. Without this, HOF contracts are vacuously true or unprovable. | HIGH | Prusti's `|=` operator (specification entailment) is the reference design. The user writes `f |= |x: i32| [requires(x > 0), ensures(result >= 0)]` in the `#[requires]` of the HOF. Internally this encodes behavioral subtyping: the closure's actual pre/post must be at least as strong as the entailment requires. Depends on defunctionalization (already done). |
+
+---
 
 ## Differentiators
 
-Features that set production tools apart from academic prototypes. Not expected, but highly valued by expert users.
+Features that separate rust-fv from tools that stop at sequential SMT verification.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Trigger Customization** | Quantifier instantiation is performance-critical; experts need manual control when auto-inference fails or causes matching loops. | Medium | Verus uses `#[trigger]` attribute; Dafny uses `{:trigger ...}` syntax; F* has pattern annotations. Allows 2-10x speedup by preventing matching loops. Differentiates from tools with "black box" quantifiers. |
-| **Counterexample Generation** | When verification fails, concrete values (counterexample) reveal *why* vs abstract "assertion failed at line 42". | High | Kani generates unit tests from counterexamples (concrete playback); Why3 displays counterexamples in task tab and HTML; Debug Test button in Kani VSCode. Debugging productivity boost. |
-| **Proof Isolation** | Complex proofs should be debuggable in parts; `assert P by { ... }` scopes reasoning so intermediate steps don't pollute solver context. | Medium | Dafny's `assert P by { }` hides intermediate steps; opaque predicates + reveal statements control information flow. Critical for managing solver complexity in large proofs. |
-| **bv2int Optimization** | Bitvector+integer theory combination is expensive (Z3 default); native bv2int interprets BVs as unsigned integers, reducing overhead. | Medium-High | Z3's bv2int uses lazy intblasting; but performance mixed (1s vs 17hr in some cases per GitHub issues). Requires careful tactic configuration. Expert-level feature. |
-| **Bounded Verification Mode** | For unsafe/concurrent code, bounded model checking (BMC) finds bugs fast; complements unbounded SMT verification. | High | Kani uses bounded MC for all verification (CBMC backend); Dafny deferred to future; bounded threads/context switches prevent concurrency state explosion. Different verification paradigm. |
-| **Verification Visualization** | HTML reports, proof session trees, coverage highlighting make results shareable/reviewable (e.g., for code review, audit). | Low-Medium | Why3 exports HTML with green (proved) / red (failed) backgrounds; Kani shows coverage inline with source highlighting; Dafny IDE collapses proved goal subtrees. Team collaboration feature. |
+| **Async/await verification** | Async Rust is pervasive (Tokio, async-std); no existing tool fully verifies async Rust functionally. Kani explicitly says "await expressions: No." Verus has an early draft PR (#1839) not yet merged. Being first with functional verification of async/await would be a significant differentiator. | VERY HIGH | The canonical encoding: desugared async fn → state machine enum implementing `Future`, each `.await` point → enum variant with live variables + awaited future. VCGen must handle state machine transitions as control-flow paths. Specs on async fns follow the same `#[requires]/#[ensures]` syntax but apply to the *completed* computation (the `Poll::Ready` value). SeqCst executor model (single-threaded polling) suffices for functional properties. Does NOT require weak memory model. |
+| **Weak memory model: Acquire/Release atomics** | SeqCst atomics (already in v0.3) cover safe concurrent code. Acquire/Release is the next tier: used in `Arc<T>` (reference counting), `Mutex<T>` (lock/unlock), `RwLock<T>`, `Once`. Without Acq/Rel, can't verify any lock-based concurrent data structure. | VERY HIGH | The standard encoding (from Dartagnan/POPL 2025 XMM work) is axiomatic: program events (reads/writes/fences) + happens-before (hb) + modification order (mo) + reads-from (rf) + coherence axioms. SMT encodes: "does any execution satisfying the memory model axioms violate this assertion?" Builds on existing happens-before infrastructure. Relaxed (no synchronization) can be added simultaneously at low marginal cost. |
+| **Separation logic: raw pointer contracts** | Unsafe Rust with raw pointers (`*mut T`, `*const T`) cannot be verified with the existing heap-as-array model for non-trivial data structures (linked lists, trees, custom allocators). Separation logic's separating conjunction (A * B: A and B own disjoint heap regions) is the standard tool. Verus uses `PtsTo<T>` ghost resources; VeriFast uses `*P |-> V` annotations. | VERY HIGH | Two sub-features: (a) `PtsTo<T>` ownership predicate in spec language — user writes `#[requires(pts_to(p, v))]` to say pointer p points to value v and we own it; (b) separating conjunction in specs — `A * B` encodes disjoint ownership. SMT encoding: encode ownership as ghost integer tokens; separating conjunction as disjointness constraints. Depends on existing unsafe/heap-as-array model (upgrade, not replace). |
+
+---
 
 ## Anti-Features
 
-Features to explicitly NOT build (scope creep, complexity traps, or ecosystem mismatch).
+Features to explicitly NOT build for v0.4.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| **Automatic Contract Inference** | Undecidable for general programs; Hoare logic fundamentally requires explicit pre/post. Academic research has 40+ years without breakthrough. | Provide good defaults (e.g., auto-infer simple loop invariants for `i < n` patterns) but require annotations for complex logic. Invest in diagnostic quality over magic inference. |
-| **Full Separation Logic** | Years of research effort (Prusti/RustBelt scope); requires Iris/Coq integration; high complexity for marginal ROI in Rust (borrow checker handles most aliasing). | Use conservative heap approximations; leverage borrow checker analysis. Add separation logic only if production users demonstrate concrete need. |
-| **Custom SMT Solver** | Z3/CVC5 are industry-standard, battle-tested over 15+ years; reinventing wheel risks soundness bugs and years of optimization work. | Integrate with Z3 native API + subprocess fallback; contribute upstream if features needed (e.g., better bv2int tactics). |
-| **Automatic Trigger Inference Always** | Inference works 80% of time; forcing automation for remaining 20% causes matching loops (instantiation explosion). Perfect inference is AI-complete. | Provide manual `#[trigger]` escape hatch for experts; emit warnings when inference uncertain ("no trigger found, quantifier may not instantiate"). Follow Verus/Dafny model. |
-| **Weak Memory Model Support (v0.3)** | Relaxed atomics require formal memory models (C++11, Rust memory model); academic frontier with ongoing research. SeqCst is 95% of use cases. | Support SeqCst atomics (already done in v0.2 Phase 12); defer Acquire/Release to v0.4+ after research matures. Document limitation clearly. |
-| **Full Iterator Combinator Auto-Verification** | Higher-order specification entailments (Fn bounds as contracts) are research-level; requires dependent function types. | Provide contracts for common patterns (map, filter, fold) in stdlib; require manual closure specs for complex cases. Prioritize 80% use cases. |
-| **Windows Support (v0.3)** | Development on macOS/Linux first; Windows SMT solver integration has quirks (path handling, process spawning). Small user base currently. | Focus on Unix platforms for v0.3; add Windows support post-v1.0 when core stable and user demand proven. Use GitHub issue to track demand. |
-| **Forked Rust Compiler** | Zero-friction cargo workflow is key differentiator; proc macros + MIR via rustc_driver sufficient for all v0.1-v0.3 features. | Stay within stable Rust + nightly rustc_driver; avoid forked compiler maintenance burden. Only fork if compiler integration absolutely required (not yet needed). |
+| **Full Iris/Coq integration** | Iris is a Coq proof assistant framework requiring manual interactive theorem proving. Integration means exposing Coq tactics to Rust developers — a completely different user model than SMT automation. Years of research effort (RustBelt/RefinedRust scope). | Use SMT-encodable fragment of separation logic only. Support `pts_to` and separating conjunction for common patterns. Document that complex invariants (e.g., fractional permissions, ghost state monoids) are deferred to a hypothetical Iris backend. |
+| **Full C++11 memory model (all orderings)** | SeqCst + Acq/Rel covers 99%+ of real Rust code. SeqCst-Fences, consume ordering (deprecated in C++17), and mixed-size accesses are edge cases with almost no Rust usage. The SMT encoding complexity grows super-linearly with the number of orderings supported. | Support: Relaxed, Acquire, Release, AcqRel, SeqCst. Explicitly document: no consume ordering (deprecated), no mixed-size atomics (UB in Rust), no sequentially-consistent fences as distinct from SeqCst stores. |
+| **Async runtime verification (Tokio scheduler)** | Verifying the *scheduler* behavior (task wakeup, executor fairness, Tokio specifics) is a completely different problem from verifying what an async function *computes*. Requires modeling executor non-determinism, wakeup order, and runtime state. Academic open problem. | Verify async fns with the "single-threaded sequential polling" model: each `.await` point returns the value when the future completes, without modeling when/how it is polled. This covers all functional properties. Document explicitly: no liveness properties (termination of async tasks), no runtime/scheduler modeling. |
+| **Closure contract inference** | Automatically inferring what spec a closure must satisfy when passed to a HOF (e.g., inferring that `map`'s closure must preserve positivity) is undecidable in general. No tool has solved this. Verus/Prusti both require manual annotation. | Require explicit spec entailments. Provide good error messages: "cannot verify HOF call: closure spec not entailed. Add `#[requires(f |= |x| [ensures(result > 0)])]`." |
+| **Separation logic for safe Rust** | Safe Rust's borrow checker already provides separation logic guarantees (unique ownership = separating conjunction, shared refs = fractional permissions). Re-encoding this in SMT duplicates the compiler's work and creates false positives. | Use borrow-checker information (already available via MIR) to extract ownership facts. Only deploy explicit separation logic for `unsafe` blocks with raw pointers where the borrow checker is disabled. |
+| **Concurrent async verification (multi-threaded executor)** | Multi-threaded async (tokio's `spawn`, `tokio::task`, shared `Arc<Mutex<T>>` across tasks) requires both async state machine modeling AND weak memory model reasoning simultaneously. The combination is a current research frontier with no practical tool support. | Verify single-threaded async (functional properties) and concurrent safe code (SeqCst/Acq/Rel) as separate features. Document that cross-cutting async + concurrent verification is future work (v0.5+). |
+
+---
+
+## Feature Landscape: What Each Feature Looks Like
+
+### Feature 1: Counterexample Generation
+
+**What the user sees:**
+```
+error[rust-fv]: postcondition not satisfied
+  --> src/lib.rs:12:5
+   |
+12 |   x / y
+   |   ^^^^^
+   |
+   = postcondition: result > 0
+   = counterexample:
+       x = -5   (i32)
+       y = 2    (i32)
+       result = -2  (i32)
+   = note: function called with x = -5, y = 2 violates ensures(result > 0)
+```
+
+**What the SMT encoding is:**
+- VCGen already generates negated VC: `NOT (precondition => postcondition)`
+- When Z3 returns SAT, issue `(get-model)` command
+- Z3 returns S-expression model: `((x (- 5)) (y 2) (result (- 2)) ...)`
+- Map SMT variable names back to Rust source names via existing symbol table
+- Filter out internal SSA temporaries (variables prefixed `_`)
+- Pretty-print: i32 as decimal, u8/u16/u32/u64 as decimal (or hex for addresses), bool as true/false, struct fields recursively
+
+**What "passing" means:**
+- Counterexample shown for every VC failure (not just "assertion failed at line N")
+- Counterexample values are valid Rust values (no internal SMT artifacts)
+- Multi-variable counterexample shows all function parameters + local variables
+- If solver returns Unknown, show "solver could not find counterexample (timeout)" instead of silence
+
+**SMT complexity:** LOW — Z3 already returns models; the work is mapping/formatting
+**Implementation complexity:** MEDIUM — SSA→source variable mapping requires tracking through MIR lowering
+
+**Dependencies on existing features:**
+- VCGen (v0.1 Phase 1) — already generates SMT scripts with named variables
+- Symbol table (v0.1 Phase 1) — maps SSA names to Rust source names
+- Z3 native API (v0.1 Phase 4) — already used; `model()` call is direct
+- Diagnostic infrastructure (v0.1 Phase 5) — extend to include counterexample block
+
+---
+
+### Feature 2: Async/Await Verification
+
+**What the user writes:**
+```rust
+#[requires(x > 0)]
+#[ensures(result > x)]
+async fn fetch_and_increment(x: i32) -> i32 {
+    let fetched = db_fetch(x).await;   // .await point
+    fetched + 1
+}
+
+// HOF async spec:
+#[requires(x > 0)]
+#[ensures(result > 0)]
+async fn process(x: i32) -> i32 {
+    fetch_and_increment(x).await
+}
+```
+
+**What the SMT encoding is:**
+- Rust compiler desugars `async fn` into a `Future`-implementing state machine enum
+- The MIR for an async fn already encodes the state machine (rust-fv reads MIR)
+- VCGen treats each `.await` as a function call to the awaited future's `poll` function that returns `Poll::Ready(v)` (complete value) — sequential polling model
+- State machine transitions = control-flow edges in VCGen (already handled)
+- `#[requires]/#[ensures]` apply to the overall computation from entry to `Poll::Ready` return
+- No executor modeling needed for functional properties
+
+**What "passing" means:**
+- Annotated async fn verified: SMT proves all paths from entry to `Poll::Ready(result)` satisfy postconditions given preconditions
+- No modeling of wakeup/polling count — only what the final result is
+- `.await` on verified async fn uses that fn's contract (just like sync inter-procedural verification)
+- Unverified awaited futures get havoced (current assumption: may return any value satisfying type constraints)
+
+**What the user does NOT get:**
+- No liveness: cannot prove async fn ever returns (termination not modeled)
+- No scheduler reasoning: cannot prove concurrent async tasks don't deadlock
+- No Tokio-specific properties (wakeup order, fairness)
+
+**SMT complexity:** MEDIUM — state machine is already in MIR; VCGen treats `.await` as call
+**Implementation complexity:** HIGH — MIR for async fns has generator/coroutine structure (GeneratorKind, SwitchInt on state); requires special handling in MIR→IR lowering
+
+**Dependencies on existing features:**
+- MIR converter (driver, v0.1) — extend to handle GeneratorKind::Async
+- IR (analysis, v0.1) — add AsyncAwait IR node or normalize to call
+- VCGen (analysis, v0.1) — handle Poll::Ready/Poll::Pending state transitions
+- Inter-procedural verification (v0.1 Phase 3) — async fn calls other async fns
+
+**Reference:** Verus PR #1839 (draft, not merged) uses wrapper function + external_body pattern. rust-fv can take a simpler approach via MIR directly since the state machine is already materialized in MIR.
+
+---
+
+### Feature 3: Weak Memory Models (Relaxed/Acquire/Release)
+
+**What the user writes (no new annotation syntax required):**
+```rust
+use std::sync::atomic::{AtomicI32, Ordering};
+
+static X: AtomicI32 = AtomicI32::new(0);
+static Y: AtomicI32 = AtomicI32::new(0);
+
+#[thread_local_invariant(thread_id < 2)]
+#[ensures(/* no assertion violation in any sequentially consistent execution */)]
+fn message_passing_test() {
+    // Thread 1:
+    X.store(1, Ordering::Release);
+    Y.store(1, Ordering::Release);
+
+    // Thread 2:
+    let y = Y.load(Ordering::Acquire);
+    if y == 1 {
+        let x = X.load(Ordering::Acquire);
+        assert!(x == 1);  // Must hold under Acq/Rel
+    }
+}
+```
+
+**What the SMT encoding is (axiomatic memory model):**
+- Represent each memory event as an SMT record: `(event_id thread_id location value ordering type)`
+- Encode memory model relations as SMT functions:
+  - `reads_from(r, w)`: read r gets value from write w
+  - `happens_before(e1, e2)`: derived from program order + synchronizes_with
+  - `synchronizes_with(w, r)`: write w (Release) synchronizes with read r (Acquire) if rf(r,w) ∧ w.ord=Release ∧ r.ord=Acquire
+  - `modification_order(w1, w2)`: total order on writes to same location
+- Coherence axioms (from C11/Rust memory model):
+  - CoRR: if hb(r1,r2) and rf(r2,w), then not rf(r1,w') where mo(w,w')
+  - CoWR: if hb(w,r) and rf(r,w'), then mo(w,w') or w=w'
+  - CoRW, CoWW: similar
+- Bounded: bound number of threads T and events per thread N (following v0.3 bounded concurrency approach)
+- Existential: ∃ events. (program constraints) ∧ (memory model axioms) ∧ (¬assertion) — solver finds violating execution
+
+**What "passing" means:**
+- No reachable execution under the Rust memory model (RC11 for Relaxed/Acq/Rel) violates any assertion
+- Races detected: if two threads access same non-atomic location where one is a write (data race = UB)
+- Proof: UNSAT of the above existential (no violating execution exists)
+
+**Relaxed ordering:** zero synchronization — adds events with `ord=Relaxed` to the encoding; relaxed reads can see any write in modification order (no happens-before constraint from Acq/Rel)
+
+**SMT complexity:** HIGH — quadratic in number of events (pairwise relations); N threads × M events per thread → N×M events, N²×M² relation pairs
+**Implementation complexity:** VERY HIGH — new IR nodes for atomic load/store/fence; new VCGen path for atomic operations; new SMT theory for memory model relations; interaction with existing happens-before encoding (SeqCst)
+
+**Dependencies on existing features:**
+- Bounded concurrency (v0.3 Phase 12) — provides thread model, thread_local_invariant
+- Happens-before encoding (v0.3 Phase 12) — extend rather than replace
+- SMTLib crate (v0.1) — add uninterpreted sort for events, relation functions
+- VCGen (v0.1) — new case for MIR atomic load/store/fence instructions
+
+**Reference:** Dartagnan (BMC for Weak Memory), POPL 2025 XMM paper. Encoding follows "Effective Program Verification for Relaxed Memory Models" (Summers/Mueller 2018, UBC).
+
+---
+
+### Feature 4: Higher-Order Closures with Specification Entailments
+
+**What the user writes:**
+```rust
+// Higher-order function with closure spec entailment
+#[requires(
+    n >= 0,
+    f |= |x: i32| [requires(x >= 0), ensures(result >= 0)]
+)]
+#[ensures(result >= 0)]
+fn map_non_negative(v: &Vec<i32>, f: impl Fn(i32) -> i32) -> i32 {
+    let mut sum = 0;
+    for &x in v.iter() {
+        if x >= 0 {
+            sum += f(x);   // verified: f's precondition holds (x >= 0)
+        }
+    }
+    sum
+}
+
+// User calls it with a specific closure:
+let result = map_non_negative(&vec, |x| x * 2);
+// rust-fv verifies: |x| x * 2 satisfies [requires(x >= 0), ensures(result >= 0)]
+```
+
+**What the SMT encoding is:**
+
+The existing defunctionalization (v0.2) represents closures as structs. Specification entailment adds:
+
+1. **Entailment check at call site:** For `f |= |x| [requires(P(x)), ensures(Q(x, result))]`:
+   - Generate VC: `∀ env, x. P(x) ∧ closure_body(env, x) = r ⟹ Q(x, r)`
+   - Where `closure_body` is the already-defunctionalized closure function
+   - This VC is added to the verification conditions for the *caller*, not the HOF
+
+2. **HOF body uses entailment:** Inside HOF body, at `f(x)` call site:
+   - Assume `P(x)` holds (check as VC)
+   - Conclude `Q(x, result)` holds after call
+   - This is standard pre/post contract use (already in VCGen)
+
+3. **Stateful closures (FnMut):** Track closure environment evolution:
+   - `env_before` → call → `env_after`
+   - Entailment: `∀ env_before, x. P(env_before, x) ∧ next(env_before, x) = (env_after, r) ⟹ Q(env_before, x, env_after, r)`
+   - Requires existential quantification over FnMut call sequences
+
+**Spec entailment syntax (new in proc macro):**
+```
+f |= |params| [requires(P), ensures(Q)]
+```
+Encoded as doc attribute: `rust_fv::entails::f::|params|::requires::P::ensures::Q`
+
+**What "passing" means:**
+- HOF body verified: every call to the closure argument is safe given the entailment
+- Call site verified: the specific closure passed satisfies the entailment
+- Behavioral subtyping respected: closure's actual spec is at least as strong as required
+
+**SMT complexity:** MEDIUM — quantified over closure inputs; triggers needed for instantiation
+**Implementation complexity:** HIGH — new syntax (|= operator), new spec IR node, new VCGen rule for entailment checks, interaction with defunctionalization's environment encoding
+
+**Dependencies on existing features:**
+- Defunctionalization (v0.2 Phase 9) — closure → struct representation already done
+- Trigger customization (v0.3) — entailment VCs use quantifiers, triggers needed
+- Spec parser (v0.1 Phase 1) — extend to parse `|=` operator
+- Inter-procedural (v0.1 Phase 3) — entailment check at call site follows same pattern
+
+**Reference:** Prusti specification entailment (`|=` syntax), Wolff et al. OOPSLA 2021 "Modular Specification and Verification of Closures in Rust."
+
+---
+
+### Feature 5: Separation Logic for Heap Reasoning
+
+**What the user writes:**
+```rust
+use std::ptr;
+
+// Raw pointer function: requires ownership of the pointed-to memory
+#[requires(pts_to(p, _v))]          // owns *p (any current value)
+#[ensures(pts_to(p, new_val))]      // *p now equals new_val
+unsafe fn write_ptr(p: *mut i32, new_val: i32) {
+    ptr::write(p, new_val);
+}
+
+// Disjoint ownership: two pointers don't alias
+#[requires(pts_to(p, vp) * pts_to(q, vq))]   // * = separating conjunction
+#[ensures(pts_to(p, vq) * pts_to(q, vp))]    // values swapped
+unsafe fn swap(p: *mut i32, q: *mut i32) {
+    let tmp = ptr::read(p);
+    ptr::write(p, ptr::read(q));
+    ptr::write(q, tmp);
+}
+
+// Linked list node predicate (user-defined recursive predicate)
+#[ghost_predicate]
+fn list_seg(head: *mut Node, tail: *mut Node, vals: Seq<i32>) -> bool {
+    if head == tail {
+        vals.is_empty()
+    } else {
+        exists(|v, next| pts_to(head, Node { val: v, next }) * list_seg(next, tail, vals.tail()))
+    }
+}
+```
+
+**What the SMT encoding is:**
+
+Separation logic in SMT uses a *permission/token* model (standard approach in Viper/Silicon):
+
+1. **`pts_to(p, v)` predicate:**
+   - Ghost resource: an uninterpreted token `own(p)` asserting exclusive write access to address p
+   - Heap function `heap: Addr → Value` maps addresses to current values
+   - `pts_to(p, v)` ≡ `own(p) ∧ heap[p] = v`
+   - Tokens are linear (consumed when used, cannot be duplicated)
+
+2. **Separating conjunction `A * B`:**
+   - `(A * B)(heap, tokens)` ≡ `∃ heap1, heap2, tokens1, tokens2. heap = heap1 ⊕ heap2 ∧ tokens = tokens1 ⊕ tokens2 ∧ A(heap1, tokens1) ∧ B(heap2, tokens2)`
+   - In SMT: encoded as `disjoint_dom(tokens1, tokens2) ∧ A(...) ∧ B(...)`
+   - Key: `disjoint_dom` proves non-aliasing
+
+3. **`ptr::read(p)` → load:** `assume own(p); result := heap[p]`
+4. **`ptr::write(p, v)` → store:** `assume own(p); heap := heap[p ↦ v]`
+5. **Frame rule:** If function consumes `pts_to(p, v)` and caller owns `pts_to(p, v) * pts_to(q, w)`, caller retains `pts_to(q, w)` untouched
+
+6. **User-defined predicates (`#[ghost_predicate]`):**
+   - Encoded as SMT recursive functions (or uninterpreted with axioms for soundness)
+   - Folding/unfolding predicates = assert/assume the definition
+
+**What "passing" means:**
+- All `ptr::read`/`ptr::write` in unsafe block are preceded by valid `pts_to` ownership in precondition
+- All `pts_to` resources are transferred correctly (no double-free, no use-after-free)
+- Separating conjunction proves aliasing freedom (two mutable raw pointers don't alias)
+- Custom predicates fold/unfold correctly (heap invariant maintained)
+
+**SMT complexity:** HIGH — separation logic in SMT requires quantifiers over heap/token partitions; careful trigger design needed; recursive predicates require finiteness bound or approximation
+**Implementation complexity:** VERY HIGH — new ghost type system (`pts_to`, `*` operator in specs), new IR for heap resources, new VCGen rules for unsafe loads/stores, interaction with existing unsafe/heap-as-array model (upgrade)
+
+**Dependencies on existing features:**
+- Unsafe/heap-as-array (v0.2 Phase 11) — existing heap model; separation logic replaces/extends it
+- Trigger customization (v0.3) — separation logic VCs are quantifier-heavy
+- SMTLib crate (v0.1) — new sorts for heap, token domains
+- Spec parser (v0.1) — new `pts_to`, `*` syntax, `#[ghost_predicate]`
+- Quantifier encoding (v0.1 Phase 2) — separation logic uses quantifiers for partition
+
+---
 
 ## Feature Dependencies
 
-**Dependencies on existing rust-fv capabilities (v0.1-v0.2):**
-
 ```
-Standard Library Contracts
-  → Requires: Inter-procedural verification (v0.1 Phase 3) ✓
-  → Requires: Trait-level contracts (v0.2 Phase 8) ✓
-  → Requires: Generic monomorphization (v0.1 Phase 2) ✓
-  → Requires: Prophecy variables for &mut iterators (v0.1 Phase 2) ✓
-  → Provides: Real-world code verification (blocks production adoption)
-
-Trigger Customization
-  → Requires: Quantifier support (v0.1 Phase 2) ✓
-  → Requires: Spec parser extensions (v0.1 Phase 1) ✓
-  → Requires: SMT-LIB PATTERN generation (new)
-  → Provides: Performance control for experts (differentiator)
-
-IDE Integration (VSCode)
-  → Requires: Diagnostic infrastructure (v0.1 Phase 5) ✓
-  → Requires: Structured error messages (v0.2 Phase 12) ✓
-  → Requires: JSON output (v0.1 Phase 5) ✓
-  → Provides: Developer-friendly workflow (table stakes)
-
-rust-analyzer Integration
-  → Requires: LSP-compatible diagnostics (v0.1 Phase 5) ✓
-  → Requires: Fast verification (<5s for typical functions) ✓
-  → Requires: Incremental verification (v0.1 Phase 5 basic, needs enhancement)
-  → Provides: Inline feedback in native Rust IDE (table stakes)
-
-bv2int Optimization
-  → Requires: SMT-LIB2 encoding (v0.1 Phase 1) ✓
+Counterexample Generation
+  → Requires: VCGen with SMT model output (v0.1) ✓
   → Requires: Z3 native API (v0.1 Phase 4) ✓
-  → Requires: Bitvector theory (v0.1 Phase 1) ✓
-  → Provides: Faster arithmetic verification (differentiator)
+  → Requires: Symbol table / SSA→source name mapping (v0.1) ✓
+  → Requires: Diagnostic infrastructure (v0.1 Phase 5) ✓
+  → Provides: Debuggability for all other v0.4 features (build first)
+  → Enhances: All features (counterexample for any VC failure)
 
-Incremental Verification (Enhanced)
-  → Requires: Per-function VC caching (v0.1 Phase 5) ✓
-  → Requires: Dependency tracking (v0.1 Phase 3) ✓
-  → Requires: LSP protocol (new) for file change notifications
-  → Provides: Sub-second re-verification (enables IDE integration)
+Async/Await Verification
+  → Requires: MIR converter (v0.1) — extend for GeneratorKind::Async
+  → Requires: Inter-procedural VCGen (v0.1 Phase 3) ✓
+  → Requires: Closures/defunctionalization (v0.2) ✓ (async closures reuse)
+  → Requires: Counterexample generation (v0.4, build before async for debuggability)
+  → Conflicts with: Weak memory model (different concurrency model; don't combine in Phase 1)
+
+Weak Memory Model (Relaxed/Acq/Rel)
+  → Requires: Bounded concurrency/happens-before (v0.3 Phase 12) ✓
+  → Requires: SMTLib new sorts (v0.1 smtlib crate, extend)
+  → Requires: Counterexample generation (v0.4, essential for debugging memory model violations)
+  → Extends: SeqCst atomic encoding (v0.3) — adds new orderings
+  → Conflicts with: Async (see anti-features; keep separate in roadmap)
+
+Higher-Order Closures with Spec Entailments
+  → Requires: Defunctionalization (v0.2 Phase 9) ✓
+  → Requires: Trigger customization (v0.3) ✓ (entailment VCs are quantified)
+  → Requires: Spec parser extension (v0.1) — extend for |= syntax
+  → Provides: Correct HOF verification (currently HOFs with closure args have weak contracts)
+  → Enhances: Stdlib contracts (v0.3) — Iterator.map/filter with proper closure specs
+
+Separation Logic for Heap
+  → Requires: Unsafe/heap-as-array (v0.2 Phase 11) ✓ (replace/extend)
+  → Requires: Trigger customization (v0.3) ✓ (separation logic VCs are quantifier-heavy)
+  → Requires: SMTLib extension for heap/token sorts (v0.1 smtlib crate)
+  → Requires: Counterexample generation (v0.4, essential for debugging pointer errors)
+  → Conflicts with: Heap-as-array (use separation logic for unsafe blocks, array for safe)
 ```
 
-**Inter-feature dependencies (v0.3):**
+### Dependency Notes
 
-```
-IDE Integration (VSCode)
-  → Depends on: Incremental Verification (fast feedback required, <1s re-verification)
-  → Depends on: Timeout Handling (graceful degradation, progress bars)
-  → Enables: Standard Library usage validation (see errors inline)
-
-rust-analyzer Integration
-  → Depends on: IDE Integration (LSP protocol foundation, reuse diagnostics)
-  → Depends on: Standard Library Contracts (verify real code in IDE, not just examples)
-  → Enables: Zero-config workflow (works out-of-box with existing rust-analyzer)
-
-bv2int Optimization
-  → Enables: Faster IDE feedback (solver performance critical for <1s goal)
-  → Enables: Standard Library verification (Vec/HashMap arithmetic-heavy)
-  → Depends on: Benchmarking infrastructure (measure impact)
-
-Standard Library Contracts
-  → Blocks: IDE Integration value (users want to verify real code, not examples)
-  → Blocks: Production adoption (all real code uses Vec/Option/Result)
-  → Enables: Ecosystem growth (users can verify libraries depending on std)
-```
-
-## MVP Recommendation
-
-Prioritize for v0.3 Production Usability (in dependency order):
-
-### Phase 1: Standard Library Contracts (HIGHEST PRIORITY)
-**Why first:** Blocks real-world usage. Can't verify production code without Vec/HashMap/Option contracts. Must come before IDE integration to provide value.
-
-**Scope:**
-1. **Vec<T>:** push, pop, len, get, index operations, capacity invariants
-2. **Option<T> / Result<T, E>:** unwrap, map, and_then, is_some, is_none, ok_or
-3. **HashMap<K, V>:** insert, get, remove, contains_key, len
-4. **Iterator basics:** next, collect, map, filter (defer fold/scan/complex combinators)
-5. **String/str:** len, chars, as_bytes (defer complex Unicode operations)
-
-**Complexity:** HIGH
-- Trait-level generic contracts (`impl<T> Vec<T>` with type bounds)
-- Modular verification across crate boundaries (std is external crate)
-- Prophecy variables for mutable iterators (IterMut)
-- Soundness validation against actual Rust std (compare with Kani/Miri tests)
-- Documentation and examples for each contract
-
-**Estimated effort:** 6-8 weeks (100-150 contracts, testing against real codebases, soundness validation)
-
-**Success criteria:**
-- User verifies `fn sum(v: Vec<i32>) -> i32` with loop over `v.iter()`
-- User verifies `fn safe_divide(x: i32, y: Option<i32>) -> Option<i32>` with `y.map(|n| x / n)`
-- User verifies HashMap usage with `insert` + `get` proving key existence
-- Zero false positives (unsound contracts) in 10+ real-world examples
+- **Counterexample generation must be built first:** All other v0.4 features produce new, complex VC failures that are impossible to debug without concrete counterexamples. Build it in Phase 1.
+- **Async and weak memory model must be kept separate:** Async adds coroutine/state-machine complexity; weak memory adds memory-model complexity. Combining both in one verification problem is a current research frontier with no practical solution. Build as distinct features in separate phases.
+- **Spec entailments enhance stdlib contracts:** Once HOF closure specs work, stdlib's `Vec::iter().map()` and `filter()` can have verified closure composition specs — a natural extension of v0.3 stdlib contracts.
+- **Separation logic replaces heap-as-array for unsafe:** The v0.2 heap-as-array model (treat heap as one big array) cannot prove aliasing freedom. Separation logic supersedes it for `unsafe` blocks. For safe Rust, the borrow checker provides the separation argument implicitly — no change needed.
 
 ---
 
-### Phase 2: Incremental Verification (Enhanced) (HIGH PRIORITY)
-**Why second:** Enables IDE integration (<1s re-verification target). Without this, IDE feedback is too slow (30s = broken workflow).
+## MVP Definition
 
-**Scope:**
-1. **LSP file change notifications:** Watch for modified functions, recompute only affected VCs
-2. **Enhanced dependency tracking:** Function call graph, changed function → invalidate callers
-3. **Solver state reuse:** Z3 push/pop for unchanged context, incremental solving
-4. **Benchmark suite:** Measure speedup on 10+ real codebases (target: 30x like Dafny)
-5. **Performance regression tests:** Ensure incremental never slower than full re-verification
+### v0.4 Launch With (Essential for the Milestone)
 
-**Complexity:** MEDIUM-HIGH
-- LSP protocol integration (file watchers, change notifications)
-- Dependency graph maintenance (call graph, trait impl graph)
-- Z3 incremental API (push/pop, solver state management)
-- Cache invalidation correctness (soundness-critical)
+- [x] **Counterexample generation** — unlocks debuggability for all other features; foundational
+- [x] **Higher-order closures with spec entailments** — completes closure story started in v0.2; moderate complexity, high value
+- [x] **Async/await verification (sequential polling model)** — differentiator; no competitor does it
+- [x] **Weak memory model: Acquire/Release atomics** — completes atomic story; needed for Arc/Mutex verification
+- [x] **Separation logic: pts_to + separating conjunction** — completes unsafe story; needed for custom allocators, linked lists
 
-**Estimated effort:** 4-5 weeks (LSP integration, dependency tracking, Z3 incremental API, benchmarks)
+### Suggested Phase Order (Based on Dependencies)
 
-**Success criteria:**
-- User modifies one function; re-verification completes in <1s (vs 30s full re-verification)
-- User modifies trait impl; only affected call sites re-verified
-- Benchmark shows 20-30x speedup on 1000-line codebase
-- Zero cache invalidation bugs (all changes trigger necessary re-verification)
+**Phase 1: Counterexample Generation**
+- Rationale: enables debugging for all subsequent phases. Low risk, medium effort.
 
----
+**Phase 2: Higher-Order Closures with Spec Entailments**
+- Rationale: builds directly on v0.2 defunctionalization + v0.3 triggers. Highest user-facing impact per effort. No new IR concepts.
 
-### Phase 3: Trigger Customization (MEDIUM PRIORITY)
-**Why third:** Performance escape hatch for quantifiers in stdlib contracts. Differentiates from Prusti/Creusot. Low risk, high value.
+**Phase 3: Async/Await Verification**
+- Rationale: requires counterexample generation (Phase 1) for debuggability. MIR async desugaring is complex; needs isolation from other new features.
 
-**Scope:**
-1. **`#[trigger(expr)]` attribute parsing:** Extend spec parser (follow Verus syntax)
-2. **Manual trigger annotation in quantifiers:** `forall |x| #[trigger] f(x) ==> P(x)`
-3. **SMT-LIB PATTERN generation:** `(forall ((x Int)) (! (=> (f x) (P x)) :pattern ((f x))))`
-4. **Warning when auto-inference disabled:** "Manual trigger overrides inference; ensure completeness"
-5. **Diagnostic for interpreted symbols:** "Trigger contains arithmetic (+); may not instantiate. Use function call."
+**Phase 4: Weak Memory Model (Relaxed/Acquire/Release)**
+- Rationale: builds on existing SeqCst/happens-before. Requires counterexample generation. Keep separate from async (different concurrency model).
 
-**Complexity:** MEDIUM
-- Spec parser extension (attribute syntax, AST representation)
-- SMT-LIB PATTERN encoding (trivial, just `!` wrapper)
-- Inference override logic (skip auto-inference if manual trigger present)
-- Diagnostic quality (help users avoid common mistakes)
+**Phase 5: Separation Logic for Heap Reasoning**
+- Rationale: most complex. Builds on all previous phases. Requires counterexample generation (pointer errors are impossible to debug otherwise). New ghost type system, new VCGen rules.
 
-**Estimated effort:** 2-3 weeks (attribute parsing, SMT encoding, diagnostics, tests)
+### Future Consideration (v0.5+)
 
-**Success criteria:**
-- User annotates `forall |i| #[trigger] vec.get(i) ==> vec[i] < 100` and verification succeeds
-- User writes trigger with arithmetic `#[trigger] (i + 1)` and gets warning
-- User provides no trigger for complex quantifier and gets "no trigger inferred" warning
-- Performance test: manual trigger reduces verification time 2-10x on pathological case
+- [ ] **Multi-threaded async (async + weak memory combined)** — research frontier, no practical tool exists; defer until both features are stable individually
+- [ ] **Recursive separation logic predicates (full induction)** — bounded unrolling covers most use cases; full induction requires interactive proof steps; defer
+- [ ] **Async liveness properties** — proving async fns terminate requires temporal logic or ranking functions for coroutines; out of scope for SMT-only approach
+- [ ] **Consume memory ordering** — deprecated in C++17, essentially unused in Rust; no demand
 
 ---
 
-### Phase 4: VSCode Extension (MEDIUM PRIORITY)
-**Why fourth:** IDE integration validates stdlib contracts are usable in real workflow. Incremental verification makes this feasible (<1s feedback).
+## Feature Prioritization Matrix
 
-**Scope:**
-1. **VSCode extension scaffolding:** TypeScript + esbuild, published to VSCode marketplace
-2. **Language server client:** LSP integration with rust-fv diagnostics (reuse cargo verify JSON)
-3. **Inline error highlighting:** Red squiggly underlines for VC failures, hover for VC description
-4. **Status bar "Verifying..." indicator:** Shows progress, click for output panel
-5. **Output panel for detailed VCs:** Full SMT-LIB output, Z3 counterexample (if available)
-6. **Configuration:** Enable/disable verification on save, timeout settings, Z3 path
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Counterexample generation | HIGH | MEDIUM | P1 |
+| Higher-order closure spec entailments | HIGH | HIGH | P1 |
+| Async/await verification | VERY HIGH | VERY HIGH | P1 |
+| Weak memory model (Acq/Rel) | HIGH | VERY HIGH | P1 |
+| Separation logic (pts_to) | HIGH | VERY HIGH | P1 |
 
-**Complexity:** MEDIUM
-- VSCode extension API (well-documented, TypeScript)
-- LSP client integration (async messaging, error handling)
-- UI/UX design (status bar, output panel, hover info)
-- Testing (across VSCode versions, extension host debugging)
-
-**Estimated effort:** 3-4 weeks (extension scaffolding, LSP client, diagnostics display, testing, marketplace publish)
-
-**Success criteria:**
-- User opens Rust file with `#[requires]` annotation; sees "Verifying..." in status bar
-- User introduces VC failure; sees red squiggle, hover shows "postcondition not satisfied: x > 0"
-- User clicks status bar; output panel shows detailed VC failure with SMT-LIB
-- Extension published to VSCode marketplace with 5+ downloads, 0 critical bugs
+All five are P1 for v0.4 — the milestone commits to all five. Phase ordering addresses the implementation cost sequentially.
 
 ---
 
-### Phase 5: rust-analyzer Integration (MEDIUM PRIORITY)
-**Why fifth:** Complements VSCode extension; enables zero-config IDE workflow for rust-analyzer users. Reuses LSP diagnostics from Phase 4.
+## Competitor Feature Analysis
 
-**Scope:**
-1. **rust-analyzer custom diagnostic source:** Integrate into `rust-analyzer.diagnostics.sources`
-2. **`rust-analyzer.diagnostics.rust_fv.enable` configuration:** Enable/disable rust-fv diagnostics
-3. **Flycheck integration:** Run `cargo verify` on save (like `cargo check`)
-4. **Inline verification status:** Checkmarks for proved functions (like code lens)
-5. **Documentation:** rust-analyzer integration guide, configuration examples
+| Feature | Verus | Prusti | Kani | Creusot | rust-fv v0.4 |
+|---------|-------|--------|------|---------|--------------|
+| Counterexample generation | No (UNSAT only) | Limited | YES (concrete playback, byte vectors) | No | YES (variable values, pretty-printed) |
+| Async/await | Draft PR #1839 (not merged) | No | No (explicitly "await: No") | No | YES (sequential polling model) |
+| Relaxed atomics | No | No | No (sequential only) | No | YES (Acq/Rel/Relaxed) |
+| SeqCst atomics | Partial | No | No | No | YES (v0.3) |
+| HOF closure spec entailment | Partial (fn specs) | Prototype (not merged) | No | No (uses prophecy) | YES (|= syntax) |
+| Separation logic (raw ptr) | YES (PtsTo linear ghost) | Implicit via Viper | No | No | YES (pts_to + *) |
 
-**Complexity:** MEDIUM-HIGH
-- rust-analyzer codebase exploration (~200k LOC, complex)
-- Custom diagnostic source integration (not well-documented, requires source reading)
-- Flycheck integration (cargo runner hooks, process management)
-- Testing across rust-analyzer versions (compatibility risk)
-
-**Estimated effort:** 4-6 weeks (codebase exploration, custom diagnostic source, flycheck, testing, docs)
-
-**Success criteria:**
-- User enables `rust-analyzer.diagnostics.rust_fv.enable = true`; sees verification errors inline
-- User modifies function; flycheck runs `cargo verify` on save (<1s with incremental)
-- Checkmarks appear next to verified functions (code lens)
-- Works with rust-analyzer 0.3.x (current stable) and 0.4.x (next release)
-
----
-
-### Phase 6: bv2int Optimization (LOWEST PRIORITY)
-**Why last:** Optimization, not capability. Tackle after stdlib contracts prove performance bottleneck. High risk (Z3 tactic unpredictability).
-
-**Scope:**
-1. **Z3 bv2int tactic configuration:** Use `bv2int` simplifier, `ctx-solver-simplify`
-2. **Arithmetic-heavy benchmark suite:** Vec indexing, HashMap hashing, bit manipulation
-3. **Selective bv2int for bounded integers:** Apply to u8/i32 (bounded), not usize (architecture-dependent)
-4. **Performance regression tests:** Ensure bv2int doesn't slow down simple cases (1s → 17hr risk)
-5. **Documentation:** When to use bv2int, performance characteristics, known issues
-
-**Complexity:** MEDIUM
-- Z3 tactic API (documented, but tactic interaction complex)
-- Benchmark infrastructure (measure solver time, not just end-to-end)
-- Selective encoding logic (type-based, configuration flags)
-- Performance measurement (statistical significance, variance handling)
-
-**Estimated effort:** 2-3 weeks (tactic configuration, benchmarks, selective encoding, performance tests)
-
-**Success criteria:**
-- Vec indexing benchmark: 2-5x speedup with bv2int (arithmetic-heavy)
-- Simple arithmetic: 0.9-1.1x (no slowdown)
-- Documentation warns about 17hr risk, recommends profiling first
-- User can disable bv2int per-function with `#[verifier::no_bv2int]`
-
----
-
-## Deferred Features (v0.4+)
-
-| Feature | Reason to Defer | Revisit When | Estimated Effort |
-|---------|----------------|--------------|------------------|
-| **Counterexample Generation** | HIGH complexity; requires bounded model checker integration (Kani's CBMC approach) or Z3 model extraction + concretization. Marginal ROI vs effort. | User feedback requests concrete failure cases (vs VC description). Consider Z3 model API first (lower effort). | 8-12 weeks (bounded MC integration) or 4-6 weeks (Z3 model extraction) |
-| **Bounded Verification Mode** | Requires separate BMC engine (CBMC integration) or bounded loop unrolling. Scope creep for v0.3. Different verification paradigm. | Unsafe code verification patterns stabilize; users request bounded checking for specific hotspots. | 10-15 weeks (CBMC integration, hybrid SMT+BMC) |
-| **Weak Memory Model Support** | Academic frontier; C++11/Rust memory model formalization ongoing. SeqCst atomics (v0.2) cover 95% of use cases. Relaxed atomics rare. | SeqCst atomics validated in production; research matures (POPL papers on Rust relaxed atomics). | 15-20 weeks (memory model formalization, happens-before extension) |
-| **Proof Visualization (HTML/GUI)** | LOW priority until user base >100; terminal output sufficient for early adopters. Why3-style HTML generation is easy, but UI/UX design is rabbit hole. | Community requests shareable proof artifacts (code review, audit, compliance). | 3-5 weeks (HTML generation, CSS/JS for interactive visualization) |
-| **Automatic Iterator Combinator Verification** | Requires specification entailments (higher-order logic); research-level. Verus/Dafny still working on this. Hard dependency on closure contract inference. | Verus/Dafny establish patterns we can follow; research papers provide formalization. | 12-18 weeks (specification entailments, higher-order unification) |
-| **Incremental Verification (Advanced: 100x speedup)** | Basic per-function caching in v0.1; enhanced dependency tracking in v0.3 Phase 2 (30x). Diminishing returns beyond 30x (solver time dominates). | Performance profiling shows VC re-computation bottleneck (vs solver time). Consider solver result caching, proof certificates. | 6-8 weeks (proof certificates, solver result caching, cache persistence) |
-| **Separation Logic for Unsafe** | Requires Iris/Coq integration or custom separation logic encoding. Years of research effort (Prusti/RustBelt scope). Rust borrow checker handles 95% of cases. | Production users demonstrate concrete need (low-level data structures, FFI, concurrent data structures). | 20-30 weeks (Iris integration) or 30-40 weeks (custom separation logic) |
-| **Multiple SMT Solvers (CVC5, Yices)** | Z3 is industry standard; covers 99% of use cases. CVC5 has better string theory (not used in Rust). Multi-solver adds maintenance burden. | Z3 timeout/performance issues demonstrated in production; CVC5 solves cases Z3 cannot. | 4-6 weeks (CVC5 integration, solver abstraction layer) |
+**Key differentiator position:** rust-fv v0.4 would be the first SMT-based Rust verifier with async/await functional verification. Kani (bounded MC) is the only other tool with concrete counterexamples, but uses byte-vector format; rust-fv will provide human-readable Rust-typed values.
 
 ---
 
 ## Complexity Notes
 
-**Standard Library Contracts (HIGH):**
-- Requires trait-level generic contracts (`impl<T> Vec<T>` with trait bounds like `T: Clone`)
-- Modular verification across crate boundaries (std is external; need public contract API)
-- Prophecy variables for mutable iterators (`IterMut<'a, T>` with lifetime prophecy)
-- Soundness validation critical (unsound stdlib contract breaks all downstream code)
-- Testing against real codebases (not just unit tests; verify cargo projects)
-- **Risk:** Unsound contract discovered post-release (breaking change to fix)
+**Counterexample Generation (MEDIUM):**
+- Z3's `model()` via native API is direct; already integrated
+- SSA→source name mapping requires extending symbol table (currently tracks names through MIR lowering)
+- Pretty-printer must handle Rust value types: primitives, tuples, structs, enums, references
+- Risk: SSA temporaries leak into counterexample (filter by name convention)
+- Risk: Z3 returns model with partial evaluation for quantified formulas (use `model_completion=true`)
 
-**Incremental Verification Enhanced (MEDIUM-HIGH):**
-- LSP protocol integration (file watchers, change notifications, async)
-- Dependency graph maintenance (function call graph, trait impl graph, generic instantiation graph)
-- Z3 incremental API (push/pop, check-sat-using, solver state)
-- Cache invalidation correctness (soundness-critical; must re-verify all affected VCs)
-- **Risk:** Cache invalidation bug (stale VCs, unsound verification)
+**Async/Await Verification (HIGH):**
+- MIR for async fns uses `GeneratorKind::Async` and `SwitchInt` on state discriminant
+- Each await point introduces a `Yield` terminator in MIR
+- VCGen must unfold state machine: track live variables across state transitions as SSA
+- Key insight: treat `Poll::Ready(v)` as the function's return value; ignore `Poll::Pending` for functional verification
+- Risk: nested async fns (async calling async); requires inter-procedural handling with coroutine MIR
+- Risk: async closures (Rust 2024 edition) add another complexity layer; defer async closures to later
 
-**Trigger Customization (MEDIUM):**
-- Spec parser extension well-understood (follow Verus `#[trigger]` syntax)
-- SMT-LIB PATTERN generation straightforward (just `!` wrapper with `:pattern`)
-- Interaction with auto-inference requires careful design (don't break existing code; prefer manual over auto)
-- Diagnostic quality important (help users avoid interpreted symbols in triggers)
-- **Risk:** Manual trigger worse than auto-inferred (user shoots self in foot; need good diagnostics)
+**Weak Memory Model (VERY HIGH):**
+- Event representation: O(threads × events_per_thread) SMT variables
+- Relation encoding: O(events²) pairs for `reads_from`, `happens_before`, etc.
+- Coherence axioms: 4 axioms (CoRR, CoWR, CoRW, CoWW) × O(events²) instantiations
+- Risk: SMT explosion — even with bounded model (10 events × 4 threads = 40 events → 1600 pairs)
+- Mitigation: Dartagnan's "relation analysis" reduces encoding by static analysis of which pairs can relate; implement similar optimization
+- Risk: Interaction with existing SeqCst encoding (SeqCst is a special case of the new model; unify carefully)
 
-**VSCode Extension (MEDIUM):**
-- VSCode extension API mature, well-documented (TypeScript, esbuild, LSP client)
-- LSP integration requires understanding protocol (async messaging, error handling, cancellation)
-- UI/UX design non-trivial (status bar, output panel, hover info, configuration)
-- Testing across VSCode versions (extension host debugging, E2E tests)
-- **Risk:** Poor UX (slow, cluttered, confusing); requires user testing
+**Higher-Order Closure Spec Entailments (HIGH):**
+- `|=` parsing: new token in spec language; extend proc macro and spec parser
+- Entailment VC generation: `∀ env, args. pre(args) ⟹ post(closure_body(env, args))` — quantified, needs triggers
+- FnMut entailments: must track environment evolution across calls; requires sequence of calls model
+- Risk: FnOnce entailments are simplest (single call); FnMut (stateful) requires more careful encoding
+- Risk: Nested HOFs (closure passed to closure-taking HOF) require recursive entailment unfolding
 
-**rust-analyzer Integration (MEDIUM-HIGH):**
-- rust-analyzer codebase large (~200k LOC), complex architecture
-- Custom diagnostic sources not well-documented (requires source code reading, experimentation)
-- Flycheck integration requires understanding cargo runner hooks (spawning, output parsing, error handling)
-- Version compatibility risk (rust-analyzer updates frequently; API churn)
-- **Risk:** Version incompatibility (works on 0.3.x, breaks on 0.4.x); need testing matrix
-
-**bv2int Optimization (MEDIUM):**
-- Z3 tactic API documented, but tactic interaction complex (order matters, simplifiers compose unpredictably)
-- bv2int performance unpredictable (1s vs 17hr cases in GitHub issues; need extensive benchmarking)
-- Selective application requires type-based heuristics (bounded vs unbounded integers)
-- Performance regression testing critical (ensure no slowdowns)
-- **Risk:** bv2int makes common cases slower (17hr issue); need kill switch (`#[verifier::no_bv2int]`)
+**Separation Logic (VERY HIGH):**
+- New ghost type `pts_to<T>(p: *mut T, v: T)` in spec language: new proc macro, new IR type
+- Separating conjunction `*` in specs: new operator with partition semantics
+- SMT encoding of partition: `disjoint_dom(S1, S2) ∧ union(S1, S2) = full_dom`
+- `#[ghost_predicate]` recursive predicates: SMT uninterpreted functions with axioms; bounded unrolling for automation
+- Frame rule: automatically infer unchanged resources across function calls (may require manual annotation for complex cases)
+- Risk: Ghost predicate unfolding not automated → user must manually call `fold`/`unfold` (like VeriFast)
+- Risk: Separation logic + existing heap-as-array model conflict; must clearly separate unsafe (sep logic) from safe (array model)
 
 ---
 
 ## Sources
 
-### Standard Library Contracts
-- [Verifying the Rust Standard Library (VSTTE 2024)](https://www.soundandcomplete.org/vstte2024/vstte2024-invited.pdf) - Rust std unsafe code statistics (5.5k unsafe functions, 40 soundness issues, 17 CVEs in 3 years), verification challenges
-- [Prusti: Formal Verification for Rust (Springer 2022)](https://link.springer.com/chapter/10.1007/978-3-031-06773-0_5) - Iterator specification patterns (Iter, IterMut, IntoIter, vector-to-slice coercion)
-- [Verus Tutorial and Reference](https://verus-lang.github.io/verus/guide/) - Verification standard library (14k LOC total implementation)
-- [Kani Rust Verifier - Verify Rust Std Lib](https://model-checking.github.io/verify-rust-std/tools/kani.html) - Stdlib verification approach (bounded model checking)
-- [Dafny Tutorial (arXiv 2017)](https://arxiv.org/pdf/1701.04481) - Standard library of useful Dafny functions and lemmas, unbounded and bounded quantifiers
+### Counterexample Generation
+- [Kani Concrete Playback Internship 2022](https://model-checking.github.io//kani-verifier-blog/2022/09/22/internship-projects-2022-concrete-playback.html) — byte-vector format, generated unit test structure, debug workflow
+- [Kani Concrete Playback Reference](https://model-checking.github.io/kani/reference/experimental/concrete-playback.html) — --concrete-playback=print|inplace flags, cargo kani playback subcommand
+- [Better Counterexamples for Dafny (TACAS 2022)](https://dl.acm.org/doi/10.1007/978-3-030-99524-9_23) — SMT model to user-facing format transformation
+- [Programming Z3](https://theory.stanford.edu/~nikolaj/programmingz3.html) — model() API, get-model, model.eval()
+- [Kani Rust Feature Support](https://model-checking.github.io/kani/rust-feature-support.html) — async/await explicitly not supported
 
-### Trigger Customization
-- [Tunable Automation in Automated Program Verification (arXiv 2025)](https://arxiv.org/html/2512.03926) - Dafny vs Verus trigger selection comparison; surface language level manual selection vs conservative defaults
-- [Verus #[trigger] bugfix for nested quantifiers (PR #1343)](https://github.com/verus-lang/verus/pull/1343) - Trigger annotation syntax, nested quantifier handling
-- [Trigger Selection Strategies to Stabilize Program Verifiers (Springer 2016)](https://link.springer.com/chapter/10.1007/978-3-319-41528-4_20) - Fine balance: not too restrictive (insufficient instantiations), not too permissive (excessive instantiations)
-- [F* Quantifiers and Patterns Wiki](https://github.com/FStarLang/FStar/wiki/Quantifiers-and-patterns) - Pattern annotation syntax, trigger requirements
-- [SMT-LIB 2.7 Reference (Feb 2025)](https://smt-lib.org/papers/smt-lib-reference-v2.7-r2025-02-05.pdf) - `:pattern` attribute specification for quantifiers
+### Async/Await Verification
+- [Verus Async PR #1839](https://github.com/verus-lang/verus/pull/1839) — wrapper function + external_body approach; draft, not merged
+- [Rust Future Trait](https://doc.rust-lang.org/std/future/trait.Future.html) — poll() → Poll::Ready(T) | Poll::Pending contract
+- [Understanding Async Await State Machine (eventhelix.com)](https://www.eventhelix.com/rust/rust-to-assembly-async-await/) — MIR state machine structure, enum variant per await point
 
-### IDE Integration (VSCode)
-- [Kani VSCode Extension Marketplace](https://marketplace.visualstudio.com/items?itemName=model-checking.kani-vscode-extension) - One-click verification, counterexample unit tests, debug traces, coverage highlighting
-- [Kani VSCode User Guide](https://github.com/model-checking/kani-vscode-extension/blob/main/docs/user-guide.md) - Harness discovery in testing panel, run with play button, inline error messages, concrete playback, debugger integration
-- [Dafny VSCode Extension Marketplace](https://marketplace.visualstudio.com/items?itemName=dafny-lang.ide-vscode) - Syntax highlighting, IntelliSense, go-to-definition, hover information, compile and run
-- [Making Verification Compelling: Dafny Visual Feedback (2023)](https://dafny.org/blog/2023/04/19/making-verification-compelling-visual-verification-feedback-for-dafny/) - Before: wait 30s for all diagnostics. After: incremental diagnostics as code verified. F7 for verification trace, F8 to hide. Context menu copy with `assume`.
-- [Building VS Code Extensions in 2026: Complete Guide](https://abdulkadersafi.com/blog/building-vs-code-extensions-in-2026-the-complete-modern-guide) - TypeScript + esbuild, React for rich UIs, thoughtful API design
+### Weak Memory Models
+- [BMC for Weak Memory Models: Relation Analysis (TACAS 2019)](https://link.springer.com/chapter/10.1007/978-3-030-25540-4_19) — Dartagnan's compact SMT encoding, relation analysis optimization
+- [Relaxed Memory Concurrency Re-executed POPL 2025](https://www.st.ewi.tudelft.nl/sschakraborty/papers/popl2025-xmm.pdf) — XMM axiomatic-operational framework for Relaxed/Acq/Rel
+- [Automating Deductive Verification for Weak-Memory (Summers/Mueller 2018)](https://www.cs.ubc.ca/~alexsumm/papers/SummersMueller18.pdf) — Viper-based encoding of release-acquire; relaxed separation logic
+- [Strong Logic for Weak Memory: Release-Acquire in Iris (ECOOP 2017)](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ECOOP.2017.17) — Iris logic for Acq/Rel reasoning
+- [Modular Verification of Rust's Atomic ARC (arXiv 2025)](https://arxiv.org/pdf/2505.00449) — tied resources for modular atomic verification; ARC verification result
+- [RustMC: GenMC for Rust (arXiv 2025)](https://arxiv.org/html/2502.06293) — stateless model checking for Rust weak memory; LLVM IR approach
 
-### rust-analyzer Integration
-- [rust-analyzer LSP Integration (DeepWiki)](https://deepwiki.com/rust-lang/rust-analyzer/3-language-server-protocol-integration) - LSP requests → analysis queries, results → LSP responses. Custom requests prefixed `rust-analyzer/*`.
-- [rust-analyzer Diagnostics Documentation](https://rust-analyzer.github.io/book/diagnostics.html) - Most errors from `cargo check` integration; growing number of native diagnostics. Some don't respect `#[allow]` yet.
-- [rust-analyzer Configuration](https://rust-analyzer.github.io/book/configuration.html) - `rust-analyzer.diagnostics.enable`, `rust-analyzer.diagnostics.experimental.enable`, `rust-analyzer.diagnostics.disabled` settings
+### Higher-Order Closures / Spec Entailments
+- [Prusti Specification Entailments](https://viperproject.github.io/prusti-dev/user-guide/verify/spec_ent.html) — `|=` syntax, HOF closure contract semantics
+- [Modular Specification and Verification of Closures in Rust (OOPSLA 2021)](https://pm.inf.ethz.ch/publications/WolffBilyMathejaMuellerSummers21.pdf) — Wolff et al.; formal treatment of spec entailments
+- [Prusti Closure Docs](https://viperproject.github.io/prusti-dev/user-guide/verify/closure.html) — current status: not yet supported in Prusti proper
 
-### bv2int Optimization
-- [Z3 Bitvector Theory Guide](https://microsoft.github.io/z3guide/docs/theories/Bitvectors/) - bv2int, int2bv operations, bitvector arithmetic
-- [Z3 bv2int Performance Issues (GitHub #1481)](https://github.com/Z3Prover/z3/issues/1481) - Comparison: bv2int version ran 17 hours, 3.5GB memory; bitblast version terminated <1s
-- [SMT-LIB FixedSizeBitVectors Theory](https://smt-lib.org/theories-FixedSizeBitVectors.shtml) - bv2nat (non-negative) vs bv2int (2's complement). Z3 uses bv2int, CVC4 uses bv2nat.
-- [Understanding Bit-vector Arithmetic in Z3 (TU Delft thesis)](https://repository.tudelft.nl/file/File_0517332f-750c-464e-ad27-0a144d8f672f) - Lazy intblasting approach, integer variables don't have bounds (need underflow/overflow constraints)
-- [SMT-LIB Discussion: bv/integer conversions](https://groups.google.com/g/smt-lib/c/-GJG1Pq61hI) - bv2int may return negative integers; solver support varies
+### Separation Logic
+- [VeriFast for Rust Reference](https://verifast.github.io/verifast/rust-reference/) — pts_to annotation syntax, unsafe function contracts, ghost predicates
+- [VeriFast's Separation Logic (arXiv 2025)](https://arxiv.org/html/2505.04500) — higher-order separation logic without laters, comparison with Iris
+- [A Hybrid Approach to Semi-automated Rust Verification (arXiv 2024)](https://arxiv.org/html/2403.15122v1) — Gillian-Rust; typed points-to predicate; combining safe (Creusot) and unsafe (sep logic) verification
+- [Formal Foundations for Translational SL Verifiers (POPL 2025)](https://dardinier.me/papers/POPL25_CoreIVL.pdf) — CoreIVL; sound basis for SL-based tools (Viper, VeriFast, Gillian)
+- [Contracts: owned and block primitives (rust-lang/compiler-team #942)](https://github.com/rust-lang/compiler-team/issues/942) — ownership assertions for unsafe Rust contracts
 
-### Verification Performance
-- [Dafny Verification Optimization Documentation](https://dafny.org/latest/VerificationOptimization/VerificationOptimization) - Assertion batch splitting (`{:split_here}`, `{:focus}`, `{:isolate_assertions}`), `measure-complexity` command, opacity/reveal, `assert P by { }` proof isolation
-- [Timeout Prediction for Software Analyses (Springer 2023)](https://link.springer.com/chapter/10.1007/978-3-031-47115-5_19) - Machine learning to predict timeout; accumulated speedup 30x for incremental verification
-- [Incremental Solving Techniques (Emergent Mind)](https://www.emergentmind.com/topics/incremental-solving-approach) - Push/pop frame stacks, selector literals to add/remove constraints, reuse learned clauses and partial models
+---
 
-### Ecosystem Patterns
-- [Why3 Tools Documentation](https://www.why3.org/doc/manpages.html) - IDE marks proved goals with green checked icon, counterexamples in task tab, HTML output with green/red backgrounds
-- [Creusot: Rust Verification (HAL 2022)](https://inria.hal.science/hal-03737878v1/document) - Pearlite specification language, prophecy-based, 14k LOC verification standard library (LGPL license)
-- [VeriStruct: AI-Assisted Verification (arXiv 2025)](https://arxiv.org/html/2510.25015) - Verus data structure module verification, planner orchestrates abstractions/invariants/specs/proofs
+*Feature research for: rust-fv v0.4 Full Rust Verification*
+*Researched: 2026-02-19*
+*Confidence: MEDIUM-HIGH — Based on reference tool documentation, 2024-2025 papers, official feature tracking.*
+*Note: Async/await encoding is MEDIUM confidence (Verus draft PR is not merged; no production tool exists); weak memory SMT complexity is HIGH confidence from Dartagnan literature.*

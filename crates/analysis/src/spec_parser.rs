@@ -17,7 +17,17 @@
 use rust_fv_smtlib::term::Term;
 use syn::{BinOp as SynBinOp, Expr, Lit, UnOp as SynUnOp};
 
-use crate::ir::{Function, Ty};
+use crate::ghost_predicate_db::GhostPredicateDatabase;
+use crate::ir::{Function, IntTy, Ty, UintTy};
+use crate::sep_logic;
+
+/// Default bounded unfolding depth for ghost predicate expansion.
+const GHOST_PRED_EXPAND_DEPTH: usize = 3;
+
+/// A module-level empty GhostPredicateDatabase used as default when no DB is provided.
+fn empty_ghost_db() -> GhostPredicateDatabase {
+    GhostPredicateDatabase::new()
+}
 
 /// Parse a specification expression string into an SMT Term.
 ///
@@ -25,6 +35,89 @@ use crate::ir::{Function, Ty};
 /// This parser is a superset of `parse_simple_spec` -- all expressions that worked
 /// with the old parser also work here.
 pub fn parse_spec_expr(spec: &str, func: &Function) -> Option<Term> {
+    let ghost_db = empty_ghost_db();
+    parse_spec_expr_with_depth(spec, func, &ghost_db, GHOST_PRED_EXPAND_DEPTH)
+}
+
+/// Parse a specification expression with ghost predicate expansion support.
+///
+/// Ghost predicate calls are expanded to their body up to `GHOST_PRED_EXPAND_DEPTH` levels.
+/// Returns `None` if the expression cannot be parsed or contains unsupported syntax.
+pub fn parse_spec_expr_with_db(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    parse_spec_expr_with_depth(spec, func, ghost_pred_db, GHOST_PRED_EXPAND_DEPTH)
+}
+
+/// Parse a specification expression in postcondition (ensures) context.
+///
+/// Identical to `parse_spec_expr_with_db` except that dereferences of mutable
+/// reference parameters (`*_1`) resolve to the prophecy variable (`_1_prophecy`)
+/// instead of the current value (`_1`). This is correct for `ensures` clauses where
+/// `*_1` refers to the final (post-return) value of the mutable reference.
+///
+/// `old(*_1)` inside a postcondition still resolves to `_1_initial` — `old()` always wins.
+pub fn parse_spec_expr_postcondition_with_db(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+    let expr: Expr = syn::parse_str(spec).ok()?;
+    convert_expr_with_db(
+        &expr,
+        func,
+        false, // in_old
+        true,  // in_postcondition — key difference: *_1 → _1_prophecy
+        false, // in_int_mode
+        &[],   // bound_vars
+        ghost_pred_db,
+        GHOST_PRED_EXPAND_DEPTH,
+    )
+}
+
+/// Parse a specification expression using integer arithmetic (QF_LIA-compatible).
+///
+/// Same as `parse_spec_expr_with_db` but forces `in_int_mode: true` so that all
+/// integer literals and arithmetic operators use `Sort::Int` / `Term::IntLit` / `Term::IntAdd`
+/// etc. instead of BitVec variants.
+///
+/// Use this for VCs that use `QF_LIA` logic (e.g., async VCs, RC11 VCs) where
+/// `BitVec` sorts are not valid.
+pub fn parse_spec_expr_qf_lia(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return None;
+    }
+    let expr: syn::Expr = syn::parse_str(spec).ok()?;
+    convert_expr_with_db(
+        &expr,
+        func,
+        false, // in_old
+        false, // in_postcondition
+        true,  // in_int_mode — force QF_LIA-compatible integer encoding
+        &[],   // bound_vars
+        ghost_pred_db,
+        GHOST_PRED_EXPAND_DEPTH,
+    )
+}
+
+/// Private helper: parse spec expression with bounded ghost predicate unfolding depth.
+fn parse_spec_expr_with_depth(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+    depth: usize,
+) -> Option<Term> {
     let spec = spec.trim();
     if spec.is_empty() {
         return None;
@@ -33,56 +126,150 @@ pub fn parse_spec_expr(spec: &str, func: &Function) -> Option<Term> {
     // Parse the spec string as a Rust expression via syn
     let expr: Expr = syn::parse_str(spec).ok()?;
 
-    convert_expr(&expr, func, false, false)
-}
-
-/// Parse a specification expression with old()-state renaming and int-mode support.
-///
-/// - `in_old`: When true, all variable references are suffixed with `_pre`
-/// - `in_int_mode`: When true, arithmetic/comparisons produce Int terms instead of BV terms
-/// - `bound_vars`: Stack of quantifier-bound variables (name, sort) for variable resolution
-fn convert_expr(expr: &Expr, func: &Function, in_old: bool, in_int_mode: bool) -> Option<Term> {
-    convert_expr_with_bounds(expr, func, in_old, in_int_mode, &[])
+    convert_expr_with_db(&expr, func, false, false, false, &[], ghost_pred_db, depth)
 }
 
 /// Parse a specification expression with quantifier-bound variables support.
+/// Delegates to `convert_expr_with_db` with an empty ghost predicate database.
 fn convert_expr_with_bounds(
     expr: &Expr,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+) -> Option<Term> {
+    let ghost_db = empty_ghost_db();
+    convert_expr_with_db(
+        expr,
+        func,
+        in_old,
+        in_postcondition,
+        in_int_mode,
+        bound_vars,
+        &ghost_db,
+        GHOST_PRED_EXPAND_DEPTH,
+    )
+}
+
+/// Core expression converter with ghost predicate database and bounded unfolding depth.
+///
+/// This is the main internal converter. All other entry points delegate here.
+/// `ghost_pred_db` provides ghost predicate definitions for expansion.
+/// `depth` controls bounded unfolding of ghost predicates (0 = exhausted, returns BoolLit(false)).
+#[allow(clippy::too_many_arguments)]
+fn convert_expr_with_db(
+    expr: &Expr,
+    func: &Function,
+    in_old: bool,
+    in_postcondition: bool,
+    in_int_mode: bool,
+    bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+    ghost_pred_db: &GhostPredicateDatabase,
+    depth: usize,
 ) -> Option<Term> {
     match expr {
         Expr::Lit(lit_expr) => convert_lit(&lit_expr.lit, func, in_int_mode),
 
-        Expr::Path(path_expr) => convert_path(path_expr, func, in_old, bound_vars),
+        Expr::Path(path_expr) => convert_path(path_expr, func, in_old, in_int_mode, bound_vars),
 
         Expr::Binary(bin_expr) => {
-            let left =
-                convert_expr_with_bounds(&bin_expr.left, func, in_old, in_int_mode, bound_vars)?;
-            let right =
-                convert_expr_with_bounds(&bin_expr.right, func, in_old, in_int_mode, bound_vars)?;
+            // Separating conjunction detection: `H1 * H2` where at least one operand
+            // is a sep-logic formula (pts_to or ghost predicate call). Must check
+            // syntactic form BEFORE conversion.
+            if matches!(bin_expr.op, SynBinOp::Mul(_))
+                && (is_sep_logic_formula(&bin_expr.left, ghost_pred_db)
+                    || is_sep_logic_formula(&bin_expr.right, ghost_pred_db))
+            {
+                let lhs = convert_expr_with_db(
+                    &bin_expr.left,
+                    func,
+                    in_old,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                    ghost_pred_db,
+                    depth,
+                )?;
+                let rhs = convert_expr_with_db(
+                    &bin_expr.right,
+                    func,
+                    in_old,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                    ghost_pred_db,
+                    depth,
+                )?;
+                // Separating conjunction: both assertions hold.
+                // Disjointness is enforced by the single perm array in the heap model.
+                return Some(Term::And(vec![lhs, rhs]));
+            }
+
+            let left = convert_expr_with_db(
+                &bin_expr.left,
+                func,
+                in_old,
+                in_postcondition,
+                in_int_mode,
+                bound_vars,
+                ghost_pred_db,
+                depth,
+            )?;
+            let right = convert_expr_with_db(
+                &bin_expr.right,
+                func,
+                in_old,
+                in_postcondition,
+                in_int_mode,
+                bound_vars,
+                ghost_pred_db,
+                depth,
+            )?;
             convert_binop(&bin_expr.op, left, right, func, in_int_mode)
         }
 
         Expr::Unary(unary_expr) => {
             // Handle dereference operator specially for prophecy variables
             if matches!(unary_expr.op, SynUnOp::Deref(_)) {
-                return convert_deref(&unary_expr.expr, func, in_old, bound_vars);
+                return convert_deref(&unary_expr.expr, func, in_old, in_postcondition, bound_vars);
             }
-            let inner =
-                convert_expr_with_bounds(&unary_expr.expr, func, in_old, in_int_mode, bound_vars)?;
+            let inner = convert_expr_with_db(
+                &unary_expr.expr,
+                func,
+                in_old,
+                in_postcondition,
+                in_int_mode,
+                bound_vars,
+                ghost_pred_db,
+                depth,
+            )?;
             convert_unop(&unary_expr.op, inner, func)
         }
 
-        Expr::Paren(paren_expr) => {
-            convert_expr_with_bounds(&paren_expr.expr, func, in_old, in_int_mode, bound_vars)
-        }
+        Expr::Paren(paren_expr) => convert_expr_with_db(
+            &paren_expr.expr,
+            func,
+            in_old,
+            in_postcondition,
+            in_int_mode,
+            bound_vars,
+            ghost_pred_db,
+            depth,
+        ),
 
         Expr::Field(field_expr) => convert_field_access(field_expr, func, in_old, bound_vars),
 
-        Expr::Call(call_expr) => convert_call(call_expr, func, in_old, in_int_mode, bound_vars),
+        Expr::Call(call_expr) => convert_call_with_db(
+            call_expr,
+            func,
+            in_old,
+            in_postcondition,
+            in_int_mode,
+            bound_vars,
+            ghost_pred_db,
+            depth,
+        ),
 
         Expr::MethodCall(method_expr) => convert_method_call(method_expr, func, in_old),
 
@@ -92,13 +279,63 @@ fn convert_expr_with_bounds(
             // Block expressions: { expr } -- convert the single expression inside
             // Used by quantifier closures with trigger attributes: { #[trigger(f(x))] body }
             if let Some(syn::Stmt::Expr(inner_expr, _)) = block_expr.block.stmts.last() {
-                convert_expr_with_bounds(inner_expr, func, in_old, in_int_mode, bound_vars)
+                convert_expr_with_db(
+                    inner_expr,
+                    func,
+                    in_old,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                    ghost_pred_db,
+                    depth,
+                )
             } else {
                 None
             }
         }
 
         _ => None, // Unsupported expression kind
+    }
+}
+
+/// Check if a `syn::Expr` is a separation-logic formula.
+///
+/// Returns `true` if the expression is:
+/// - A `pts_to(...)` call (the built-in pts_to ownership predicate)
+/// - A call to a name registered in `ghost_pred_db` (user-defined ghost predicate)
+///
+/// Used for syntactic sep-conj detection in `H1 * H2` expressions.
+fn is_sep_logic_formula(expr: &Expr, ghost_pred_db: &GhostPredicateDatabase) -> bool {
+    if let Expr::Call(call_expr) = expr
+        && let Expr::Path(path) = call_expr.func.as_ref()
+        && path.path.segments.len() == 1
+    {
+        let name = path.path.segments[0].ident.to_string();
+        return name == "pts_to" || ghost_pred_db.contains(&name);
+    }
+    false
+}
+
+/// Convert a `syn::Expr` to a simple string for ghost predicate argument substitution.
+///
+/// For path expressions (simple identifiers), returns the identifier name.
+/// For literal expressions, returns the literal value.
+/// For other expressions, returns an empty string (substitution will be a no-op).
+fn expr_to_arg_str(expr: &Expr) -> String {
+    match expr {
+        Expr::Path(path_expr) if path_expr.path.segments.len() == 1 => {
+            path_expr.path.segments[0].ident.to_string()
+        }
+        Expr::Lit(lit_expr) => match &lit_expr.lit {
+            Lit::Int(i) => i.to_string(),
+            Lit::Bool(b) => b.value.to_string(),
+            _ => String::new(),
+        },
+        _ => {
+            // For more complex expressions, we cannot substitute easily.
+            // Phase 20 scope: ghost predicates are called with simple variable args.
+            String::new()
+        }
     }
 }
 
@@ -122,10 +359,15 @@ fn convert_lit(lit: &Lit, func: &Function, in_int_mode: bool) -> Option<Term> {
 }
 
 /// Convert a path expression (variable reference) to an SMT Term.
+///
+/// When `in_int_mode` is `true` (QF_LIA context), unknown identifiers are allowed
+/// as free SMT constants — they are assumed to be declared externally in the VC script.
+/// When `in_int_mode` is `false` (BV context), unknown identifiers return `None` (strict mode).
 fn convert_path(
     path: &syn::ExprPath,
     func: &Function,
     in_old: bool,
+    in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
     // Must be a simple single-segment path (no :: separators)
@@ -155,12 +397,27 @@ fn convert_path(
         "true" => Some(Term::BoolLit(true)),
         "false" => Some(Term::BoolLit(false)),
         _ => {
-            // Check if it matches a param, local, or return local
-            let name = resolve_variable_name(&ident, func)?;
-            if in_old {
-                Some(Term::Const(format!("{name}_pre")))
-            } else {
-                Some(Term::Const(name))
+            // Check if it matches a param, local, or return local.
+            // In QF_LIA (int) mode, fall back to using the identifier as a free SMT constant
+            // when not found in the IR. This allows specs to reference externally-declared
+            // constants like `awaited_result_0` in async VC scripts.
+            match resolve_variable_name(&ident, func) {
+                Some(name) => {
+                    if in_old {
+                        Some(Term::Const(format!("{name}_pre")))
+                    } else {
+                        Some(Term::Const(name))
+                    }
+                }
+                None if in_int_mode => {
+                    // Free constant reference (declared externally in QF_LIA script)
+                    if in_old {
+                        Some(Term::Const(format!("{ident}_pre")))
+                    } else {
+                        Some(Term::Const(ident))
+                    }
+                }
+                None => None, // Strict mode (BV): unknown variables are an error
             }
         }
     }
@@ -347,7 +604,7 @@ fn convert_field_access(
     in_old: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
-    let base = convert_expr_with_bounds(&field_expr.base, func, in_old, false, bound_vars)?;
+    let base = convert_expr_with_bounds(&field_expr.base, func, in_old, false, false, bound_vars)?;
 
     // Determine the type of the base expression to resolve field selectors
     let base_ty = infer_expr_type(&field_expr.base, func)?;
@@ -413,6 +670,7 @@ fn convert_call(
     call_expr: &syn::ExprCall,
     func: &Function,
     _in_old: bool,
+    in_postcondition: bool,
     in_int_mode: bool,
     bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
@@ -435,7 +693,14 @@ fn convert_call(
             // Convert call arguments
             let mut arg_terms = vec![env_term];
             for arg in &call_expr.args {
-                let arg_term = convert_expr_with_bounds(arg, func, false, in_int_mode, bound_vars)?;
+                let arg_term = convert_expr_with_bounds(
+                    arg,
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
                 arg_terms.push(arg_term);
             }
 
@@ -445,13 +710,16 @@ fn convert_call(
         match func_name.as_str() {
             "old" => {
                 // old() operator: parse the inner expression with in_old=true
+                // Inside old(), in_postcondition=false: old() always captures initial value,
+                // never the prophecy variable.
                 if call_expr.args.len() != 1 {
                     return None; // old() takes exactly one argument
                 }
                 return convert_expr_with_bounds(
                     &call_expr.args[0],
                     func,
-                    true,
+                    true,  // in_old
+                    false, // in_postcondition: inside old() we never want _prophecy
                     in_int_mode,
                     bound_vars,
                 );
@@ -466,6 +734,7 @@ fn convert_call(
                     &call_expr.args[0],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -473,6 +742,7 @@ fn convert_call(
                     &call_expr.args[1],
                     func,
                     false,
+                    in_postcondition,
                     in_int_mode,
                     bound_vars,
                 )?;
@@ -509,6 +779,34 @@ fn convert_call(
                 return convert_final_value(&call_expr.args[0], func, bound_vars);
             }
 
+            "pts_to" => {
+                // pts_to(ptr, value) — raw pointer ownership predicate
+                if call_expr.args.len() != 2 {
+                    tracing::warn!("pts_to() requires exactly 2 arguments: pts_to(ptr, val)");
+                    return None;
+                }
+                let ptr_term = convert_expr_with_bounds(
+                    &call_expr.args[0],
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                let val_term = convert_expr_with_bounds(
+                    &call_expr.args[1],
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                // Determine pointee bit width from pointer parameter type.
+                // Default to 64 bits if type cannot be resolved (conservative).
+                let pointee_bits = resolve_pointee_bits(&call_expr.args[0], func).unwrap_or(64);
+                return Some(sep_logic::encode_pts_to(ptr_term, val_term, pointee_bits));
+            }
+
             _ => {
                 // Unknown function call
                 return None;
@@ -517,6 +815,128 @@ fn convert_call(
     }
 
     // Not a known function call
+    None
+}
+
+/// Convert a function call expression with ghost predicate expansion support.
+///
+/// Extends `convert_call` with:
+/// - Ghost predicate call expansion: expands body to `depth` levels
+/// - At `depth=0`, returns `BoolLit(false)` (conservative: body unknown)
+#[allow(clippy::too_many_arguments)]
+fn convert_call_with_db(
+    call_expr: &syn::ExprCall,
+    func: &Function,
+    in_old: bool,
+    in_postcondition: bool,
+    in_int_mode: bool,
+    bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
+    ghost_pred_db: &GhostPredicateDatabase,
+    depth: usize,
+) -> Option<Term> {
+    // Extract function name
+    if let Expr::Path(path) = &*call_expr.func
+        && path.path.segments.len() == 1
+    {
+        let func_name = path.path.segments[0].ident.to_string();
+
+        // Check if this is a ghost predicate — expand before any other checks
+        if ghost_pred_db.contains(&func_name) {
+            if depth == 0 {
+                // Depth exhausted: conservative — predicate body unknown
+                tracing::debug!(
+                    "Ghost predicate '{}' depth exhausted, returning false",
+                    func_name
+                );
+                return Some(Term::BoolLit(false));
+            }
+            let pred = ghost_pred_db.get(&func_name).unwrap().clone();
+            if call_expr.args.len() != pred.param_names.len() {
+                tracing::warn!(
+                    "Ghost predicate '{}' expects {} args, got {}",
+                    func_name,
+                    pred.param_names.len(),
+                    call_expr.args.len()
+                );
+                return None;
+            }
+            // Substitute formal params with actual argument token strings
+            let mut body = pred.body_raw.clone();
+            for (param, arg_expr) in pred.param_names.iter().zip(call_expr.args.iter()) {
+                let arg_str = expr_to_arg_str(arg_expr);
+                // Replace whole-word occurrences of param with arg_str
+                body = replace_whole_word(&body, param.as_str(), &arg_str);
+            }
+            // Re-parse with depth decremented to prevent stack overflow
+            return parse_spec_expr_with_depth(&body, func, ghost_pred_db, depth - 1);
+        }
+    }
+
+    // Delegate to the standard convert_call for all other cases
+    convert_call(
+        call_expr,
+        func,
+        in_old,
+        in_postcondition,
+        in_int_mode,
+        bound_vars,
+    )
+}
+
+/// Replace whole-word occurrences of `from` with `to` in `s`.
+///
+/// A whole-word match requires that the character before `from` is not alphanumeric/underscore
+/// and the character after `from` is not alphanumeric/underscore.
+fn replace_whole_word(s: &str, from: &str, to: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let from_bytes = from.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i..].starts_with(from_bytes) {
+            let before_ok = i == 0 || !bytes[i - 1].is_ascii_alphanumeric() && bytes[i - 1] != b'_';
+            let after_pos = i + from_bytes.len();
+            let after_ok = after_pos >= bytes.len()
+                || !bytes[after_pos].is_ascii_alphanumeric() && bytes[after_pos] != b'_';
+            if before_ok && after_ok {
+                result.push_str(to);
+                i += from_bytes.len();
+                continue;
+            }
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+    result
+}
+
+/// Resolve the pointee bit width for a `pts_to(ptr, val)` call from the pointer argument type.
+///
+/// Looks up the first argument name in `func.params` to find a param with `Ty::RawPtr(inner, _)`,
+/// then maps the inner type to a bit width.
+/// Returns `None` if the type cannot be resolved (caller should use a default).
+fn resolve_pointee_bits(arg: &Expr, func: &Function) -> Option<u32> {
+    // Arg must be a simple path expression
+    if let Expr::Path(path_expr) = arg
+        && path_expr.path.segments.len() == 1
+    {
+        let ident = path_expr.path.segments[0].ident.to_string();
+        // Look for a param named `ident` with a RawPtr type
+        for param in &func.params {
+            if param.name == ident
+                && let Ty::RawPtr(inner, _) = &param.ty
+            {
+                return match inner.as_ref() {
+                    Ty::Int(IntTy::I8) | Ty::Uint(UintTy::U8) => Some(8),
+                    Ty::Int(IntTy::I16) | Ty::Uint(UintTy::U16) => Some(16),
+                    Ty::Int(IntTy::I32) | Ty::Uint(UintTy::U32) => Some(32),
+                    Ty::Int(IntTy::I64) | Ty::Uint(UintTy::U64) => Some(64),
+                    Ty::Bool => Some(8),
+                    _ => None,
+                };
+            }
+        }
+    }
     None
 }
 
@@ -563,6 +983,7 @@ fn convert_quantifier(
             &closure_expr.body,
             func,
             false,
+            false, // in_postcondition: quantifier bodies don't use prophecy vars
             in_int_mode,
             &new_bound_vars,
         )?;
@@ -807,7 +1228,7 @@ fn convert_trigger_expr(
         }
         _ => {
             // For other expressions, fall back to the regular expression converter
-            convert_expr_with_bounds(expr, func, false, in_int_mode, bound_vars)
+            convert_expr_with_bounds(expr, func, false, false, in_int_mode, bound_vars)
         }
     }
 }
@@ -857,16 +1278,28 @@ fn convert_cast(
                 "int" => {
                     // Cast to unbounded integer: convert inner expression in int mode
                     // and wrap with Bv2Int if the inner expression is a bitvector
-                    let inner =
-                        convert_expr_with_bounds(&cast_expr.expr, func, in_old, false, bound_vars)?;
+                    let inner = convert_expr_with_bounds(
+                        &cast_expr.expr,
+                        func,
+                        in_old,
+                        false,
+                        false,
+                        bound_vars,
+                    )?;
                     // The inner is a bitvector term, convert to Int
                     Some(Term::Bv2Int(Box::new(inner)))
                 }
                 "nat" => {
                     // Cast to non-negative unbounded integer
                     // Same as int cast for now (non-negativity constraint added in VCGen)
-                    let inner =
-                        convert_expr_with_bounds(&cast_expr.expr, func, in_old, false, bound_vars)?;
+                    let inner = convert_expr_with_bounds(
+                        &cast_expr.expr,
+                        func,
+                        in_old,
+                        false,
+                        false,
+                        bound_vars,
+                    )?;
                     Some(Term::Bv2Int(Box::new(inner)))
                 }
                 _ => None, // Unsupported cast
@@ -1033,6 +1466,7 @@ fn resolve_selector_from_ty<'a>(ty: &'a Ty, selector_name: &str) -> Option<&'a T
 ///
 /// When the dereferenced expression is a mutable reference parameter:
 /// - In `old()` context: produces `param_initial` (the initial dereferenced value)
+/// - In postcondition context: produces `param_prophecy` (the predicted final value)
 /// - In normal context: produces `param` (the current dereferenced value)
 ///
 /// This enables specs like `*x == old(*x) + 1` for mutable borrow parameters.
@@ -1040,6 +1474,7 @@ fn convert_deref(
     expr: &Expr,
     func: &Function,
     in_old: bool,
+    in_postcondition: bool,
     _bound_vars: &[(String, rust_fv_smtlib::sort::Sort)],
 ) -> Option<Term> {
     // Extract the parameter name from the expression
@@ -1056,11 +1491,13 @@ fn convert_deref(
             {
                 // This is a mutable ref param - apply prophecy naming
                 if in_old {
-                    // In old() context: use initial value
+                    // old() always wins — captures initial value regardless of postcondition context
                     return Some(Term::Const(format!("{param_name}_initial")));
+                } else if in_postcondition {
+                    // postcondition context: *param resolves to prophecy variable (final predicted value)
+                    return Some(Term::Const(format!("{param_name}_prophecy")));
                 } else {
-                    // In normal context: use current value
-                    // (the param itself represents the dereferenced value in our encoding)
+                    // normal context (preconditions, loop invariants): use current value
                     return Some(Term::Const(param_name));
                 }
             }
@@ -1181,6 +1618,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -1216,6 +1655,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -1257,6 +1698,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -1288,6 +1731,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -1766,6 +2211,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -1803,6 +2250,33 @@ mod tests {
         let term = term.unwrap();
         // Should produce Const("_1_prophecy")
         assert_eq!(term, Term::Const("_1_prophecy".to_string()));
+    }
+
+    #[test]
+    fn parse_postcondition_deref_resolves_to_prophecy() {
+        // Confirm that *_1 in postcondition context resolves to _1_prophecy
+        // This test is RED until parse_spec_expr_postcondition_with_db is implemented
+        let func = make_mut_ref_func();
+        let ghost_db = GhostPredicateDatabase::new();
+        let term = parse_spec_expr_postcondition_with_db("*_1", &func, &ghost_db);
+        assert!(
+            matches!(term, Some(Term::Const(ref s)) if s == "_1_prophecy"),
+            "Expected _1_prophecy, got {:?}",
+            term
+        );
+    }
+
+    #[test]
+    fn parse_postcondition_old_deref_still_resolves_to_initial() {
+        // Confirm that old(*_1) in postcondition context still resolves to _1_initial
+        let func = make_mut_ref_func();
+        let ghost_db = GhostPredicateDatabase::new();
+        let term = parse_spec_expr_postcondition_with_db("old(*_1)", &func, &ghost_db);
+        assert!(
+            matches!(term, Some(Term::Const(ref s)) if s == "_1_initial"),
+            "Expected _1_initial, got {:?}",
+            term
+        );
     }
 
     #[test]
@@ -1885,6 +2359,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -2151,6 +2627,79 @@ mod tests {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // pts_to predicate parsing tests (Phase 20-01)
+    // -----------------------------------------------------------------------
+
+    fn make_raw_ptr_func() -> Function {
+        use crate::ir::Mutability;
+        Function {
+            name: "test_pts_to".to_string(),
+            params: vec![
+                Local::new(
+                    "p",
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                ),
+                Local::new("v", Ty::Int(IntTy::I32)),
+            ],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_pts_to_parse_basic() {
+        let func = make_raw_ptr_func();
+        let term = parse_spec_expr("pts_to(p, v)", &func);
+        assert!(term.is_some(), "pts_to(p, v) should parse successfully");
+        let term = term.unwrap();
+        // pts_to encodes as Term::And([Select(perm, ptr), Eq(...)])
+        assert!(
+            matches!(term, Term::And(_)),
+            "pts_to must produce Term::And, got {term:?}"
+        );
+        if let Term::And(arms) = &term {
+            assert_eq!(arms.len(), 2, "pts_to And must have exactly 2 arms");
+            // First arm: Select(perm, ptr)
+            assert!(
+                matches!(&arms[0], Term::Select(arr, _) if matches!(arr.as_ref(), Term::Const(n) if n == "perm")),
+                "First arm must be Select(perm, ...), got {:?}",
+                arms[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_pts_to_wrong_arity() {
+        let func = make_raw_ptr_func();
+        // pts_to with only 1 argument must return None (warn and bail)
+        let term = parse_spec_expr("pts_to(p)", &func);
+        assert!(
+            term.is_none(),
+            "pts_to with wrong arity must return None, got {term:?}"
+        );
+    }
+
     #[test]
     fn parse_backward_compat_parse_spec_expr() {
         // All existing tests should still pass - parse_spec_expr returns same results
@@ -2198,5 +2747,122 @@ mod tests {
         let trait_db = TraitDatabase::new();
         let result = super::is_trait_method_call("Unknown::method", &trait_db);
         assert_eq!(result, None);
+    }
+
+    // ====== Phase 20-03: Separating conjunction and ghost predicate tests ======
+
+    fn make_two_ptr_func() -> Function {
+        use crate::ir::Mutability;
+        Function {
+            name: "test_sep_conj".to_string(),
+            params: vec![
+                Local::new(
+                    "p",
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                ),
+                Local::new("v", Ty::Int(IntTy::I32)),
+                Local::new(
+                    "q",
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                ),
+                Local::new("w", Ty::Int(IntTy::I32)),
+            ],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Default::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_sep_conj_pts_to_star_pts_to() {
+        use crate::ghost_predicate_db::GhostPredicateDatabase;
+        let func = make_two_ptr_func();
+        let db = GhostPredicateDatabase::new();
+        // pts_to(p, v) * pts_to(q, w) must produce Term::And([pts_to_enc, pts_to_enc])
+        let term = parse_spec_expr_with_db("pts_to(p, v) * pts_to(q, w)", &func, &db);
+        assert!(
+            term.is_some(),
+            "pts_to(p,v) * pts_to(q,w) should parse successfully"
+        );
+        let term = term.unwrap();
+        assert!(
+            matches!(&term, Term::And(arms) if arms.len() == 2),
+            "sep-conj must produce Term::And with 2 arms, got {term:?}"
+        );
+        if let Term::And(arms) = &term {
+            // Each arm must be a pts_to encoding (Term::And([Select(perm,...), Eq(...)]))
+            assert!(
+                matches!(&arms[0], Term::And(_)),
+                "left arm must be pts_to encoding (Term::And), got {:?}",
+                arms[0]
+            );
+            assert!(
+                matches!(&arms[1], Term::And(_)),
+                "right arm must be pts_to encoding (Term::And), got {:?}",
+                arms[1]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mul_not_sep_conj() {
+        use crate::ghost_predicate_db::GhostPredicateDatabase;
+        let func = make_i32_func();
+        let db = GhostPredicateDatabase::new();
+        // x * y with integer params must produce BvMul (not Term::And)
+        let term = parse_spec_expr_with_db("_1 * _2", &func, &db);
+        assert!(term.is_some(), "_1 * _2 should parse successfully");
+        let term = term.unwrap();
+        assert!(
+            !matches!(&term, Term::And(_)),
+            "integer multiply must NOT be sep-conj (Term::And), got {term:?}"
+        );
+        assert!(
+            matches!(&term, Term::BvMul(_, _)),
+            "integer multiply must produce Term::BvMul, got {term:?}"
+        );
+    }
+
+    #[test]
+    fn test_ghost_predicate_depth_zero() {
+        use crate::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabase};
+        let func = make_i32_func();
+        let mut db = GhostPredicateDatabase::new();
+        db.insert(
+            "foo".to_string(),
+            GhostPredicate {
+                param_names: vec!["x".to_string()],
+                body_raw: "x > 0".to_string(),
+            },
+        );
+        // At depth=0, ghost predicate call must return BoolLit(false)
+        let term = parse_spec_expr_with_depth("foo(_1)", &func, &db, 0);
+        assert!(
+            term.is_some(),
+            "ghost predicate at depth=0 should return Some(BoolLit(false))"
+        );
+        assert!(
+            matches!(term.unwrap(), Term::BoolLit(false)),
+            "ghost predicate at depth=0 must return BoolLit(false)"
+        );
     }
 }

@@ -3,7 +3,7 @@ name = "rust-fv-solver"
 description = "SMT solver interface for Rust formal verification"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 repository.workspace = true
 
 [dependencies]

@@ -489,14 +489,26 @@ fn print_usage() {
         "                                Eligible functions use QF_LIA/QF_NIA instead of QF_BV"
     );
     eprintln!(
+        "                                Best for arithmetic-heavy specs (add/sub/mul/div) with"
+    );
+    eprintln!(
+        "                                no bitwise/shift ops.  Functions using &, |, ^, <<, >>"
+    );
+    eprintln!("                                are automatically kept in bitvector mode.");
+    eprintln!(
         "                                Also enabled by RUST_FV_BV2INT=1 env var (CLI takes precedence)"
     );
+    eprintln!("                                See docs/bv2int.md for full documentation.");
     eprintln!(
         "    --bv2int-report             Show bv2int summary table (encoding, timing, speedup)"
     );
     eprintln!(
         "                                Without --bv2int: lists eligible candidate functions"
     );
+    eprintln!(
+        "                                Use this flag to understand the performance impact before"
+    );
+    eprintln!("                                committing to bv2int mode in CI.");
     eprintln!("    --bv2int-threshold <N>      Slowdown warning threshold (default: 2.0)");
     eprintln!("                                Warn when bv2int is N times slower than bitvector");
     eprintln!(

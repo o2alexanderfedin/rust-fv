@@ -239,6 +239,10 @@ pub struct AtomicOp {
     pub atomic_place: Place,
     /// Value for stores/compare-exchange (None for loads)
     pub value: Option<Operand>,
+    /// Thread that performs this atomic operation.
+    /// 0 = main thread; N = Nth spawned thread (in thread_spawns order).
+    /// Used by RC11 weak memory encoding to partition events by thread.
+    pub thread_id: usize,
 }
 
 /// Type of synchronization operation.
@@ -355,6 +359,17 @@ pub struct Function {
     /// Concurrency verification configuration.
     /// None if concurrency verification not enabled.
     pub concurrency_config: Option<ConcurrencyConfig>,
+    /// Mapping from SSA local name (e.g. `"_1"`) to the Rust source name
+    /// (e.g. `"x"`), populated from `rustc`'s `var_debug_info`.
+    ///
+    /// Used by counterexample rendering to display human-readable variable
+    /// names instead of MIR indices. Empty when no debug info is available
+    /// (e.g. in unit-test IR constructions or release builds).
+    pub source_names: std::collections::HashMap<String, String>,
+    /// Coroutine (async fn) state machine metadata.
+    /// `Some(...)` if this function is an async fn; `None` for regular functions.
+    /// Populated by the MIR converter (Plan 02) and consumed by the async VC generator (Plan 03).
+    pub coroutine_info: Option<CoroutineInfo>,
 }
 
 impl Function {
@@ -402,6 +417,63 @@ impl Local {
     }
 }
 
+/// A higher-order function specification clause.
+///
+/// Represents: `fn_spec(f, |x| pre => post)` or `fn_spec(f => |x| ..., g => |y| ...)`
+#[derive(Debug, Clone, PartialEq)]
+pub struct FnSpec {
+    /// The closure parameter name (e.g., "f")
+    pub closure_param: String,
+    /// The pre-condition expression string (e.g., "x > 0")
+    pub pre: String,
+    /// The post-condition expression string (e.g., "result > 0")
+    pub post: String,
+    /// Bound variable names in the clause (e.g., ["x"] from "|x| ...")
+    pub bound_vars: Vec<String>,
+}
+
+// ============================ Async/Coroutine IR Types ============================
+
+/// How a coroutine state exits.
+///
+/// Yield: suspends at a `.await` point.
+/// Return: resolves by returning `Poll::Ready`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CoroutineExitKind {
+    /// Suspends at a `.await` point.
+    Yield,
+    /// Returns `Poll::Ready` — the async function completed.
+    Return,
+}
+
+/// A single state in the coroutine state machine produced by the MIR lowering of an async fn.
+///
+/// Each suspension point (`.await`) creates a new state transition.
+#[derive(Debug, Clone)]
+pub struct CoroutineState {
+    /// 0-based state index.
+    pub state_id: usize,
+    /// IR BasicBlock index that is the entry of this state.
+    pub entry_block: usize,
+    /// Whether this state exits by yielding (suspending) or returning.
+    pub exit_kind: CoroutineExitKind,
+    /// Source line of the `.await` that triggers this state, if known.
+    pub await_source_line: Option<u32>,
+}
+
+/// Coroutine metadata attached to an async function's IR.
+///
+/// Populated by the MIR converter (Plan 02) when `is_coroutine` is detected
+/// on the rustc MIR body. Consumed by the async VC generator (Plan 03).
+#[derive(Debug, Clone)]
+pub struct CoroutineInfo {
+    /// The individual states of the state machine (one per suspension point + final).
+    pub states: Vec<CoroutineState>,
+    /// Variables that must persist across `.await` boundaries.
+    /// Stored as (smt_variable_name, type) pairs for SMT encoding.
+    pub persistent_fields: Vec<(String, Ty)>,
+}
+
 /// Formal contracts on a function.
 #[derive(Debug, Clone, Default)]
 pub struct Contracts {
@@ -416,6 +488,44 @@ pub struct Contracts {
     /// Termination measure (`#[decreases(expr)]`) for recursive functions.
     /// None means no termination measure specified.
     pub decreases: Option<SpecExpr>,
+    /// HOF closure specification entailments (fn_spec clauses)
+    pub fn_specs: Vec<FnSpec>,
+    /// State invariant for async functions (`#[state_invariant(expr)]`).
+    /// Must hold at every `.await` suspension and resumption point.
+    /// None for non-async functions or async functions without a state invariant.
+    pub state_invariant: Option<SpecExpr>,
+}
+
+/// Classification of the iterator source for a for-loop.
+#[derive(Debug, Clone, PartialEq)]
+pub enum IteratorKind {
+    /// Integer range: `start..end` (half-open)
+    Range { start: RangeBound, end: RangeBound },
+    /// Integer range: `start..=end` (closed/inclusive)
+    RangeInclusive { start: RangeBound, end: RangeBound },
+    /// Slice or array iteration by reference: `slice.iter()` / `&arr`
+    SliceIter { collection_local: String },
+    /// Vec iteration by reference: `vec.iter()`
+    VecIter { collection_local: String },
+    /// Enumerated iteration: `.enumerate()` over any of the above
+    Enumerate { inner: Box<IteratorKind> },
+    /// Known std adapter: `.map()`, `.filter()`, `.zip()`, `.take()`, `.skip()`, etc.
+    StdAdapter {
+        name: String,
+        inner: Box<IteratorKind>,
+    },
+    /// Unknown/custom iterator — conservative BoolLit(true) VC
+    Unknown { description: String },
+}
+
+/// A range bound: either a statically-known integer or a runtime local variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RangeBound {
+    /// Compile-time known integer constant
+    Literal(i128),
+    /// Runtime local (e.g., function parameter or computation result).
+    /// Uses `{local}_len` naming for slice/vec lengths (consistent with Phase 28).
+    Local(String),
 }
 
 /// Information about a loop detected in the CFG.
@@ -427,6 +537,10 @@ pub struct LoopInfo {
     pub back_edge_blocks: Vec<BlockId>,
     /// User-supplied loop invariant expressions
     pub invariants: Vec<SpecExpr>,
+    /// For-loop iterator classification (None for while/loop)
+    pub iterator_kind: Option<IteratorKind>,
+    /// Loop variable local name (e.g., "_5") when classified as for-loop
+    pub loop_var: Option<String>,
 }
 
 /// Prophecy variable information for mutable borrow reasoning.
@@ -489,6 +603,11 @@ pub enum Statement {
     Assign(Place, Rvalue),
     /// No-op (padding, debug info, etc.)
     Nop,
+    /// Set enum variant discriminant (tag). Used in optimized MIR when the tag is
+    /// written separately from field construction.
+    SetDiscriminant(Place, usize),
+    /// Inject an assumption premise (from core::intrinsics::assume).
+    Assume(Operand),
 }
 
 /// A MIR terminator — ends a basic block.
@@ -577,6 +696,8 @@ pub enum Rvalue {
     Len(Place),
     /// Discriminant of an enum
     Discriminant(Place),
+    /// Array repeat expression: `[x; N]`
+    Repeat(Operand, usize),
 }
 
 /// Aggregate kinds.
@@ -928,6 +1049,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(func.is_generic());
     }
@@ -957,6 +1080,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(!func.is_generic());
     }
@@ -991,6 +1116,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1023,6 +1150,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1052,6 +1181,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1081,6 +1212,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1113,6 +1246,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1385,6 +1520,7 @@ mod tests {
             decreases: Some(SpecExpr {
                 raw: "n".to_string(),
             }),
+            fn_specs: vec![],
             ..Default::default()
         };
         assert!(contracts.decreases.is_some());
@@ -1687,6 +1823,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -1718,6 +1856,7 @@ mod tests {
             ordering: AtomicOrdering::SeqCst,
             atomic_place: Place::local("_2"),
             value: None,
+            thread_id: 0,
         };
         assert_eq!(atomic_op.kind, AtomicOpKind::Load);
         assert_eq!(atomic_op.ordering, AtomicOrdering::SeqCst);
@@ -1774,6 +1913,7 @@ mod tests {
                 ordering: AtomicOrdering::Release,
                 atomic_place: Place::local("_2"),
                 value: Some(Operand::Move(Place::local("_3"))),
+                thread_id: 0,
             }],
             sync_ops: vec![],
             lock_invariants: vec![],
@@ -1782,6 +1922,8 @@ mod tests {
                 max_threads: 4,
                 max_context_switches: 10,
             }),
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -1790,5 +1932,233 @@ mod tests {
         assert!(config.verify_concurrency);
         assert_eq!(config.max_threads, 4);
         assert_eq!(config.max_context_switches, 10);
+    }
+
+    // ====== source_names field tests (Phase 19) ======
+
+    /// Verify that Function carries a source_names field of type HashMap<String,String>.
+    #[test]
+    fn function_source_names_field_exists_and_is_empty_by_default() {
+        let func = Function {
+            name: "test_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+        assert!(func.source_names.is_empty());
+    }
+
+    /// Verify that source_names can carry SSA-index-to-source-name mappings.
+    #[test]
+    fn function_source_names_stores_ssa_mappings() {
+        let mut names = std::collections::HashMap::new();
+        names.insert("_1".to_string(), "x".to_string());
+        names.insert("_2".to_string(), "y".to_string());
+
+        let func = Function {
+            name: "test_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: names,
+            coroutine_info: None,
+        };
+        assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
+        assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
+    }
+
+    // ====== Async IR types tests (Phase 23) ======
+
+    #[test]
+    fn coroutine_exit_kind_debug_clone() {
+        let yield_kind = CoroutineExitKind::Yield;
+        let return_kind = CoroutineExitKind::Return;
+        // Clone
+        let _ = yield_kind.clone();
+        let _ = return_kind.clone();
+        // PartialEq
+        assert_eq!(CoroutineExitKind::Yield, CoroutineExitKind::Yield);
+        assert_eq!(CoroutineExitKind::Return, CoroutineExitKind::Return);
+        assert_ne!(CoroutineExitKind::Yield, CoroutineExitKind::Return);
+        // Debug
+        let s = format!("{:?}", CoroutineExitKind::Yield);
+        assert!(s.contains("Yield"));
+    }
+
+    #[test]
+    fn coroutine_state_construction() {
+        let state = CoroutineState {
+            state_id: 0,
+            entry_block: 2,
+            exit_kind: CoroutineExitKind::Yield,
+            await_source_line: Some(42),
+        };
+        assert_eq!(state.state_id, 0);
+        assert_eq!(state.entry_block, 2);
+        assert_eq!(state.exit_kind, CoroutineExitKind::Yield);
+        assert_eq!(state.await_source_line, Some(42));
+        // Clone
+        let cloned = state.clone();
+        assert_eq!(cloned.state_id, 0);
+    }
+
+    #[test]
+    fn coroutine_info_construction() {
+        let info = CoroutineInfo {
+            states: vec![
+                CoroutineState {
+                    state_id: 0,
+                    entry_block: 0,
+                    exit_kind: CoroutineExitKind::Yield,
+                    await_source_line: None,
+                },
+                CoroutineState {
+                    state_id: 1,
+                    entry_block: 3,
+                    exit_kind: CoroutineExitKind::Return,
+                    await_source_line: Some(10),
+                },
+            ],
+            persistent_fields: vec![("counter".to_string(), Ty::Int(IntTy::I32))],
+        };
+        assert_eq!(info.states.len(), 2);
+        assert_eq!(info.states[0].state_id, 0);
+        assert_eq!(info.states[1].state_id, 1);
+        assert_eq!(info.persistent_fields.len(), 1);
+        assert_eq!(info.persistent_fields[0].0, "counter");
+        assert_eq!(info.persistent_fields[0].1, Ty::Int(IntTy::I32));
+        // Clone
+        let cloned = info.clone();
+        assert_eq!(cloned.states.len(), 2);
+    }
+
+    #[test]
+    fn contracts_state_invariant_default_none() {
+        let contracts = Contracts::default();
+        assert!(contracts.state_invariant.is_none());
+    }
+
+    #[test]
+    fn contracts_state_invariant_set() {
+        let contracts = Contracts {
+            state_invariant: Some(SpecExpr {
+                raw: "counter >= 0".to_string(),
+            }),
+            ..Default::default()
+        };
+        assert!(contracts.state_invariant.is_some());
+        assert_eq!(contracts.state_invariant.unwrap().raw, "counter >= 0");
+    }
+
+    #[test]
+    fn function_coroutine_info_default_none() {
+        let func = Function {
+            name: "async_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+        assert!(func.coroutine_info.is_none());
+    }
+
+    #[test]
+    fn function_coroutine_info_set() {
+        let coroutine_info = CoroutineInfo {
+            states: vec![CoroutineState {
+                state_id: 0,
+                entry_block: 0,
+                exit_kind: CoroutineExitKind::Return,
+                await_source_line: None,
+            }],
+            persistent_fields: vec![],
+        };
+        let func = Function {
+            name: "async_fn".to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: Some(coroutine_info),
+        };
+        assert!(func.coroutine_info.is_some());
+        let info = func.coroutine_info.unwrap();
+        assert_eq!(info.states.len(), 1);
+        assert_eq!(info.states[0].exit_kind, CoroutineExitKind::Return);
     }
 }

@@ -4,8 +4,11 @@
 /// its exact semantics, including overflow and division-by-zero checks.
 use rust_fv_smtlib::term::Term;
 
+use std::borrow::Cow;
+
 use crate::ir::{
-    AggregateKind, BinOp, Constant, FloatTy, Function, Operand, Place, Projection, Ty, UnOp,
+    AggregateKind, BinOp, CastKind, Constant, FloatTy, Function, IntTy, Operand, Place, Projection,
+    Ty, UintTy, UnOp,
 };
 
 /// Encode an operand as an SMT-LIB term.
@@ -61,30 +64,48 @@ pub fn encode_place_with_type(place: &Place, func: &Function) -> Option<Term> {
     }
 
     let mut current = Term::Const(place.local.clone());
-    let mut current_ty = find_local_type(func, &place.local)?;
+    // Use Cow to allow both borrowed references (common case) and owned values
+    // (needed for Downcast which synthesises a variant-struct type on the fly).
+    let mut current_ty: Cow<'_, Ty> = Cow::Borrowed(find_local_type(func, &place.local)?);
 
     for proj in &place.projections {
         match proj {
             Projection::Field(idx) => {
-                current = encode_field_access(current, current_ty, *idx)?;
+                current = encode_field_access(current, &current_ty, *idx)?;
                 // Update current_ty to the field's type
-                current_ty = get_field_type(current_ty, *idx)?;
+                current_ty = Cow::Owned(get_field_type(&current_ty, *idx)?.clone());
             }
             Projection::Index(idx_local) => {
                 let index_term = Term::Const(idx_local.clone());
                 current = Term::Select(Box::new(current), Box::new(index_term));
                 // Update current_ty to the element type
-                current_ty = get_element_type(current_ty)?;
+                current_ty = Cow::Owned(get_element_type(&current_ty)?.clone());
             }
             Projection::Deref => {
-                // References are transparent
-                if let Ty::Ref(inner, _) = current_ty {
-                    current_ty = inner;
+                // References are transparent — peel off the Box<Ty>
+                if let Ty::Ref(inner, _) = current_ty.as_ref() {
+                    current_ty = Cow::Owned((**inner).clone());
                 }
             }
-            Projection::Downcast(_variant_idx) => {
-                // Enum downcast is handled during pattern matching
-                // The type doesn't change here
+            Projection::Downcast(variant_idx) => {
+                // Narrow the current type to the specific enum variant's type.
+                // This allows the subsequent Field projection to access variant-specific fields.
+                if let Ty::Enum(_enum_name, variants) = current_ty.as_ref()
+                    && let Some((variant_name, variant_fields)) = variants.get(*variant_idx)
+                {
+                    // Create an ad-hoc Struct type for this variant's fields
+                    // so that the next Field projection can use encode_field_access.
+                    let variant_struct_ty = Ty::Struct(
+                        variant_name.clone(),
+                        variant_fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, ty)| (format!("f{i}"), ty.clone()))
+                            .collect(),
+                    );
+                    current_ty = Cow::Owned(variant_struct_ty);
+                }
+                // current_term stays the same — the enum value holds the fields
             }
         }
     }
@@ -626,6 +647,162 @@ pub fn overflow_check(op: BinOp, lhs: &Term, rhs: &Term, ty: &Ty) -> Option<Term
         | BinOp::BitAnd
         | BinOp::BitOr
         | BinOp::BitXor => None,
+    }
+}
+
+// === Cast encoding ===
+
+/// Returns the bit width of a Rust numeric type, or 64 as default for pointers/unknown.
+pub fn ty_bit_width(ty: &Ty) -> u32 {
+    match ty {
+        Ty::Int(int_ty) => match int_ty {
+            IntTy::I8 => 8,
+            IntTy::I16 => 16,
+            IntTy::I32 => 32,
+            IntTy::I64 => 64,
+            IntTy::I128 => 128,
+            IntTy::Isize => 64,
+        },
+        Ty::Uint(uint_ty) => match uint_ty {
+            UintTy::U8 => 8,
+            UintTy::U16 => 16,
+            UintTy::U32 => 32,
+            UintTy::U64 => 64,
+            UintTy::U128 => 128,
+            UintTy::Usize => 64,
+        },
+        Ty::Float(float_ty) => match float_ty {
+            FloatTy::F32 => 32,
+            FloatTy::F64 => 64,
+        },
+        _ => 64, // pointer default (conservative)
+    }
+}
+
+/// Returns true if the type is a signed integer type.
+pub fn ty_is_signed(ty: &Ty) -> bool {
+    matches!(ty, Ty::Int(_))
+}
+
+/// Build the bounds-check term for an array/slice index access.
+///
+/// Asserts: (0 <= idx) AND (idx < len)
+/// Both operands are 64-bit bitvectors (unsigned comparison via BvULe / BvULt).
+/// If idx is narrower than 64 bits, it is zero-extended to match len's 64-bit width.
+pub fn bounds_check_term(idx: Term, idx_bits: u32, len: Term) -> Term {
+    // Zero-extend idx to 64 bits if necessary
+    let idx_64 = if idx_bits < 64 {
+        Term::ZeroExtend(64 - idx_bits, Box::new(idx))
+    } else {
+        idx
+    };
+    // Lower bound: 0 <= idx (always true for unsigned bitvectors, but emitted explicitly)
+    let lower = Term::BvULe(Box::new(Term::BitVecLit(0, 64)), Box::new(idx_64.clone()));
+    // Upper bound: idx < len
+    let upper = Term::BvULt(Box::new(idx_64), Box::new(len));
+    Term::And(vec![lower, upper])
+}
+
+/// Generate the SMT constant name for a slice/array length.
+pub fn len_constant_name(arr_local: &str) -> String {
+    format!("{arr_local}_len")
+}
+
+/// Encode a Rust `as` cast or `transmute` as an SMT-LIB term.
+///
+/// `kind`: the cast kind from IR
+/// `src`: the already-encoded source operand term
+/// `from_bits`: bit width of source type (from `ty_bit_width(source_ty)`)
+/// `to_bits`: bit width of target type
+/// `from_signed`: whether source integer type is signed
+pub fn encode_cast(
+    kind: &CastKind,
+    src: Term,
+    from_bits: u32,
+    to_bits: u32,
+    from_signed: bool,
+    to_signed: bool, // signedness of target type (needed for FloatToInt)
+) -> Term {
+    match kind {
+        CastKind::IntToInt => encode_int_to_int_cast(src, from_bits, to_bits, from_signed),
+        CastKind::IntToFloat => encode_int_to_float_cast(src, from_bits, to_bits, from_signed),
+        CastKind::FloatToInt => encode_float_to_int_cast(src, from_bits, to_bits, to_signed),
+        CastKind::FloatToFloat => encode_float_to_float_cast(src, from_bits, to_bits),
+        // Pointer casts: identity on bitvector (pointer is BitVec 64)
+        CastKind::Pointer => src,
+    }
+}
+
+/// Integer-to-integer cast: widening (zero/sign extend) or narrowing (extract low bits).
+pub fn encode_int_to_int_cast(src: Term, from_bits: u32, to_bits: u32, from_signed: bool) -> Term {
+    use std::cmp::Ordering;
+    match from_bits.cmp(&to_bits) {
+        Ordering::Equal => src, // no-op cast (reinterpret, same width)
+        Ordering::Less => {
+            if from_signed {
+                Term::SignExtend(to_bits - from_bits, Box::new(src))
+            } else {
+                Term::ZeroExtend(to_bits - from_bits, Box::new(src))
+            }
+        }
+        Ordering::Greater => Term::Extract(to_bits - 1, 0, Box::new(src)),
+    }
+}
+
+/// Integer-to-float cast: reinterpret bitvector as float using SMT-LIB to_fp.
+///
+/// Models transmute semantics: reinterpret the source BV bits as float.
+/// Uses Term::App to represent `((_ to_fp eb sb) RNE src_bv)`.
+fn encode_int_to_float_cast(src: Term, from_bits: u32, to_bits: u32, from_signed: bool) -> Term {
+    // Ensure source is the right bit width for the target float
+    let adjusted = if from_bits == to_bits {
+        src
+    } else {
+        encode_int_to_int_cast(src, from_bits, to_bits, from_signed)
+    };
+    // SMT-LIB: ((_ to_fp eb sb) RNE adjusted)
+    // For f32: eb=8, sb=24; for f64: eb=11, sb=53
+    let (eb, sb) = float_params(to_bits);
+    Term::App(
+        format!("(_ to_fp {eb} {sb})"),
+        vec![Term::RoundingMode("RNE".to_string()), adjusted],
+    )
+}
+
+/// Float-to-integer cast using SMT-LIB2 FPA theory.
+///
+/// Uses `((_ fp.to_sbv N) RTZ src)` for signed targets and
+/// `((_ fp.to_ubv N) RTZ src)` for unsigned targets.
+/// RTZ = Round Toward Zero, matching Rust's float-as-integer truncation semantics.
+fn encode_float_to_int_cast(src: Term, _from_bits: u32, to_bits: u32, to_signed: bool) -> Term {
+    let op_name = if to_signed {
+        format!("(_ fp.to_sbv {to_bits})")
+    } else {
+        format!("(_ fp.to_ubv {to_bits})")
+    };
+    Term::App(op_name, vec![Term::RoundingMode("RTZ".to_string()), src])
+}
+
+/// Float-to-float cast (f32 <-> f64): identity for same size, FpFromBits after adjustment otherwise.
+fn encode_float_to_float_cast(src: Term, from_bits: u32, to_bits: u32) -> Term {
+    if from_bits == to_bits {
+        src
+    } else {
+        // Use to_fp for float width conversion
+        let (eb, sb) = float_params(to_bits);
+        Term::App(
+            format!("(_ to_fp {eb} {sb})"),
+            vec![Term::RoundingMode("RNE".to_string()), src],
+        )
+    }
+}
+
+/// Returns (exponent_bits, significand_bits) for a float of the given bit width.
+fn float_params(bits: u32) -> (u32, u32) {
+    match bits {
+        32 => (8, 24),
+        64 => (11, 53),
+        _ => (11, 53), // default to f64 params
     }
 }
 
@@ -1511,6 +1688,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 

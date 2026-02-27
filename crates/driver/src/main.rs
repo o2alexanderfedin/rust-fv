@@ -25,6 +25,7 @@ extern crate rustc_span;
 mod cache;
 mod callbacks;
 mod cargo_verify;
+mod cex_render;
 mod diagnostics;
 mod invalidation;
 mod json_output;
@@ -32,6 +33,7 @@ mod mir_converter;
 mod output;
 mod parallel;
 mod rustc_json;
+mod types;
 
 #[cfg(test)]
 mod bench_incremental;

@@ -45,7 +45,7 @@ pub fn register_option_contracts(registry: &mut StdlibContractRegistry) {
 
 /// Contract for `Option::is_some`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn is_some(&self) -> bool
 /// ```
 ///
@@ -66,6 +66,8 @@ fn option_is_some_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: true,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
@@ -77,7 +79,7 @@ fn option_is_some_contract() -> StdlibContract {
 
 /// Contract for `Option::is_none`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn is_none(&self) -> bool
 /// ```
 ///
@@ -98,6 +100,8 @@ fn option_is_none_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: true,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
@@ -109,7 +113,7 @@ fn option_is_none_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn unwrap(self) -> T
 /// ```
 ///
@@ -133,6 +137,8 @@ fn option_unwrap_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
@@ -144,7 +150,7 @@ fn option_unwrap_contract() -> StdlibContract {
 
 /// Contract for `Option::map`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn map<U, F>(self, f: F) -> Option<U>
 /// where F: FnOnce(T) -> U
 /// ```
@@ -170,6 +176,8 @@ fn option_map_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
@@ -181,7 +189,7 @@ fn option_map_contract() -> StdlibContract {
 
 /// Contract for `Option::and_then`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn and_then<U, F>(self, f: F) -> Option<U>
 /// where F: FnOnce(T) -> Option<U>
 /// ```
@@ -202,6 +210,8 @@ fn option_and_then_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
@@ -213,7 +223,7 @@ fn option_and_then_contract() -> StdlibContract {
 
 /// Contract for `Option::ok_or`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn ok_or<E>(self, err: E) -> Result<T, E>
 /// ```
 ///
@@ -238,6 +248,8 @@ fn option_ok_or_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string(), "err".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
@@ -249,7 +261,7 @@ fn option_ok_or_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap_or`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn unwrap_or(self, default: T) -> T
 /// ```
 ///
@@ -274,6 +286,8 @@ fn option_unwrap_or_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string(), "default".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
@@ -285,7 +299,7 @@ fn option_unwrap_or_contract() -> StdlibContract {
 
 /// Contract for `Option::unwrap_or_else`.
 ///
-/// ```text
+/// ```rust,ignore
 /// pub fn unwrap_or_else<F>(self, f: F) -> T
 /// where F: FnOnce() -> T
 /// ```
@@ -306,6 +320,8 @@ fn option_unwrap_or_else_contract() -> StdlibContract {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],

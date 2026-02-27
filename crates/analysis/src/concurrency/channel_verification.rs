@@ -122,6 +122,7 @@ mod tests {
             statement: 0,
             source_file: None,
             source_line: None,
+            source_column: None,
             contract_text: None,
             vc_kind: VcKind::ChannelSafety,
         }

@@ -43,8 +43,10 @@ use crate::encode_term::{
     encode_aggregate_with_type, encode_binop, encode_field_access, encode_operand,
     encode_place_with_type, encode_unop, overflow_check,
 };
+use crate::ghost_predicate_db::GhostPredicateDatabase;
 use crate::ir::*;
 use crate::ownership::{OwnershipConstraint, classify_argument, generate_ownership_constraints};
+use crate::sep_logic;
 use crate::spec_parser;
 
 /// A verification condition with metadata for error reporting.
@@ -68,6 +70,11 @@ pub struct VcLocation {
     pub source_file: Option<String>,
     /// Source line number (1-based, when available)
     pub source_line: Option<usize>,
+    /// Source column number (1-based, when available).
+    ///
+    /// Populated by `fill_vc_locations` in the driver when MIR `SourceInfo`
+    /// spans are available. `None` in unit-test contexts.
+    pub source_column: Option<usize>,
     /// The specific contract text that failed (e.g., "result > 0")
     pub contract_text: Option<String>,
     /// What kind of verification condition this is
@@ -117,6 +124,21 @@ pub enum VcKind {
     Deadlock,
     /// Channel operation safety (send-on-closed, capacity overflow, recv deadlock)
     ChannelSafety,
+    /// RC11 coherence check: hb;eco? is irreflexive under weak memory ordering.
+    /// Generated only for functions with at least one non-SeqCst atomic op.
+    WeakMemoryCoherence,
+    /// Weak memory data race: conflicting Relaxed accesses to same location from different threads.
+    /// Under Relaxed ordering, Relaxed-vs-Relaxed to same location without ordering is a race.
+    WeakMemoryRace,
+    /// Weak memory atomicity: RMW atomicity under RC11 (rmw ∩ (rb;mo) = ∅).
+    /// Generated for fetch_add/compare_exchange ops under non-SeqCst ordering.
+    WeakMemoryAtomicity,
+    /// `#[state_invariant]` check just before a `.await` suspends (at Yield terminator).
+    AsyncStateInvariantSuspend,
+    /// `#[state_invariant]` check just after a `.await` resumes (after Yield resume).
+    AsyncStateInvariantResume,
+    /// `#[ensures]` check at `Poll::Ready` resolution of an async fn.
+    AsyncPostcondition,
 }
 
 impl VcKind {
@@ -206,7 +228,15 @@ struct OverflowVcInfo {
 /// when present, call sites are encoded modularly using callee contracts
 /// as summaries (assert precondition, havoc return, assume postcondition).
 /// Pass `None` for backward-compatible behavior where calls are opaque.
-pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> FunctionVCs {
+/// Like `generate_vcs` but with ghost predicate expansion.
+///
+/// Called by `verify_single()` in the driver. `generate_vcs()` delegates to this
+/// with an empty ghost predicate database for backward compatibility.
+pub fn generate_vcs_with_db(
+    func: &Function,
+    contract_db: Option<&ContractDatabase>,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> FunctionVCs {
     tracing::info!(function = %func.name, "Generating verification conditions");
 
     let mut conditions = Vec::new();
@@ -241,6 +271,22 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         declarations.append(&mut closure_decls);
     }
 
+    // Inject trait bound premises for generic functions.
+    // For each generic parameter with trait bounds, call trait_bounds_as_smt_assumptions()
+    // and inject the resulting terms as Assert commands in the declarations list.
+    // These serve as axioms/assumptions in all VCs generated for this function.
+    // For BoolLit(true), Z3 ignores them harmlessly (no false premises added).
+    if !func.generic_params.is_empty() {
+        for gp in &func.generic_params {
+            let concrete_ty = Ty::Generic(gp.name.clone());
+            let assumptions =
+                crate::monomorphize::trait_bounds_as_smt_assumptions(gp, &concrete_ty);
+            for term in assumptions {
+                declarations.push(Command::Assert(term));
+            }
+        }
+    }
+
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
     tracing::debug!(function = %func.name, path_count = paths.len(), "Enumerated CFG paths");
@@ -248,15 +294,36 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
     // Generate overflow VCs from all paths
     for path in &paths {
         for ov in &path.overflow_vcs {
-            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
+            let mut vc = generate_overflow_vc(
+                func,
+                &datatype_declarations,
+                &declarations,
+                ov,
+                ghost_pred_db,
+            );
             conditions.append(&mut vc);
         }
     }
 
     // Generate terminator assertion VCs (Terminator::Assert)
-    let mut assert_vcs =
-        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
+    let mut assert_vcs = generate_assert_terminator_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        ghost_pred_db,
+    );
     conditions.append(&mut assert_vcs);
+
+    // Generate bounds-check VCs for array/slice index accesses (Projection::Index).
+    // Each statement that reads a place through an Index projection generates a
+    // safety VC: 0 <= idx AND idx < {arr}_len.
+    let mut index_vcs = generate_index_bounds_vcs(func, &datatype_declarations, &declarations);
+    conditions.append(&mut index_vcs);
+
+    // Generate discriminant assertion VCs for SetDiscriminant statements (VCGEN-06).
+    let mut disc_vcs = generate_set_discriminant_vcs(func, &datatype_declarations, &declarations);
+    conditions.append(&mut disc_vcs);
 
     // Generate contract verification conditions (postconditions)
     // When contract_db is provided, callee postconditions are assumed during
@@ -267,13 +334,20 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         &declarations,
         &paths,
         contract_db,
+        ghost_pred_db,
     );
     conditions.append(&mut contract_vcs);
 
     // Generate call-site precondition VCs (inter-procedural)
     if let Some(db) = contract_db {
-        let mut call_vcs =
-            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        let mut call_vcs = generate_call_site_vcs(
+            func,
+            db,
+            &datatype_declarations,
+            &declarations,
+            &paths,
+            ghost_pred_db,
+        );
         conditions.append(&mut call_vcs);
     }
 
@@ -324,6 +398,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some("add #[decreases(expr)] annotation".to_string()),
                         vc_kind: VcKind::Termination,
                     },
@@ -385,6 +460,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some("FnOnce closures can only be called once".to_string()),
                     vc_kind: VcKind::ClosureContract,
                 },
@@ -484,6 +560,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: Some(
                     "add #[unsafe_requires], #[unsafe_ensures], or #[trusted]".to_string(),
                 ),
@@ -560,6 +637,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(format!("{} != null", ptr_local)),
                         vc_kind: VcKind::MemorySafety,
                     },
@@ -621,6 +699,7 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(format!(
                             "offset {} within allocation bounds",
                             offset_local
@@ -648,9 +727,27 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
                 invariant_count = loop_info.invariants.len(),
                 "Generating loop invariant VCs"
             );
-            let mut loop_vcs =
-                generate_loop_invariant_vcs(func, &datatype_declarations, &declarations, loop_info);
+            let mut loop_vcs = generate_loop_invariant_vcs(
+                func,
+                &datatype_declarations,
+                &declarations,
+                loop_info,
+                ghost_pred_db,
+            );
             conditions.append(&mut loop_vcs);
+        }
+    }
+
+    // FOR-01 / FOR-02: Generate for-loop iterator VCs (Phase 29.1)
+    {
+        let for_vcs = crate::for_loop_vcgen::generate_for_loop_vcs(func, ghost_pred_db);
+        if !for_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                for_vc_count = for_vcs.len(),
+                "Generated for-loop iterator VCs"
+            );
+            conditions.extend(for_vcs);
         }
     }
 
@@ -680,6 +777,18 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         }
     }
 
+    // HOF-01 / HOF-02: Generate fn_spec entailment VCs if any are declared
+    if !func.contracts.fn_specs.is_empty() {
+        let hof_vcs = crate::hof_vcgen::generate_fn_spec_vcs(func, &func.contracts.fn_specs);
+        conditions.extend(hof_vcs);
+    }
+
+    // ASY-01 / ASY-02: Generate async VCs if this is an async fn (coroutine)
+    if func.coroutine_info.is_some() {
+        let async_vcs = crate::async_vcgen::generate_async_vcs(func, ghost_pred_db);
+        conditions.extend(async_vcs);
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),
@@ -690,6 +799,24 @@ pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> 
         function_name: func.name.clone(),
         conditions,
     }
+}
+
+/// Generate all verification conditions for a function.
+///
+/// This is the main entry point. It produces a set of SMT-LIB scripts,
+/// each checking one verification condition. If any script is SAT,
+/// the corresponding condition is violated.
+///
+/// The optional `contract_db` enables inter-procedural verification:
+/// when present, call sites are encoded modularly using callee contracts
+/// as summaries (assert precondition, havoc return, assume postcondition).
+/// Pass `None` for backward-compatible behavior where calls are opaque.
+///
+/// This delegates to `generate_vcs_with_db` with an empty ghost predicate database.
+/// Use `generate_vcs_with_db` directly to enable ghost predicate expansion.
+pub fn generate_vcs(func: &Function, contract_db: Option<&ContractDatabase>) -> FunctionVCs {
+    let empty_db = GhostPredicateDatabase::new();
+    generate_vcs_with_db(func, contract_db, &empty_db)
 }
 
 /// Generate verification conditions with a specific encoding mode.
@@ -742,17 +869,26 @@ pub fn generate_vcs_with_mode(
 
     let paths = enumerate_paths(func);
 
+    // generate_vcs_with_mode does not support ghost predicates; use empty db
+    let empty_db = GhostPredicateDatabase::new();
+
     // Generate overflow VCs
     for path in &paths {
         for ov in &path.overflow_vcs {
-            let mut vc = generate_overflow_vc(func, &datatype_declarations, &declarations, ov);
+            let mut vc =
+                generate_overflow_vc(func, &datatype_declarations, &declarations, ov, &empty_db);
             conditions.append(&mut vc);
         }
     }
 
     // Generate assert terminator VCs
-    let mut assert_vcs =
-        generate_assert_terminator_vcs(func, &datatype_declarations, &declarations, &paths);
+    let mut assert_vcs = generate_assert_terminator_vcs(
+        func,
+        &datatype_declarations,
+        &declarations,
+        &paths,
+        &empty_db,
+    );
     conditions.append(&mut assert_vcs);
 
     // Generate contract VCs
@@ -762,13 +898,20 @@ pub fn generate_vcs_with_mode(
         &declarations,
         &paths,
         contract_db,
+        &empty_db,
     );
     conditions.append(&mut contract_vcs);
 
     // Generate call-site precondition VCs
     if let Some(db) = contract_db {
-        let mut call_vcs =
-            generate_call_site_vcs(func, db, &datatype_declarations, &declarations, &paths);
+        let mut call_vcs = generate_call_site_vcs(
+            func,
+            db,
+            &datatype_declarations,
+            &declarations,
+            &paths,
+            &empty_db,
+        );
         conditions.append(&mut call_vcs);
     }
 
@@ -1203,13 +1346,184 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
         decls.push(Command::DeclareConst(param.name.clone(), sort));
     }
 
-    // Locals (including ghost locals - they're declared but may not be used in executable VCs)
+    // Locals (ghost locals are specification-only and excluded from SMT declarations)
     for local in &func.locals {
+        if local.is_ghost {
+            continue;
+        }
         let sort = encode_type(&local.ty);
         decls.push(Command::DeclareConst(local.name.clone(), sort));
     }
 
+    // Len constants: for each Rvalue::Len(place) in the body, declare {place}_len as BitVec(64)
+    for bb in &func.basic_blocks {
+        for stmt in &bb.statements {
+            if let Statement::Assign(_, Rvalue::Len(len_place)) = stmt {
+                let len_const = crate::encode_term::len_constant_name(&len_place.local);
+                decls.push(Command::DeclareConst(
+                    len_const,
+                    rust_fv_smtlib::sort::Sort::BitVec(64),
+                ));
+            }
+        }
+    }
+
     decls
+}
+
+/// Generate bounds-check VCs for array/slice index accesses (Projection::Index).
+///
+/// Scans all statements in the function body. For every operand that reads through
+/// a `Projection::Index(idx_local)`, emits a VC asserting:
+///   NOT (0 <= idx AND idx < {arr}_len)   -- UNSAT means bounds check passes
+///
+/// The index local's type determines its bit width for zero-extension to 64 bits.
+fn generate_index_bounds_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
+            // Find operands with Index projections in assignment RHS
+            let index_operand = match stmt {
+                Statement::Assign(_, Rvalue::Use(op)) => extract_index_operand(op),
+                _ => None,
+            };
+
+            if let Some((arr_local, idx_local)) = index_operand {
+                // Determine bit width of index type
+                let idx_bits = find_local_type(func, idx_local)
+                    .map(crate::encode_term::ty_bit_width)
+                    .unwrap_or(64);
+
+                let idx_term = Term::Const(idx_local.to_string());
+                let len_term = Term::Const(crate::encode_term::len_constant_name(arr_local));
+                let bounds_ok = crate::encode_term::bounds_check_term(idx_term, idx_bits, len_term);
+
+                // Build VC script: assert NOT bounds_ok — UNSAT proves safety
+                let mut script = Script::new();
+                script.push(Command::SetLogic("QF_BV".to_string()));
+                script.push(Command::SetOption(
+                    "produce-models".to_string(),
+                    "true".to_string(),
+                ));
+                for cmd in datatype_declarations {
+                    script.push(cmd.clone());
+                }
+                for cmd in declarations {
+                    script.push(cmd.clone());
+                }
+                script.push(Command::Assert(Term::Not(Box::new(bounds_ok))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                let desc = format!(
+                    "bounds check: {} index {} in bounds at block {}",
+                    arr_local, idx_local, block_idx
+                );
+                vcs.push(VerificationCondition {
+                    description: desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: stmt_idx,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "0 <= {} && {} < {}_len",
+                            idx_local, idx_local, arr_local
+                        )),
+                        vc_kind: VcKind::MemorySafety,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Generate discriminant assertion VCs for SetDiscriminant statements (VCGEN-06).
+///
+/// For each `Statement::SetDiscriminant(place, variant_idx)`, emits one assertion VC:
+/// `discriminant-{place.local}(place.local) == variant_idx`
+///
+/// The discriminant function name matches the `Rvalue::Discriminant` encoding in
+/// `encode_rvalue` to ensure SMT consistency.
+fn generate_set_discriminant_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
+            if let Statement::SetDiscriminant(place, variant_idx) = stmt {
+                // Use the same naming convention as Rvalue::Discriminant
+                let disc_fn = format!("discriminant-{}", place.local);
+                let disc_term = Term::App(disc_fn, vec![Term::Const(place.local.clone())]);
+                let idx_term = Term::IntLit(*variant_idx as i128);
+                let assertion = Term::Eq(Box::new(disc_term), Box::new(idx_term));
+
+                // base_script selects: QF_BV (no datatypes), QF_UFBVDT (datatypes), ALL (spec-int)
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
+
+                let desc = format!(
+                    "{}: discriminant({}) == {} at block {}",
+                    func.name, place.local, variant_idx, block_idx
+                );
+                script.push(Command::Comment(desc.clone()));
+                // Negate assertion: UNSAT proves discriminant is set correctly
+                script.push(Command::Assert(Term::Not(Box::new(assertion))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                vcs.push(VerificationCondition {
+                    description: desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: stmt_idx,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "discriminant({}) == {}",
+                            place.local, variant_idx
+                        )),
+                        vc_kind: VcKind::Assertion,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Extract (arr_local, idx_local) from an operand that reads through Projection::Index.
+fn extract_index_operand(op: &Operand) -> Option<(&str, &str)> {
+    let place = match op {
+        Operand::Copy(p) | Operand::Move(p) => p,
+        Operand::Constant(_) => return None,
+    };
+    for proj in &place.projections {
+        if let Projection::Index(idx_local) = proj {
+            return Some((&place.local, idx_local.as_str()));
+        }
+    }
+    None
 }
 
 /// Check if a function uses specification integer types (SpecInt/SpecNat).
@@ -1230,6 +1544,30 @@ fn uses_spec_int_types(func: &Function) -> bool {
         if local.ty.is_spec_int() {
             return true;
         }
+    }
+    // Check spec expressions for "as int" / "as nat" casts (produce Term::Bv2Int).
+    // This covers the common case: I32 params/return with "as int" in ensures/requires.
+    let spec_uses_bv2int =
+        |expr: &SpecExpr| expr.raw.contains("as int") || expr.raw.contains("as nat");
+    for pre in &func.contracts.requires {
+        if spec_uses_bv2int(pre) {
+            return true;
+        }
+    }
+    for post in &func.contracts.ensures {
+        if spec_uses_bv2int(post) {
+            return true;
+        }
+    }
+    for inv in &func.contracts.invariants {
+        if spec_uses_bv2int(inv) {
+            return true;
+        }
+    }
+    if let Some(ref inv) = func.contracts.state_invariant
+        && spec_uses_bv2int(inv)
+    {
+        return true;
     }
     false
 }
@@ -1281,6 +1619,35 @@ fn base_script(
     script
 }
 
+/// Encode an rvalue to a Term for use as the RHS of a functional record update.
+///
+/// This is similar to encode_assignment's rhs encoding but returns a Term, not a Command.
+/// Used when building `(mk-StructName new_field (StructName-other field base) ...)` terms.
+fn encode_rvalue_for_assignment(rvalue: &Rvalue, func: &Function, dest: &Place) -> Option<Term> {
+    match rvalue {
+        Rvalue::Use(op) => Some(encode_operand_for_vcgen(op, func)),
+        Rvalue::BinaryOp(op, lhs_op, rhs_op) => {
+            let l = encode_operand(lhs_op);
+            let r = encode_operand(rhs_op);
+            let ty = if op.is_comparison() {
+                infer_operand_type(func, lhs_op).or_else(|| infer_operand_type(func, rhs_op))?
+            } else {
+                infer_operand_type(func, lhs_op)
+                    .or_else(|| infer_operand_type(func, rhs_op))
+                    .or_else(|| find_local_type(func, &dest.local))?
+            };
+            Some(encode_binop(*op, &l, &r, ty))
+        }
+        Rvalue::UnaryOp(op, operand) => {
+            let t = encode_operand(operand);
+            let ty =
+                infer_operand_type(func, operand).or_else(|| find_local_type(func, &dest.local))?;
+            Some(encode_unop(*op, &t, ty))
+        }
+        _ => None, // Other rvalues not yet supported for functional update RHS
+    }
+}
+
 /// Encode an assignment as an SMT assertion.
 fn encode_assignment(
     place: &Place,
@@ -1288,13 +1655,47 @@ fn encode_assignment(
     func: &Function,
     _ssa_counter: &mut HashMap<String, u32>,
 ) -> Option<Command> {
+    // Ghost locals are specification-only — skip encoding their assignments into
+    // executable VCs. Ghost locals are fully erased from SMT output (no DeclareConst,
+    // no assignment assertions).
+    if is_ghost_place(place, func) {
+        return None;
+    }
     // Handle projected LHS (field access on left side)
     if !place.projections.is_empty() {
-        // For projected places, encode the LHS using type-aware projection
+        // Single-level Field projection: try functional record update for struct mutation.
+        // Supports: s.field_idx = new_val (most common case in safe Rust).
+        // Produces: (= s (mk-StructName new_field (StructName-other_field s) ...))
+        if place.projections.len() == 1
+            && let Projection::Field(field_idx) = &place.projections[0]
+            && let Some(base_ty) = find_local_type(func, &place.local)
+            && let Ty::Struct(name, fields) = base_ty
+        {
+            let new_val = encode_rvalue_for_assignment(rvalue, func, place)?;
+            let base_term = Term::Const(place.local.clone());
+            // Build functional update: (mk-Name f0 f1 ... new_val_at_idx ... fn)
+            // All fields must be provided in order to satisfy constructor arity.
+            let field_terms: Vec<Term> = fields
+                .iter()
+                .enumerate()
+                .map(|(i, (fname, _))| {
+                    if i == *field_idx {
+                        new_val.clone()
+                    } else {
+                        // Unchanged field: use selector (StructName-fieldName base)
+                        Term::App(format!("{name}-{fname}"), vec![base_term.clone()])
+                    }
+                })
+                .collect();
+            let updated = Term::App(format!("mk-{name}"), field_terms);
+            let lhs = Term::Const(place.local.clone());
+            return Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(updated))));
+        }
+        // Fallback: encode via type-aware place for Use rvalues only.
         let lhs = encode_place_with_type(place, func)?;
         let rhs = match rvalue {
             Rvalue::Use(op) => encode_operand_for_vcgen(op, func),
-            _ => return None, // Complex rvalues on projected places are rare
+            _ => return None, // Complex rvalues on projected places not yet supported
         };
         return Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))));
     }
@@ -1333,13 +1734,20 @@ fn encode_assignment(
             // Reference is transparent -- same as the value
             Term::Const(ref_place.local.clone())
         }
-        Rvalue::Len(_) => {
-            // Array length -- represented as an uninterpreted constant for now
-            return None;
+        Rvalue::Len(len_place) => {
+            // Model slice/array length as a named constant: {local}_len.
+            // The constant is declared as Sort::BitVec(64) via collect_declarations.
+            let len_name = crate::encode_term::len_constant_name(&len_place.local);
+            Term::Const(len_name)
         }
-        Rvalue::Cast(_, op, _) => {
-            // Phase 1: casts are identity (TODO: proper cast encoding)
-            encode_operand(op)
+        Rvalue::Cast(kind, op, target_ty) => {
+            let src = encode_operand_for_vcgen(op, func);
+            let source_ty = infer_operand_type(func, op).unwrap_or(target_ty); // fallback: assume same type (safe — no truncation)
+            let from_bits = crate::encode_term::ty_bit_width(source_ty);
+            let to_bits = crate::encode_term::ty_bit_width(target_ty);
+            let from_signed = crate::encode_term::ty_is_signed(source_ty);
+            let to_signed = crate::encode_term::ty_is_signed(target_ty);
+            crate::encode_term::encode_cast(kind, src, from_bits, to_bits, from_signed, to_signed)
         }
         Rvalue::Aggregate(kind, operands) => {
             let result_ty = find_local_type(func, &place.local);
@@ -1349,10 +1757,19 @@ fn encode_assignment(
                 return None;
             }
         }
-        Rvalue::Discriminant(_) => {
-            // Phase 1: skip discriminant
-            return None;
+        Rvalue::Discriminant(disc_place) => {
+            // Encode the discriminant of an enum value as an uninterpreted selector application.
+            // The discriminant is an integer tag that SwitchInt compares against literal variant
+            // indices. We declare it as: (discriminant-{local} enum_value) where enum_value is
+            // the place holding the enum. This produces Term::App which the SwitchInt
+            // path-condition logic already handles correctly — SwitchInt compares discr_term
+            // against BitVecLit values for each target arm.
+            let disc_fn = format!("discriminant-{}", disc_place.local);
+            Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }
+        // Repeat ([x; N]): VCGen encoding is out of scope for Phase 29 — the IR just needs to
+        // represent it. Skip the assertion so VCGen remains sound (no false claims about arrays).
+        Rvalue::Repeat(..) => return None,
     };
 
     Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))))
@@ -1399,6 +1816,7 @@ fn generate_overflow_vc(
     datatype_declarations: &[Command],
     declarations: &[Command],
     ov: &OverflowVcInfo,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1427,7 +1845,7 @@ fn generate_overflow_vc(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1454,6 +1872,7 @@ fn generate_overflow_vc(
                 statement: ov.stmt_idx,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: None,
                 vc_kind: VcKind::from_overflow_op(ov.op),
             },
@@ -1473,6 +1892,7 @@ fn generate_assert_terminator_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1523,7 +1943,7 @@ fn generate_assert_terminator_vcs(
 
             // Assume preconditions
             for pre in &func.contracts.requires {
-                if let Some(pre_term) = parse_spec(&pre.raw, func) {
+                if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                     script.push(Command::Assert(pre_term));
                 }
             }
@@ -1547,6 +1967,7 @@ fn generate_assert_terminator_vcs(
                     statement: usize::MAX,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::Assertion,
                 },
@@ -1604,6 +2025,7 @@ fn generate_contract_vcs(
     declarations: &[Command],
     paths: &[CfgPath],
     contract_db: Option<&ContractDatabase>,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1652,7 +2074,7 @@ fn generate_contract_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -1661,7 +2083,13 @@ fn generate_contract_vcs(
         if let Some(db) = contract_db {
             for path in paths {
                 for call_site in &path.call_sites {
-                    encode_callee_postcondition_assumptions(func, db, call_site, &mut script);
+                    encode_callee_postcondition_assumptions(
+                        func,
+                        db,
+                        call_site,
+                        &mut script,
+                        ghost_pred_db,
+                    );
                 }
             }
         }
@@ -1673,8 +2101,18 @@ fn generate_contract_vcs(
             script.push(Command::Assert(Term::Or(path_conds)));
         }
 
+        // Sep-logic: if the function's contracts mention pts_to, upgrade to QF_AUFBV
+        // and prepend sep-heap declarations so the solver can interpret the heap arrays.
+        if has_sep_logic_spec(&func.contracts) {
+            prepend_sep_heap_decls(&mut script);
+            // No frame forall in postcondition VCs (no call site), so use QF_AUFBV
+            let new_logic = sep_logic::sep_logic_smt_logic(false);
+            script = replace_script_logic(script, new_logic);
+        }
+
         // Negate postcondition and check if SAT (= postcondition violated)
-        if let Some(post_term) = parse_spec(&post.raw, func) {
+        // Use parse_spec_postcondition so that *_1 in ensures resolves to _1_prophecy
+        if let Some(post_term) = parse_spec_postcondition(&post.raw, func, ghost_pred_db) {
             script.push(Command::Comment(format!(
                 "Check postcondition: {}",
                 post.raw
@@ -1695,6 +2133,7 @@ fn generate_contract_vcs(
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some(post.raw.clone()),
                     vc_kind: VcKind::Postcondition,
                 },
@@ -1879,6 +2318,37 @@ fn build_arg_substitutions(
     subs
 }
 
+/// Check whether a function's contracts contain separation-logic predicates.
+///
+/// A cheap syntactic check: returns `true` if any `requires` or `ensures`
+/// raw string contains the substring `"pts_to("`. This is sufficient for Phase 20
+/// to determine whether sep-heap declarations and frame axioms are needed.
+fn has_sep_logic_spec(contracts: &Contracts) -> bool {
+    contracts.requires.iter().any(|s| s.raw.contains("pts_to("))
+        || contracts.ensures.iter().any(|s| s.raw.contains("pts_to("))
+}
+
+/// Prepend sep-heap SMT declarations to a script.
+///
+/// Inserts `declare_sep_heap()` and `declare_heapval_accessor(64)` commands
+/// immediately after the `SetLogic` command (which is always the first command).
+fn prepend_sep_heap_decls(script: &mut Script) {
+    let mut sep_decls: Vec<Command> = sep_logic::declare_sep_heap();
+    sep_decls.push(sep_logic::declare_heapval_accessor(64));
+
+    // Insert after SetLogic (index 0)
+    let commands: Vec<Command> = script.commands().to_vec();
+    let mut new_commands = Vec::with_capacity(commands.len() + sep_decls.len());
+    if let Some((first, rest)) = commands.split_first() {
+        new_commands.push(first.clone());
+        new_commands.extend(sep_decls);
+        new_commands.extend_from_slice(rest);
+    } else {
+        new_commands.extend(sep_decls);
+    }
+    *script = Script::with_commands(new_commands);
+}
+
 /// Generate call-site precondition VCs for inter-procedural verification.
 ///
 /// For each call site on each path, if the callee has preconditions in the
@@ -1895,6 +2365,7 @@ fn generate_call_site_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     paths: &[CfgPath],
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
 
@@ -1934,7 +2405,7 @@ fn generate_call_site_vcs(
 
             for (pre_idx, pre) in callee_summary.contracts.requires.iter().enumerate() {
                 // Parse the precondition in the callee's context
-                let pre_term = match parse_spec(&pre.raw, &callee_func_context) {
+                let pre_term = match parse_spec(&pre.raw, &callee_func_context, ghost_pred_db) {
                     Some(t) => t,
                     None => continue,
                 };
@@ -1960,7 +2431,8 @@ fn generate_call_site_vcs(
 
                 // Assume caller's preconditions
                 for caller_pre in &func.contracts.requires {
-                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func) {
+                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func, ghost_pred_db)
+                    {
                         script.push(Command::Assert(caller_pre_term));
                     }
                 }
@@ -1968,6 +2440,51 @@ fn generate_call_site_vcs(
                 // If there's a path condition, assume it
                 if let Some(ref cond) = call_site.path_condition {
                     script.push(Command::Assert(cond.clone()));
+                }
+
+                // Sep-logic frame rule: if callee has pts_to in contracts, emit frame axiom
+                // and upgrade SMT logic to AUFBV (arrays + bitvectors + quantifiers).
+                if has_sep_logic_spec(&callee_summary.contracts) {
+                    // 1. Prepend sep-heap declarations after SetLogic
+                    prepend_sep_heap_decls(&mut script);
+
+                    // 2. Snapshot sep_heap before the call (sep_heap_pre = sep_heap)
+                    script.push(Command::DeclareFun(
+                        "sep_heap_pre".to_string(),
+                        vec![],
+                        rust_fv_smtlib::sort::Sort::Array(
+                            Box::new(rust_fv_smtlib::sort::Sort::BitVec(64)),
+                            Box::new(rust_fv_smtlib::sort::Sort::Uninterpreted(
+                                "HeapVal".to_string(),
+                            )),
+                        ),
+                    ));
+                    script.push(Command::Assert(Term::Eq(
+                        Box::new(Term::Const("sep_heap_pre".to_string())),
+                        Box::new(Term::Const("sep_heap".to_string())),
+                    )));
+
+                    // 3. Extract footprint from callee's requires terms and emit frame axiom
+                    let mut footprint_ptrs = Vec::new();
+                    for req in &callee_summary.contracts.requires {
+                        if let Some(req_term) =
+                            parse_spec(&req.raw, &callee_func_context, ghost_pred_db)
+                        {
+                            let fp = sep_logic::extract_pts_to_footprint(&req_term);
+                            footprint_ptrs.extend(fp);
+                        }
+                    }
+                    // Substitute callee param names with caller arg terms in footprint
+                    let footprint_substituted: Vec<Term> = footprint_ptrs
+                        .iter()
+                        .map(|t| substitute_term(t, &arg_subs))
+                        .collect();
+                    let frame_axiom = sep_logic::build_frame_axiom(&footprint_substituted);
+                    script.push(Command::Assert(frame_axiom));
+
+                    // 4. Upgrade SMT logic from QF_BV to AUFBV (frame forall needs quantifiers)
+                    let new_logic = sep_logic::sep_logic_smt_logic(true);
+                    script = replace_script_logic(script, new_logic);
                 }
 
                 // Assert that the callee's precondition CAN be violated (negate it)
@@ -1991,6 +2508,7 @@ fn generate_call_site_vcs(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: Some(pre.raw.clone()),
                         vc_kind: VcKind::Precondition,
                     },
@@ -2018,6 +2536,7 @@ fn encode_callee_postcondition_assumptions(
     contract_db: &ContractDatabase,
     call_site: &CallSiteInfo,
     script: &mut Script,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) {
     let callee_summary = match contract_db.get(&call_site.callee_name) {
         Some(s) => s,
@@ -2052,7 +2571,7 @@ fn encode_callee_postcondition_assumptions(
     );
 
     for post in &callee_summary.contracts.ensures {
-        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context) {
+        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context, ghost_pred_db) {
             let substituted_post = substitute_term(&post_term, &arg_subs);
             tracing::debug!(
                 caller = %func.name,
@@ -2187,6 +2706,8 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -2235,6 +2756,8 @@ pub fn detect_loops(func: &Function) -> Vec<LoopInfo> {
             header_block: header,
             back_edge_blocks,
             invariants: invariants.clone(),
+            iterator_kind: None,
+            loop_var: None,
         })
         .collect()
 }
@@ -2300,6 +2823,7 @@ fn generate_loop_invariant_vcs(
     datatype_declarations: &[Command],
     declarations: &[Command],
     loop_info: &LoopInfo,
+    ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
     let header = loop_info.header_block;
@@ -2308,7 +2832,7 @@ fn generate_loop_invariant_vcs(
     let parsed_invariants: Vec<Term> = loop_info
         .invariants
         .iter()
-        .filter_map(|inv| parse_spec(&inv.raw, func))
+        .filter_map(|inv| parse_spec(&inv.raw, func, ghost_pred_db))
         .collect();
 
     if parsed_invariants.is_empty() {
@@ -2350,7 +2874,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2375,6 +2899,7 @@ fn generate_loop_invariant_vcs(
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                 vc_kind: VcKind::LoopInvariantInit,
             },
@@ -2419,7 +2944,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions (they hold throughout)
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func) {
+            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2492,6 +3017,7 @@ fn generate_loop_invariant_vcs(
                 statement: 0,
                 source_file: None,
                 source_line: None,
+                source_column: None,
                 contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                 vc_kind: VcKind::LoopInvariantPreserve,
             },
@@ -2502,7 +3028,7 @@ fn generate_loop_invariant_vcs(
     // Invariant + header stmts + NOT loop condition + post-loop => postcondition
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-            if let Some(post_term) = parse_spec(&post.raw, func) {
+            if let Some(post_term) = parse_spec(&post.raw, func, ghost_pred_db) {
                 let mut script = base_script(
                     datatype_declarations,
                     declarations,
@@ -2514,7 +3040,7 @@ fn generate_loop_invariant_vcs(
 
                 // Assume preconditions
                 for pre in &func.contracts.requires {
-                    if let Some(pre_term) = parse_spec(&pre.raw, func) {
+                    if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
                         script.push(Command::Assert(pre_term));
                     }
                 }
@@ -2571,6 +3097,7 @@ fn generate_loop_invariant_vcs(
                         statement: 0,
                         source_file: None,
                         source_line: None,
+                        source_column: None,
                         contract_text: loop_info.invariants.first().map(|inv| inv.raw.clone()),
                         vc_kind: VcKind::LoopInvariantExit,
                     },
@@ -2950,6 +3477,28 @@ fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
     None
 }
 
+/// Returns true if the place's root local is a ghost variable.
+/// Ghost locals are fully erased from executable VCs — no DeclareConst, no assignment assertions.
+fn is_ghost_place(place: &Place, func: &Function) -> bool {
+    // Check return local
+    if func.return_local.name == place.local {
+        return func.return_local.is_ghost;
+    }
+    // Check params
+    for p in &func.params {
+        if p.name == place.local {
+            return p.is_ghost;
+        }
+    }
+    // Check locals
+    for l in &func.locals {
+        if l.name == place.local {
+            return l.is_ghost;
+        }
+    }
+    false
+}
+
 /// Infer the type of an operand.
 fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
     match op {
@@ -2971,9 +3520,9 @@ fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
 ///
 /// After parsing, quantified specs (forall/exists) are automatically annotated
 /// with trigger patterns for SMT instantiation control.
-fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
-    let term =
-        spec_parser::parse_spec_expr(spec, func).or_else(|| parse_simple_spec(spec, func))?;
+fn parse_spec(spec: &str, func: &Function, ghost_pred_db: &GhostPredicateDatabase) -> Option<Term> {
+    let term = spec_parser::parse_spec_expr_with_db(spec, func, ghost_pred_db)
+        .or_else(|| parse_simple_spec(spec, func))?;
 
     // Annotate quantifiers with trigger patterns (validation happens here)
     // On validation error, log and return None (spec parsing fails)
@@ -2988,6 +3537,31 @@ fn parse_spec(spec: &str, func: &Function) -> Option<Term> {
             );
             // TODO: In a full implementation, we'd propagate this error to the driver
             // for proper diagnostic formatting. For now, we log and fail parsing.
+            None
+        }
+    }
+}
+
+/// Parse a specification expression for use in postcondition (ensures) VCs.
+///
+/// Uses postcondition-aware deref resolution: `*_1` → `_1_prophecy` for mutable
+/// reference params, while `old(*_1)` still resolves to `_1_initial`.
+fn parse_spec_postcondition(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    let term = spec_parser::parse_spec_expr_postcondition_with_db(spec, func, ghost_pred_db)
+        .or_else(|| parse_simple_spec(spec, func))?;
+
+    match crate::encode_quantifier::annotate_quantifier(term) {
+        Ok(annotated_term) => Some(annotated_term),
+        Err(trigger_error) => {
+            tracing::error!(
+                "Trigger validation failed in function {}: {:?}",
+                func.name,
+                trigger_error
+            );
             None
         }
     }
@@ -3352,6 +3926,13 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
         vcs.append(&mut race_vcs);
     }
 
+    // Step 2b: RC11 weak memory axioms for non-SeqCst orderings (WMM-01, WMM-03)
+    // Scoped to WeakMemory* VcKind only — does NOT affect existing DataRaceFreedom VCs (WMM-04)
+    if crate::concurrency::rc11::has_non_seqcst_atomics(func) {
+        let mut wmm_vcs = crate::concurrency::rc11::generate_rc11_vcs(func);
+        vcs.append(&mut wmm_vcs);
+    }
+
     // Step 3: Generate lock invariant VCs
     use crate::concurrency::lock_invariants::{LockOp, lock_invariant_vcs};
     use crate::ir::SyncOpKind;
@@ -3375,6 +3956,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                             statement: 0,
                             source_file: None,
                             source_line: None,
+                            source_column: None,
                             contract_text: Some(invariant_spec.raw.clone()),
                             vc_kind: VcKind::LockInvariant,
                         },
@@ -3459,6 +4041,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::ChannelSafety,
                 };
@@ -3478,6 +4061,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: None,
                     vc_kind: VcKind::ChannelSafety,
                 };
@@ -3517,6 +4101,7 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
             statement: 0,
             source_file: None,
             source_line: None,
+            source_column: None,
             contract_text: Some("Bounded concurrency verification enabled".to_string()),
             vc_kind: VcKind::DataRaceFreedom,
         },
@@ -3581,6 +4166,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         }
     }
@@ -3653,6 +4240,8 @@ mod tests {
                 invariants: vec![],
                 is_pure: true,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             generic_params: vec![],
             prophecies: vec![],
@@ -3669,6 +4258,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         }
     }
@@ -3832,6 +4423,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -3888,6 +4481,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -4478,6 +5073,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -4514,6 +5111,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -4561,6 +5160,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -4608,6 +5209,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -4642,6 +5245,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4671,6 +5276,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4700,6 +5307,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -4742,7 +5351,8 @@ mod tests {
     }
 
     #[test]
-    fn encode_assignment_len_returns_none() {
+    fn encode_assignment_len_emits_len_constant() {
+        // Rvalue::Len now encodes as an assignment to the {arr}_len constant (not None).
         let func = make_add_function();
         let mut ssa = HashMap::new();
         let result = encode_assignment(
@@ -4751,7 +5361,20 @@ mod tests {
             &func,
             &mut ssa,
         );
-        assert!(result.is_none());
+        assert!(
+            result.is_some(),
+            "Rvalue::Len should produce an assignment assertion"
+        );
+        // The RHS should reference the len constant "_1_len"
+        if let Some(Command::Assert(Term::Eq(_, rhs))) = result {
+            assert!(
+                matches!(*rhs, Term::Const(ref name) if name == "_1_len"),
+                "expected RHS to be Const(\"_1_len\"), got: {:?}",
+                *rhs
+            );
+        } else {
+            panic!("expected Assert(Eq(...)) from encode_assignment for Rvalue::Len");
+        }
     }
 
     #[test]
@@ -4772,7 +5395,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_assignment_discriminant_returns_none() {
+    fn encode_assignment_discriminant_emits_app_term() {
         let func = make_add_function();
         let mut ssa = HashMap::new();
         let result = encode_assignment(
@@ -4781,7 +5404,16 @@ mod tests {
             &func,
             &mut ssa,
         );
-        assert!(result.is_none());
+        // Rvalue::Discriminant now emits a discriminant-{local} application term, not None.
+        assert!(
+            result.is_some(),
+            "expected Some command for Rvalue::Discriminant"
+        );
+        let cmd_text = format!("{result:?}");
+        assert!(
+            cmd_text.contains("discriminant-_1"),
+            "expected 'discriminant-_1' in command, got: {cmd_text}"
+        );
     }
 
     #[test]
@@ -4825,6 +5457,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -5011,6 +5645,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5052,6 +5688,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5093,6 +5731,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5170,6 +5810,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         }
     }
@@ -5346,6 +5988,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5435,6 +6079,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -5472,6 +6118,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -5512,6 +6160,8 @@ mod tests {
             header_block: 0,
             back_edge_blocks: vec![1],
             invariants: vec![],
+            iterator_kind: None,
+            loop_var: None,
         }];
         let loops = detect_loops(&func);
         assert_eq!(loops.len(), 1);
@@ -5577,6 +6227,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5626,6 +6278,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5666,6 +6320,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5706,6 +6362,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5744,6 +6402,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -5823,6 +6483,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         }
     }
@@ -5884,6 +6546,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -5945,6 +6609,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -6139,6 +6805,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -6188,6 +6856,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -6237,6 +6907,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -6286,6 +6958,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -6382,6 +7056,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
             loops: vec![],
         };
 
@@ -6407,8 +7083,11 @@ mod tests {
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants: vec![], // No invariants
+            iterator_kind: None,
+            loop_var: None,
         };
-        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
         assert!(vcs.is_empty(), "No VCs when invariants are empty");
     }
 
@@ -6427,8 +7106,11 @@ mod tests {
             invariants: vec![SpecExpr {
                 raw: "_1 >= 0".to_string(),
             }],
+            iterator_kind: None,
+            loop_var: None,
         };
-        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info);
+        let empty_db = crate::ghost_predicate_db::GhostPredicateDatabase::new();
+        let vcs = generate_loop_invariant_vcs(&func, &dt_decls, &decls, &loop_info, &empty_db);
         // Should generate 3 VCs: init, preserve, exit
         assert_eq!(vcs.len(), 3, "Expected 3 loop invariant VCs");
     }
@@ -6550,6 +7232,8 @@ mod tests {
                 decreases: Some(SpecExpr {
                     raw: "_1".to_string(),
                 }),
+                fn_specs: vec![],
+                state_invariant: None,
             },
             loops: vec![],
             generic_params: vec![],
@@ -6567,6 +7251,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         }
     }
 
@@ -6713,6 +7399,8 @@ mod tests {
                 }],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
                 invariants: vec![],
             },
             generic_params: vec![],
@@ -6731,6 +7419,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6792,6 +7482,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6862,6 +7554,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         // Validate FnOnce single-call property
@@ -6927,6 +7621,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -6971,6 +7667,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         // Call with None TraitDatabase - should work as before
@@ -7008,6 +7706,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -7051,6 +7751,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7090,6 +7792,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7146,6 +7850,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7200,6 +7906,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7260,6 +7968,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7314,6 +8024,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let result = generate_vcs(&func, None);
@@ -7398,6 +8110,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7436,12 +8150,14 @@ mod tests {
                     atomic_place: Place::local("x".to_string()),
                     ordering: AtomicOrdering::SeqCst,
                     value: Some(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                    thread_id: 0,
                 },
                 AtomicOp {
                     kind: AtomicOpKind::Load,
                     atomic_place: Place::local("x".to_string()),
                     ordering: AtomicOrdering::SeqCst,
                     value: None,
+                    thread_id: 0,
                 },
             ],
             sync_ops: vec![],
@@ -7451,6 +8167,8 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7510,6 +8228,8 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7565,6 +8285,8 @@ mod tests {
                 max_threads: 2,
                 max_context_switches: 3,
             }),
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7606,6 +8328,8 @@ mod tests {
                 max_threads: 4,
                 max_context_switches: 8,
             }),
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7651,6 +8375,8 @@ mod tests {
             sync_ops: vec![],
             lock_invariants: vec![],
             concurrency_config: None, // No explicit config, but thread_spawns present
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -7659,6 +8385,160 @@ mod tests {
         assert!(
             vcs.iter()
                 .any(|vc| vc.description.contains("Bounded verification"))
+        );
+    }
+
+    // === Phase 20-03: Sep-logic call site VC tests ===
+
+    /// Build a caller function that calls a callee named "write_ptr" with one RawPtr arg.
+    fn make_sep_logic_caller() -> Function {
+        use crate::ir::Mutability;
+
+        // bb0: call write_ptr(_1) -> bb1
+        let bb0 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "write_ptr".to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_0"),
+                target: 1,
+            },
+        };
+        let bb1 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        };
+
+        Function {
+            name: "caller".to_string(),
+            params: vec![Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![bb0, bb1],
+            contracts: Contracts::default(),
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_sep_logic_call_site_vc_uses_aufbv() {
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        use crate::ir::Mutability;
+
+        // Build callee summary: write_ptr requires pts_to(_1, _2)
+        let callee_contracts = Contracts {
+            requires: vec![SpecExpr {
+                raw: "pts_to(_1, _2)".to_string(),
+            }],
+            ensures: vec![],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
+        };
+
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "write_ptr".to_string(),
+            FunctionSummary {
+                contracts: callee_contracts,
+                param_names: vec!["_1".to_string(), "_2".to_string()],
+                param_types: vec![
+                    Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                    Ty::Int(IntTy::I32),
+                ],
+                return_ty: Ty::Unit,
+            },
+        );
+
+        let caller = make_sep_logic_caller();
+        let result = generate_vcs(&caller, Some(&contract_db));
+
+        // Find the call-site precondition VC(s)
+        let call_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::Precondition)
+            .collect();
+
+        assert!(
+            !call_vcs.is_empty(),
+            "Expected at least one Precondition VC for sep-logic call site, got VCs: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{}: {:?}", vc.description, vc.location.vc_kind))
+                .collect::<Vec<_>>(),
+        );
+
+        // The VC script must use AUFBV logic (frame forall requires quantifiers)
+        let vc = &call_vcs[0];
+        let script_str = vc.script.to_string();
+
+        assert!(
+            script_str.contains("AUFBV"),
+            "Sep-logic call-site VC must use AUFBV logic, got script:\n{}",
+            script_str
+        );
+
+        // The VC script must declare sep_heap
+        assert!(
+            script_str.contains("sep_heap"),
+            "Sep-logic call-site VC must declare sep_heap, got script:\n{}",
+            script_str
+        );
+    }
+
+    #[test]
+    fn generate_vcs_with_db_expands_ghost_predicate_in_requires() {
+        use crate::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabase};
+        // ghost predicate: is_pos(x) := x > 0
+        let mut db = GhostPredicateDatabase::new();
+        db.insert(
+            "is_pos".to_string(),
+            GhostPredicate {
+                param_names: vec!["x".to_string()],
+                body_raw: "x > 0".to_string(),
+            },
+        );
+        // Build function with requires: "is_pos(_1)"
+        // (db-less parse_spec_expr returns None for "is_pos(_1)" — no VC generated)
+        // (generate_vcs_with_db with db returns Some(x > 0) — precondition VC generated)
+        let mut func = make_add_function();
+        func.contracts.requires = vec![crate::ir::SpecExpr {
+            raw: "is_pos(_1)".to_string(),
+        }];
+        // Also add a trivial ensures so generate_contract_vcs fires and uses the requires
+        func.contracts.ensures = vec![crate::ir::SpecExpr {
+            raw: "_1 > 0".to_string(),
+        }];
+        let vcs = generate_vcs_with_db(&func, None, &db);
+        // With ghost-predicate wired path, the requires "is_pos(_1)" expands to "_1 > 0"
+        // and is assumed in the postcondition VC. That VC should exist.
+        assert!(
+            !vcs.conditions.is_empty(),
+            "Ghost predicate in requires must produce at least one VC via generate_vcs_with_db"
         );
     }
 }

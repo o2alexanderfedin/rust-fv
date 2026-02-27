@@ -442,6 +442,8 @@ fn test_assert_true_verified() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -458,6 +460,8 @@ fn test_assert_true_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -552,6 +556,8 @@ fn test_assert_false_counterexample() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -655,6 +661,8 @@ fn test_assert_after_computation() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -671,6 +679,8 @@ fn test_assert_after_computation() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -777,6 +787,8 @@ fn test_array_bounds_safe() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -793,6 +805,8 @@ fn test_array_bounds_safe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -890,6 +904,8 @@ fn test_array_bounds_unsafe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -987,6 +1003,8 @@ fn test_div_by_zero_safe() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1003,6 +1021,8 @@ fn test_div_by_zero_safe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1103,6 +1123,8 @@ fn test_div_by_zero_unsafe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1188,6 +1210,8 @@ fn test_unwrap_safe() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1204,6 +1228,8 @@ fn test_unwrap_safe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1290,6 +1316,8 @@ fn test_unwrap_unsafe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1378,6 +1406,8 @@ fn test_error_message_specificity() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1552,6 +1582,8 @@ fn test_remainder_by_zero_unsafe() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 

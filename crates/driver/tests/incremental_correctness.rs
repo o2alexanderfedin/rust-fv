@@ -58,6 +58,8 @@ fn make_function(name: &str, basic_blocks: Vec<BasicBlock>, contracts: Contracts
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -94,6 +96,8 @@ fn simple_contracts() -> Contracts {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     }
 }
 
@@ -383,10 +387,13 @@ fn fresh_flag_bypasses_cache() {
     for (name, func, contracts) in &functions {
         let mir_hash = VcCache::compute_mir_hash(name, &format!("{:?}", func));
         let contract_hash = VcCache::compute_contract_hash(name, contracts);
+        #[allow(deprecated)]
+        let cache_key = VcCache::compute_key(name, contracts, &format!("{:?}", func));
 
         let decision = decide_verification(
             &cache,
             name,
+            &cache_key,
             mir_hash,
             contract_hash,
             true, // fresh flag

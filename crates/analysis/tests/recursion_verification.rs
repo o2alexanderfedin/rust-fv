@@ -476,6 +476,8 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -551,6 +553,8 @@ fn make_even(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -626,6 +630,8 @@ fn make_odd(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -741,6 +747,8 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -762,6 +770,8 @@ fn e2e_factorial_with_decreases_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -814,6 +824,8 @@ fn e2e_factorial_without_decreases_rejected() {
         invariants: vec![],
         is_pure: false,
         decreases: None, // No decreases annotation
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -868,6 +880,8 @@ fn e2e_mutual_recursion_even_odd_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let contracts_odd = Contracts {
@@ -880,6 +894,8 @@ fn e2e_mutual_recursion_even_odd_verified() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let even = make_even(contracts_even);
@@ -977,6 +993,8 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let bb0 = BasicBlock {
@@ -1045,6 +1063,8 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1117,6 +1137,8 @@ fn e2e_non_recursive_function_no_termination_vcs() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1134,6 +1156,8 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1195,6 +1219,8 @@ fn e2e_recursive_function_postcondition_uses_uninterpreted_encoding() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -1292,6 +1318,8 @@ fn snd_recursive_without_decreases_rejected() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1350,6 +1378,8 @@ fn e2e_fibonacci_two_recursive_calls() {
         decreases: Some(SpecExpr {
             raw: "_1".to_string(),
         }),
+        fn_specs: vec![],
+        state_invariant: None,
     };
 
     let fibonacci = make_fibonacci(contracts);

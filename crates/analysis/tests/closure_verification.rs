@@ -468,6 +468,8 @@ fn make_closure_caller(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -645,6 +647,8 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -738,6 +742,8 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -828,6 +834,8 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -923,6 +931,8 @@ fn e2e_fnonce_double_call_diagnostic() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1051,6 +1061,8 @@ fn e2e_closure_contract_specification_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1146,6 +1158,8 @@ fn e2e_closure_contract_violation_detected() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1271,6 +1285,8 @@ fn e2e_fn_closure_multiple_params_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

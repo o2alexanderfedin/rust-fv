@@ -412,6 +412,8 @@ fn make_caller_function(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -451,6 +453,8 @@ fn test_call_site_precondition_satisfied() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -490,6 +494,8 @@ fn test_call_site_precondition_satisfied() {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -546,6 +552,8 @@ fn test_call_site_precondition_violated() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -582,6 +590,8 @@ fn test_call_site_precondition_violated() {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -678,6 +688,8 @@ fn test_call_site_postcondition_assumed() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -694,6 +706,8 @@ fn test_call_site_postcondition_assumed() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -710,6 +724,8 @@ fn test_call_site_postcondition_assumed() {
                 invariants: vec![],
                 is_pure: true,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
@@ -800,6 +816,8 @@ fn test_call_site_postcondition_not_assumed_without_db() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -816,6 +834,8 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -870,6 +890,8 @@ fn test_call_chain_no_blowup() {
                     invariants: vec![],
                     is_pure: false,
                     decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
                 },
                 vec!["_1"],
                 vec![Ty::Int(IntTy::I32)],
@@ -917,6 +939,8 @@ fn test_call_chain_no_blowup() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -933,6 +957,8 @@ fn test_call_chain_no_blowup() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1012,6 +1038,8 @@ fn test_call_without_contracts_treated_as_opaque() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1059,6 +1087,8 @@ fn test_precondition_violation_reports_callee_name() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -1095,6 +1125,8 @@ fn test_precondition_violation_reports_callee_name() {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -1148,6 +1180,8 @@ fn test_multiple_preconditions_each_checked() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         vec![
             Local {
@@ -1199,6 +1233,8 @@ fn test_multiple_preconditions_each_checked() {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],

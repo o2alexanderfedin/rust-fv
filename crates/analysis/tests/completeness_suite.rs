@@ -422,6 +422,8 @@ fn cmp_bounded_add() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -438,6 +440,8 @@ fn cmp_bounded_add() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -492,6 +496,8 @@ fn cmp_bounded_sub() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -508,6 +514,8 @@ fn cmp_bounded_sub() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -562,6 +570,8 @@ fn cmp_bounded_mul() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -578,6 +588,8 @@ fn cmp_bounded_mul() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -632,6 +644,8 @@ fn cmp_safe_div() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -648,6 +662,8 @@ fn cmp_safe_div() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -697,6 +713,8 @@ fn cmp_safe_shift() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -713,6 +731,8 @@ fn cmp_safe_shift() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -751,6 +771,8 @@ fn cmp_identity_postcondition() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -767,6 +789,8 @@ fn cmp_identity_postcondition() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -801,6 +825,8 @@ fn cmp_constant_postcondition() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -817,6 +843,8 @@ fn cmp_constant_postcondition() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -873,6 +901,8 @@ fn cmp_bounded_add_postcondition() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -889,6 +919,8 @@ fn cmp_bounded_add_postcondition() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -966,6 +998,8 @@ fn cmp_max_function() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -982,6 +1016,8 @@ fn cmp_max_function() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1090,6 +1126,8 @@ fn cmp_abs_function() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1106,6 +1144,8 @@ fn cmp_abs_function() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1242,6 +1282,8 @@ fn cmp_clamp_function() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1258,6 +1300,8 @@ fn cmp_clamp_function() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1343,6 +1387,8 @@ fn cmp_if_else_same_result() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1359,6 +1405,8 @@ fn cmp_if_else_same_result() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1471,6 +1519,8 @@ fn cmp_multi_branch_classify() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1487,6 +1537,8 @@ fn cmp_multi_branch_classify() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1572,6 +1624,8 @@ fn cmp_early_return() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1588,6 +1642,8 @@ fn cmp_early_return() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1736,6 +1792,8 @@ fn cmp_nested_branches_correct() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1752,6 +1810,8 @@ fn cmp_nested_branches_correct() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1823,6 +1883,8 @@ fn cmp_u8_bounded_add() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1839,6 +1901,8 @@ fn cmp_u8_bounded_add() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1893,6 +1957,8 @@ fn cmp_i64_bounded_add() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1909,6 +1975,8 @@ fn cmp_i64_bounded_add() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1963,6 +2031,8 @@ fn cmp_u64_bounded_mul() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1979,6 +2049,8 @@ fn cmp_u64_bounded_mul() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2033,6 +2105,8 @@ fn cmp_i8_safe_operations() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -2049,6 +2123,8 @@ fn cmp_i8_safe_operations() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2087,6 +2163,8 @@ fn cmp_mixed_width_identity() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -2103,6 +2181,8 @@ fn cmp_mixed_width_identity() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2156,6 +2236,8 @@ fn cmp_safe_unsigned_sub() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -2172,6 +2254,8 @@ fn cmp_safe_unsigned_sub() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2227,6 +2311,8 @@ fn cmp_safe_signed_rem() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -2243,6 +2329,8 @@ fn cmp_safe_signed_rem() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

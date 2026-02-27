@@ -116,6 +116,8 @@ fn make_loop_stress_function() -> Function {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -132,12 +134,16 @@ fn make_loop_stress_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
             invariants: vec![SpecExpr {
                 raw: "_2 >= 0 && _2 <= _1".to_string(),
             }],
+            iterator_kind: None,
+            loop_var: None,
         }],
     }
 }
@@ -229,6 +235,8 @@ fn make_interprocedural_stress_function() -> Function {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -245,6 +253,8 @@ fn make_interprocedural_stress_function() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -267,6 +277,8 @@ fn make_contract_database() -> ContractDatabase {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
@@ -288,6 +300,8 @@ fn make_contract_database() -> ContractDatabase {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
@@ -309,6 +323,8 @@ fn make_contract_database() -> ContractDatabase {
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
@@ -521,6 +537,8 @@ fn make_large_function_stress() -> Function {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -537,6 +555,8 @@ fn make_large_function_stress() -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }

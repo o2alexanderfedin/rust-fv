@@ -210,6 +210,7 @@ pub fn deadlock_vcs(cycles: &[DeadlockCycle]) -> Vec<VerificationCondition> {
                     statement: 0,
                     source_file: None,
                     source_line: None,
+                    source_column: None,
                     contract_text: Some(cycle.example_trace.join("; ")),
                     vc_kind: VcKind::Deadlock,
                 },

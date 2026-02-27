@@ -28,6 +28,8 @@ fn make_test_contract(
                 invariants: vec![],
                 is_pure: false,
                 decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
             },
             param_names: (0..param_count).map(|i| format!("arg{}", i)).collect(),
             param_types: vec![Ty::Uint(UintTy::Usize); param_count],

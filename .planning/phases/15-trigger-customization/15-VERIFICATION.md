@@ -37,7 +37,7 @@ re_verification: false
 | `crates/analysis/src/ir.rs` | TriggerHint IR type | ✓ VERIFIED | `pub struct TriggerHint` at line 465, stores `Vec<Term>` for trigger sets |
 | `crates/analysis/src/spec_parser.rs` | extract_trigger_hints() parsing #[trigger(...)] | ✓ VERIFIED | Function at line 600, creates rust_fv_trigger_hint annotations; 8 parsing tests verify single/multi/multiple trigger sets |
 | `crates/analysis/src/encode_quantifier.rs` | extract_manual_triggers(), annotate_quantifier returns Result | ✓ VERIFIED | extract_manual_triggers() at line 428, annotate_quantifier() returns Result<Term, TriggerValidationError> at line 332; integrates TriggerValidator |
-| `crates/analysis/tests/trigger_integration.rs` | Integration tests for all 5 success criteria | ✓ VERIFIED | File exists (17,291 bytes), 17 tests covering all success criteria, all passing |
+| `crates/analysis/tests/trigger_integration.rs` | Integration tests for all 5 success criteria + 9 Phase 33 edge cases | ✓ VERIFIED | File exists, 26 tests covering all success criteria + edge cases, all passing |
 
 ### Key Link Verification
 
@@ -81,9 +81,11 @@ None. All success criteria are programmatically verifiable and have been verifie
 **Known Limitations (non-blocking):**
 1. **Verbose mode infrastructure exists but not integrated with cargo-verify** - `describe_quantifier_triggers()` is implemented but not called from the driver's verbose flag path
 2. **Error diagnostics not yet Rustc-style in driver output** - Validation errors are logged to stderr but not formatted via `format_trigger_error()` from the cargo-verify command
-3. **No E2E test with actual Rust code** - All integration tests use IR directly; no test that parses real Rust code with `#[requires(forall(|x| #[trigger(f(x))] ...))]` through the full pipeline
+3. ~~**No E2E test with actual Rust code**~~ **RESOLVED (Phase 33)** - `test_e2e_trigger_through_spec_parser` in `trigger_integration.rs` confirms triggers survive full parse pipeline via `spec_parser::parse_spec_expr`
 
 These limitations are acknowledged in Plan 15-03 SUMMARY.md as deferred work, not gaps in the phase goal.
+
+**Phase 33 tech debt: 9 DEBTLINES RESOLVED — edge case tests added 2026-02-27**
 
 ## Test Evidence
 
@@ -117,7 +119,7 @@ All parsing tests pass:
 - Empty trigger handling
 - Exists quantifiers
 
-### Integration Tests (17 tests in trigger_integration.rs)
+### Integration Tests (26 tests in trigger_integration.rs)
 
 All end-to-end tests pass:
 
@@ -150,16 +152,30 @@ All end-to-end tests pass:
 - `test_format_trigger_sets_output` ✓
 - `test_exists_quantifier_with_manual_trigger` ✓
 
+### Phase 33 Edge Case Tests (9 new tests)
+
+All 9 Phase 33 edge case tests pass:
+
+- `test_nested_quantifier_triggers` ✓ — cross-scope trigger f(x, y) in inner forall
+- `test_trigger_with_struct_selector` ✓ — struct selector Point-x as uninterpreted trigger
+- `test_trigger_in_exists_with_shadowed_var` ✓ — exists with shadowed variable name
+- `test_overlapping_multiple_triggers` ✓ — two trigger sets sharing same variable x
+- `test_trigger_on_arithmetic_result_as_arg` ✓ — h(x+0) rejected (arithmetic in arg)
+- `test_trigger_outer_scope_variable` ✓ — trigger f(x) missing inner bound var y → IncompleteCoverage
+- `test_trigger_on_recursive_function_application` ✓ — f(g(x)) two-level, no self-instantiation
+- `test_missing_variable_in_multi_trigger_set` ✓ — f(x) trigger missing y → IncompleteCoverage
+- `test_e2e_trigger_through_spec_parser` ✓ — triggers survive full spec_parser pipeline
+
 ### Full Workspace Test Results
 
 ```
 cargo test --test trigger_integration
-running 17 tests
+running 26 tests
 ...
-test result: ok. 17 passed; 0 failed; 0 ignored
+test result: ok. 26 passed; 0 failed; 0 ignored
 ```
 
-All 17 integration tests pass, proving the complete pipeline works end-to-end.
+All 26 integration tests pass (17 original + 9 Phase 33 edge cases), proving the complete pipeline works end-to-end including trigger/quantifier schema edge cases.
 
 ## Verification Methodology
 
@@ -205,9 +221,9 @@ All 5 success criteria verified with substantive implementations:
 **Evidence:**
 - 6/6 required artifacts exist and are wired
 - 5/5 key links verified
-- 75 tests pass (45 validation + 5 diagnostics + 8 parsing + 17 integration)
+- 84 tests pass (45 validation + 5 diagnostics + 8 parsing + 26 integration [17 original + 9 Phase 33])
 - 0 blocking anti-patterns
-- 2 non-blocking TODOs acknowledged as deferred work
+- 2 non-blocking TODOs (1 acknowledged as deferred, 1 RESOLVED by Phase 33)
 
 **Next steps:**
 - Phase 16: VSCode Extension (real-time verification feedback)

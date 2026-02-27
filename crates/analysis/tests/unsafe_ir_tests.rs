@@ -187,6 +187,8 @@ fn test_function_unsafe_fields() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     assert_eq!(func.unsafe_blocks.len(), 1);
@@ -220,6 +222,8 @@ fn test_function_is_unsafe_fn() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     assert!(func.is_unsafe_fn);

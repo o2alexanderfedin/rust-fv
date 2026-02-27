@@ -131,6 +131,7 @@ pub fn data_race_freedom_vcs(accesses: &[MemoryAccess]) -> Vec<VerificationCondi
                         statement: 0,
                         source_file: None,
                         source_line: a.source_line,
+                        source_column: None,
                         contract_text: Some(format!("{} accessed by multiple threads", a.location)),
                         vc_kind: VcKind::DataRaceFreedom,
                     },

@@ -64,6 +64,8 @@ fn make_add_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -454,6 +456,8 @@ fn test_overflow_verification_unconstrained_add() {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -550,6 +554,8 @@ fn test_safe_add_with_preconditions() {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -610,6 +616,8 @@ fn test_provable_postcondition() {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -680,6 +688,8 @@ fn test_postcondition_violation() {
         invariants: vec![],
         is_pure: false,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     // Step 1: Generate VCs
@@ -795,6 +805,8 @@ fn make_max_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -818,6 +830,8 @@ fn test_if_else_branches_ssa() {
         invariants: vec![],
         is_pure: true,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -864,6 +878,8 @@ fn test_if_else_wrong_postcondition() {
         invariants: vec![],
         is_pure: true,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1002,6 +1018,8 @@ fn make_classify_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1017,6 +1035,8 @@ fn test_multi_branch_match() {
         invariants: vec![],
         is_pure: true,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1123,6 +1143,8 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1138,6 +1160,8 @@ fn test_early_return_via_goto() {
         invariants: vec![],
         is_pure: true,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1318,6 +1342,8 @@ fn make_quad_function(contracts: Contracts) -> Function {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     }
 }
@@ -1333,6 +1359,8 @@ fn test_nested_branches() {
         invariants: vec![],
         is_pure: true,
         decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1433,6 +1461,8 @@ fn test_single_branch_overflow_check() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1449,6 +1479,8 @@ fn test_single_branch_overflow_check() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
 
@@ -1483,171 +1515,212 @@ fn test_single_branch_overflow_check() {
 
 // ===========================================================================
 // Unbounded Integer Tests (Phase 04-01)
-// TODO: // ===========================================================================
-// TODO:
-// TODO: /// Test that `(result as int) > (a as int)` verifies for positive addition.
-// TODO: ///
-// TODO: /// With bitvectors alone, `a + b > a` can be SAT due to overflow.
-// TODO: /// With unbounded integers, this property is UNSAT (always true) for positive values.
-// TODO: #[test]
-// TODO: fn test_unbounded_int_addition_no_overflow() {
-// TODO:     let func = Function {
-// TODO:         name: "add_positive".to_string(),
-// TODO:         return_local: Local {
-// TODO:             name: "_0".to_string(),
-// TODO:             ty: Ty::Int(IntTy::I32),
-// TODO:             is_ghost: false,
-// TODO:         },
-// TODO:         params: vec![
-// TODO:             Local {
-// TODO:                 name: "_1".to_string(),
-// TODO:                 ty: Ty::Int(IntTy::I32),
-// TODO:                 is_ghost: false,
-// TODO:             },
-// TODO:             Local {
-// TODO:                 name: "_2".to_string(),
-// TODO:                 ty: Ty::Int(IntTy::I32),
-// TODO:                 is_ghost: false,
-// TODO:             },
-// TODO:         ],
-// TODO:         locals: vec![],
-// TODO:         basic_blocks: vec![BasicBlock {
-// TODO:             statements: vec![Statement::Assign(
-// TODO:                 Place::local("_0"),
-// TODO:                 Rvalue::BinaryOp(
-// TODO:                     BinOp::Add,
-// TODO:                     Operand::Copy(Place::local("_1")),
-// TODO:                     Operand::Copy(Place::local("_2")),
-// TODO:                 ),
-// TODO:             )],
-// TODO:             terminator: Terminator::Return,
-// TODO:         }],
-// TODO:         contracts: Contracts {
-// TODO:             requires: vec![
-// TODO:                 SpecExpr {
-// TODO:                     raw: "_1 > 0".to_string(),
-// TODO:                 },
-// TODO:                 SpecExpr {
-// TODO:                     raw: "_2 > 0".to_string(),
-// TODO:                 },
-// TODO:             ],
-// TODO:             ensures: vec![SpecExpr {
-// TODO:                 // With unbounded int cast, result as int > a as int should always hold
-// TODO:                 raw: "(result as int) > (_1 as int)".to_string(),
-// TODO:             }],
-// TODO:             invariants: vec![],
-// TODO:             is_pure: false, decreases: None,
-// TODO:         },
-// TODO:         loops: vec![],
-// TODO:     };
-// TODO:
-// TODO:     let vcs = vcgen::generate_vcs(&func, None);
-// TODO:     let postcond_vcs: Vec<_> = vcs
-// TODO:         .conditions
-// TODO:         .iter()
-// TODO:         .filter(|vc| vc.description.contains("postcondition"))
-// TODO:         .collect();
-// TODO:
-// TODO:     assert!(!postcond_vcs.is_empty(), "Expected postcondition VC");
-// TODO:
-// TODO:     // Verify the VC was generated and contains bv2int terms
-// TODO:     for vc in &postcond_vcs {
-// TODO:         let smtlib = script_to_smtlib(&vc.script);
-// TODO:
-// TODO:         // Check that the SMT script uses Int logic (ALL)
-// TODO:         assert!(
-// TODO:             smtlib.contains("(set-logic ALL)"),
-// TODO:             "Should use ALL logic for Int theory"
-// TODO:         );
+// ===========================================================================
 
-// Check that bv2int conversion is present
-// TODO:         assert!(
-// TODO:             smtlib.contains("bv2int"),
-// TODO:             "Should contain bv2int conversion for 'as int' cast"
-// TODO:         );
-// TODO:
-// TODO:         // TODO(Phase 04-01): Z3 bv2int integration requires Z3 4.8.10+ and specific configuration
-// TODO:         // For now, verify VC generation is correct. Full Z3 verification to be enabled once
-// TODO:         // bv2int function availability is confirmed with the Z3 version being used.
-// TODO:         tracing::info!("Unbounded int VC generated successfully: {}", vc.description);
-// TODO:     }
-// TODO: }
-// TODO:
-// TODO: /// Test that unbounded int formula verifies with bounded inputs.
-// TODO: #[test]
-// TODO: fn test_unbounded_int_sum_formula() {
-// TODO:     let func = Function {
-// TODO:         name: "bounded_add".to_string(),
-// TODO:         return_local: Local {
-// TODO:             name: "_0".to_string(),
-// TODO:             ty: Ty::Int(IntTy::I32),
-// TODO:             is_ghost: false,
-// TODO:         },
-// TODO:         params: vec![
-// TODO:             Local {
-// TODO:                 name: "_1".to_string(),
-// TODO:                 ty: Ty::Int(IntTy::I32),
-// TODO:                 is_ghost: false,
-// TODO:             },
-// TODO:             Local {
-// TODO:                 name: "_2".to_string(),
-// TODO:                 ty: Ty::Int(IntTy::I32),
-// TODO:                 is_ghost: false,
-// TODO:             },
-// TODO:         ],
-// TODO:         locals: vec![],
-// TODO:         basic_blocks: vec![BasicBlock {
-// TODO:             statements: vec![Statement::Assign(
-// TODO:                 Place::local("_0"),
-// TODO:                 Rvalue::BinaryOp(
-// TODO:                     BinOp::Add,
-// TODO:                     Operand::Copy(Place::local("_1")),
-// TODO:                     Operand::Copy(Place::local("_2")),
-// TODO:                 ),
-// TODO:             )],
-// TODO:             terminator: Terminator::Return,
-// TODO:         }],
-// TODO:         contracts: Contracts {
-// TODO:             requires: vec![
-// TODO:                 SpecExpr {
-// TODO:                     raw: "_1 >= -1000 && _1 <= 1000".to_string(),
-// TODO:                 },
-// TODO:                 SpecExpr {
-// TODO:                     raw: "_2 >= -1000 && _2 <= 1000".to_string(),
-// TODO:                 },
-// TODO:             ],
-// TODO:             ensures: vec![SpecExpr {
-// TODO:                 raw: "(result as int) == (_1 as int) + (_2 as int)".to_string(),
-// TODO:             }],
-// TODO:             invariants: vec![],
-// TODO:             is_pure: false, decreases: None,
-// TODO:         },
-// TODO:         loops: vec![],
-// TODO:     };
-// TODO:
-// TODO:     let vcs = vcgen::generate_vcs(&func, None);
-// TODO:     let postcond_vcs: Vec<_> = vcs
-// TODO:         .conditions
-// TODO:         .iter()
-// TODO:         .filter(|vc| vc.description.contains("postcondition"))
-// TODO:         .collect();
-// TODO:
-// TODO:     assert!(!postcond_vcs.is_empty());
-// TODO:
-// TODO:     // Verify the VC was generated correctly
-// TODO:     for vc in &postcond_vcs {
-// TODO:         let smtlib = script_to_smtlib(&vc.script);
-// TODO:
-// TODO:         // Verify Int logic is used
-// TODO:         assert!(smtlib.contains("(set-logic ALL)"));
-// TODO:
-// TODO:         // Verify bv2int is present for the int casts
-// TODO:         assert!(smtlib.contains("bv2int"));
-// TODO:
-// TODO:         // TODO(Phase 04-01): Full Z3 verification pending bv2int support confirmation
-// TODO:         tracing::info!("Unbounded int sum formula VC generated: {}", vc.description);
-// TODO:     }
-// TODO: }
+/// Test that `(result as int) > (a as int)` verifies for positive addition.
+///
+/// With bitvectors alone, `a + b > a` can be SAT due to overflow.
+/// With unbounded integers, this property is UNSAT (always true) for positive values.
+#[test]
+fn test_unbounded_int_addition_no_overflow() {
+    let func = Function {
+        name: "add_positive".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        },
+        params: vec![
+            Local {
+                name: "_1".to_string(),
+                ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
+            },
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
+            },
+        ],
+        locals: vec![],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_0"),
+                Rvalue::BinaryOp(
+                    BinOp::Add,
+                    Operand::Copy(Place::local("_1")),
+                    Operand::Copy(Place::local("_2")),
+                ),
+            )],
+            terminator: Terminator::Return,
+        }],
+        contracts: Contracts {
+            requires: vec![
+                SpecExpr {
+                    raw: "_1 > 0".to_string(),
+                },
+                SpecExpr {
+                    raw: "_2 > 0".to_string(),
+                },
+            ],
+            ensures: vec![SpecExpr {
+                // With unbounded int cast, result as int > a as int should always hold
+                raw: "(result as int) > (_1 as int)".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            ..Default::default()
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    let vcs = vcgen::generate_vcs(&func, None);
+    let postcond_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+
+    assert!(!postcond_vcs.is_empty(), "Expected postcondition VC");
+
+    // Verify the VC was generated and contains bv2int terms
+    for vc in &postcond_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+
+        // Check that the SMT script uses Int logic (ALL)
+        assert!(
+            smtlib.contains("(set-logic ALL)"),
+            "Should use ALL logic for Int theory"
+        );
+
+        // Check that bv2int conversion is present
+        assert!(
+            smtlib.contains("bv2int"),
+            "Should contain bv2int conversion for 'as int' cast"
+        );
+
+        // TODO(Phase 04-01): Z3 bv2int integration requires Z3 4.8.10+ and specific configuration
+        // For now, verify VC generation is correct. Full Z3 verification to be enabled once
+        // bv2int function availability is confirmed with the Z3 version being used.
+        tracing::info!(
+            "Unbounded int VC generated successfully: {}",
+            vc.description
+        );
+    }
+}
+
+/// Test that unbounded int formula verifies with bounded inputs.
+#[test]
+fn test_unbounded_int_sum_formula() {
+    let func = Function {
+        name: "bounded_add".to_string(),
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Int(IntTy::I32),
+            is_ghost: false,
+        },
+        params: vec![
+            Local {
+                name: "_1".to_string(),
+                ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
+            },
+            Local {
+                name: "_2".to_string(),
+                ty: Ty::Int(IntTy::I32),
+                is_ghost: false,
+            },
+        ],
+        locals: vec![],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![Statement::Assign(
+                Place::local("_0"),
+                Rvalue::BinaryOp(
+                    BinOp::Add,
+                    Operand::Copy(Place::local("_1")),
+                    Operand::Copy(Place::local("_2")),
+                ),
+            )],
+            terminator: Terminator::Return,
+        }],
+        contracts: Contracts {
+            requires: vec![
+                SpecExpr {
+                    raw: "_1 >= -1000 && _1 <= 1000".to_string(),
+                },
+                SpecExpr {
+                    raw: "_2 >= -1000 && _2 <= 1000".to_string(),
+                },
+            ],
+            ensures: vec![SpecExpr {
+                raw: "(result as int) == (_1 as int) + (_2 as int)".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            ..Default::default()
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    let vcs = vcgen::generate_vcs(&func, None);
+    let postcond_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+
+    assert!(!postcond_vcs.is_empty());
+
+    // Verify the VC was generated correctly
+    for vc in &postcond_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+
+        // Verify Int logic is used
+        assert!(smtlib.contains("(set-logic ALL)"));
+
+        // Verify bv2int is present for the int casts
+        assert!(smtlib.contains("bv2int"));
+
+        // TODO(Phase 04-01): Full Z3 verification pending bv2int support confirmation
+        tracing::info!("Unbounded int sum formula VC generated: {}", vc.description);
+    }
+}
 
 /// Test that SpecInt types are encoded correctly
 #[test]
@@ -1867,6 +1940,8 @@ fn test_quantifier_full_pipeline() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1884,6 +1959,8 @@ fn test_quantifier_full_pipeline() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -1983,6 +2060,8 @@ fn test_generic_max_i32_verified() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2003,6 +2082,8 @@ fn test_generic_max_i32_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register i32 instantiation
@@ -2096,6 +2177,8 @@ fn test_generic_max_u64_verified() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2116,6 +2199,8 @@ fn test_generic_max_u64_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2209,6 +2294,8 @@ fn test_generic_max_wrong_postcondition() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2229,6 +2316,8 @@ fn test_generic_max_wrong_postcondition() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register i32 instantiation
@@ -2306,6 +2395,8 @@ fn test_generic_multiple_instantiations() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2326,6 +2417,8 @@ fn test_generic_multiple_instantiations() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2422,6 +2515,8 @@ fn test_generic_no_instantiations_warning() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2479,6 +2574,8 @@ fn test_prophecy_increment_mut_ref() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2496,6 +2593,8 @@ fn test_prophecy_increment_mut_ref() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2549,6 +2648,8 @@ fn test_prophecy_no_mutation_verified() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2566,6 +2667,8 @@ fn test_prophecy_no_mutation_verified() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2645,6 +2748,8 @@ fn test_prophecy_conditional_mutation() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2662,6 +2767,8 @@ fn test_prophecy_conditional_mutation() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2696,7 +2803,6 @@ fn test_prophecy_conditional_mutation() {
 /// infrastructure (ProphecyInfo, detect_prophecies, spec parser extensions) is
 /// in place for future refinement.
 #[test]
-#[ignore] // TODO: Fix prophecy encoding for mutable reference assignments
 fn test_prophecy_basic() {
     let func = Function {
         name: "test_prophecy".to_string(),
@@ -2718,6 +2824,8 @@ fn test_prophecy_basic() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2735,6 +2843,8 @@ fn test_prophecy_basic() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -1,0 +1,39 @@
+COMMERCIAL LICENSE — rust-fv
+Copyright (c) 2026 Alex Fedin, Hupyy, Inc.
+
+=======================================================================
+
+The default license for rust-fv is Creative Commons
+Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0),
+which permits non-commercial use only and prohibits derivative works,
+re-engineering, and re-implementation.
+
+A separate Commercial License is required for:
+
+  - Commercial use (including internal business tooling, SaaS, products)
+  - OEM or white-label embedding
+  - Removal of attribution requirements
+  - Creating derivative works, modifications, or extensions for distribution
+  - Any use by for-profit organizations beyond evaluation
+
+=======================================================================
+
+TO OBTAIN A COMMERCIAL LICENSE:
+
+  Contact:  Hupyy, Inc.
+  Email:    sales@hupyy.com
+  Subject:  rust-fv Commercial License Inquiry
+
+  Please describe your intended use case, team size, and deployment scope.
+
+=======================================================================
+
+DISCLAIMER:
+
+  THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

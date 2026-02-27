@@ -62,8 +62,9 @@ impl InvalidationDecision {
 /// # Arguments
 /// * `cache` - The verification cache
 /// * `func_name` - Name of the function being checked
-/// * `mir_hash` - Current MIR hash of the function
-/// * `contract_hash` - Current contract hash of the function
+/// * `cache_key` - Combined cache key (SHA-256 of name + contracts + MIR) used for lookup
+/// * `mir_hash` - Current MIR hash of the function (for change detection)
+/// * `contract_hash` - Current contract hash of the function (for change detection)
 /// * `fresh` - If true, force re-verification regardless of cache
 /// * `changed_contracts` - Set of function names whose contracts have changed
 /// * `dependencies` - Direct callees of this function
@@ -71,9 +72,11 @@ impl InvalidationDecision {
 /// # Returns
 /// A decision indicating whether to verify and why.
 #[allow(dead_code)] // Used in future phases
+#[allow(clippy::too_many_arguments)]
 pub fn decide_verification(
     cache: &VcCache,
     func_name: &str,
+    cache_key: &[u8; 32],
     mir_hash: [u8; 32],
     contract_hash: [u8; 32],
     fresh: bool,
@@ -85,14 +88,8 @@ pub fn decide_verification(
         return InvalidationDecision::verify(InvalidationReason::Fresh);
     }
 
-    // Compute cache key (using the deprecated combined hash for now)
-    // TODO: Switch to separate mir_hash/contract_hash lookup once cache format is updated
-    let contracts = rust_fv_analysis::ir::Contracts::default();
-    #[allow(deprecated)]
-    let key = VcCache::compute_key(func_name, &contracts, "");
-
-    // Check if cache entry exists
-    let entry = match cache.get(&key) {
+    // Check if cache entry exists using the combined key (same key used during write)
+    let entry = match cache.get(cache_key) {
         Some(e) => e,
         None => return InvalidationDecision::verify(InvalidationReason::CacheMiss),
     };
@@ -165,9 +162,11 @@ mod tests {
         let dir = temp_cache_dir("fresh_flag");
         let cache = VcCache::new(dir.clone());
 
+        let key = [0u8; 32]; // key unused when fresh=true
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             [1u8; 32],
             [2u8; 32],
             true, // fresh = true
@@ -186,9 +185,11 @@ mod tests {
         let dir = temp_cache_dir("cache_miss");
         let cache = VcCache::new(dir.clone());
 
+        let key = [0u8; 32]; // no cache entry for this key → CacheMiss
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             [1u8; 32],
             [2u8; 32],
             false,
@@ -229,10 +230,11 @@ mod tests {
             },
         );
 
-        // Check with different MIR hash
+        // Check with different MIR hash (same key as insert)
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             new_mir_hash,
             contract_hash,
             false,
@@ -273,10 +275,11 @@ mod tests {
             },
         );
 
-        // Check with different contract hash
+        // Check with different contract hash (same key as insert)
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             mir_hash,
             new_contract_hash,
             false,
@@ -328,6 +331,7 @@ mod tests {
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             mir_hash,
             contract_hash,
             false,
@@ -376,6 +380,7 @@ mod tests {
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             mir_hash,
             contract_hash,
             false,
@@ -415,10 +420,11 @@ mod tests {
             },
         );
 
-        // Check with same hashes
+        // Check with same hashes (same key as insert → cache hit)
         let decision = decide_verification(
             &cache,
             "test_func",
+            &key,
             mir_hash,
             contract_hash,
             false,

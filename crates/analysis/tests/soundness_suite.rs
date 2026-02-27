@@ -455,6 +455,8 @@ fn snd_signed_add_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -512,6 +514,8 @@ fn snd_unsigned_add_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -569,6 +573,8 @@ fn snd_signed_sub_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -626,6 +632,8 @@ fn snd_unsigned_sub_underflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -683,6 +691,8 @@ fn snd_signed_mul_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -740,6 +750,8 @@ fn snd_unsigned_mul_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -797,6 +809,8 @@ fn snd_division_by_zero() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -854,6 +868,8 @@ fn snd_shift_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -914,6 +930,8 @@ fn snd_wrong_postcondition_add() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -930,6 +948,8 @@ fn snd_wrong_postcondition_add() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1003,6 +1023,8 @@ fn snd_wrong_postcondition_max() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1019,6 +1041,8 @@ fn snd_wrong_postcondition_max() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1059,6 +1083,8 @@ fn snd_wrong_postcondition_identity() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1075,6 +1101,8 @@ fn snd_wrong_postcondition_identity() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1109,6 +1137,8 @@ fn snd_wrong_postcondition_constant() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1125,6 +1155,8 @@ fn snd_wrong_postcondition_constant() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1197,6 +1229,8 @@ fn snd_wrong_postcondition_branch() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1213,6 +1247,8 @@ fn snd_wrong_postcondition_branch() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1253,6 +1289,8 @@ fn snd_postcondition_off_by_one() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1269,6 +1307,8 @@ fn snd_postcondition_off_by_one() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1364,6 +1404,8 @@ fn snd_branch_unsound_if_linear() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1380,6 +1422,8 @@ fn snd_branch_unsound_if_linear() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1430,6 +1474,8 @@ fn snd_signed_div_int_min_neg_one() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1446,6 +1492,8 @@ fn snd_signed_div_int_min_neg_one() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1522,6 +1570,8 @@ fn snd_signed_rem_int_min_neg_one() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1538,6 +1588,8 @@ fn snd_signed_rem_int_min_neg_one() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1635,6 +1687,8 @@ fn snd_unrestricted_input_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1778,6 +1832,8 @@ fn snd_nested_branch_wrong_result() {
             invariants: vec![],
             is_pure: true,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1794,6 +1850,8 @@ fn snd_nested_branch_wrong_result() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1853,6 +1911,8 @@ fn snd_unsigned_rem_div_by_zero() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1914,6 +1974,8 @@ fn snd_shr_overflow() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1970,6 +2032,8 @@ fn snd_add_wrong_upper_bound() {
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1986,6 +2050,8 @@ fn snd_add_wrong_upper_bound() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

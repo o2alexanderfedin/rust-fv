@@ -263,6 +263,8 @@ fn make_function_with_trait_object_param(
             invariants: vec![],
             is_pure: false,
             decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
         },
         loops: vec![],
         generic_params: vec![],
@@ -280,6 +282,8 @@ fn make_function_with_trait_object_param(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 

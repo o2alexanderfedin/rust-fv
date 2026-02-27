@@ -25,13 +25,53 @@ export interface JsonFailure {
   contract?: string;
   source_file?: string;
   source_line?: number;
-  counterexample?: JsonAssignment[];
+  counterexample?: JsonAssignment[];        // keep — backward compat
+  counterexample_v2?: JsonCounterexample;   // new — rich schema
   suggestion?: string;
 }
 
 export interface JsonAssignment {
   variable: string;
   value: string;
+}
+
+/** Structured counterexample with typed variables and metadata (v2 schema). */
+export interface JsonCounterexample {
+  variables: JsonCexVariable[];
+  failing_location: JsonLocation;
+  vc_kind: string;
+  violated_spec?: string;
+  /** For async VCs: which poll iteration (0-based state_id) triggered the violation. */
+  poll_iteration?: number;
+  /** For async VCs: "pre_await" (suspension) or "post_await" (resumption) side. */
+  await_side?: string;
+}
+
+/** A single variable in a counterexample. */
+export interface JsonCexVariable {
+  name: string;
+  type: string;
+  /** Present when variable has a single value at point of failure. */
+  display?: string;
+  /** Present when variable has a single value at point of failure. */
+  raw?: unknown;
+  /** Present when variable has an initial (parameter entry) value. */
+  initial?: JsonCexValue;
+  /** Present when variable has a value at point of failure distinct from initial. */
+  at_failure?: JsonCexValue;
+}
+
+/** A single typed value with display string and raw JSON tree. */
+export interface JsonCexValue {
+  display: string;
+  raw: unknown;
+}
+
+/** Source location with file, line, and column. */
+export interface JsonLocation {
+  file: string;
+  line: number;
+  column: number;
 }
 
 export interface JsonSummary {

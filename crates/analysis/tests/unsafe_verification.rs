@@ -84,6 +84,8 @@ fn make_unsafe_function(
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     }
 }
 
@@ -564,6 +566,575 @@ fn test_vc_kind_memory_safety_in_output() {
 // Additional edge cases
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Phase 33 Plan 03: Raw pointer aliasing edge cases (12 new tests)
+// Covers the DEBTLINE scenarios from v0.1 milestone audit.
+// ---------------------------------------------------------------------------
+
+/// Builds a Function with two RawDeref operations on overlapping memory (aliasing simulation).
+/// Both pointers have Unknown provenance, modeling independently-obtained raw pointers
+/// to the same or overlapping memory region.
+fn build_aliased_raw_pointers_function() -> Function {
+    make_unsafe_function(
+        "aliased_raw_ptrs",
+        false,
+        vec![],
+        vec![
+            UnsafeOperation::RawDeref {
+                ptr_local: "_1".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                provenance: RawPtrProvenance::Unknown,
+                block_index: 0,
+            },
+            UnsafeOperation::RawDeref {
+                ptr_local: "_2_alias".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+                provenance: RawPtrProvenance::Unknown,
+                block_index: 0,
+            },
+        ],
+        None,
+    )
+}
+
+/// 1. test_aliased_raw_pointers — two raw pointers to overlapping memory → 2 null-check VCs emitted.
+///
+/// When two raw pointers with Unknown provenance are both dereferenced, VCGen must emit
+/// a null-check VC for each independently. This tests the aliasing scenario where the
+/// same underlying memory region is accessed through multiple pointer variables.
+#[test]
+fn test_aliased_raw_pointers() {
+    let func = build_aliased_raw_pointers_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    // Two aliased pointers each require their own null-check VC
+    assert_eq!(
+        null_check_vcs.len(),
+        2,
+        "Expected 2 null-check VCs for two aliased raw pointer dereferences, got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function with a PtrArithmetic operation using a signed (negative-capable) offset.
+/// Signed offsets can produce negative results, requiring the SMT constraint to capture
+/// that the signed offset may wrap pointer arithmetic into invalid memory.
+fn build_ptr_arithmetic_negative_offset_function() -> Function {
+    make_unsafe_function(
+        "ptr_neg_offset",
+        false,
+        vec![],
+        vec![UnsafeOperation::PtrArithmetic {
+            ptr_local: "_1".to_string(),
+            offset_local: "_2".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+            is_signed_offset: true, // signed i32 negative offset
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 2. test_ptr_arithmetic_negative_offset — signed i32 negative offset → bounds-check VC emitted.
+///
+/// Pointer arithmetic with a signed offset that could be negative is a common
+/// edge case in unsafe Rust. The verifier must emit a bounds-check VC to ensure
+/// the arithmetic stays within the allocation bounds.
+#[test]
+fn test_ptr_arithmetic_negative_offset() {
+    let func = build_ptr_arithmetic_negative_offset_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let bounds_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("bounds-check")
+        })
+        .collect();
+
+    assert!(
+        !bounds_check_vcs.is_empty(),
+        "Expected at least one bounds-check VC for signed (negative) offset pointer arithmetic"
+    );
+}
+
+/// Builds a Function modeling *const *const u8 dereference chain.
+/// Two RawDeref operations are used: one for the outer pointer and one for the inner,
+/// modeling the two-step dereference of a pointer-to-pointer.
+fn build_pointer_to_pointer_function() -> Function {
+    make_unsafe_function(
+        "ptr_to_ptr_deref",
+        false,
+        vec![],
+        vec![
+            // Outer dereference: **const *const u8 → *const u8 (get inner pointer)
+            UnsafeOperation::RawDeref {
+                ptr_local: "_1".to_string(),
+                ptr_ty: Ty::RawPtr(
+                    Box::new(Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Shared)),
+                    Mutability::Shared,
+                ),
+                provenance: RawPtrProvenance::Unknown,
+                block_index: 0,
+            },
+            // Inner dereference: *const u8 → u8 (read actual value)
+            UnsafeOperation::RawDeref {
+                ptr_local: "_3_inner".to_string(),
+                ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Shared),
+                provenance: RawPtrProvenance::Unknown,
+                block_index: 0,
+            },
+        ],
+        None,
+    )
+}
+
+/// 3. test_pointer_to_pointer — *const *const u8 dereference chain → 2 null-check VCs (outer, inner).
+///
+/// Pointer-to-pointer patterns require null checks at each dereference level.
+/// Both the outer (*const *const u8) and inner (*const u8) pointers must be non-null.
+#[test]
+fn test_pointer_to_pointer() {
+    let func = build_pointer_to_pointer_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        2,
+        "Expected 2 null-check VCs for pointer-to-pointer dereference chain, got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling ptr::read_volatile — same as raw deref from safety perspective.
+/// Volatile reads bypass the optimizer but still require the pointer to be non-null.
+/// Modeled as RawDeref with FromInt provenance (volatile reads often come from hardware addresses).
+fn build_volatile_read_via_raw_ptr_function() -> Function {
+    make_unsafe_function(
+        "volatile_read",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_1".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            // Volatile reads to hardware registers come from integer addresses (memory-mapped I/O)
+            provenance: RawPtrProvenance::FromInt,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 4. test_volatile_read_via_raw_ptr — ptr::read_volatile treated same as raw deref → null-check VC emitted.
+///
+/// Volatile reads are semantically equivalent to raw pointer dereferences from a
+/// memory safety perspective. The pointer must be non-null regardless of volatility.
+#[test]
+fn test_volatile_read_via_raw_ptr() {
+    let func = build_volatile_read_via_raw_ptr_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC for volatile read (treated as raw deref), got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling transmute-then-deref pattern.
+/// transmute<T, *const u8>(value) then *ptr → unknown provenance (transmute is opaque).
+/// Modeled as RawDeref with FromInt provenance (transmute is the unsafe equivalent of int-to-ptr).
+fn build_transmute_then_deref_function() -> Function {
+    make_unsafe_function(
+        "transmute_then_deref",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_1".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Shared),
+            // transmute produces a pointer with unknown/opaque provenance
+            // Modeled as FromInt (closest approximation: bits reinterpreted as pointer)
+            provenance: RawPtrProvenance::FromInt,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 5. test_transmute_then_deref — transmute to *const u8 then deref → null-check VC emitted (provenance = Unknown).
+///
+/// `std::mem::transmute` to a raw pointer produces a pointer with completely opaque
+/// provenance. The verifier must emit a null-check VC since there is no guarantee
+/// the transmuted value represents a valid non-null pointer.
+#[test]
+fn test_transmute_then_deref() {
+    let func = build_transmute_then_deref_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC for transmute-then-deref (opaque provenance), got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling pointer from Option::unwrap.
+/// `option.unwrap() as *const T` — if option could be None, pointer would be invalid.
+/// Modeled as RawDeref with Unknown provenance (the unwrap may panic but address is opaque).
+fn build_null_check_from_option_unwrap_function() -> Function {
+    make_unsafe_function(
+        "option_unwrap_deref",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_1".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            // Pointer obtained from Option::unwrap — runtime check but not compile-time guarantee
+            provenance: RawPtrProvenance::Unknown,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 6. test_null_check_from_option_unwrap — pointer from Option::unwrap → null-check VC emitted.
+///
+/// A raw pointer derived from `Option::unwrap()` has Unknown provenance from the verifier's
+/// perspective. The verifier cannot statically determine whether Option contained Some or None,
+/// so a null-check VC must be emitted to surface this as a potential safety violation.
+#[test]
+fn test_null_check_from_option_unwrap() {
+    let func = build_null_check_from_option_unwrap_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC for pointer from Option::unwrap, got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling a struct with *mut u8 field accessed in unsafe block.
+/// The struct field dereference is still a raw pointer dereference and requires null-check.
+fn build_raw_ptr_in_struct_field_function() -> Function {
+    make_unsafe_function(
+        "struct_field_raw_deref",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            // Field access: struct.field is modeled as a local variable holding the field pointer
+            ptr_local: "_field_ptr".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Mutable),
+            provenance: RawPtrProvenance::Unknown,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 7. test_raw_ptr_in_struct_field — struct with *mut u8 field accessed in unsafe block → field dereference VC.
+///
+/// Raw pointer fields in structs are a common pattern in FFI and unsafe code.
+/// Accessing a `*mut T` field from a struct inside an unsafe block must generate
+/// a null-check VC since struct fields can hold null pointers.
+#[test]
+fn test_raw_ptr_in_struct_field() {
+    let func = build_raw_ptr_in_struct_field_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC for struct field raw pointer dereference, got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling *const u8 cast to *const u32 via PtrCast.
+/// The alignment concern (u8 ptr → u32 ptr needs 4-byte alignment) is tracked via PtrCast IR.
+fn build_pointer_cast_chain_function() -> Function {
+    make_unsafe_function(
+        "ptr_cast_alignment",
+        false,
+        vec![],
+        vec![UnsafeOperation::PtrCast {
+            source_local: "_1".to_string(),
+            source_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Shared),
+            target_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            provenance: RawPtrProvenance::Unknown,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 8. test_pointer_cast_chain — *const u8 cast to *const u32 → 0 VCs currently (alignment VC not yet implemented).
+///
+/// Casting between raw pointer types (e.g., `*const u8` → `*const u32`) should ideally
+/// generate an alignment-check VC to ensure the source pointer satisfies the stricter
+/// alignment requirements of the target type.
+///
+/// DEBTLINE: Currently emits 0 VCs — alignment-check VC for PtrCast not yet implemented.
+/// The PtrCast IR variant exists but VCGen does not yet generate alignment VCs for it.
+/// This is a known gap documented for future implementation.
+#[test]
+fn test_pointer_cast_chain() {
+    let func = build_pointer_cast_chain_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let memory_safety_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::MemorySafety)
+        .collect();
+
+    // DEBTLINE: currently emits 0 VCs — alignment-check VC for PtrCast not yet implemented.
+    // When alignment VCs are added, this assertion should change to assert_eq!(1, ...).
+    assert_eq!(
+        memory_safety_vcs.len(),
+        0,
+        "PtrCast currently generates 0 memory safety VCs (alignment check not yet implemented)"
+    );
+}
+
+/// Builds a Function modeling UnsafeCell<T> accessed via raw pointer.
+/// Interior mutability via raw pointer (e.g., UnsafeCell<T>.get()) produces
+/// a *mut T with Unknown provenance inside unsafe blocks.
+fn build_interior_mutability_via_raw_ptr_function() -> Function {
+    make_unsafe_function(
+        "unsafe_cell_deref",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_cell_ptr".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+            // UnsafeCell::get() returns *mut T — provenance Unknown (not from safe &T)
+            provenance: RawPtrProvenance::Unknown,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 9. test_interior_mutability_via_raw_ptr — UnsafeCell<T> accessed via raw pointer → null-check VC.
+///
+/// `UnsafeCell<T>::get()` returns a `*mut T` raw pointer. While UnsafeCell is the
+/// standard interior mutability primitive in Rust, dereferencing its raw pointer
+/// still requires a null-check VC since the cell could theoretically be uninitialized.
+#[test]
+fn test_interior_mutability_via_raw_ptr() {
+    let func = build_interior_mutability_via_raw_ptr_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC for UnsafeCell raw pointer dereference, got {}",
+        null_check_vcs.len()
+    );
+}
+
+/// Builds a Function modeling raw pointer + offset used as array index (unsafe slice access).
+/// ptr.add(idx) where idx is used to index into an array via raw pointer arithmetic.
+fn build_array_index_through_raw_ptr_function() -> Function {
+    make_unsafe_function(
+        "raw_ptr_array_index",
+        false,
+        vec![],
+        vec![UnsafeOperation::PtrArithmetic {
+            ptr_local: "_1".to_string(),
+            offset_local: "_2".to_string(), // array index used as offset
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Shared),
+            is_signed_offset: false, // array indices are non-negative
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 10. test_array_index_through_raw_ptr — raw pointer + offset used as array index → bounds-check VC.
+///
+/// Accessing array elements through raw pointer arithmetic (e.g., `*ptr.add(i)`) is a
+/// common pattern in performance-critical code. The verifier must emit a bounds-check VC
+/// to ensure the array index stays within the allocated buffer's bounds.
+#[test]
+fn test_array_index_through_raw_ptr() {
+    let func = build_array_index_through_raw_ptr_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let bounds_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("bounds-check")
+        })
+        .collect();
+
+    assert!(
+        !bounds_check_vcs.is_empty(),
+        "Expected at least one bounds-check VC for array indexing through raw pointer"
+    );
+}
+
+/// Builds a Function modeling a function pointer accessed via raw pointer.
+/// *const fn() raw pointer — dereferencing a function pointer requires it to be non-null
+/// and point to valid executable memory (modeled as null-check only at this level).
+fn build_function_pointer_via_raw_ptr_function() -> Function {
+    make_unsafe_function(
+        "fn_ptr_via_raw",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_fn_ptr".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I8)), Mutability::Shared),
+            // Function pointers obtained from external sources have unknown provenance
+            provenance: RawPtrProvenance::FromInt,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 11. test_function_pointer_via_raw_ptr — *const fn() raw pointer → VC emitted (no crash).
+///
+/// Function pointers stored as raw pointers (common in FFI callbacks) must be verified
+/// non-null before calling. This test validates that the verifier handles function pointer
+/// raw dereferences without crashing and emits the appropriate VC.
+#[test]
+fn test_function_pointer_via_raw_ptr() {
+    let func = build_function_pointer_via_raw_ptr_function();
+    // The key requirement here is that generate_vcs does not crash/panic.
+    // Function pointer raw dereferences should be handled gracefully.
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let memory_safety_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::MemorySafety)
+        .collect();
+
+    // A null-check VC should be emitted for the function pointer dereference
+    assert!(
+        !memory_safety_vcs.is_empty(),
+        "Expected at least one MemorySafety VC for function pointer via raw pointer (no crash)"
+    );
+}
+
+/// Builds a Function modeling cross-function pointer aliasing.
+/// A pointer is "returned" from one function and "used" in another.
+/// At the intra-procedural level, this appears as a RawDeref with Unknown provenance
+/// (the cross-function aliasing relationship requires inter-procedural analysis).
+fn build_cross_function_pointer_aliasing_function() -> Function {
+    make_unsafe_function(
+        "cross_fn_ptr_use",
+        false,
+        vec![],
+        vec![UnsafeOperation::RawDeref {
+            ptr_local: "_1".to_string(),
+            ptr_ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), Mutability::Mutable),
+            // Pointer received as parameter from caller — provenance Unknown at this call site
+            provenance: RawPtrProvenance::Unknown,
+            block_index: 0,
+        }],
+        None,
+    )
+}
+
+/// 12. test_cross_function_pointer_aliasing — pointer returned from one function, used in another →
+///     null-check VC emitted at use site; aliasing relationship itself produces 0 aliasing VCs.
+///
+/// Cross-function pointer aliasing (where the same memory is accessible through pointers
+/// in different stack frames) requires inter-procedural alias analysis to detect violations.
+///
+/// DEBTLINE: Inter-procedural aliasing VCs not yet implemented — cross-function aliasing
+/// analysis requires call-graph construction and pointer alias propagation across function
+/// boundaries, which is beyond Phase 10 scope. The null-check at the use site IS emitted
+/// (since provenance is Unknown), but the aliasing relationship itself is not tracked.
+///
+/// Current behavior: 1 null-check VC emitted at the use site (intra-procedural).
+/// Future work: aliasing VC or note when the same pointer appears in multiple function signatures.
+#[test]
+fn test_cross_function_pointer_aliasing() {
+    let func = build_cross_function_pointer_aliasing_function();
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    let null_check_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == VcKind::MemorySafety && vc.description.contains("null-check")
+        })
+        .collect();
+
+    // Intra-procedural: null-check VC IS emitted for the pointer use site
+    assert_eq!(
+        null_check_vcs.len(),
+        1,
+        "Expected 1 null-check VC at pointer use site (intra-procedural); \
+         cross-function aliasing detection requires inter-procedural analysis (DEBTLINE)"
+    );
+}
+
 #[test]
 fn test_safe_function_no_unsafe_vcs() {
     // Build a completely safe Function (no unsafe blocks, operations, or contracts)
@@ -596,6 +1167,8 @@ fn test_safe_function_no_unsafe_vcs() {
         sync_ops: vec![],
         lock_invariants: vec![],
         concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
     };
 
     // Generate VCs

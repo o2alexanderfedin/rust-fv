@@ -229,6 +229,72 @@ pub fn verify(attr: TokenStream, item: TokenStream) -> TokenStream {
     verify_impl(attr.into(), item.into()).into()
 }
 
+/// Attach a higher-order function specification to a function parameter.
+///
+/// `#[fn_spec(f, |x| pre => post)]` specifies a contract that must hold for any
+/// closure `f` passed to the function: for all `x` satisfying `pre`, calling `f(x)`
+/// yields a result satisfying `post`.
+///
+/// Multiple clauses may be specified for different closure parameters:
+/// `#[fn_spec(f => |x| pre_f => post_f, g => |y| pre_g => post_g)]`
+///
+/// # Example
+///
+/// ```ignore
+/// #[fn_spec(f, |x: i32| x > 0 => result > 0)]
+/// fn apply_positive(f: impl Fn(i32) -> i32, x: i32) -> i32 { f(x) }
+/// ```
+#[proc_macro_attribute]
+pub fn fn_spec(attr: TokenStream, item: TokenStream) -> TokenStream {
+    fn_spec_impl(attr.into(), item.into()).into()
+}
+
+/// Attach a state invariant to an async function.
+///
+/// The invariant must hold at every `.await` suspension point:
+/// both at suspension (just before yielding) and at resumption (just after
+/// control returns from the awaited future).
+///
+/// The invariant expression may reference any local variable visible at
+/// the annotation site, including captured variables and `&mut` fields.
+///
+/// # Example
+///
+/// ```ignore
+/// #[state_invariant(counter >= 0)]
+/// async fn process(counter: &mut i32) {
+///     some_future().await;
+///     *counter += 1;
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn state_invariant(attr: TokenStream, item: TokenStream) -> TokenStream {
+    spec_attribute("state_invariant", attr, item)
+}
+
+/// Marks a function as a ghost predicate for separation logic specs.
+///
+/// The function body is serialized as a hidden doc attribute so the
+/// driver can extract and store it in the GhostPredicateDatabase.
+/// Ghost predicates may be recursive; the verifier unfolds them to depth 3.
+///
+/// # Example
+///
+/// ```ignore
+/// #[ghost_predicate]
+/// fn linked_list(p: *const Node, n: usize) -> bool {
+///     if n == 0 { p.is_null() } else { pts_to(p, *p) && linked_list((*p).next, n - 1) }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn ghost_predicate(attr: TokenStream, item: TokenStream) -> TokenStream {
+    ghost_predicate_impl(
+        proc_macro2::TokenStream::from(attr),
+        proc_macro2::TokenStream::from(item),
+    )
+    .into()
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -342,6 +408,215 @@ fn borrow_ensures_impl(
         #[doc(hidden)]
         #[doc = #doc_value]
         #item
+    }
+}
+
+/// `proc_macro2`-based implementation of `fn_spec` for unit testing.
+///
+/// Supports two syntactic forms:
+/// - Single: `(f, |x| pre => post)` — param name, comma, then closure-style clause
+/// - Multiple: `(f => |x| ..., g => |y| ...)` — `PARAM => CLAUSE` pairs
+///
+/// Encodes each clause as a hidden doc attribute:
+/// `"rust_fv::fn_spec::PARAM::CLAUSE"` where the clause contains `%%` as
+/// the pre/post separator to avoid `::` collisions in expression content.
+fn fn_spec_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    use proc_macro2::{Punct, Spacing, TokenTree};
+
+    if attr.is_empty() {
+        return syn::Error::new_spanned(
+            attr,
+            "`#[fn_spec]` requires arguments: `#[fn_spec(param, |x| pre => post)]`",
+        )
+        .to_compile_error();
+    }
+
+    // Collect all tokens into a flat Vec for scanning
+    let tokens: Vec<TokenTree> = attr.into_iter().collect();
+
+    // Strategy: split tokens on top-level commas, then detect form.
+    let segments = split_on_top_level_commas(&tokens);
+
+    if segments.is_empty() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`#[fn_spec]` requires at least one clause",
+        )
+        .to_compile_error();
+    }
+
+    // Determine if this is single-form `(f, |x| pre => post)` or multi-clause `(f => |x| ..., g => ...)`
+    // Single form: first segment has no `=>` (it's just the param name)
+    // Multi-clause form: each segment contains `=>`
+    let is_single_form = !contains_fat_arrow(&segments[0]);
+
+    let mut doc_values: Vec<String> = Vec::new();
+
+    if is_single_form && segments.len() >= 2 {
+        // Single form: segments[0] = param ident, rest = clause tokens (rejoin with commas)
+        let param_str = tokens_to_string(&segments[0]);
+
+        // Rejoin remaining segments — they were split on commas but clause may contain commas
+        let clause_tokens: Vec<TokenTree> = segments[1..]
+            .iter()
+            .enumerate()
+            .flat_map(|(i, seg)| {
+                let mut v = seg.clone();
+                if i + 1 < segments[1..].len() {
+                    v.push(TokenTree::Punct(Punct::new(',', Spacing::Alone)));
+                }
+                v
+            })
+            .collect();
+
+        match encode_clause(&clause_tokens) {
+            Ok(encoded) => {
+                doc_values.push(format!("rust_fv::fn_spec::{}::{}", param_str, encoded));
+            }
+            Err(e) => return e,
+        }
+    } else {
+        // Multi-clause form: each segment is `PARAM => CLAUSE`
+        for segment in &segments {
+            match parse_param_fat_arrow_clause(segment) {
+                Ok((param, encoded)) => {
+                    doc_values.push(format!("rust_fv::fn_spec::{}::{}", param, encoded));
+                }
+                Err(e) => return e,
+            }
+        }
+    }
+
+    if doc_values.is_empty() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`#[fn_spec]` produced no clauses",
+        )
+        .to_compile_error();
+    }
+
+    quote::quote! {
+        #(
+            #[doc(hidden)]
+            #[doc = #doc_values]
+        )*
+        #item
+    }
+}
+
+/// Split a flat token list on top-level commas (not inside groups).
+fn split_on_top_level_commas(
+    tokens: &[proc_macro2::TokenTree],
+) -> Vec<Vec<proc_macro2::TokenTree>> {
+    let mut segments: Vec<Vec<proc_macro2::TokenTree>> = Vec::new();
+    let mut current: Vec<proc_macro2::TokenTree> = Vec::new();
+
+    for token in tokens {
+        match token {
+            proc_macro2::TokenTree::Punct(p) if p.as_char() == ',' => {
+                segments.push(current.clone());
+                current.clear();
+            }
+            _ => {
+                current.push(token.clone());
+            }
+        }
+    }
+    if !current.is_empty() || !segments.is_empty() {
+        segments.push(current);
+    }
+    segments
+}
+
+/// Check if a token slice contains a fat-arrow `=>` at the top level.
+fn contains_fat_arrow(tokens: &[proc_macro2::TokenTree]) -> bool {
+    let mut i = 0;
+    while i < tokens.len() {
+        if let proc_macro2::TokenTree::Punct(p) = &tokens[i]
+            && p.as_char() == '='
+            && let Some(proc_macro2::TokenTree::Punct(p2)) = tokens.get(i + 1)
+            && p2.as_char() == '>'
+        {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Convert a token slice to a compact string representation.
+fn tokens_to_string(tokens: &[proc_macro2::TokenTree]) -> String {
+    let ts: proc_macro2::TokenStream = tokens.iter().cloned().collect();
+    ts.to_string().trim().to_string()
+}
+
+/// Encode a clause `|x| pre => post` as `CLAUSE_STR` where `%%` separates pre and post.
+///
+/// The clause tokens must contain `=>` at the top level.
+/// Left of `=>` is `|bound_vars| pre_expr`, right of `=>` is `post_expr`.
+///
+/// Returns encoded string: `CLAUSE_WITH_PRE%%POST`
+/// The full token string of the clause (|x| pre) is stored as-is before `%%`,
+/// and the post expression tokens after `%%`.
+fn encode_clause(tokens: &[proc_macro2::TokenTree]) -> Result<String, proc_macro2::TokenStream> {
+    // Find the `=>` split position
+    let split_pos = find_fat_arrow_position(tokens);
+    match split_pos {
+        None => Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "fn_spec clause must contain `=>` to separate pre and post conditions",
+        )
+        .to_compile_error()),
+        Some(pos) => {
+            let pre_tokens = &tokens[..pos];
+            let post_tokens = &tokens[pos + 2..]; // skip `=` and `>`
+            let pre_str = tokens_to_string(pre_tokens);
+            let post_str = tokens_to_string(post_tokens);
+            Ok(format!("{}%%{}", pre_str, post_str))
+        }
+    }
+}
+
+/// Find the position of the first top-level `=>` (fat arrow) in a token slice.
+/// Returns the index of the `=` token (the `>` is at index + 1).
+fn find_fat_arrow_position(tokens: &[proc_macro2::TokenTree]) -> Option<usize> {
+    let mut i = 0;
+    while i < tokens.len() {
+        if let proc_macro2::TokenTree::Punct(p) = &tokens[i]
+            && p.as_char() == '='
+            && let Some(proc_macro2::TokenTree::Punct(p2)) = tokens.get(i + 1)
+            && p2.as_char() == '>'
+        {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Parse a segment of form `PARAM => CLAUSE` from a multi-clause fn_spec.
+/// Returns `(param_string, encoded_clause_string)`.
+fn parse_param_fat_arrow_clause(
+    tokens: &[proc_macro2::TokenTree],
+) -> Result<(String, String), proc_macro2::TokenStream> {
+    // Find the first `=>` at top level
+    let pos = find_fat_arrow_position(tokens);
+    match pos {
+        None => Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "fn_spec multi-clause form requires `PARAM => |x| pre => post`",
+        )
+        .to_compile_error()),
+        Some(pos) => {
+            let param_tokens = &tokens[..pos];
+            let clause_tokens = &tokens[pos + 2..]; // skip `=` and `>`
+            let param_str = tokens_to_string(param_tokens);
+            let encoded = encode_clause(clause_tokens)?;
+            Ok((param_str, encoded))
+        }
     }
 }
 
@@ -466,6 +741,52 @@ fn extend_contract_impl(
     }
 
     let doc_value = "rust_fv::extend_contract";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
+/// `proc_macro2`-based implementation of `ghost_predicate` for unit testing.
+///
+/// Serializes the function's parameter names and body as a hidden doc attribute.
+/// Format: `rust_fv::ghost_predicate::name::params::body`
+/// where params is a comma-separated list of parameter names and body is the
+/// token stream string of the function block.
+fn ghost_predicate_impl(
+    _attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let func: syn::ItemFn = match syn::parse2(item.clone()) {
+        Ok(f) => f,
+        Err(err) => return err.to_compile_error(),
+    };
+
+    let fn_name = func.sig.ident.to_string();
+    // Serialize param names as comma-separated string
+    let param_names: Vec<String> = func
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| {
+            if let syn::FnArg::Typed(pat_ty) = arg
+                && let syn::Pat::Ident(ident) = &*pat_ty.pat
+            {
+                return Some(ident.ident.to_string());
+            }
+            None
+        })
+        .collect();
+    let params_str = param_names.join(",");
+    // Serialize the function body as token stream string
+    let body_str = func.block.to_token_stream().to_string();
+    // Format: "rust_fv::ghost_predicate::name::params::body"
+    let doc_value = format!(
+        "rust_fv::ghost_predicate::{}::{}::{}",
+        fn_name, params_str, body_str
+    );
 
     quote::quote! {
         #[doc(hidden)]
@@ -1142,6 +1463,186 @@ mod tests {
         assert!(result_str.contains("rust_fv::verify::threads::4"));
         assert!(result_str.contains("rust_fv::verify::switches::8"));
         assert!(result_str.contains("fn heavy_concurrent"));
+    }
+
+    // --- fn_spec tests (Phase 22-01) ---
+
+    #[test]
+    fn test_fn_spec_single_clause() {
+        let attr: proc_macro2::TokenStream = quote! { f, |x: i32| x > 0 => result > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn apply(f: impl Fn(i32) -> i32, x: i32) -> i32 { f(x) }
+        };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(
+            result_str.contains("# [doc (hidden)]"),
+            "should have doc hidden"
+        );
+        assert!(
+            result_str.contains("rust_fv::fn_spec::f::"),
+            "should have fn_spec prefix with param 'f': {}",
+            result_str
+        );
+        assert!(result_str.contains("%%"), "should use %% separator");
+    }
+
+    #[test]
+    fn test_fn_spec_single_clause_doc_format() {
+        let attr: proc_macro2::TokenStream = quote! { f, |x: i32| x > 0 => result > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn apply(f: impl Fn(i32) -> i32, x: i32) -> i32 { f(x) }
+        };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        // Should encode pre and post separated by %%
+        assert!(result_str.contains("x > 0"), "should contain pre condition");
+        assert!(
+            result_str.contains("result > 0"),
+            "should contain post condition"
+        );
+    }
+
+    #[test]
+    fn test_fn_spec_multiple_clauses() {
+        let attr: proc_macro2::TokenStream =
+            quote! { f => |x: i32| x > 0 => result > 0, g => |y: i32| y >= 0 => result >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn apply_two(f: impl Fn(i32) -> i32, g: impl Fn(i32) -> i32) -> i32 { 0 }
+        };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(
+            result_str.contains("rust_fv::fn_spec::f::"),
+            "should have spec for param f: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("rust_fv::fn_spec::g::"),
+            "should have spec for param g: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn test_fn_spec_multiple_clauses_two_doc_attrs() {
+        let attr: proc_macro2::TokenStream =
+            quote! { f => |x: i32| x > 0 => result > 0, g => |y: i32| y >= 0 => result >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn apply_two(f: impl Fn(i32) -> i32, g: impl Fn(i32) -> i32) -> i32 { 0 }
+        };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        // Should have two doc(hidden) attributes
+        let hidden_count = result_str.matches("# [doc (hidden)]").count();
+        assert_eq!(
+            hidden_count, 2,
+            "should have exactly 2 doc(hidden) attributes"
+        );
+    }
+
+    #[test]
+    fn test_fn_spec_empty_attr_returns_error() {
+        let attr: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
+        let item: proc_macro2::TokenStream = quote! { fn f() {} };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(
+            result_str.contains("compile_error"),
+            "empty attr should produce compile_error"
+        );
+    }
+
+    #[test]
+    fn test_fn_spec_preserves_item() {
+        let attr: proc_macro2::TokenStream = quote! { f, |x: i32| x > 0 => result > 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            fn apply(f: impl Fn(i32) -> i32, x: i32) -> i32 { f(x) }
+        };
+
+        let result = fn_spec_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("fn apply"), "should preserve function");
+        assert!(
+            result_str.contains("f (x)"),
+            "should preserve function body"
+        );
+    }
+
+    // --- ghost_predicate tests (Phase 20-02) ---
+
+    #[test]
+    fn test_ghost_predicate_macro() {
+        let attr = proc_macro2::TokenStream::new();
+        let item: proc_macro2::TokenStream = quote! {
+            fn foo(p: *const i32, n: usize) -> bool { true }
+        };
+
+        let result = ghost_predicate_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::ghost_predicate::foo"));
+        assert!(result_str.contains("p,n"));
+        assert!(result_str.contains("fn foo"));
+    }
+
+    // --- state_invariant tests (Phase 23-01) ---
+
+    #[test]
+    fn test_state_invariant_emits_doc_attribute() {
+        let attr: proc_macro2::TokenStream = quote! { counter >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            async fn process(counter: &mut i32) {
+                some_future().await;
+            }
+        };
+
+        let result = spec_attribute_impl("state_invariant", attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::state_invariant::counter >= 0"));
+        assert!(result_str.contains("async fn process"));
+    }
+
+    #[test]
+    fn test_state_invariant_doc_format() {
+        let attr: proc_macro2::TokenStream = quote! { x >= 0 };
+        let item: proc_macro2::TokenStream = quote! {
+            async fn f() {}
+        };
+
+        let result = spec_attribute_impl("state_invariant", attr, item);
+        let result_str = normalise(result);
+
+        // Should follow the rust_fv::state_invariant:: prefix pattern
+        assert!(result_str.contains("rust_fv::state_invariant::x >= 0"));
+    }
+
+    #[test]
+    fn test_ghost_predicate_macro_empty_params() {
+        let attr = proc_macro2::TokenStream::new();
+        let item: proc_macro2::TokenStream = quote! {
+            fn emp() -> bool { true }
+        };
+
+        let result = ghost_predicate_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("rust_fv::ghost_predicate::emp"));
+        assert!(result_str.contains("fn emp"));
     }
 
     // --- override_contract tests (Phase 13-04) ---
