@@ -71,12 +71,16 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 **Goal**: Users can verify that raw pointer arguments do not alias across function call boundaries in unsafe code
 **Depends on**: Phase 33 (v0.5-audit complete)
 **Requirements**: ALIAS-01, ALIAS-02
+**Plans**: 2 plans
 **Success Criteria** (what must be TRUE):
   1. User can write `#[unsafe_requires(!ptr_a.alias(ptr_b))]` on an unsafe function and `cargo verify` enforces the non-aliasing constraint across call boundaries
   2. User sees a counterexample identifying which specific pointer arguments alias when an aliasing violation is detected at a call site
   3. `unsafe_verification.rs` tracks aliasing via call-graph edges so that aliased pointer pairs from callers propagate into callee VCs
   4. The existing intra-procedural null/bounds checks in `unsafe_verification.rs:1109-1135` remain GREEN with no regressions
-**Plans**: TBD
+
+Plans:
+- [ ] 34-01-PLAN.md — Core alias infrastructure (spec_parser alias arm, heap_model assertion, VcKind::PointerAliasing, contract_db AliasPrecondition)
+- [ ] 34-02-PLAN.md — Call-site VC injection (unsafe_analysis extraction, vcgen injection loop, integration tests + DEBTLINE update)
 
 ### Phase 35: Opaque Callee Diagnostics
 **Goal**: Users receive actionable diagnostics when a verified function calls an uncontracted callee, replacing the current silent skip
@@ -116,7 +120,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 34. Cross-Function Pointer Aliasing | v0.6 | 0/TBD | Not started | - |
+| 34. Cross-Function Pointer Aliasing | v0.6 | 0/2 | In progress | - |
 | 35. Opaque Callee Diagnostics | v0.6 | 0/TBD | Not started | - |
 | 36. Summary Contract Inference | v0.6 | 0/TBD | Not started | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
