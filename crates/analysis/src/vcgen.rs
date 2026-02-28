@@ -9302,4 +9302,91 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
+
+    // --- infer_summary suppression tests (Phase 36-01) ---
+
+    #[test]
+    fn test_no_opaque_callee_vc_for_inferred_summary_callee() {
+        // When callee has is_inferred=true, generate_call_site_vcs must emit ZERO OpaqueCallee VCs.
+        // The callee has an empty contract but is_inferred=true -- treat as contracted pure callee.
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    requires: vec![],
+                    ensures: vec![],
+                    invariants: vec![],
+                    is_pure: false,
+                    is_inferred: true,
+                    decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
+                },
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+            })
+            .collect();
+        assert!(
+            opaque_vcs.is_empty(),
+            "Expected ZERO OpaqueCallee VCs for infer_summary callee (is_inferred=true), got: \
+             {:?}",
+            opaque_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_contracted_callee_with_empty_requires_emits_no_opaque_vc() {
+        // Regression: contracted callee (is_inferred=false) with empty requires/ensures
+        // still produces ZERO OpaqueCallee VCs (it has a contract, even if empty).
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+            })
+            .collect();
+        assert!(
+            opaque_vcs.is_empty(),
+            "Expected ZERO OpaqueCallee VCs for contracted callee with empty requires \
+             (is_inferred=false), got: {:?}",
+            opaque_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
+        );
+    }
 }
