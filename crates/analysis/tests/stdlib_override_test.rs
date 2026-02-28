@@ -34,6 +34,7 @@ fn make_test_contract(
             param_names: (0..param_count).map(|i| format!("arg{}", i)).collect(),
             param_types: vec![Ty::Uint(UintTy::Usize); param_count],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }

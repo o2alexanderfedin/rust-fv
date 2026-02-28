@@ -190,6 +190,7 @@ mod tests {
                 param_names: vec!["self".to_string(), "value".to_string()],
                 param_types: vec![Ty::Unit, Ty::Int(IntTy::I32)],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         };
@@ -214,6 +215,7 @@ mod tests {
                 param_names: vec!["self".to_string()],
                 param_types: vec![Ty::Unit],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         };
@@ -244,6 +246,7 @@ mod tests {
                 param_names: vec!["self".to_string()],
                 param_types: vec![Ty::Unit],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         };
@@ -268,6 +271,7 @@ mod tests {
                 param_names: vec!["self".to_string()],
                 param_types: vec![Ty::Unit],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
             source: ContractSource::UserOverride,
         };
@@ -305,6 +309,7 @@ mod tests {
                 param_names: vec!["self".to_string(), "value".to_string()],
                 param_types: vec![Ty::Unit, Ty::Int(IntTy::I32)],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         };
@@ -338,6 +343,7 @@ mod tests {
                 param_names: vec!["self".to_string(), "value".to_string()],
                 param_types: vec![Ty::Unit, Ty::Int(IntTy::I32)],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         };

@@ -419,6 +419,7 @@ impl Callbacks for VerificationCallbacks {
                     param_names: params.iter().map(|(n, _)| n.clone()).collect(),
                     param_types: params.iter().map(|(_, t)| t.clone()).collect(),
                     return_ty,
+                    alias_preconditions: vec![],
                 },
             );
         }
@@ -1189,6 +1190,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::BehavioralSubtyping => "behavioral_subtyping",
         VcKind::BorrowValidity => "borrow_validity",
         VcKind::MemorySafety => "memory_safety",
+        VcKind::PointerAliasing => "pointer_aliasing",
         VcKind::FloatingPointNaN => "floating_point_nan",
         VcKind::DataRaceFreedom => "data_race_freedom",
         VcKind::LockInvariant => "lock_invariant",

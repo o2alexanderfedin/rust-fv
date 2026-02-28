@@ -72,6 +72,7 @@ fn option_is_some_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -106,6 +107,7 @@ fn option_is_none_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -143,6 +145,7 @@ fn option_unwrap_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Generic T
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -182,6 +185,7 @@ fn option_map_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<U>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -216,6 +220,7 @@ fn option_and_then_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<U>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -254,6 +259,7 @@ fn option_ok_or_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "err".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Result<T, E>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -292,6 +298,7 @@ fn option_unwrap_or_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "default".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // T
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -326,6 +333,7 @@ fn option_unwrap_or_else_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // T
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }

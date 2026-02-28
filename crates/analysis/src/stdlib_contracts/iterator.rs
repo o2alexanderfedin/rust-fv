@@ -76,6 +76,7 @@ fn register_next(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Option<Item>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -109,6 +110,7 @@ fn register_map(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Map<Self, F>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -142,6 +144,7 @@ fn register_filter(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "predicate".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Filter<Self, P>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -175,6 +178,7 @@ fn register_collect(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // B: FromIterator
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -205,6 +209,7 @@ fn register_count(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // usize
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -238,6 +243,7 @@ fn register_fold(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "init".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // B
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -271,6 +277,7 @@ fn register_any(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "predicate".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -304,6 +311,7 @@ fn register_all(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "predicate".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -337,6 +345,7 @@ fn register_zip(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "other".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Zip<Self, U::IntoIter>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -371,6 +380,7 @@ fn register_enumerate(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Enumerate<Self>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -404,6 +414,7 @@ fn register_take(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "n".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Take<Self>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };

@@ -231,6 +231,7 @@ mod tests {
                 param_names: (0..param_count).map(|i| format!("param{}", i)).collect(),
                 param_types: vec![Ty::Unit; param_count],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
             source: ContractSource::Builtin,
         }

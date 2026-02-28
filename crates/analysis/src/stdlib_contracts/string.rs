@@ -62,6 +62,7 @@ fn register_string_len(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // usize
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -93,6 +94,7 @@ fn register_string_is_empty(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -123,6 +125,7 @@ fn register_string_push_str(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "other".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -153,6 +156,7 @@ fn register_str_len(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // usize
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -184,6 +188,7 @@ fn register_str_is_empty(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -212,6 +217,7 @@ fn register_str_contains(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "pat".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -243,6 +249,7 @@ fn register_str_as_bytes(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // &[u8]
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -273,6 +280,7 @@ fn register_slice_len(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // usize
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -304,6 +312,7 @@ fn register_slice_get(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string(), "index".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<&T>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };
@@ -335,6 +344,7 @@ fn register_slice_is_empty(registry: &mut StdlibContractRegistry) {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     };

@@ -283,6 +283,7 @@ fn make_contract_database() -> ContractDatabase {
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
             return_ty: Ty::Int(IntTy::I32),
+            alias_preconditions: vec![],
         },
     );
 
@@ -306,6 +307,7 @@ fn make_contract_database() -> ContractDatabase {
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
             return_ty: Ty::Int(IntTy::I32),
+            alias_preconditions: vec![],
         },
     );
 
@@ -329,6 +331,7 @@ fn make_contract_database() -> ContractDatabase {
             param_names: vec!["_1".to_string()],
             param_types: vec![Ty::Int(IntTy::I32)],
             return_ty: Ty::Int(IntTy::I32),
+            alias_preconditions: vec![],
         },
     );
 

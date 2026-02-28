@@ -384,6 +384,7 @@ fn make_callee_summary(
         param_names: param_names.into_iter().map(|s| s.to_string()).collect(),
         param_types,
         return_ty,
+        alias_preconditions: vec![],
     }
 }
 

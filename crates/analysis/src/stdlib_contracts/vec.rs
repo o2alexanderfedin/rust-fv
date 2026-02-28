@@ -76,6 +76,7 @@ fn vec_push_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "value".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit], // Generic T
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -116,6 +117,7 @@ fn vec_pop_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Option<T>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -149,6 +151,7 @@ fn vec_len_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Uint(UintTy::Usize),
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -185,6 +188,7 @@ fn vec_capacity_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Uint(UintTy::Usize),
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -230,6 +234,7 @@ fn vec_get_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "index".to_string()],
             param_types: vec![Ty::Unit, Ty::Uint(UintTy::Usize)],
             return_ty: Ty::Unit, // Option<&T>
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -274,6 +279,7 @@ fn vec_reserve_contract() -> StdlibContract {
             param_names: vec!["self".to_string(), "additional".to_string()],
             param_types: vec![Ty::Unit, Ty::Uint(UintTy::Usize)],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -318,6 +324,7 @@ fn vec_shrink_to_fit_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -354,6 +361,7 @@ fn vec_is_empty_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }
@@ -388,6 +396,7 @@ fn vec_clear_contract() -> StdlibContract {
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
         source: ContractSource::Builtin,
     }

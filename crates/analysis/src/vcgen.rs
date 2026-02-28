@@ -114,6 +114,9 @@ pub enum VcKind {
     BorrowValidity,
     /// Memory safety check (null-check, bounds-check, use-after-free for unsafe code)
     MemorySafety,
+    /// Pointer argument aliasing check at function call boundaries.
+    /// Generated when callee has `#[unsafe_requires(!alias(p, q))]`.
+    PointerAliasing,
     /// Floating-point NaN propagation or infinity overflow check
     FloatingPointNaN,
     /// Data race freedom check (conflicting accesses must be ordered)
@@ -7263,6 +7266,7 @@ mod tests {
                 param_names: vec!["_1".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
         );
 
@@ -7317,6 +7321,7 @@ mod tests {
                 param_names: vec!["_1".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
         );
 
@@ -8463,6 +8468,7 @@ mod tests {
                     Ty::Int(IntTy::I32),
                 ],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
         );
 

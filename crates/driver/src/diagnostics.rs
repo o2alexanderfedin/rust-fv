@@ -372,6 +372,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::BehavioralSubtyping => "impl does not satisfy trait contract",
         VcKind::BorrowValidity => "borrow validity violation",
         VcKind::MemorySafety => "memory safety violation",
+        VcKind::PointerAliasing => "pointer aliasing violation",
         VcKind::FloatingPointNaN => "floating-point verification failure",
         VcKind::DataRaceFreedom => "data race detected",
         VcKind::LockInvariant => "lock invariant violation",

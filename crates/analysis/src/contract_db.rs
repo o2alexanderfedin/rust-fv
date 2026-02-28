@@ -13,6 +13,20 @@ use std::collections::HashMap;
 
 use crate::ir::{Contracts, Ty};
 
+/// A pointer non-aliasing precondition extracted from `#[unsafe_requires(!alias(p, q))]`.
+///
+/// Stored by parameter index (not name) so it survives call-site argument substitution.
+/// Plan 02 uses these entries to inject alias VCs at each call site.
+#[derive(Debug, Clone)]
+pub struct AliasPrecondition {
+    /// Zero-based index of first pointer parameter in callee signature.
+    pub param_idx_a: usize,
+    /// Zero-based index of second pointer parameter in callee signature.
+    pub param_idx_b: usize,
+    /// Raw spec text for counterexample diagnostics (e.g., "!ptr_a.alias(ptr_b)").
+    pub raw: String,
+}
+
 /// A function summary: contracts plus parameter metadata for argument substitution.
 #[derive(Debug, Clone)]
 pub struct FunctionSummary {
@@ -24,6 +38,9 @@ pub struct FunctionSummary {
     pub param_types: Vec<Ty>,
     /// Return type
     pub return_ty: Ty,
+    /// Alias preconditions extracted from `#[unsafe_requires(!alias(p, q))]`.
+    /// Plan 02 injects alias VCs at call sites using these entries.
+    pub alias_preconditions: Vec<AliasPrecondition>,
 }
 
 /// Maps function names to their contracts for inter-procedural verification.
@@ -105,6 +122,7 @@ mod tests {
                 param_names: vec!["_1".to_string(), "_2".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
         );
 
@@ -129,6 +147,7 @@ mod tests {
                 param_names: vec![],
                 param_types: vec![],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
             },
         );
         db.insert(
@@ -138,6 +157,7 @@ mod tests {
                 param_names: vec!["_1".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
             },
         );
 
@@ -150,5 +170,51 @@ mod tests {
     fn default_is_empty() {
         let db = ContractDatabase::default();
         assert!(db.is_empty());
+    }
+
+    #[test]
+    fn test_alias_precondition_stored() {
+        let mut db = ContractDatabase::new();
+        let ap = AliasPrecondition {
+            param_idx_a: 0,
+            param_idx_b: 1,
+            raw: "!ptr_a.alias(ptr_b)".to_string(),
+        };
+        db.insert(
+            "example".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec!["_1".to_string(), "_2".to_string()],
+                param_types: vec![Ty::Bool, Ty::Bool],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![ap],
+            },
+        );
+
+        let summary = db.get("example").unwrap();
+        assert_eq!(
+            summary.alias_preconditions.len(),
+            1,
+            "Expected 1 alias precondition"
+        );
+        let stored = &summary.alias_preconditions[0];
+        assert_eq!(stored.param_idx_a, 0);
+        assert_eq!(stored.param_idx_b, 1);
+        assert_eq!(stored.raw, "!ptr_a.alias(ptr_b)");
+    }
+
+    #[test]
+    fn test_alias_preconditions_default_empty() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Unit,
+            alias_preconditions: vec![],
+        };
+        assert!(
+            summary.alias_preconditions.is_empty(),
+            "alias_preconditions should default to empty vec"
+        );
     }
 }

@@ -394,6 +394,7 @@ fn sep_03_frame_rule() {
                 Ty::Int(IntTy::I32),
             ],
             return_ty: Ty::Unit,
+            alias_preconditions: vec![],
         },
     );
 
