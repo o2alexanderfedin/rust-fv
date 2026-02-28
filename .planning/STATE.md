@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-02-28T11:21:51.318Z"
+last_updated: "2026-02-28T12:52:46.364Z"
 progress:
-  total_phases: 39
-  completed_phases: 39
-  total_plans: 116
-  completed_plans: 117
+  total_phases: 40
+  completed_phases: 40
+  total_plans: 118
+  completed_plans: 119
 ---
 
 # Project State
@@ -19,14 +19,14 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 35 Plan 01 complete, Phase 35 Plan 02 (integration tests) next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 35 complete, Phase 36 (infer_summary) next.
 
 ## Current Position
 
-Phase: 35 of 37 (Opaque Callee Diagnostics)
-Plan: 35-01 complete
+Phase: 35 of 37 (Opaque Callee Diagnostics) — COMPLETE
+Plan: 35-02 complete
 Status: In progress
-Last activity: 2026-02-28 — Completed 35-01 OpaqueCallee/OpaqueCalleeUnsafe diagnostic VCs (82f6f3b)
+Last activity: 2026-02-28 — Completed 35-02 V060/V061 integration tests (684614b)
 
 Progress: [###░░░░░░░] ~15% (v0.6 milestone, 3/~20 plans)
 
@@ -51,6 +51,7 @@ Progress: [###░░░░░░░] ~15% (v0.6 milestone, 3/~20 plans)
 **Recent Trend:**
 - Phase 34: Plan 01 ~12min, Plan 02 ~9min
 - Trend: Stable
+| Phase 35 P02 | 5 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Recent decisions relevant to v0.6:
 - [Phase 35-01]: Deduplication via seen_opaque HashSet — at most one OpaqueCallee per (callee_name, vc_kind) pair per function
 - [Phase 35-01]: OpaqueCallee SAT excluded from failure push in callbacks.rs — SAT = diagnostic fired (warning only); OpaqueCalleeUnsafe SAT IS a failure
 - [Phase 35-01]: None contract_db skips call-site processing entirely; Some(&empty_db) emits OpaqueCallee diagnostics
+- [Phase 35]: Five integration tests added with exact names (test_opaque_callee_safe_warning, etc.) providing end-to-end regression guard for V060/V061
 
 ### Pending Todos
 
@@ -89,10 +91,10 @@ Recent decisions relevant to v0.6:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 35-01-PLAN.md — OpaqueCallee/OpaqueCalleeUnsafe diagnostic VCs, OPAQUE-01 + OPAQUE-02 delivered (82f6f3b)
+Stopped at: Completed 35-02-PLAN.md — V060/V061 integration tests; Phase 35 complete (684614b)
 Resume file: None
-Next step: Execute Phase 35 Plan 02 — OPAQUE integration tests (end-to-end V060/V061 validation)
+Next step: Execute Phase 36 — infer_summary (callee contract inference)
 
 ---
 
-*Last updated: 2026-02-28 — 35-01 complete: OpaqueCallee/OpaqueCalleeUnsafe VcKind variants, always-SAT diagnostic VC emission in generate_call_site_vcs None-arm, severity wiring in diagnostics.rs + callbacks.rs*
+*Last updated: 2026-02-28 — 35-02 complete: five integration tests for OpaqueCallee/OpaqueCalleeUnsafe V060/V061 diagnostics, regression-guarded, Phase 35 fully complete*
