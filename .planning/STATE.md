@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-02-28T12:55:51.346Z"
+last_updated: "2026-02-28T21:02:27.906Z"
 progress:
-  total_phases: 40
+  total_phases: 41
   completed_phases: 40
-  total_plans: 118
-  completed_plans: 119
+  total_plans: 120
+  completed_plans: 120
 ---
 
 # Project State
@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 35 complete, Phase 36 (infer_summary) next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 36 Plan 01 complete (infer_summary). Phase 37 (cross-crate recursion) is next.
 
 ## Current Position
 
-Phase: 35 of 37 (Opaque Callee Diagnostics) — COMPLETE
-Plan: 35-02 complete
+Phase: 36 of 37 (Summary Contract Inference) — Plan 01 COMPLETE
+Plan: 36-01 complete
 Status: In progress
-Last activity: 2026-02-28 — Completed 35-02 V060/V061 integration tests (684614b)
+Last activity: 2026-02-28 — Completed 36-01 infer_summary proc-macro + OpaqueCallee suppression (5f0d7f6)
 
-Progress: [###░░░░░░░] ~15% (v0.6 milestone, 3/~20 plans)
+Progress: [####░░░░░░] ~20% (v0.6 milestone, 4/~20 plans)
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [###░░░░░░░] ~15% (v0.6 milestone, 3/~20 plans)
 - Phase 34: Plan 01 ~12min, Plan 02 ~9min
 - Trend: Stable
 | Phase 35 P02 | 5 | 2 tasks | 1 files |
+| Phase 36-summary-contract-inference P01 | 35 | 3 tasks | 33 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions relevant to v0.6:
 - [Phase 35-01]: OpaqueCallee SAT excluded from failure push in callbacks.rs — SAT = diagnostic fired (warning only); OpaqueCalleeUnsafe SAT IS a failure
 - [Phase 35-01]: None contract_db skips call-site processing entirely; Some(&empty_db) emits OpaqueCallee diagnostics
 - [Phase 35]: Five integration tests added with exact names (test_opaque_callee_safe_warning, etc.) providing end-to-end regression guard for V060/V061
+- [Phase 36-summary-contract-inference]: infer_summary suppression via is_inferred flag on FunctionSummary — early continue in generate_call_site_vcs before has_requires check
+- [Phase 36-summary-contract-inference]: Synthetic DB entry guard: || contracts.is_inferred added to existing OR-chain — minimal invasiveness
+- [Phase 36-summary-contract-inference]: is_inferred propagation via doc-attr pattern matching rust_fv::infer_summary in extract_contracts (mirrors is_pure arm)
 
 ### Pending Todos
 
@@ -85,16 +89,15 @@ Recent decisions relevant to v0.6:
 
 ### Blockers/Concerns
 
-- [Phase 36] infer_summary inference strategy (read/write effects) needs research at Phase 36 planning — conservative pure-read default may be sufficient for v0.6
 - [Phase 37] Cross-crate MIR availability: Tarjan's across crate boundaries requires exported symbol contract metadata — confirm nightly rustc metadata API at Phase 37 planning
 
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 35-02-PLAN.md — V060/V061 integration tests; Phase 35 complete (684614b)
+Stopped at: Completed 36-01-PLAN.md — infer_summary proc-macro, is_inferred flag, OpaqueCallee suppression; OPAQUE-03 fulfilled (5f0d7f6)
 Resume file: None
-Next step: Execute Phase 36 — infer_summary (callee contract inference)
+Next step: Execute Phase 37 — cross-crate recursion (XCREC)
 
 ---
 
-*Last updated: 2026-02-28 — 35-02 complete: five integration tests for OpaqueCallee/OpaqueCalleeUnsafe V060/V061 diagnostics, regression-guarded, Phase 35 fully complete*
+*Last updated: 2026-02-28 — 36-01 complete: #[verifier::infer_summary] proc-macro with is_inferred propagation, OpaqueCallee suppression for annotated callees, OPAQUE-03 requirement fulfilled*
