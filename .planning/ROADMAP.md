@@ -125,6 +125,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 34. Cross-Function Pointer Aliasing | 2/2 | Complete    | 2026-02-28 | - |
-| 35. Opaque Callee Diagnostics | v0.6 | 0/2 | Planned | - |
+| 35. Opaque Callee Diagnostics | 1/2 | In Progress|  | - |
 | 36. Summary Contract Inference | v0.6 | 0/TBD | Not started | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |

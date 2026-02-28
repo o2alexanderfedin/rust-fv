@@ -14,8 +14,8 @@ Milestone goal: Break the "each crate is an island" barrier — cross-function p
 
 ### Opaque Callee Contracts (OPAQUE)
 
-- [ ] **OPAQUE-01**: User receives a diagnostic warning (V060–V069) when a verified function calls an uncontracted callee that affects verification soundness (closes the silent-skip gap at `vcgen.rs:2366–2376`)
-- [ ] **OPAQUE-02**: User receives a verification error (not warning) when unsafe code calls an uncontracted callee (escalated severity for unsafe context)
+- [x] **OPAQUE-01**: User receives a diagnostic warning (V060–V069) when a verified function calls an uncontracted callee that affects verification soundness (closes the silent-skip gap at `vcgen.rs:2366–2376`)
+- [x] **OPAQUE-02**: User receives a verification error (not warning) when unsafe code calls an uncontracted callee (escalated severity for unsafe context)
 - [ ] **OPAQUE-03**: User can opt into summary contract inference for opaque callees via `#[verifier::infer_summary]`, which auto-generates minimal read/write contracts without manual annotation
 
 ### Cross-Crate Recursion (XCREC)
@@ -54,8 +54,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ALIAS-01 | Phase 34 | Complete |
 | ALIAS-02 | Phase 34 | Complete |
-| OPAQUE-01 | Phase 35 | Pending |
-| OPAQUE-02 | Phase 35 | Pending |
+| OPAQUE-01 | Phase 35 | Complete |
+| OPAQUE-02 | Phase 35 | Complete |
 | OPAQUE-03 | Phase 36 | Pending |
 | XCREC-01 | Phase 37 | Pending |
 | XCREC-02 | Phase 37 | Pending |

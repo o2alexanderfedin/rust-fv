@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 34 Plan 02 complete, Phase 35 (OPAQUE diagnostics) next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 35 Plan 01 complete, Phase 35 Plan 02 (integration tests) next.
 
 ## Current Position
 
-Phase: 34 of 37 (Cross-Function Pointer Aliasing)
-Plan: 34-02 complete
+Phase: 35 of 37 (Opaque Callee Diagnostics)
+Plan: 35-01 complete
 Status: In progress
-Last activity: 2026-02-28 — Completed 34-02 alias VC call-site injection (0a21994)
+Last activity: 2026-02-28 — Completed 35-01 OpaqueCallee/OpaqueCalleeUnsafe diagnostic VCs (82f6f3b)
 
-Progress: [##░░░░░░░░] ~10% (v0.6 milestone, 2/~20 plans)
+Progress: [###░░░░░░░] ~15% (v0.6 milestone, 3/~20 plans)
 
 ## Performance Metrics
 
@@ -72,6 +72,10 @@ Recent decisions relevant to v0.6:
 - [Phase 34-02]: Alias VC script mirrors precondition VC structure — base_script + prior assignments + caller preconditions + path condition, asserts p == q (SAT = violation)
 - [Phase 34-02]: DEBTLINE test upgraded with ContractDatabase — null-check VC retained as regression guard alongside new alias VC assertion
 - [Phase 34-02]: extract_alias_preconditions uses strip_prefix('!').map(str::trim) — idiomatic Rust per clippy::manual_strip
+- [Phase 35-01]: OpaqueCallee always-SAT VC pattern — BoolLit(true) VC with vc_kind carrying diagnostic classification (mirrors DataRaceFreedom)
+- [Phase 35-01]: Deduplication via seen_opaque HashSet — at most one OpaqueCallee per (callee_name, vc_kind) pair per function
+- [Phase 35-01]: OpaqueCallee SAT excluded from failure push in callbacks.rs — SAT = diagnostic fired (warning only); OpaqueCalleeUnsafe SAT IS a failure
+- [Phase 35-01]: None contract_db skips call-site processing entirely; Some(&empty_db) emits OpaqueCallee diagnostics
 
 ### Pending Todos
 
@@ -85,10 +89,10 @@ Recent decisions relevant to v0.6:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 34-02-PLAN.md — alias VC call-site injection, ALIAS-01 + ALIAS-02 delivered (0a21994)
+Stopped at: Completed 35-01-PLAN.md — OpaqueCallee/OpaqueCalleeUnsafe diagnostic VCs, OPAQUE-01 + OPAQUE-02 delivered (82f6f3b)
 Resume file: None
-Next step: Execute Phase 35 — OPAQUE diagnostics
+Next step: Execute Phase 35 Plan 02 — OPAQUE integration tests (end-to-end V060/V061 validation)
 
 ---
 
-*Last updated: 2026-02-28 — 34-02 complete: extract_alias_preconditions, alias VC injection in generate_call_site_vcs, DEBTLINE test upgraded*
+*Last updated: 2026-02-28 — 35-01 complete: OpaqueCallee/OpaqueCalleeUnsafe VcKind variants, always-SAT diagnostic VC emission in generate_call_site_vcs None-arm, severity wiring in diagnostics.rs + callbacks.rs*
