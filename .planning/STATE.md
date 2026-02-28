@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
-status: planning
-last_updated: "2026-02-28T00:00:00.000Z"
+status: in-progress
+last_updated: "2026-02-28T11:04:10Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 34 (Cross-Function Pointer Aliasing) ready to plan.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 34 Plan 01 complete, Plan 02 (call-site alias VC injection) next.
 
 ## Current Position
 
 Phase: 34 of 37 (Cross-Function Pointer Aliasing)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-28 — Roadmap created for v0.6 Cross-Crate Verification (phases 34-37)
+Plan: 34-01 complete, ready for 34-02
+Status: In progress
+Last activity: 2026-02-28 — Completed 34-01 cross-function pointer aliasing core infrastructure
 
-Progress: [░░░░░░░░░░] 0% (v0.6 milestone)
+Progress: [#░░░░░░░░░] ~5% (v0.6 milestone, 1/~20 plans)
 
 ## Performance Metrics
 
@@ -65,6 +65,10 @@ Recent decisions relevant to v0.6:
 - [v0.6 scope]: ALIAS gap at unsafe_verification.rs:1109-1135 — inter-procedural alias tracking via call-graph edges
 - [v0.6 scope]: OPAQUE gap at vcgen.rs:2366-2376 — silent skip replaced by V060-series diagnostics (Phase 35) then infer_summary (Phase 36)
 - [v0.6 scope]: XCREC gap in recursion_verification.rs — Tarjan's SCC limited/untested for cross-crate SCCs (Phase 37)
+- [Phase 34-01]: generate_alias_check_assertion mirrors generate_null_check_assertion — Term::Eq(Const(p), Const(q)) pattern
+- [Phase 34-01]: AliasPrecondition stores parameter indices (not names) for call-site substitution in Plan 02
+- [Phase 34-01]: alias(p,q) parse arm directly calls generate_alias_check_assertion_from_terms — no intermediate representation
+- [Phase 34-01]: alias_preconditions defaults to vec![] on all FunctionSummary sites — zero-cost for non-alias callee functions
 
 ### Pending Todos
 
@@ -79,10 +83,10 @@ Recent decisions relevant to v0.6:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Roadmap created — ROADMAP.md (phases 34-37), STATE.md, REQUIREMENTS.md traceability all written
+Stopped at: Completed 34-01-PLAN.md — cross-function pointer aliasing core infrastructure (ed3aeb1)
 Resume file: None
-Next step: Run /gsd:plan-phase 34 to plan Cross-Function Pointer Aliasing
+Next step: Execute 34-02-PLAN.md — call-site alias VC injection
 
 ---
 
-*Last updated: 2026-02-28 — v0.6 roadmap created (phases 34-37, 7 requirements mapped)*
+*Last updated: 2026-02-28 — 34-01 complete: alias check assertion, VcKind::PointerAliasing, alias() spec_parser arm, AliasPrecondition/FunctionSummary extension*
