@@ -541,7 +541,9 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         ),
         VcKind::OpaqueCallee | VcKind::OpaqueCalleeUnsafe => Some(
             "Add #[requires] / #[ensures] to the callee to enable cross-function verification. \
-             See V060 (warning) for safe context, V061 (error) for unsafe context."
+             See V060 (warning) for safe context, V061 (error) for unsafe context. \
+             Alternatively, add `#[verifier::infer_summary]` to opt into automatic minimal \
+             contract inference (pure: reads nothing, writes nothing)."
                 .to_string(),
         ),
         _ => None,

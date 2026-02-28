@@ -415,12 +415,12 @@ impl Callbacks for VerificationCallbacks {
             contract_db.insert(
                 name,
                 rust_fv_analysis::contract_db::FunctionSummary {
+                    is_inferred: contracts.is_inferred,
                     contracts: contracts.clone(),
                     param_names: params.iter().map(|(n, _)| n.clone()).collect(),
                     param_types: params.iter().map(|(_, t)| t.clone()).collect(),
                     return_ty,
                     alias_preconditions: vec![],
-                    is_inferred: false,
                 },
             );
         }
@@ -767,6 +767,10 @@ struct HirContracts {
     ensures: Vec<String>,
     invariants: Vec<String>,
     is_pure: bool,
+    /// Set when the function is annotated with `#[verifier::infer_summary]`.
+    /// Causes an empty (pure: reads/writes nothing) contract to be pre-populated
+    /// in the contract database so callers do not receive V060/V061 diagnostics.
+    is_inferred: bool,
     decreases: Option<String>,
     fn_specs: Vec<rust_fv_analysis::ir::FnSpec>,
     /// Raw expression string from `#[state_invariant(expr)]`, if present.
@@ -800,6 +804,8 @@ fn extract_contracts(
                     contracts.decreases = Some(spec.to_string());
                 } else if doc == "rust_fv::pure" {
                     contracts.is_pure = true;
+                } else if doc == "rust_fv::infer_summary" {
+                    contracts.is_inferred = true;
                 } else if let Some(spec) = doc.strip_prefix("rust_fv::fn_spec::") {
                     // Format: "PARAM::PRE_STR%%POST_STR"
                     if let Some((param, rest)) = spec.split_once("::")
@@ -824,6 +830,7 @@ fn extract_contracts(
             || !contracts.ensures.is_empty()
             || !contracts.invariants.is_empty()
             || contracts.is_pure
+            || contracts.is_inferred
             || contracts.decreases.is_some()
             || !contracts.fn_specs.is_empty()
             || contracts.state_invariant.is_some()
@@ -854,7 +861,7 @@ fn extract_contracts(
                     state_invariant: contracts
                         .state_invariant
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
-                    is_inferred: false,
+                    is_inferred: contracts.is_inferred,
                 },
             );
         }

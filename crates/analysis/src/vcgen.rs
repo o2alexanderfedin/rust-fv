@@ -2430,6 +2430,19 @@ fn generate_call_site_vcs(
                 }
             };
 
+            // If the callee opted into automatic summary inference, treat it as a contracted
+            // pure callee with empty requires/ensures (no-op for verification purposes).
+            // Suppress OpaqueCallee emission and skip VC generation entirely.
+            if callee_summary.is_inferred {
+                tracing::debug!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    "Callee has infer_summary annotation -- treating as pure contracted callee, \
+                     skipping VC generation"
+                );
+                continue;
+            }
+
             let has_requires = !callee_summary.contracts.requires.is_empty();
             let has_alias_preconditions = !callee_summary.alias_preconditions.is_empty();
 
