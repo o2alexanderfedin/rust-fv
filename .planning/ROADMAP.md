@@ -86,12 +86,16 @@ Plans:
 **Goal**: Users receive actionable diagnostics when a verified function calls an uncontracted callee, replacing the current silent skip
 **Depends on**: Phase 34
 **Requirements**: OPAQUE-01, OPAQUE-02
+**Plans**: 2 plans
 **Success Criteria** (what must be TRUE):
   1. User sees a V060-series warning diagnostic when `cargo verify` encounters a verified function calling a callee with no `#[requires]`/`#[ensures]` contract
   2. User sees a verification error (not just a warning) when the uncontracted callee is invoked from within an `unsafe` block
   3. The silent-skip path at `vcgen.rs:2366-2376` is replaced so that uncontracted callees produce observable output in `cargo verify` results
   4. Existing contracted callees continue to verify without new spurious diagnostics
-**Plans**: TBD
+
+Plans:
+- [ ] 35-01-PLAN.md — VcKind variants + generate_call_site_vcs diagnostic emission + diagnostics.rs/callbacks.rs wiring (OPAQUE-01, OPAQUE-02)
+- [ ] 35-02-PLAN.md — Integration tests: V060 safe warning, V061 unsafe error, contracted no-regression (OPAQUE-01, OPAQUE-02)
 
 ### Phase 36: Summary Contract Inference
 **Goal**: Users can opt into automatic minimal contract inference for opaque callees rather than manually writing contracts
@@ -121,6 +125,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 34. Cross-Function Pointer Aliasing | 2/2 | Complete    | 2026-02-28 | - |
-| 35. Opaque Callee Diagnostics | v0.6 | 0/TBD | Not started | - |
+| 35. Opaque Callee Diagnostics | v0.6 | 0/2 | Planned | - |
 | 36. Summary Contract Inference | v0.6 | 0/TBD | Not started | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
