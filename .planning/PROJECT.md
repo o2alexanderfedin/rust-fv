@@ -67,9 +67,14 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Active
 
-#### Current Milestone: v0.6 (TBD)
+#### Current Milestone: v0.6 Cross-Crate Verification
 
-(Next milestone requirements to be defined with `/gsd:new-milestone`)
+**Goal:** Break the "each crate is an island" barrier — cross-function pointer aliasing, opaque callee contracts, and cross-crate mutual recursion detection
+
+**Target features:**
+- Cross-function pointer aliasing analysis for unsafe code (inter-procedural null/bounds tracking)
+- Opaque callee contract enforcement (warn/error when callee has no contract, not silent skip)
+- Cross-crate SCC detection for mutual recursion (Tarjan's across crate boundaries)
 
 ### Out of Scope
 
@@ -89,6 +94,7 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **v0.5-audit achievements:** For-loop VCGen (AUFLIA + QF_LIA), prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3 bv2int fix, ghost locals filtering, tech debt closure, 22/22 UAT tests pass
 - **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated
 - **Tech debt:** PtrCast alignment-check test documents 0 VCs assertion as DEBTLINE — future work for v0.6
+- **v0.6 focus:** Cross-crate verification — pointer aliasing inter-procedural (unsafe_verification.rs:1109–1135), opaque callee contracts (vcgen.rs:2366–2376), cross-crate mutual recursion SCCs (recursion_verification.rs)
 
 ## Constraints
 
@@ -176,4 +182,4 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - Audit closure: v0.1 milestone audit status: **passed** (37/37 phases, 0 human_needed)
 
 ---
-*Last updated: 2026-02-27 after v0.5 Audit & Gap Closure milestone completed*
+*Last updated: 2026-02-28 after v0.6 Cross-Crate Verification milestone started*

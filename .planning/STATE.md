@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: Milestone UAT ✅
-status: unknown
-last_updated: "2026-02-27T07:29:28.012Z"
+milestone: v0.6
+milestone_name: Cross-Crate Verification
+status: planning
+last_updated: "2026-02-28T00:00:00.000Z"
 progress:
-  total_phases: 38
-  completed_phases: 38
-  total_plans: 114
-  completed_plans: 115
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -19,15 +19,14 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.5 SMT Completeness + UAT — FULLY VALIDATED. Ready to plan v0.6 — run `/gsd:new-milestone`.
+**Current focus:** v0.6 Cross-Crate Verification — defining requirements and roadmap.
 
 ## Current Position
 
-Phase: v0.5 milestone archived + UAT validated
-Status: ✅ MILESTONE v0.5 FULLY COMPLETE — 29 phases + UAT (Phase 00), 93 plans, all requirements satisfied, 22/22 UAT tests pass
-Last activity: 2026-02-25 — v0.4+v0.5 UAT complete (Phase 00, 22 test items all PASS)
-
-Progress: [████████████████████] 93/93 plans (100%) + UAT: 22/22 test items PASS
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-28 — Milestone v0.6 started
 
 ## Performance Metrics
 
