@@ -88,6 +88,11 @@ impl ContractDatabase {
     pub fn is_empty(&self) -> bool {
         self.contracts.is_empty()
     }
+
+    /// Iterate over all (name, summary) entries in the database.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &FunctionSummary)> {
+        self.contracts.iter()
+    }
 }
 
 #[cfg(test)]
@@ -226,6 +231,82 @@ mod tests {
             summary.alias_preconditions.is_empty(),
             "alias_preconditions should default to empty vec"
         );
+    }
+
+    // --- iter() method tests (Phase 36-02) ---
+
+    #[test]
+    fn test_iter_empty_database() {
+        let db = ContractDatabase::new();
+        assert_eq!(
+            db.iter().count(),
+            0,
+            "iter on empty db must yield zero items"
+        );
+    }
+
+    #[test]
+    fn test_iter_returns_all_entries() {
+        let mut db = ContractDatabase::new();
+        db.insert(
+            "alpha".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        db.insert(
+            "beta".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        let mut names: Vec<&str> = db.iter().map(|(name, _)| name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn test_iter_filter_is_inferred() {
+        // Demonstrates the pattern used in callbacks.rs to collect inferred summaries
+        let mut db = ContractDatabase::new();
+        db.insert(
+            "inferred_fn".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        db.insert(
+            "normal_fn".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        let inferred: Vec<&str> = db
+            .iter()
+            .filter(|(_, s)| s.is_inferred)
+            .map(|(name, _)| name.as_str())
+            .collect();
+        assert_eq!(inferred, vec!["inferred_fn"]);
     }
 
     // --- is_inferred field tests (Phase 36-01) ---

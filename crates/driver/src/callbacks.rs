@@ -128,6 +128,9 @@ pub struct VerificationCallbacks {
     /// Ghost predicate database populated from #[ghost_predicate] doc attributes.
     /// Available after after_analysis() for use by the spec parser (Plan 03).
     pub ghost_pred_db: GhostPredicateDatabase,
+    /// Contract database populated during after_analysis().
+    /// Used by print_results to collect inferred_summaries for the JSON report.
+    contract_db: rust_fv_analysis::contract_db::ContractDatabase,
 }
 
 impl VerificationCallbacks {
@@ -168,6 +171,7 @@ impl VerificationCallbacks {
             bv2int_threshold,
             bv2int_records: Vec::new(),
             ghost_pred_db: GhostPredicateDatabase::new(),
+            contract_db: rust_fv_analysis::contract_db::ContractDatabase::new(),
         }
     }
 
@@ -190,6 +194,7 @@ impl VerificationCallbacks {
             bv2int_threshold: 2.0,
             bv2int_records: Vec::new(),
             ghost_pred_db: GhostPredicateDatabase::new(),
+            contract_db: rust_fv_analysis::contract_db::ContractDatabase::new(),
         }
     }
 
@@ -354,10 +359,25 @@ impl VerificationCallbacks {
                         .count(),
                 };
 
+                let inferred: Vec<json_output::InferredSummary> = self
+                    .contract_db
+                    .iter()
+                    .filter(|(_, s)| s.is_inferred)
+                    .map(|(name, _)| json_output::InferredSummary {
+                        callee: name.clone(),
+                        contract: "pure: reads nothing, writes nothing".to_string(),
+                    })
+                    .collect();
+
                 let report = json_output::JsonVerificationReport {
                     crate_name: crate_name.to_string(),
                     functions: json_functions,
                     summary,
+                    inferred_summaries: if inferred.is_empty() {
+                        None
+                    } else {
+                        Some(inferred)
+                    },
                 };
 
                 json_output::print_json_report(&report);
@@ -431,6 +451,9 @@ impl Callbacks for VerificationCallbacks {
                 rust_fv_analysis::stdlib_contracts::loader::load_default_contracts();
             stdlib_registry.merge_into(&mut contract_db);
         }
+
+        // Store the fully-populated contract database for use in print_results (inferred_summaries)
+        self.contract_db = contract_db.clone();
 
         // Determine cache directory.
         // RUST_FV_CACHE_DIR overrides the default (used by tests to isolate cache per test run).

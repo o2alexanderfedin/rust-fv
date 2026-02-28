@@ -10,6 +10,10 @@ pub struct JsonVerificationReport {
     pub crate_name: String,
     pub functions: Vec<JsonFunctionResult>,
     pub summary: JsonSummary,
+    /// Auto-inferred contract summaries for callees annotated with `#[verifier::infer_summary]`.
+    /// Omitted from JSON output when no callees have the annotation (not null, not empty array).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inferred_summaries: Option<Vec<InferredSummary>>,
 }
 
 /// Per-function verification result in JSON format.
@@ -108,6 +112,15 @@ pub struct JsonSummary {
     pub ok: usize,
     pub fail: usize,
     pub timeout: usize,
+}
+
+/// An auto-inferred contract summary for a callee annotated with `#[verifier::infer_summary]`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct InferredSummary {
+    /// The fully-qualified callee function name.
+    pub callee: String,
+    /// Human-readable inferred contract text.
+    pub contract: String,
 }
 
 /// Print a JSON verification report to stdout.
@@ -291,6 +304,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         let json = serde_json::to_string_pretty(&report).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -313,6 +327,7 @@ mod tests {
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         let json = serde_json::to_string(&report).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -337,6 +352,7 @@ mod tests {
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         // This writes to stdout. Exercises lines 60-61 (Ok path).
         print_json_report(&report);
@@ -379,6 +395,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }
@@ -420,6 +437,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }
@@ -442,6 +460,7 @@ mod tests {
                 fail: 0,
                 timeout: 1,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }
@@ -504,6 +523,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }
@@ -520,6 +540,7 @@ mod tests {
                 fail: 30,
                 timeout: 20,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }
@@ -656,6 +677,108 @@ mod tests {
         assert_eq!(parsed["counterexample_v2"]["variables"][0]["name"], "x");
     }
 
+    // --- InferredSummary and inferred_summaries field tests (Phase 36-02) ---
+
+    #[test]
+    fn test_inferred_summary_none_absent_from_json() {
+        // When inferred_summaries is None, the field must NOT appear in JSON output
+        let report = JsonVerificationReport {
+            crate_name: "test_crate".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+            inferred_summaries: None,
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(
+            !json.contains("inferred_summaries"),
+            "inferred_summaries must be absent when None, got: {}",
+            json
+        );
+    }
+
+    #[test]
+    fn test_inferred_summary_some_present_in_json() {
+        // When inferred_summaries is Some(...), the field must appear with callee and contract
+        let report = JsonVerificationReport {
+            crate_name: "test_crate".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+            inferred_summaries: Some(vec![InferredSummary {
+                callee: "foo".to_string(),
+                contract: "pure: reads nothing, writes nothing".to_string(),
+            }]),
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(
+            parsed.get("inferred_summaries").is_some(),
+            "inferred_summaries must be present when Some"
+        );
+        let arr = parsed["inferred_summaries"].as_array().unwrap();
+        assert_eq!(arr.len(), 1, "Expected one inferred summary entry");
+        assert_eq!(arr[0]["callee"], "foo");
+        assert_eq!(arr[0]["contract"], "pure: reads nothing, writes nothing");
+    }
+
+    #[test]
+    fn test_inferred_summary_struct_roundtrip() {
+        // InferredSummary serializes and deserializes correctly
+        let summary = InferredSummary {
+            callee: "my_crate::my_module::my_func".to_string(),
+            contract: "pure: reads nothing, writes nothing".to_string(),
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["callee"], "my_crate::my_module::my_func");
+        assert_eq!(parsed["contract"], "pure: reads nothing, writes nothing");
+        // Deserialize back
+        let round_tripped: InferredSummary = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped, summary);
+    }
+
+    #[test]
+    fn test_inferred_summaries_multiple_entries() {
+        // Multiple inferred summaries all appear in the array
+        let report = JsonVerificationReport {
+            crate_name: "multi_crate".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+            inferred_summaries: Some(vec![
+                InferredSummary {
+                    callee: "alpha".to_string(),
+                    contract: "pure: reads nothing, writes nothing".to_string(),
+                },
+                InferredSummary {
+                    callee: "beta".to_string(),
+                    contract: "pure: reads nothing, writes nothing".to_string(),
+                },
+            ]),
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let arr = parsed["inferred_summaries"].as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        // Both callee names appear
+        let callees: Vec<&str> = arr.iter().map(|e| e["callee"].as_str().unwrap()).collect();
+        assert!(callees.contains(&"alpha"));
+        assert!(callees.contains(&"beta"));
+    }
+
     #[test]
     fn test_print_json_report_special_characters_in_strings() {
         // Strings with special characters that need JSON escaping
@@ -684,6 +807,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         print_json_report(&report);
     }

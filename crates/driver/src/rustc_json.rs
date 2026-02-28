@@ -210,6 +210,7 @@ mod tests {
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         }
     }
 
@@ -249,6 +250,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         }
     }
 
@@ -279,6 +281,7 @@ mod tests {
                 fail: 1,
                 timeout: 0,
             },
+            inferred_summaries: None,
         }
     }
 
@@ -354,6 +357,7 @@ mod tests {
                 fail: 2,
                 timeout: 0,
             },
+            inferred_summaries: None,
         }
     }
 
@@ -536,6 +540,7 @@ mod tests {
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         let diagnostics = convert_report_to_rustc_diagnostics(&report);
         assert_eq!(diagnostics.len(), 1);
