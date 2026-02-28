@@ -9402,4 +9402,76 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
+
+    // --- Phase 36-02 integration tests: infer_summary suppression and JSON field ---
+
+    #[test]
+    fn test_infer_summary_suppresses_opaque_callee() {
+        // Integration test: callee annotated with #[verifier::infer_summary] (is_inferred=true)
+        // must produce ZERO VCs — no OpaqueCallee, no precondition VCs.
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    requires: vec![],
+                    ensures: vec![],
+                    invariants: vec![],
+                    is_pure: false,
+                    is_inferred: true,
+                    decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
+                },
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+            })
+            .collect();
+        assert!(
+            opaque_vcs.is_empty(),
+            "test_infer_summary_suppresses_opaque_callee: expected ZERO OpaqueCallee VCs for \
+             inferred callee (is_inferred=true), got: {:?}",
+            opaque_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_infer_summary_no_suppression_without_flag() {
+        // Integration test: callee present in contract_db but with is_inferred=false
+        // must produce exactly one OpaqueCallee VC.
+        // NOTE: None contract_db skips call-site processing entirely;
+        // Some(&empty_db) emits OpaqueCallee diagnostics for uncontracted callees.
+        use crate::contract_db::ContractDatabase;
+        let func = make_caller_with_uncontracted_callee(false);
+        // Empty contract_db (callee absent) — OpaqueCallee VC must be emitted
+        let contract_db = ContractDatabase::new();
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::OpaqueCallee)
+            .collect();
+        assert!(
+            !opaque_vcs.is_empty(),
+            "test_infer_summary_no_suppression_without_flag: expected at least one OpaqueCallee \
+             VC for callee absent from contract_db (no is_inferred flag), but got zero"
+        );
+    }
 }

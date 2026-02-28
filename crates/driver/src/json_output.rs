@@ -746,6 +746,53 @@ mod tests {
         assert_eq!(round_tripped, summary);
     }
 
+    /// Named test matching the plan's integration test spec.
+    #[test]
+    fn test_inferred_summaries_json_field() {
+        // Serialize a report with inferred_summaries present and assert JSON contains the field
+        let report = JsonVerificationReport {
+            crate_name: "infer_crate".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+            inferred_summaries: Some(vec![InferredSummary {
+                callee: "bar".to_string(),
+                contract: "pure: reads nothing, writes nothing".to_string(),
+            }]),
+        };
+        let json = serde_json::to_string_pretty(&report).unwrap();
+        assert!(
+            json.contains("inferred_summaries"),
+            "inferred_summaries must appear in JSON when Some"
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let arr = parsed["inferred_summaries"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["callee"], "bar");
+        assert_eq!(arr[0]["contract"], "pure: reads nothing, writes nothing");
+        // Confirm None is absent
+        let report_none = JsonVerificationReport {
+            crate_name: "none_crate".to_string(),
+            functions: vec![],
+            summary: JsonSummary {
+                total: 0,
+                ok: 0,
+                fail: 0,
+                timeout: 0,
+            },
+            inferred_summaries: None,
+        };
+        let json_none = serde_json::to_string(&report_none).unwrap();
+        assert!(
+            !json_none.contains("inferred_summaries"),
+            "inferred_summaries must be absent when None"
+        );
+    }
+
     #[test]
     fn test_inferred_summaries_multiple_entries() {
         // Multiple inferred summaries all appear in the array
