@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-02-28T21:02:27.906Z"
+last_updated: "2026-02-28T21:27:58.895Z"
 progress:
   total_phases: 41
-  completed_phases: 40
+  completed_phases: 41
   total_plans: 120
-  completed_plans: 120
+  completed_plans: 121
 ---
 
 # Project State
@@ -19,14 +19,14 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 36 Plan 01 complete (infer_summary). Phase 37 (cross-crate recursion) is next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 36 COMPLETE (infer_summary + inferred_summaries JSON field). Phase 37 (cross-crate recursion) is next.
 
 ## Current Position
 
-Phase: 36 of 37 (Summary Contract Inference) — Plan 01 COMPLETE
-Plan: 36-01 complete
+Phase: 36 of 37 (Summary Contract Inference) — COMPLETE (both plans)
+Plan: 36-02 complete
 Status: In progress
-Last activity: 2026-02-28 — Completed 36-01 infer_summary proc-macro + OpaqueCallee suppression (5f0d7f6)
+Last activity: 2026-02-28 — Completed 36-02 inferred_summaries JSON field, callbacks wiring, integration tests (4e8e453)
 
 Progress: [####░░░░░░] ~20% (v0.6 milestone, 4/~20 plans)
 
@@ -53,6 +53,7 @@ Progress: [####░░░░░░] ~20% (v0.6 milestone, 4/~20 plans)
 - Trend: Stable
 | Phase 35 P02 | 5 | 2 tasks | 1 files |
 | Phase 36-summary-contract-inference P01 | 35 | 3 tasks | 33 files |
+| Phase 36-summary-contract-inference P02 | 0 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions relevant to v0.6:
 - [Phase 36-summary-contract-inference]: infer_summary suppression via is_inferred flag on FunctionSummary — early continue in generate_call_site_vcs before has_requires check
 - [Phase 36-summary-contract-inference]: Synthetic DB entry guard: || contracts.is_inferred added to existing OR-chain — minimal invasiveness
 - [Phase 36-summary-contract-inference]: is_inferred propagation via doc-attr pattern matching rust_fv::infer_summary in extract_contracts (mirrors is_pure arm)
+- [Phase 36-summary-contract-inference]: inferred_summaries omitted entirely (None) when no infer_summary callees — skip_serializing_if ensures field absent rather than null or empty array
+- [Phase 36-summary-contract-inference]: ContractDatabase::iter() added as public API enabling callbacks.rs to enumerate all entries for JSON report population
 
 ### Pending Todos
 
@@ -94,10 +97,10 @@ Recent decisions relevant to v0.6:
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 36-01-PLAN.md — infer_summary proc-macro, is_inferred flag, OpaqueCallee suppression; OPAQUE-03 fulfilled (5f0d7f6)
+Stopped at: Completed 36-02-PLAN.md — inferred_summaries JSON field, ContractDatabase::iter(), callbacks wiring, 3 integration tests; Phase 36 fully complete (4e8e453)
 Resume file: None
 Next step: Execute Phase 37 — cross-crate recursion (XCREC)
 
 ---
 
-*Last updated: 2026-02-28 — 36-01 complete: #[verifier::infer_summary] proc-macro with is_inferred propagation, OpaqueCallee suppression for annotated callees, OPAQUE-03 requirement fulfilled*
+*Last updated: 2026-02-28 — 36-02 complete: inferred_summaries JSON field with skip_serializing_if, ContractDatabase::iter(), callbacks wiring from contract_db, integration tests for suppression and JSON field stability; OPAQUE-03 fully satisfied*

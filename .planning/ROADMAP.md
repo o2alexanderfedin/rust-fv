@@ -62,7 +62,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 
 - [x] **Phase 34: Cross-Function Pointer Aliasing** - Inter-procedural aliasing analysis for unsafe code raw pointer arguments (completed 2026-02-28)
 - [x] **Phase 35: Opaque Callee Diagnostics** - Warn/error when callee has no contract instead of silently skipping (completed 2026-02-28)
-- [ ] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]`
+- [x] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]` (completed 2026-02-28)
 - [ ] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification
 
 ## Phase Details
@@ -130,5 +130,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 34. Cross-Function Pointer Aliasing | 2/2 | Complete    | 2026-02-28 | - |
 | 35. Opaque Callee Diagnostics | 2/2 | Complete    | 2026-02-28 | - |
-| 36. Summary Contract Inference | 1/2 | In Progress|  | - |
+| 36. Summary Contract Inference | 2/2 | Complete   | 2026-02-28 | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
