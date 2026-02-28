@@ -63,6 +63,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 - [x] **Phase 34: Cross-Function Pointer Aliasing** - Inter-procedural aliasing analysis for unsafe code raw pointer arguments (completed 2026-02-28)
 - [x] **Phase 35: Opaque Callee Diagnostics** - Warn/error when callee has no contract instead of silently skipping (completed 2026-02-28)
 - [x] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]` (completed 2026-02-28)
+- [ ] **Phase 36.1: Alias Precondition Parsing Fix** - Close ALIAS-01/02 integration gap: parse `!alias(p, q)` predicates from `unsafe_requires` doc attributes in `callbacks.rs` HIR scanner
 - [ ] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification
 
 ## Phase Details
@@ -111,6 +112,21 @@ Plans:
 - [ ] 36-01-PLAN.md — proc-macro + is_inferred flag + vcgen suppression + diagnostics suggest_fix update (OPAQUE-03)
 - [ ] 36-02-PLAN.md — JSON inferred_summaries field + callbacks wiring + integration tests (OPAQUE-03)
 
+### Phase 36.1: Alias Precondition Parsing Fix
+**Goal**: Close the ALIAS-01/02 integration gap — `alias_preconditions` in `callbacks.rs:443` is always empty because the HIR scanner never parses `!alias(p, q)` predicates from `unsafe_requires` doc attributes
+**Depends on**: Phase 36
+**Requirements**: ALIAS-01, ALIAS-02
+**Gap Closure**: Closes gaps from v0.6 audit (alias_preconditions never populated)
+**Plans**: 1 plan
+**Success Criteria** (what must be TRUE):
+  1. `cargo verify` on a function with `#[unsafe_requires(!alias(ptr_a, ptr_b))]` produces an alias VC that catches aliased pointer arguments at the call site
+  2. A counterexample naming the aliased pointer parameters is emitted when the constraint is violated
+  3. Integration test covers the full driver → HIR → callbacks → contract_db → vcgen → Z3 pipeline (not just vcgen unit tests)
+  4. Existing Phase 34 unit tests remain GREEN
+
+Plans:
+- [ ] 36.1-01-PLAN.md — Parse `!alias(p, q)` in HIR scanner, resolve param names to indices, populate `alias_preconditions`, integration test
+
 ### Phase 37: Cross-Crate SCC Detection
 **Goal**: Users can detect and verify mutually recursive call cycles that span multiple crates
 **Depends on**: Phase 36
@@ -124,11 +140,12 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 34 → 35 → 36 → 37
+**Execution Order:** 34 → 35 → 36 → 36.1 → 37
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 34. Cross-Function Pointer Aliasing | 2/2 | Complete    | 2026-02-28 | - |
-| 35. Opaque Callee Diagnostics | 2/2 | Complete    | 2026-02-28 | - |
-| 36. Summary Contract Inference | 2/2 | Complete    | 2026-02-28 | - |
+| 34. Cross-Function Pointer Aliasing | v0.6 | 2/2 | Complete | 2026-02-28 |
+| 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
+| 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
+| 36.1. Alias Precondition Parsing Fix | v0.6 | 0/1 | Not started | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
