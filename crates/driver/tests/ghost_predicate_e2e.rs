@@ -56,6 +56,7 @@ fn make_ghost_test_func(requires_spec: &str, ensures_spec: &str) -> Function {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],

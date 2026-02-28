@@ -227,11 +227,13 @@ mod tests {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 param_names: (0..param_count).map(|i| format!("param{}", i)).collect(),
                 param_types: vec![Ty::Unit; param_count],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
             source: ContractSource::Builtin,
         }

@@ -649,6 +649,7 @@ mod tests {
             decreases: decreases.map(|d| SpecExpr { raw: d.to_string() }),
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         // bb0: branch on _1 <= 1
@@ -963,6 +964,7 @@ mod tests {
             }),
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
             ..Default::default()
         };
 

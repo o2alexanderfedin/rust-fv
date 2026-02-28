@@ -1164,6 +1164,7 @@ fn test_cross_function_pointer_aliasing() {
                 param_idx_b: 1,
                 raw: "!alias(_1, _2)".to_string(),
             }],
+            is_inferred: false,
         },
     );
 
@@ -1331,6 +1332,7 @@ fn make_alias_db(callee_name: &str) -> ContractDatabase {
                 param_idx_b: 1,
                 raw: "!alias(_1, _2)".to_string(),
             }],
+            is_inferred: false,
         },
     );
     db

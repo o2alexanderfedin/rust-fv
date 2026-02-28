@@ -661,6 +661,52 @@ fn trusted_impl(
     }
 }
 
+/// Opt a callee into automatic minimal contract inference.
+///
+/// `#[verifier::infer_summary]` marks a function as having an automatically-inferred
+/// summary: pure (reads nothing, writes nothing, no side effects). The verifier
+/// pre-populates an empty contract in the contract database so that callers of this
+/// function do not receive a V060/V061 opaque-callee diagnostic.
+///
+/// This is an alternative to writing full `#[requires]`/`#[ensures]` contracts when
+/// you want the function to be treated as a pure black box during verification.
+///
+/// # Example
+///
+/// ```ignore
+/// #[verifier::infer_summary]
+/// fn helper(x: i32) -> i32 { x + 1 }
+/// ```
+#[proc_macro_attribute]
+pub fn infer_summary(attr: TokenStream, item: TokenStream) -> TokenStream {
+    infer_summary_impl(attr.into(), item.into()).into()
+}
+
+/// `proc_macro2`-based implementation of `infer_summary` for unit testing.
+///
+/// Marks a function as eligible for automatic minimal contract inference.
+/// Takes no arguments and embeds the marker `rust_fv::infer_summary` as a doc attribute.
+fn infer_summary_impl(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new_spanned(
+            attr,
+            "`#[verifier::infer_summary]` does not accept arguments",
+        )
+        .to_compile_error();
+    }
+
+    let doc_value = "rust_fv::infer_summary";
+
+    quote::quote! {
+        #[doc(hidden)]
+        #[doc = #doc_value]
+        #item
+    }
+}
+
 /// Attach an override contract for a stdlib method.
 ///
 /// `#[override_contract]` allows users to replace stdlib contracts with
@@ -1735,6 +1781,37 @@ mod tests {
         };
 
         let result = extend_contract_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("compile_error"));
+        assert!(result_str.contains("does not accept arguments"));
+    }
+
+    // --- infer_summary proc-macro tests (Phase 36-01) ---
+
+    #[test]
+    fn test_infer_summary_embeds_annotation() {
+        let attr: proc_macro2::TokenStream = quote! {};
+        let item: proc_macro2::TokenStream = quote! {
+            fn some_callee() -> i32 { 42 }
+        };
+
+        let result = infer_summary_impl(attr, item);
+        let result_str = normalise(result);
+
+        assert!(result_str.contains("# [doc (hidden)]"));
+        assert!(result_str.contains("rust_fv::infer_summary"));
+        assert!(result_str.contains("fn some_callee"));
+    }
+
+    #[test]
+    fn test_infer_summary_with_args_returns_error() {
+        let attr: proc_macro2::TokenStream = quote! { something };
+        let item: proc_macro2::TokenStream = quote! {
+            fn foo() {}
+        };
+
+        let result = infer_summary_impl(attr, item);
         let result_str = normalise(result);
 
         assert!(result_str.contains("compile_error"));

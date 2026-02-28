@@ -77,11 +77,13 @@ fn register_insert(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "key".to_string(), "value".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit, Ty::Unit], // Polymorphic - actual types from context
             return_ty: Ty::Unit,                             // Option<V>
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -112,11 +114,13 @@ fn register_get(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "key".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<&V>
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -167,11 +171,13 @@ fn register_remove(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "key".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<V>
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -199,11 +205,13 @@ fn register_contains_key(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "key".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Bool,
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -231,11 +239,13 @@ fn register_len(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // usize
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -263,11 +273,13 @@ fn register_is_empty(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };
@@ -302,11 +314,13 @@ fn register_clear(registry: &mut StdlibContractRegistry) {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit,
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     };

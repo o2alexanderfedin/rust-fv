@@ -265,6 +265,7 @@ fn make_function_with_trait_object_param(
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],

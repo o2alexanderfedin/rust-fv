@@ -485,6 +485,10 @@ pub struct Contracts {
     pub invariants: Vec<SpecExpr>,
     /// Whether the function is marked `#[pure]`
     pub is_pure: bool,
+    /// Whether the function is annotated with `#[verifier::infer_summary]`.
+    /// When true, the verifier pre-populates an empty contract (pure: reads/writes nothing)
+    /// so that callers do not receive V060/V061 opaque-callee diagnostics.
+    pub is_inferred: bool,
     /// Termination measure (`#[decreases(expr)]`) for recursive functions.
     /// None means no termination measure specified.
     pub decreases: Option<SpecExpr>,
@@ -2160,5 +2164,25 @@ mod tests {
         let info = func.coroutine_info.unwrap();
         assert_eq!(info.states.len(), 1);
         assert_eq!(info.states[0].exit_kind, CoroutineExitKind::Return);
+    }
+
+    // --- is_inferred field tests (Phase 36-01) ---
+
+    #[test]
+    fn test_contracts_is_inferred_defaults_to_false() {
+        let contracts = Contracts::default();
+        assert!(
+            !contracts.is_inferred,
+            "Contracts::default().is_inferred must be false"
+        );
+    }
+
+    #[test]
+    fn test_contracts_is_inferred_can_be_set_true() {
+        let contracts = Contracts {
+            is_inferred: true,
+            ..Contracts::default()
+        };
+        assert!(contracts.is_inferred);
     }
 }

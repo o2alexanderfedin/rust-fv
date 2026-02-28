@@ -41,6 +41,10 @@ pub struct FunctionSummary {
     /// Alias preconditions extracted from `#[unsafe_requires(!alias(p, q))]`.
     /// Plan 02 injects alias VCs at call sites using these entries.
     pub alias_preconditions: Vec<AliasPrecondition>,
+    /// Whether the callee was annotated with `#[verifier::infer_summary]`.
+    /// When true, VCGen skips OpaqueCallee diagnostic emission for this callee
+    /// (treats it as a contracted callee with empty requires/ensures — pure no-op).
+    pub is_inferred: bool,
 }
 
 /// Maps function names to their contracts for inter-procedural verification.
@@ -118,11 +122,13 @@ mod tests {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 param_names: vec!["_1".to_string(), "_2".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -148,6 +154,7 @@ mod tests {
                 param_types: vec![],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
         db.insert(
@@ -158,6 +165,7 @@ mod tests {
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -188,6 +196,7 @@ mod tests {
                 param_types: vec![Ty::Bool, Ty::Bool],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![ap],
+                is_inferred: false,
             },
         );
 
@@ -211,10 +220,42 @@ mod tests {
             param_types: vec![],
             return_ty: Ty::Unit,
             alias_preconditions: vec![],
+            is_inferred: false,
         };
         assert!(
             summary.alias_preconditions.is_empty(),
             "alias_preconditions should default to empty vec"
         );
+    }
+
+    // --- is_inferred field tests (Phase 36-01) ---
+
+    #[test]
+    fn test_function_summary_is_inferred_true() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: true,
+        };
+        assert!(
+            summary.is_inferred,
+            "FunctionSummary.is_inferred must reflect the set value"
+        );
+    }
+
+    #[test]
+    fn test_function_summary_is_inferred_defaults_false() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        };
+        assert!(!summary.is_inferred);
     }
 }

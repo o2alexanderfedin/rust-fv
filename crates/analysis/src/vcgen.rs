@@ -4379,6 +4379,7 @@ mod tests {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             generic_params: vec![],
             prophecies: vec![],
@@ -7373,6 +7374,7 @@ mod tests {
                 }),
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             loops: vec![],
             generic_params: vec![],
@@ -7409,6 +7411,7 @@ mod tests {
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -7464,6 +7467,7 @@ mod tests {
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -7542,6 +7546,7 @@ mod tests {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
                 invariants: vec![],
             },
             generic_params: vec![],
@@ -8597,6 +8602,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let mut contract_db = ContractDatabase::new();
@@ -8611,6 +8617,7 @@ mod tests {
                 ],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -8718,6 +8725,7 @@ mod tests {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             generic_params: vec![],
             loops: vec![],
@@ -8772,6 +8780,7 @@ mod tests {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             generic_params: vec![],
             loops: vec![],
@@ -8908,11 +8917,13 @@ mod tests {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 param_names: vec!["_1".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
         let result = generate_vcs(&func, Some(&contract_db));
@@ -9233,6 +9244,7 @@ mod tests {
                 param_types: vec![],
                 return_ty: Ty::Unit,
                 alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 

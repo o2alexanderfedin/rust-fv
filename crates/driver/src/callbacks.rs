@@ -420,6 +420,7 @@ impl Callbacks for VerificationCallbacks {
                     param_types: params.iter().map(|(_, t)| t.clone()).collect(),
                     return_ty,
                     alias_preconditions: vec![],
+                    is_inferred: false,
                 },
             );
         }
@@ -853,6 +854,7 @@ fn extract_contracts(
                     state_invariant: contracts
                         .state_invariant
                         .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
+                    is_inferred: false,
                 },
             );
         }

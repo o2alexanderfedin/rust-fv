@@ -30,11 +30,13 @@ fn make_test_contract(
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: (0..param_count).map(|i| format!("arg{}", i)).collect(),
             param_types: vec![Ty::Uint(UintTy::Usize); param_count],
             return_ty: Ty::Unit,
             alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }

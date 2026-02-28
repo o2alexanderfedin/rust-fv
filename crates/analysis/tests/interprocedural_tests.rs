@@ -431,6 +431,7 @@ fn make_callee_summary(
         param_types,
         return_ty,
         alias_preconditions: vec![],
+        is_inferred: false,
     }
 }
 
@@ -456,6 +457,7 @@ fn test_call_site_precondition_satisfied() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -497,6 +499,7 @@ fn test_call_site_precondition_satisfied() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -555,6 +558,7 @@ fn test_call_site_precondition_violated() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -593,6 +597,7 @@ fn test_call_site_precondition_violated() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -691,6 +696,7 @@ fn test_call_site_postcondition_assumed() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -727,6 +733,7 @@ fn test_call_site_postcondition_assumed() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
@@ -819,6 +826,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -893,6 +901,7 @@ fn test_call_chain_no_blowup() {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 vec!["_1"],
                 vec![Ty::Int(IntTy::I32)],
@@ -942,6 +951,7 @@ fn test_call_chain_no_blowup() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1106,6 +1116,7 @@ fn test_precondition_violation_reports_callee_name() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -1144,6 +1155,7 @@ fn test_precondition_violation_reports_callee_name() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -1199,6 +1211,7 @@ fn test_multiple_preconditions_each_checked() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![
             Local {
@@ -1252,6 +1265,7 @@ fn test_multiple_preconditions_each_checked() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],

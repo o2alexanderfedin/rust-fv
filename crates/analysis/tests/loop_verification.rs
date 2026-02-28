@@ -634,6 +634,7 @@ fn test_simple_counter_loop() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -811,6 +812,7 @@ fn test_two_variable_loop() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -905,6 +907,7 @@ fn test_countdown_loop() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -959,6 +962,7 @@ fn test_wrong_init_invariant() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -1009,6 +1013,7 @@ fn test_wrong_preservation_invariant() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -1061,6 +1066,7 @@ fn test_wrong_exit_postcondition() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -1238,6 +1244,7 @@ fn test_zero_iteration_loop() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
@@ -1358,6 +1365,7 @@ fn test_loop_detection_from_cfg() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1418,6 +1426,7 @@ fn test_vc_description_labels() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
     );
 
