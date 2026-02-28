@@ -2378,25 +2378,30 @@ fn generate_call_site_vcs(
                 }
             };
 
-            if callee_summary.contracts.requires.is_empty() {
+            let has_requires = !callee_summary.contracts.requires.is_empty();
+            let has_alias_preconditions = !callee_summary.alias_preconditions.is_empty();
+
+            if !has_requires && !has_alias_preconditions {
                 tracing::debug!(
                     caller = %func.name,
                     callee = %call_site.callee_name,
-                    "Callee has no preconditions -- skipping call-site VC"
+                    "Callee has no preconditions or alias preconditions -- skipping call-site VC"
                 );
                 continue;
             }
 
-            tracing::debug!(
-                caller = %func.name,
-                callee = %call_site.callee_name,
-                preconditions = callee_summary.contracts.requires.len(),
-                "Encoding call-site precondition VCs"
-            );
-
-            // Build the callee function context for parsing specs
+            // Build the callee function context for parsing specs (used by precondition VCs)
             let callee_func_context = build_callee_func_context(callee_summary);
             let arg_subs = build_arg_substitutions(call_site, callee_summary, func);
+
+            if has_requires {
+                tracing::debug!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    preconditions = callee_summary.contracts.requires.len(),
+                    "Encoding call-site precondition VCs"
+                );
+            }
 
             for (pre_idx, pre) in callee_summary.contracts.requires.iter().enumerate() {
                 // Parse the precondition in the callee's context
@@ -2506,6 +2511,91 @@ fn generate_call_site_vcs(
                         source_column: None,
                         contract_text: Some(pre.raw.clone()),
                         vc_kind: VcKind::Precondition,
+                    },
+                });
+            }
+
+            // Alias VC injection: one VC per alias_precondition in callee summary.
+            // SAT means the two arguments have equal addresses (aliasing violation detected).
+            for alias_pre in &callee_summary.alias_preconditions {
+                let arg_a = call_site.args.get(alias_pre.param_idx_a);
+                let arg_b = call_site.args.get(alias_pre.param_idx_b);
+
+                let (a_name, b_name) = match (arg_a, arg_b) {
+                    (
+                        Some(
+                            crate::ir::Operand::Move(crate::ir::Place { local: la, .. })
+                            | crate::ir::Operand::Copy(crate::ir::Place { local: la, .. }),
+                        ),
+                        Some(
+                            crate::ir::Operand::Move(crate::ir::Place { local: lb, .. })
+                            | crate::ir::Operand::Copy(crate::ir::Place { local: lb, .. }),
+                        ),
+                    ) => (la.clone(), lb.clone()),
+                    _ => {
+                        tracing::debug!(
+                            callee = %call_site.callee_name,
+                            "alias precondition: could not resolve argument names — skipping"
+                        );
+                        continue;
+                    }
+                };
+
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
+
+                // Encode prior assignments along this path
+                let mut ssa_counter = HashMap::new();
+                for pa in &call_site.prior_assignments {
+                    if let Some(cmd) =
+                        encode_assignment(&pa.place, &pa.rvalue, func, &mut ssa_counter)
+                    {
+                        script.push(cmd);
+                    }
+                }
+
+                // Assume caller's preconditions
+                for caller_pre in &func.contracts.requires {
+                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func, ghost_pred_db)
+                    {
+                        script.push(Command::Assert(caller_pre_term));
+                    }
+                }
+
+                // If there's a path condition, assume it
+                if let Some(ref cond) = call_site.path_condition {
+                    script.push(Command::Assert(cond.clone()));
+                }
+
+                // Assert alias violation (SAT = a and b have equal addresses)
+                let alias_assertion =
+                    crate::heap_model::generate_alias_check_assertion(&a_name, &b_name);
+                script.push(Command::Assert(alias_assertion));
+                script.push(Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "pointer aliasing: call to `{}` — arg[{}] (`{}`) and arg[{}] (`{}`) must not alias ({})",
+                        call_site.callee_name,
+                        alias_pre.param_idx_a,
+                        a_name,
+                        alias_pre.param_idx_b,
+                        b_name,
+                        alias_pre.raw,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: call_site.block_idx,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(alias_pre.raw.clone()),
+                        vc_kind: VcKind::PointerAliasing,
                     },
                 });
             }
