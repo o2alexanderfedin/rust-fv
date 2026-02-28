@@ -101,11 +101,15 @@ Plans:
 **Goal**: Users can opt into automatic minimal contract inference for opaque callees rather than manually writing contracts
 **Depends on**: Phase 35
 **Requirements**: OPAQUE-03
+**Plans**: 2 plans
 **Success Criteria** (what must be TRUE):
   1. User can annotate an uncontracted callee with `#[verifier::infer_summary]` and `cargo verify` auto-generates a minimal read/write effect contract for it
   2. The inferred contract suppresses the V060-series diagnostic for that callee (it is no longer "uncontracted")
   3. The inferred summary contract is visible in `--output-format=json` output so tools can inspect what was auto-generated
-**Plans**: TBD
+
+Plans:
+- [ ] 36-01-PLAN.md — proc-macro + is_inferred flag + vcgen suppression + diagnostics suggest_fix update (OPAQUE-03)
+- [ ] 36-02-PLAN.md — JSON inferred_summaries field + callbacks wiring + integration tests (OPAQUE-03)
 
 ### Phase 37: Cross-Crate SCC Detection
 **Goal**: Users can detect and verify mutually recursive call cycles that span multiple crates
@@ -126,5 +130,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 34. Cross-Function Pointer Aliasing | 2/2 | Complete    | 2026-02-28 | - |
 | 35. Opaque Callee Diagnostics | 2/2 | Complete    | 2026-02-28 | - |
-| 36. Summary Contract Inference | v0.6 | 0/TBD | Not started | - |
+| 36. Summary Contract Inference | v0.6 | 0/2 | Planned | - |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
