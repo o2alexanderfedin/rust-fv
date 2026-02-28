@@ -142,6 +142,10 @@ pub enum VcKind {
     AsyncStateInvariantResume,
     /// `#[ensures]` check at `Poll::Ready` resolution of an async fn.
     AsyncPostcondition,
+    /// Uncontracted callee called from a verified function (safe context). Diagnostic warning V060.
+    OpaqueCallee,
+    /// Uncontracted callee called from unsafe context. Diagnostic error V061.
+    OpaqueCalleeUnsafe,
 }
 
 impl VcKind {
@@ -2363,6 +2367,8 @@ fn generate_call_site_vcs(
     ghost_pred_db: &GhostPredicateDatabase,
 ) -> Vec<VerificationCondition> {
     let mut vcs = Vec::new();
+    // Deduplication: emit at most one OpaqueCallee diagnostic per unique callee name per context.
+    let mut seen_opaque: std::collections::HashSet<String> = Default::default();
 
     for path in paths {
         for call_site in &path.call_sites {
@@ -2372,8 +2378,54 @@ fn generate_call_site_vcs(
                     tracing::debug!(
                         caller = %func.name,
                         callee = %call_site.callee_name,
-                        "Call to function without contracts -- treating as opaque"
+                        "Call to function without contracts -- emitting opaque callee diagnostic"
                     );
+                    let is_unsafe_context = func.is_unsafe_fn
+                        || func
+                            .unsafe_blocks
+                            .iter()
+                            .any(|b| b.block_index == call_site.block_idx);
+                    let vc_kind = if is_unsafe_context {
+                        VcKind::OpaqueCalleeUnsafe
+                    } else {
+                        VcKind::OpaqueCallee
+                    };
+                    // Deduplicate: one diagnostic per (callee_name, context) per function.
+                    let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
+                    if seen_opaque.contains(&dedup_key) {
+                        continue;
+                    }
+                    seen_opaque.insert(dedup_key);
+                    let description = format!(
+                        "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
+                        call_site.callee_name, func.name
+                    );
+                    let contract_text = format!(
+                        "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
+                        call_site.callee_name
+                    );
+                    let mut script = rust_fv_smtlib::script::Script::new();
+                    script.push(rust_fv_smtlib::command::Command::SetLogic(
+                        "QF_BV".to_string(),
+                    ));
+                    script.push(rust_fv_smtlib::command::Command::Assert(
+                        rust_fv_smtlib::term::Term::BoolLit(true),
+                    ));
+                    script.push(rust_fv_smtlib::command::Command::CheckSat);
+                    vcs.push(VerificationCondition {
+                        description,
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: call_site.block_idx,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(contract_text),
+                            vc_kind,
+                        },
+                    });
                     continue;
                 }
             };
@@ -8629,6 +8681,256 @@ mod tests {
         assert!(
             !vcs.conditions.is_empty(),
             "Ghost predicate in requires must produce at least one VC via generate_vcs_with_db"
+        );
+    }
+
+    // --- OpaqueCallee / OpaqueCalleeUnsafe tests ---
+
+    /// Build a caller function that calls an uncontracted callee (block 0 has a Call terminator).
+    fn make_caller_with_uncontracted_callee(is_unsafe_fn: bool) -> Function {
+        Function {
+            name: "caller_fn".to_string(),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "uncontracted_callee".to_string(),
+                        args: vec![Operand::Copy(Place::local("_1"))],
+                        destination: Place::local("_0"),
+                        target: 1,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts {
+                requires: vec![SpecExpr {
+                    raw: "_1 > 0".to_string(),
+                }],
+                ensures: vec![],
+                invariants: vec![],
+                is_pure: false,
+                decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
+            },
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    /// Build a caller function where the call to an uncontracted callee is inside an unsafe block.
+    fn make_caller_with_unsafe_block_callee() -> Function {
+        Function {
+            name: "caller_unsafe_block".to_string(),
+            params: vec![Local::new("_1", Ty::Int(IntTy::I32))],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Call {
+                        func: "uncontracted_callee".to_string(),
+                        args: vec![Operand::Copy(Place::local("_1"))],
+                        destination: Place::local("_0"),
+                        target: 1,
+                    },
+                },
+                BasicBlock {
+                    statements: vec![],
+                    terminator: Terminator::Return,
+                },
+            ],
+            contracts: Contracts {
+                requires: vec![SpecExpr {
+                    raw: "_1 > 0".to_string(),
+                }],
+                ensures: vec![],
+                invariants: vec![],
+                is_pure: false,
+                decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
+            },
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            // block_index 0 = the block where the Call terminator lives
+            unsafe_blocks: vec![crate::ir::UnsafeBlockInfo {
+                block_index: 0,
+                source_description: "unsafe block at block 0".to_string(),
+                reason: "unsafe function call".to_string(),
+            }],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_opaque_callee_vc_kind_exists_and_distinct() {
+        // Test 1: VcKind::OpaqueCallee exists and is distinct from all other variants
+        let opaque = VcKind::OpaqueCallee;
+        assert_ne!(opaque, VcKind::Precondition);
+        assert_ne!(opaque, VcKind::Postcondition);
+        assert_ne!(opaque, VcKind::DataRaceFreedom);
+        assert_ne!(opaque, VcKind::MemorySafety);
+        assert_ne!(opaque, VcKind::AsyncPostcondition);
+    }
+
+    #[test]
+    fn test_opaque_callee_unsafe_distinct_from_opaque_callee() {
+        // Test 2: VcKind::OpaqueCalleeUnsafe is distinct from VcKind::OpaqueCallee
+        assert_ne!(VcKind::OpaqueCallee, VcKind::OpaqueCalleeUnsafe);
+    }
+
+    #[test]
+    fn test_opaque_callee_vc_emitted_for_uncontracted_callee() {
+        // Test 3: generate_call_site_vcs for a func calling an uncontracted callee (safe context)
+        // produces at least one VC with vc_kind == VcKind::OpaqueCallee
+        use crate::contract_db::ContractDatabase;
+        let func = make_caller_with_uncontracted_callee(false);
+        // Empty contract_db — callee has no entry
+        let contract_db = ContractDatabase::new();
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::OpaqueCallee)
+            .collect();
+        assert!(
+            !opaque_vcs.is_empty(),
+            "Expected OpaqueCallee VC for uncontracted callee in safe context, got: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{:?}", vc.location.vc_kind))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_opaque_callee_unsafe_emitted_for_unsafe_fn() {
+        // Test 4: When func.is_unsafe_fn == true and callee has no contract,
+        // produces VcKind::OpaqueCalleeUnsafe
+        use crate::contract_db::ContractDatabase;
+        let func = make_caller_with_uncontracted_callee(true);
+        let contract_db = ContractDatabase::new();
+        let result = generate_vcs(&func, Some(&contract_db));
+        let unsafe_opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe)
+            .collect();
+        assert!(
+            !unsafe_opaque_vcs.is_empty(),
+            "Expected OpaqueCalleeUnsafe VC for uncontracted callee in unsafe fn, got: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{:?}", vc.location.vc_kind))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_opaque_callee_unsafe_emitted_for_unsafe_block() {
+        // Test 5: When callee is in func.unsafe_blocks block index and callee has no contract,
+        // produces VcKind::OpaqueCalleeUnsafe
+        use crate::contract_db::ContractDatabase;
+        let func = make_caller_with_unsafe_block_callee();
+        let contract_db = ContractDatabase::new();
+        let result = generate_vcs(&func, Some(&contract_db));
+        let unsafe_opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe)
+            .collect();
+        assert!(
+            !unsafe_opaque_vcs.is_empty(),
+            "Expected OpaqueCalleeUnsafe VC for uncontracted callee in unsafe block, got: {:?}",
+            result
+                .conditions
+                .iter()
+                .map(|vc| format!("{:?}", vc.location.vc_kind))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_no_opaque_callee_vc_for_contracted_callee() {
+        // Test 6: When callee HAS a contract (Some(summary)), produces ZERO OpaqueCallee VCs
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    requires: vec![SpecExpr {
+                        raw: "_1 > 0".to_string(),
+                    }],
+                    ensures: vec![],
+                    invariants: vec![],
+                    is_pure: false,
+                    decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
+                },
+                param_names: vec!["_1".to_string()],
+                param_types: vec![Ty::Int(IntTy::I32)],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+            })
+            .collect();
+        assert!(
+            opaque_vcs.is_empty(),
+            "Expected ZERO OpaqueCallee VCs for contracted callee, got: {:?}",
+            opaque_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
         );
     }
 }
