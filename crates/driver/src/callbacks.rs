@@ -698,6 +698,7 @@ impl Callbacks for VerificationCallbacks {
                 // Build structured failure if this VC failed
                 if !result.verified
                     && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::Postcondition
+                    && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::OpaqueCallee
                 {
                     // Use the structured pairs directly — no string re-parsing needed
                     let counterexample = result.counterexample.clone();
@@ -1202,6 +1203,8 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::AsyncStateInvariantSuspend => "async_state_invariant_suspend",
         VcKind::AsyncStateInvariantResume => "async_state_invariant_resume",
         VcKind::AsyncPostcondition => "async_postcondition",
+        VcKind::OpaqueCallee => "opaque_callee",
+        VcKind::OpaqueCalleeUnsafe => "opaque_callee_unsafe",
     }
     .to_string()
 }
@@ -1476,5 +1479,22 @@ mod tests {
     fn test_print_results_empty() {
         let cb = VerificationCallbacks::passthrough();
         cb.print_results(); // Should not panic
+    }
+
+    // --- OpaqueCallee / OpaqueCalleeUnsafe vc_kind_to_string tests ---
+
+    #[test]
+    fn test_vc_kind_to_string_opaque_callee() {
+        // Test 6: vc_kind_to_string for OpaqueCallee returns "opaque_callee"
+        assert_eq!(vc_kind_to_string(&VcKind::OpaqueCallee), "opaque_callee");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_opaque_callee_unsafe() {
+        // Test 7: vc_kind_to_string for OpaqueCalleeUnsafe returns "opaque_callee_unsafe"
+        assert_eq!(
+            vc_kind_to_string(&VcKind::OpaqueCalleeUnsafe),
+            "opaque_callee_unsafe"
+        );
     }
 }
