@@ -8,7 +8,7 @@
 - ✅ **v0.4 Full Rust** - Phases 19-27 (shipped 2026-02-23)
 - ✅ **v0.5 SMT Completeness** - Phases 28-29 (shipped 2026-02-25)
 - ✅ **v0.5 Audit & Gap Closure** - Phases 29.1-29.4, 30-33 (shipped 2026-02-27)
-- 🚧 **v0.6 Cross-Crate Verification** - Phases 34-37 (in progress)
+- 🚧 **v0.6 Cross-Crate Verification** - Phases 34-37, 37.1 (in progress)
 
 ## Phases
 
@@ -65,6 +65,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 - [x] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]` (completed 2026-02-28)
 - [x] **Phase 36.1: Alias Precondition Parsing Fix** - Close ALIAS-01/02 integration gap: parse `!alias(p, q)` predicates from `unsafe_requires` doc attributes in `callbacks.rs` HIR scanner (completed 2026-03-01)
 - [ ] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification
+- [ ] **Phase 37.1: Inferred Summary + Alias Precondition Guard** - Close integration gap: guard against `is_inferred + alias_preconditions` co-occurrence that silently drops alias VCs; emit diagnostic instead of silent suppression
 
 ## Phase Details
 
@@ -138,14 +139,27 @@ Plans:
   4. Single-crate recursive function verification (existing) remains GREEN with no regressions
 **Plans**: TBD
 
+### Phase 37.1: Inferred Summary + Alias Precondition Guard
+**Goal**: Close the integration gap where combining `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p, q))]` on the same function silently drops alias VCs due to the `is_inferred` early-continue at `vcgen.rs:2436`
+**Depends on**: Phase 37
+**Requirements**: ALIAS-01, ALIAS-02 (edge case guard)
+**Gap Closure**: Closes integration gap from v0.6 audit — `is_inferred + alias_preconditions co-occurrence silently drops alias VCs`
+**Success Criteria** (what must be TRUE):
+  1. When a function has both `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p,q))]`, `cargo verify` emits a diagnostic warning (V06x-series) instead of silently dropping the alias VCs
+  2. A test covers the combined-annotation scenario and verifies the diagnostic is emitted
+  3. The `is_inferred` early-continue path in `vcgen.rs:2436` is guarded: if `alias_preconditions` is non-empty, skip the early continue and emit alias VCs regardless of `is_inferred`
+  4. Existing `is_inferred` behavior (suppress V060 opaque warning) is unchanged for functions without alias preconditions
+**Plans**: TBD
+
 ## Progress
 
-**Execution Order:** 34 → 35 → 36 → 36.1 → 37
+**Execution Order:** 34 → 35 → 36 → 36.1 → 37 → 37.1
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 34. Cross-Function Pointer Aliasing | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
-| 36.1. Alias Precondition Parsing Fix | v0.6 | Complete    | 2026-03-01 | 2026-03-01 |
+| 36.1. Alias Precondition Parsing Fix | v0.6 | Complete | 2026-03-01 | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
+| 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 0/TBD | Not started | - |
