@@ -120,6 +120,20 @@ _Note: Task 1 required auto-fixing 30+ struct literal sites across stdlib_contra
 - Phase 37 (cross-crate recursion) can proceed — no blockers from Phase 36 Plan 01
 - Regression guards in place: test_opaque_callee_vc_emitted_for_uncontracted_callee still passes (no annotation = still emits V060); test_no_opaque_callee_vc_for_inferred_summary_callee passes (annotated = no V060)
 
+## Self-Check: PASSED
+
+All key files verified present. All commits verified in git log.
+- crates/macros/src/lib.rs — FOUND
+- crates/analysis/src/ir.rs — FOUND
+- crates/analysis/src/contract_db.rs — FOUND
+- crates/driver/src/callbacks.rs — FOUND
+- crates/analysis/src/vcgen.rs — FOUND
+- crates/driver/src/diagnostics.rs — FOUND
+- .planning/phases/36-summary-contract-inference/36-01-SUMMARY.md — FOUND
+- Commit 1b806fa — FOUND
+- Commit c78c006 — FOUND
+- Commit 5f0d7f6 — FOUND
+
 ---
 *Phase: 36-summary-contract-inference*
 *Completed: 2026-02-28*

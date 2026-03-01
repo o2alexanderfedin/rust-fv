@@ -63,7 +63,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 - [x] **Phase 34: Cross-Function Pointer Aliasing** - Inter-procedural aliasing analysis for unsafe code raw pointer arguments (completed 2026-02-28)
 - [x] **Phase 35: Opaque Callee Diagnostics** - Warn/error when callee has no contract instead of silently skipping (completed 2026-02-28)
 - [x] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]` (completed 2026-02-28)
-- [ ] **Phase 36.1: Alias Precondition Parsing Fix** - Close ALIAS-01/02 integration gap: parse `!alias(p, q)` predicates from `unsafe_requires` doc attributes in `callbacks.rs` HIR scanner
+- [x] **Phase 36.1: Alias Precondition Parsing Fix** - Close ALIAS-01/02 integration gap: parse `!alias(p, q)` predicates from `unsafe_requires` doc attributes in `callbacks.rs` HIR scanner (completed 2026-03-01)
 - [ ] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification
 
 ## Phase Details
@@ -125,7 +125,7 @@ Plans:
   4. Existing Phase 34 unit tests remain GREEN
 
 Plans:
-- [ ] 36.1-01-PLAN.md — Parse `!alias(p, q)` in HIR scanner, resolve param names to indices, populate `alias_preconditions`, integration test
+- [x] 36.1-01-PLAN.md — Parse `!alias(p, q)` in HIR scanner, resolve param names to indices, populate `alias_preconditions`, integration test
 
 ### Phase 37: Cross-Crate SCC Detection
 **Goal**: Users can detect and verify mutually recursive call cycles that span multiple crates
@@ -147,5 +147,5 @@ Plans:
 | 34. Cross-Function Pointer Aliasing | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
-| 36.1. Alias Precondition Parsing Fix | v0.6 | 0/1 | Not started | - |
+| 36.1. Alias Precondition Parsing Fix | v0.6 | 1/1 | Complete | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |

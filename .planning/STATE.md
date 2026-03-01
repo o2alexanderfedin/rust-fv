@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-02-28T21:32:18.014Z"
+last_updated: "2026-03-01T09:37:22.000Z"
 progress:
   total_phases: 41
   completed_phases: 41
-  total_plans: 120
-  completed_plans: 121
+  total_plans: 121
+  completed_plans: 122
 ---
 
 # Project State
@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 36 COMPLETE (infer_summary + inferred_summaries JSON field). Phase 37 (cross-crate recursion) is next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 36.1 COMPLETE (alias precondition parsing gap closure). Phase 37 (cross-crate recursion) is next.
 
 ## Current Position
 
-Phase: 36 of 37 (Summary Contract Inference) — COMPLETE (both plans)
-Plan: 36-02 complete
+Phase: 36.1 of 37 (Alias Precondition Parsing) — COMPLETE (1 plan)
+Plan: 36.1-01 complete
 Status: In progress
-Last activity: 2026-02-28 — Completed 36-02 inferred_summaries JSON field, callbacks wiring, integration tests (4e8e453)
+Last activity: 2026-03-01 — Completed 36.1-01 alias precondition parsing gap closure: callbacks.rs HIR scanner parses unsafe_requires, alias_preconditions populated in FunctionSummary (f439541, 8232f9c)
 
-Progress: [####░░░░░░] ~20% (v0.6 milestone, 4/~20 plans)
+Progress: [####░░░░░░] ~25% (v0.6 milestone, 5/~20 plans)
 
 ## Performance Metrics
 
@@ -85,6 +85,9 @@ Recent decisions relevant to v0.6:
 - [Phase 36-summary-contract-inference]: is_inferred propagation via doc-attr pattern matching rust_fv::infer_summary in extract_contracts (mirrors is_pure arm)
 - [Phase 36-summary-contract-inference]: inferred_summaries omitted entirely (None) when no infer_summary callees — skip_serializing_if ensures field absent rather than null or empty array
 - [Phase 36-summary-contract-inference]: ContractDatabase::iter() added as public API enabling callbacks.rs to enumerate all entries for JSON report population
+- [Phase 36.1-alias-precondition-parsing]: extract_contracts() return type changed from HashMap<LocalDefId, Contracts> to HashMap<LocalDefId, HirContracts> — preserves unsafe_requires across HIR->IR boundary; hir_contracts_to_ir() added as converter
+- [Phase 36.1-alias-precondition-parsing]: UNSAT alias VC requires caller anti-alias precondition (_1 != _2) — alias VC is SAT-based (asserts equality = violation); distinct locals alone are insufficient without constraint
+- [Phase 36.1-alias-precondition-parsing]: parse_alias_preconditions() uses source_to_idx (source param name -> zero-based index) built by inverting build_source_names() against args_iter()
 
 ### Pending Todos
 
@@ -96,11 +99,11 @@ Recent decisions relevant to v0.6:
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed 36-02-PLAN.md — inferred_summaries JSON field, ContractDatabase::iter(), callbacks wiring, 3 integration tests; Phase 36 fully complete (4e8e453)
+Last session: 2026-03-01
+Stopped at: Completed 36.1-01-PLAN.md — alias precondition parsing gap closure: HIR scanner parses unsafe_requires, parse_alias_preconditions() wired into contract_db loop, 4 unit tests + 4 integration tests (f439541, 8232f9c); ALIAS-01, ALIAS-02 fully satisfied
 Resume file: None
 Next step: Execute Phase 37 — cross-crate recursion (XCREC)
 
 ---
 
-*Last updated: 2026-02-28 — 36-02 complete: inferred_summaries JSON field with skip_serializing_if, ContractDatabase::iter(), callbacks wiring from contract_db, integration tests for suppression and JSON field stability; OPAQUE-03 fully satisfied*
+*Last updated: 2026-03-01 — 36.1-01 complete: alias precondition parsing gap closure, extract_contracts returns HirContracts, parse_alias_preconditions() wired, 4 unit + 4 integration tests; ALIAS-01/02 fully satisfied*

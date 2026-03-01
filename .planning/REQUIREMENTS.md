@@ -9,8 +9,8 @@ Milestone goal: Break the "each crate is an island" barrier — cross-function p
 
 ### Pointer Aliasing (ALIAS)
 
-- [ ] **ALIAS-01**: User can verify that raw pointer arguments do not alias across function call boundaries in unsafe code (inter-procedural aliasing tracked via call-graph edges in `unsafe_verification.rs`)
-- [ ] **ALIAS-02**: User can see a counterexample identifying which pointer arguments alias when an aliasing violation is detected
+- [x] **ALIAS-01**: User can verify that raw pointer arguments do not alias across function call boundaries in unsafe code (inter-procedural aliasing tracked via call-graph edges in `unsafe_verification.rs`)
+- [x] **ALIAS-02**: User can see a counterexample identifying which pointer arguments alias when an aliasing violation is detected
 
 ### Opaque Callee Contracts (OPAQUE)
 
@@ -52,8 +52,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ALIAS-01 | Phase 36.1 | Pending |
-| ALIAS-02 | Phase 36.1 | Pending |
+| ALIAS-01 | Phase 36.1 | Complete (2026-03-01) |
+| ALIAS-02 | Phase 36.1 | Complete (2026-03-01) |
 | OPAQUE-01 | Phase 35 | Complete |
 | OPAQUE-02 | Phase 35 | Complete |
 | OPAQUE-03 | Phase 36 | Complete |
