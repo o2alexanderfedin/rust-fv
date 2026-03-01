@@ -16,6 +16,7 @@ use petgraph::algo::tarjan_scc;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 
+use crate::contract_db::ContractDatabase;
 use crate::ir::{Function, Terminator};
 
 /// A group of mutually recursive functions (or a single directly recursive function).
@@ -99,6 +100,67 @@ impl CallGraph {
             all_functions,
             name_map,
         }
+    }
+
+    /// Build a call graph augmented with cross-crate edges from a `ContractDatabase`.
+    ///
+    /// Starts from the standard in-crate call graph, then for each `Terminator::Call`
+    /// whose callee is NOT already in the graph but IS present in `contract_db`,
+    /// adds a "virtual node" for the contracted cross-crate callee.
+    ///
+    /// Back-edge heuristic: if the DB entry's `contracts.decreases.raw` contains the
+    /// normalized name of any in-crate function as a substring, a reverse edge
+    /// `cross_crate_callee → in_crate_fn` is injected.  This makes Tarjan's SCC
+    /// algorithm capable of detecting cycles that span crate boundaries.
+    pub fn from_functions_with_cross_crate_db(
+        functions: &[(String, &Function)],
+        contract_db: &ContractDatabase,
+    ) -> Self {
+        // Start with the standard in-crate graph
+        let mut cg = Self::from_functions(functions);
+
+        // Collect in-crate function names (normalized) for back-edge detection
+        let in_crate_norm: HashSet<String> = functions
+            .iter()
+            .map(|(n, _)| normalize_func_name(n))
+            .collect();
+
+        // For each in-crate function, find calls to contracted callees not already in graph
+        for (_name, func) in functions {
+            for bb in &func.basic_blocks {
+                if let Terminator::Call {
+                    func: callee_name, ..
+                } = &bb.terminator
+                {
+                    let norm_callee = normalize_func_name(callee_name);
+                    // Skip if already an in-crate node
+                    if cg.all_functions.contains(&norm_callee) {
+                        continue;
+                    }
+                    // Check if contracted callee is in DB (full name lookup)
+                    if let Some(summary) = contract_db.get(callee_name) {
+                        // Add virtual node for the cross-crate callee
+                        cg.all_functions.insert(norm_callee.clone());
+                        cg.name_map
+                            .entry(norm_callee.clone())
+                            .or_insert_with(|| callee_name.clone());
+                        // Back-edge detection: if DB entry's decreases references an in-crate fn name,
+                        // add reverse edge (cross-crate callee -> in-crate fn) to form potential SCC
+                        if let Some(dec) = &summary.contracts.decreases {
+                            for in_fn_norm in &in_crate_norm {
+                                if dec.raw.contains(in_fn_norm.as_str()) {
+                                    cg.edges
+                                        .entry(norm_callee.clone())
+                                        .or_default()
+                                        .push(in_fn_norm.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        cg
     }
 
     /// Compute topological ordering of functions.
@@ -1134,5 +1196,234 @@ mod tests {
         let changed = cg.changed_contract_functions(&all_functions, cache);
         assert_eq!(changed.len(), 1);
         assert!(changed.contains("a"));
+    }
+}
+
+#[cfg(test)]
+mod cross_crate_tests {
+    use super::*;
+    use crate::contract_db::{ContractDatabase, FunctionSummary};
+    use crate::ir::{
+        BasicBlock, Contracts, Function, IntTy, Local, Operand, Place, SpecExpr, Statement,
+        Terminator, Ty,
+    };
+
+    /// Helper: create a minimal function with given basic blocks.
+    fn make_function(name: &str, basic_blocks: Vec<BasicBlock>) -> Function {
+        Function {
+            name: name.to_string(),
+            params: vec![],
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks,
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    /// Helper: create a basic block with a Call terminator.
+    fn call_block(callee: &str) -> BasicBlock {
+        BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: callee.to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_0"),
+                target: 0,
+            },
+        }
+    }
+
+    /// Helper: create a basic block with a Return terminator.
+    fn return_block() -> BasicBlock {
+        BasicBlock {
+            statements: vec![Statement::Nop],
+            terminator: Terminator::Return,
+        }
+    }
+
+    /// Helper: create an empty FunctionSummary.
+    fn empty_summary() -> FunctionSummary {
+        FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Unit,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        }
+    }
+
+    /// Helper: create a FunctionSummary with a decreases expression.
+    fn summary_with_decreases(decreases_raw: &str) -> FunctionSummary {
+        FunctionSummary {
+            contracts: Contracts {
+                decreases: Some(SpecExpr {
+                    raw: decreases_raw.to_string(),
+                }),
+                ..Contracts::default()
+            },
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Unit,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        }
+    }
+
+    /// Test 1: Cross-crate SCC detected via DB entry with decreases referencing in-crate fn name.
+    ///
+    /// Setup:
+    /// - In-crate function "local::foo" that calls "bar_crate::bar"
+    /// - DB has "bar_crate::bar" with decreases.raw = "foo" (references in-crate "foo")
+    /// - from_functions_with_cross_crate_db should inject back-edge bar->foo
+    /// - detect_recursion() should return a group containing both "foo" and "bar"
+    #[test]
+    fn cross_crate_scc_detected_via_db() {
+        let foo = make_function(
+            "local::foo",
+            vec![call_block("bar_crate::bar"), return_block()],
+        );
+
+        let mut db = ContractDatabase::new();
+        // DB entry for bar with decreases referencing in-crate "foo"
+        db.insert("bar_crate::bar".to_string(), summary_with_decreases("foo"));
+
+        let funcs = vec![("local::foo".to_string(), &foo)];
+        let cg = CallGraph::from_functions_with_cross_crate_db(&funcs, &db);
+
+        let groups = cg.detect_recursion();
+        assert_eq!(
+            groups.len(),
+            1,
+            "Expected exactly one SCC group; got: {:?}",
+            groups.iter().map(|g| &g.functions).collect::<Vec<_>>()
+        );
+        let group = &groups[0];
+        // Group should contain both the in-crate foo and cross-crate bar (by normalized or full name)
+        let has_foo = group.functions.iter().any(|f| f.contains("foo"));
+        let has_bar = group.functions.iter().any(|f| f.contains("bar"));
+        assert!(
+            has_foo,
+            "SCC group must contain 'foo'; group: {:?}",
+            group.functions
+        );
+        assert!(
+            has_bar,
+            "SCC group must contain 'bar'; group: {:?}",
+            group.functions
+        );
+    }
+
+    /// Test 2: No SCC when DB entry has no decreases (no back-edge signal).
+    ///
+    /// local::foo calls bar_crate::bar but bar has no decreases — no back-edge added.
+    /// detect_recursion() should return empty (linear call, not a cycle).
+    #[test]
+    fn cross_crate_no_scc_when_no_back_edge() {
+        let foo = make_function(
+            "local::foo",
+            vec![call_block("bar_crate::bar"), return_block()],
+        );
+
+        let mut db = ContractDatabase::new();
+        // DB entry for bar with NO decreases — no back-edge signal
+        db.insert("bar_crate::bar".to_string(), empty_summary());
+
+        let funcs = vec![("local::foo".to_string(), &foo)];
+        let cg = CallGraph::from_functions_with_cross_crate_db(&funcs, &db);
+
+        let groups = cg.detect_recursion();
+        assert!(
+            groups.is_empty(),
+            "No back-edge means no SCC; got groups: {:?}",
+            groups.iter().map(|g| &g.functions).collect::<Vec<_>>()
+        );
+    }
+
+    /// Test 3: Single-crate regression — factorial self-call still detected via new constructor.
+    ///
+    /// Ensures that from_functions_with_cross_crate_db with an empty DB produces the same
+    /// result as from_functions for in-crate recursive functions.
+    #[test]
+    fn single_crate_regression_with_db_constructor() {
+        let factorial = make_function("factorial", vec![call_block("factorial"), return_block()]);
+
+        let db = ContractDatabase::new(); // empty DB
+        let funcs = vec![("factorial".to_string(), &factorial)];
+        let cg = CallGraph::from_functions_with_cross_crate_db(&funcs, &db);
+
+        let groups = cg.detect_recursion();
+        assert_eq!(
+            groups.len(),
+            1,
+            "factorial self-loop must be detected; groups: {:?}",
+            groups.iter().map(|g| &g.functions).collect::<Vec<_>>()
+        );
+        assert!(
+            groups[0].contains("factorial"),
+            "Group must contain 'factorial'; got: {:?}",
+            groups[0].functions
+        );
+        assert!(
+            !groups[0].is_mutual(),
+            "factorial is directly recursive, not mutual"
+        );
+    }
+
+    /// Test 4: normalize_func_name handles multi-segment cross-crate paths.
+    ///
+    /// Verified indirectly: the SCC detection results use normalized names. We
+    /// verify that "a::b::c::bar" normalizes to "bar" by checking that a DB entry
+    /// keyed under "a::b::c::bar" is found as a virtual node and contributes to the SCC.
+    #[test]
+    fn normalize_cross_crate_path_via_scc() {
+        // In-crate caller calls a deeply qualified cross-crate callee
+        let caller = make_function("caller", vec![call_block("a::b::c::bar"), return_block()]);
+
+        let mut db = ContractDatabase::new();
+        // DB entry keyed under the full path — decreases references "caller" (normalized in-crate name)
+        db.insert("a::b::c::bar".to_string(), summary_with_decreases("caller"));
+
+        let funcs = vec![("caller".to_string(), &caller)];
+        let cg = CallGraph::from_functions_with_cross_crate_db(&funcs, &db);
+
+        let groups = cg.detect_recursion();
+        assert_eq!(
+            groups.len(),
+            1,
+            "Deep cross-crate path should still form SCC; groups: {:?}",
+            groups.iter().map(|g| &g.functions).collect::<Vec<_>>()
+        );
+        let group = &groups[0];
+        let has_caller = group.functions.iter().any(|f| f.contains("caller"));
+        let has_bar = group.functions.iter().any(|f| f.contains("bar"));
+        assert!(
+            has_caller,
+            "Group must contain 'caller'; got: {:?}",
+            group.functions
+        );
+        assert!(
+            has_bar,
+            "Group must contain 'bar' (from deep path); got: {:?}",
+            group.functions
+        );
     }
 }
