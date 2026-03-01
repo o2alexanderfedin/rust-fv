@@ -147,5 +147,5 @@ Plans:
 | 34. Cross-Function Pointer Aliasing | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
-| 36.1. Alias Precondition Parsing Fix | v0.6 | 1/1 | Complete | 2026-03-01 |
+| 36.1. Alias Precondition Parsing Fix | v0.6 | Complete    | 2026-03-01 | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
