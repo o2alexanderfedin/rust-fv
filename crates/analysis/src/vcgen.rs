@@ -363,8 +363,13 @@ pub fn generate_vcs_with_db(
         // Build function list for call graph (current function + contract_db functions)
         let func_list: Vec<(String, &Function)> = vec![(func.name.clone(), func)];
 
-        // Build call graph and detect recursion
-        let cg = crate::call_graph::CallGraph::from_functions(&func_list);
+        // Build call graph and detect recursion (use cross-crate DB when available)
+        let cg = match contract_db {
+            Some(db) => {
+                crate::call_graph::CallGraph::from_functions_with_cross_crate_db(&func_list, db)
+            }
+            None => crate::call_graph::CallGraph::from_functions(&func_list),
+        };
         let recursive_groups = cg.detect_recursion();
 
         if !recursive_groups.is_empty() {

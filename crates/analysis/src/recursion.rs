@@ -67,7 +67,7 @@ pub fn check_missing_decreases(
 pub fn generate_termination_vcs(
     func: &Function,
     recursive_groups: &[RecursiveGroup],
-    _contract_db: Option<&ContractDatabase>,
+    contract_db: Option<&ContractDatabase>,
 ) -> Vec<VerificationCondition> {
     // Check if this function is in any recursive group
     let group = recursive_groups.iter().find(|g| g.contains(&func.name));
@@ -196,10 +196,23 @@ pub fn generate_termination_vcs(
             script.push(Command::CheckSat);
             script.push(Command::GetModel);
 
+            // Enrich description with cross-crate callee decreases measure if available
+            let callee_decreases_note = contract_db
+                .and_then(|db| {
+                    db.get(callee_name).or_else(|| {
+                        db.iter()
+                            .find(|(k, _)| k.ends_with(&format!("::{}", normalized)))
+                            .map(|(_, v)| v)
+                    })
+                })
+                .and_then(|summary| summary.contracts.decreases.as_ref())
+                .map(|dec| format!(" [cross-crate callee decreases: {}]", dec.raw))
+                .unwrap_or_default();
+
             vcs.push(VerificationCondition {
                 description: format!(
-                    "{}: termination measure decreases at call to {} in block {}",
-                    func.name, normalized, block_idx,
+                    "{}: termination measure decreases at call to {} in block {}{}",
+                    func.name, normalized, block_idx, callee_decreases_note,
                 ),
                 script,
                 location: VcLocation {
