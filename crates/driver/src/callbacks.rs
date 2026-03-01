@@ -412,7 +412,7 @@ impl Callbacks for VerificationCallbacks {
 
         // Build the contract database for inter-procedural verification
         let mut contract_db = rust_fv_analysis::contract_db::ContractDatabase::new();
-        for (&local_def_id, contracts) in &contracts_map {
+        for (&local_def_id, hir_contracts) in &contracts_map {
             let def_id = local_def_id.to_def_id();
             let name = tcx.def_path_str(def_id);
             let mir = tcx.optimized_mir(def_id);
@@ -432,15 +432,34 @@ impl Callbacks for VerificationCallbacks {
             let return_ty =
                 mir_converter::convert_ty(mir.local_decls[rustc_middle::mir::Local::ZERO].ty);
 
+            // Build source_name → zero-based-param-index map for alias precondition resolution.
+            // build_source_names() gives "_1" → "ptr_a". We need "ptr_a" → 0 (zero-based index).
+            let source_names = crate::mir_converter::build_source_names(mir);
+            let source_to_idx: std::collections::HashMap<String, usize> = mir
+                .args_iter()
+                .enumerate()
+                .filter_map(|(zero_idx, local)| {
+                    let ssa_name = format!("_{}", local.as_usize());
+                    source_names
+                        .get(&ssa_name)
+                        .map(|src| (src.clone(), zero_idx))
+                })
+                .collect();
+
+            let alias_preconditions =
+                parse_alias_preconditions(&hir_contracts.unsafe_requires, &source_to_idx);
+
+            let ir_contracts = hir_contracts_to_ir(hir_contracts);
+
             contract_db.insert(
                 name,
                 rust_fv_analysis::contract_db::FunctionSummary {
-                    is_inferred: contracts.is_inferred,
-                    contracts: contracts.clone(),
+                    is_inferred: hir_contracts.is_inferred,
+                    contracts: ir_contracts,
                     param_names: params.iter().map(|(n, _)| n.clone()).collect(),
                     param_types: params.iter().map(|(_, t)| t.clone()).collect(),
                     return_ty,
-                    alias_preconditions: vec![],
+                    alias_preconditions,
                 },
             );
         }
@@ -499,12 +518,8 @@ impl Callbacks for VerificationCallbacks {
             let mir = tcx.optimized_mir(def_id);
 
             // Convert rustc MIR to our IR
-            let ir_func = mir_converter::convert_mir(
-                tcx,
-                local_def_id,
-                mir,
-                contracts.cloned().unwrap_or_default(),
-            );
+            let ir_contracts = contracts.map(hir_contracts_to_ir).unwrap_or_default();
+            let ir_func = mir_converter::convert_mir(tcx, local_def_id, mir, ir_contracts);
 
             // Build source location map from MIR SourceInfo spans.
             // Maps (block_idx, stmt_idx) → (file, line, col) while TyCtxt is live.
@@ -798,15 +813,21 @@ struct HirContracts {
     fn_specs: Vec<rust_fv_analysis::ir::FnSpec>,
     /// Raw expression string from `#[state_invariant(expr)]`, if present.
     state_invariant: Option<String>,
+    /// Raw predicate strings from `#[unsafe_requires(…)]` attributes.
+    /// Parsed into [`AliasPrecondition`] entries by [`parse_alias_preconditions`].
+    unsafe_requires: Vec<String>,
 }
 
 /// Extract contracts from HIR doc attributes.
 ///
 /// Our proc macros store specs as `#[doc = "rust_fv::requires::SPEC"]`.
 /// We scan all function items for these hidden doc attributes.
+///
+/// Returns `HirContracts` (not IR `Contracts`) so that `unsafe_requires` is
+/// preserved for alias-precondition resolution in the contract_db build loop.
 fn extract_contracts(
     tcx: TyCtxt<'_>,
-) -> std::collections::HashMap<rustc_hir::def_id::LocalDefId, rust_fv_analysis::ir::Contracts> {
+) -> std::collections::HashMap<rustc_hir::def_id::LocalDefId, HirContracts> {
     let mut map = std::collections::HashMap::new();
 
     for local_def_id in tcx.hir_body_owners() {
@@ -845,6 +866,8 @@ fn extract_contracts(
                     }
                 } else if let Some(expr_str) = doc.strip_prefix("rust_fv::state_invariant::") {
                     contracts.state_invariant = Some(expr_str.to_string());
+                } else if let Some(spec) = doc.strip_prefix("rust_fv::unsafe_requires::") {
+                    contracts.unsafe_requires.push(spec.to_string());
                 }
             }
         }
@@ -857,40 +880,98 @@ fn extract_contracts(
             || contracts.decreases.is_some()
             || !contracts.fn_specs.is_empty()
             || contracts.state_invariant.is_some()
+            || !contracts.unsafe_requires.is_empty()
         {
-            map.insert(
-                local_def_id,
-                rust_fv_analysis::ir::Contracts {
-                    requires: contracts
-                        .requires
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    ensures: contracts
-                        .ensures
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    invariants: contracts
-                        .invariants
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    is_pure: contracts.is_pure,
-                    decreases: contracts
-                        .decreases
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
-                    fn_specs: contracts.fn_specs,
-                    state_invariant: contracts
-                        .state_invariant
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
-                    is_inferred: contracts.is_inferred,
-                },
-            );
+            map.insert(local_def_id, contracts);
         }
     }
 
     map
+}
+
+/// Convert a `HirContracts` value into the IR `Contracts` type used throughout analysis.
+///
+/// The `unsafe_requires` field is intentionally excluded — it is handled separately
+/// via [`parse_alias_preconditions`] to populate `FunctionSummary.alias_preconditions`.
+fn hir_contracts_to_ir(hir: &HirContracts) -> rust_fv_analysis::ir::Contracts {
+    rust_fv_analysis::ir::Contracts {
+        requires: hir
+            .requires
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        ensures: hir
+            .ensures
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        invariants: hir
+            .invariants
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        is_pure: hir.is_pure,
+        decreases: hir
+            .decreases
+            .as_ref()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() }),
+        fn_specs: hir.fn_specs.clone(),
+        state_invariant: hir
+            .state_invariant
+            .as_ref()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() }),
+        is_inferred: hir.is_inferred,
+    }
+}
+
+/// Parse `!alias(p, q)` predicates from `unsafe_requires` strings into [`AliasPrecondition`] entries.
+///
+/// `source_to_idx` maps Rust source parameter name (e.g. `"ptr_a"`) → zero-based parameter index.
+/// Built by inverting [`build_source_names`](crate::mir_converter::build_source_names) output
+/// against `mir.args_iter()` order.
+///
+/// Both `"!alias(p, q)"` and `"alias(p, q)"` are accepted — the `!` prefix is optional.
+/// If either parameter name is not found in `source_to_idx`, the spec is skipped with a warning.
+fn parse_alias_preconditions(
+    unsafe_requires: &[String],
+    source_to_idx: &std::collections::HashMap<String, usize>,
+) -> Vec<rust_fv_analysis::contract_db::AliasPrecondition> {
+    let mut result = Vec::new();
+    for raw in unsafe_requires {
+        let inner = raw
+            .trim()
+            .strip_prefix('!')
+            .map(str::trim)
+            .unwrap_or(raw.trim());
+        if !inner.starts_with("alias(") || !inner.ends_with(')') {
+            continue;
+        }
+        let args_str = &inner["alias(".len()..inner.len() - 1];
+        let parts: Vec<&str> = args_str.splitn(2, ',').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let name_a = parts[0].trim();
+        let name_b = parts[1].trim();
+        match (source_to_idx.get(name_a), source_to_idx.get(name_b)) {
+            (Some(&ia), Some(&ib)) => {
+                result.push(rust_fv_analysis::contract_db::AliasPrecondition {
+                    param_idx_a: ia,
+                    param_idx_b: ib,
+                    raw: raw.clone(),
+                });
+            }
+            _ => {
+                tracing::warn!(
+                    spec = %raw,
+                    name_a = %name_a,
+                    name_b = %name_b,
+                    "alias() parameter name(s) not found in function signature — skipping"
+                );
+            }
+        }
+    }
+    result
 }
 
 /// Extract bound variable names from a fn_spec clause like `|x: i32| x > 0`.
@@ -1528,5 +1609,61 @@ mod tests {
             vc_kind_to_string(&VcKind::OpaqueCalleeUnsafe),
             "opaque_callee_unsafe"
         );
+    }
+
+    // --- parse_alias_preconditions unit tests ---
+
+    #[test]
+    fn test_parse_alias_preconditions_from_unsafe_requires() {
+        // Test 1: "!alias(ptr_a, ptr_b)" with known source_map → AliasPrecondition
+        let unsafe_requires = vec!["!alias(ptr_a, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_a".to_string(), 0usize);
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert_eq!(result.len(), 1, "Expected 1 AliasPrecondition");
+        assert_eq!(result[0].param_idx_a, 0);
+        assert_eq!(result[0].param_idx_b, 1);
+        assert_eq!(result[0].raw, "!alias(ptr_a, ptr_b)");
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_non_alias_spec() {
+        // Test 2: non-alias predicate → empty result
+        let unsafe_requires = vec!["x > 0".to_string()];
+        let source_to_idx = std::collections::HashMap::new();
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert!(result.is_empty(), "Non-alias spec must yield empty result");
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_unknown_param() {
+        // Test 3: unknown param name → empty result (with warn but no panic)
+        let unsafe_requires = vec!["!alias(unknown, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+        // "unknown" deliberately absent
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert!(
+            result.is_empty(),
+            "Unknown param must yield empty result (skipped with warn)"
+        );
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_alias_without_bang() {
+        // Test 4: "alias(ptr_a, ptr_b)" (no "!") → still accepted
+        let unsafe_requires = vec!["alias(ptr_a, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_a".to_string(), 0usize);
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert_eq!(result.len(), 1, "alias() without '!' must also be accepted");
+        assert_eq!(result[0].param_idx_a, 0);
+        assert_eq!(result[0].param_idx_b, 1);
     }
 }
