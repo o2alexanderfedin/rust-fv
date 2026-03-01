@@ -132,12 +132,17 @@ Plans:
 **Goal**: Users can detect and verify mutually recursive call cycles that span multiple crates
 **Depends on**: Phase 36
 **Requirements**: XCREC-01, XCREC-02
+**Plans**: 3 plans
 **Success Criteria** (what must be TRUE):
   1. `cargo verify` detects a mutually recursive cycle between functions in two different crates and reports the SCC members by name
   2. User can attach `#[decreases(expr)]` to functions participating in a cross-crate recursive cycle and `cargo verify` checks that the termination measure decreases across crate boundaries
   3. The cross-crate SCC detection in `recursion_verification.rs` uses exported symbol contracts so that crate boundaries are transparent to Tarjan's algorithm
   4. Single-crate recursive function verification (existing) remains GREEN with no regressions
-**Plans**: TBD
+
+Plans:
+- [ ] 37-01-PLAN.md — CallGraph::from_functions_with_cross_crate_db: cross-crate edge injection via ContractDatabase back-edge heuristic (XCREC-01)
+- [ ] 37-02-PLAN.md — recursion.rs contract_db activation + vcgen.rs wiring to use new constructor (XCREC-02)
+- [ ] 37-03-PLAN.md — Integration tests: cross-crate SCC detection, termination VC UNSAT/SAT, single-crate regression (XCREC-01, XCREC-02)
 
 ### Phase 37.1: Inferred Summary + Alias Precondition Guard
 **Goal**: Close the integration gap where combining `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p, q))]` on the same function silently drops alias VCs due to the `is_inferred` early-continue at `vcgen.rs:2436`
@@ -161,5 +166,5 @@ Plans:
 | 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36.1. Alias Precondition Parsing Fix | v0.6 | Complete | 2026-03-01 | 2026-03-01 |
-| 37. Cross-Crate SCC Detection | v0.6 | 0/TBD | Not started | - |
+| 37. Cross-Crate SCC Detection | v0.6 | 0/3 | Not started | - |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 0/TBD | Not started | - |
