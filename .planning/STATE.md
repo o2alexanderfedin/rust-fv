@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-03-01T09:42:49.000Z"
+last_updated: "2026-03-01T23:36:32.416Z"
 progress:
-  total_phases: 42
+  total_phases: 44
   completed_phases: 42
-  total_plans: 121
-  completed_plans: 122
+  total_plans: 124
+  completed_plans: 123
 ---
 
 # Project State
@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 36.1 COMPLETE (alias precondition parsing gap closure). Phase 37 (cross-crate recursion) is next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 37 Plan 01 COMPLETE (cross-crate SCC detection via ContractDatabase back-edge heuristic). Phase 37 Plan 02 (driver integration) is next.
 
 ## Current Position
 
-Phase: 36.1 of 37 (Alias Precondition Parsing) — COMPLETE (1 plan)
-Plan: 36.1-01 complete
+Phase: 37 of 37 (Cross-Crate SCC Detection) — In Progress (1/3 plans complete)
+Plan: 37-01 complete
 Status: In progress
-Last activity: 2026-03-01 — Completed 36.1-01 alias precondition parsing gap closure: callbacks.rs HIR scanner parses unsafe_requires, alias_preconditions populated in FunctionSummary (f439541, 8232f9c)
+Last activity: 2026-03-01 — Completed 37-01: CallGraph::from_functions_with_cross_crate_db implemented, 4 TDD tests GREEN (a598b85); XCREC-01, XCREC-02 satisfied
 
-Progress: [####░░░░░░] ~25% (v0.6 milestone, 5/~20 plans)
+Progress: [#####░░░░░] ~30% (v0.6 milestone, 6/~20 plans)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [####░░░░░░] ~25% (v0.6 milestone, 5/~20 plans)
 | Phase 35 P02 | 5 | 2 tasks | 1 files |
 | Phase 36-summary-contract-inference P01 | 35 | 3 tasks | 33 files |
 | Phase 36-summary-contract-inference P02 | 0 | 2 tasks | 4 files |
+| Phase 37-cross-crate-scc-detection P01 | 480 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,7 @@ Recent decisions relevant to v0.6:
 - [Phase 36.1-alias-precondition-parsing]: extract_contracts() return type changed from HashMap<LocalDefId, Contracts> to HashMap<LocalDefId, HirContracts> — preserves unsafe_requires across HIR->IR boundary; hir_contracts_to_ir() added as converter
 - [Phase 36.1-alias-precondition-parsing]: UNSAT alias VC requires caller anti-alias precondition (_1 != _2) — alias VC is SAT-based (asserts equality = violation); distinct locals alone are insufficient without constraint
 - [Phase 36.1-alias-precondition-parsing]: parse_alias_preconditions() uses source_to_idx (source param name -> zero-based index) built by inverting build_source_names() against args_iter()
+- [Phase 37-cross-crate-scc-detection]: from_functions_with_cross_crate_db accepts ContractDatabase and injects virtual nodes for contracted callees; back-edge heuristic via decreases.raw substring match enables cross-crate SCC detection
 
 ### Pending Todos
 
@@ -95,15 +97,15 @@ Recent decisions relevant to v0.6:
 
 ### Blockers/Concerns
 
-- [Phase 37] Cross-crate MIR availability: Tarjan's across crate boundaries requires exported symbol contract metadata — confirm nightly rustc metadata API at Phase 37 planning
+- [Phase 37 Plan 02] Driver integration: need to wire from_functions_with_cross_crate_db into recursion_verification.rs and confirm end-to-end cross-crate SCC detection in cargo verify
 
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 36.1-01-PLAN.md — alias precondition parsing gap closure: HIR scanner parses unsafe_requires, parse_alias_preconditions() wired into contract_db loop, 4 unit tests + 4 integration tests (f439541, 8232f9c); ALIAS-01, ALIAS-02 fully satisfied
+Stopped at: Completed 37-01-PLAN.md — cross-crate SCC detection: CallGraph::from_functions_with_cross_crate_db implemented with virtual node injection and back-edge heuristic, 4 TDD tests GREEN (a598b85); XCREC-01, XCREC-02 satisfied
 Resume file: None
-Next step: Execute Phase 37 — cross-crate recursion (XCREC)
+Next step: Execute Phase 37 Plan 02 — driver integration wiring from_functions_with_cross_crate_db into recursion_verification.rs
 
 ---
 
-*Last updated: 2026-03-01 — 36.1-01 complete: alias precondition parsing gap closure, extract_contracts returns HirContracts, parse_alias_preconditions() wired, 4 unit + 4 integration tests; ALIAS-01/02 fully satisfied*
+*Last updated: 2026-03-01 — 37-01 complete: cross-crate SCC detection, CallGraph::from_functions_with_cross_crate_db with virtual node injection + back-edge heuristic, 4 TDD tests GREEN; XCREC-01/02 satisfied*

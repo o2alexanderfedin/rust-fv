@@ -20,8 +20,8 @@ Milestone goal: Break the "each crate is an island" barrier — cross-function p
 
 ### Cross-Crate Recursion (XCREC)
 
-- [ ] **XCREC-01**: User can detect mutually recursive call cycles that span multiple crates (Tarjan's SCC extended across crate boundaries using exported symbol contracts in `recursion_verification.rs`)
-- [ ] **XCREC-02**: User can verify `#[decreases]` termination measures for mutually recursive functions across crate boundaries (termination proof uses cross-crate SCC from XCREC-01)
+- [x] **XCREC-01**: User can detect mutually recursive call cycles that span multiple crates (Tarjan's SCC extended across crate boundaries using exported symbol contracts in `recursion_verification.rs`)
+- [x] **XCREC-02**: User can verify `#[decreases]` termination measures for mutually recursive functions across crate boundaries (termination proof uses cross-crate SCC from XCREC-01)
 
 ## v2 Requirements
 
@@ -57,8 +57,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPAQUE-01 | Phase 35 | Complete |
 | OPAQUE-02 | Phase 35 | Complete |
 | OPAQUE-03 | Phase 36 | Complete |
-| XCREC-01 | Phase 37 | Pending |
-| XCREC-02 | Phase 37 | Pending |
+| XCREC-01 | Phase 37 | Complete |
+| XCREC-02 | Phase 37 | Complete |
 
 **Coverage:**
 - v0.6 requirements: 7 total
