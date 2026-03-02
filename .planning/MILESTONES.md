@@ -1,5 +1,27 @@
 # Milestones
 
+## v0.6 Cross-Crate Verification (Shipped: 2026-03-02)
+
+**Phases completed:** 6 phases (34–37.1), 11 plans
+**Tests:** 1,245+ passing (0 failures), including 53 new v0.6 tests
+**Lines of code:** ~103,500 Rust (+10,284 / -335 from v0.5-audit)
+**Timeline:** 3 days (2026-02-27 to 2026-03-02)
+**Feature commits:** 53
+**Requirements:** 7/7 (ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02) — all satisfied
+
+**Key accomplishments:**
+1. Cross-function pointer aliasing — `#[unsafe_requires(!alias(p,q))]` generates Z3 SAT VCs that catch aliased pointer arguments at call sites with typed counterexamples (Phase 34)
+2. Opaque callee diagnostics V060/V061 — warning/error when verified function calls uncontracted callee; replaces silent skip at `vcgen.rs:2366`; severity escalation for unsafe context (Phase 35)
+3. Summary contract inference — `#[verifier::infer_summary]` auto-generates minimal read/write contracts for opaque callees; inferred summaries visible in JSON output (Phase 36)
+4. HIR-based alias precondition parsing — `parse_alias_preconditions()` in callbacks.rs closes the always-empty `alias_preconditions` gap; full driver→HIR→vcgen→Z3 pipeline verified by 4 E2E tests (Phase 36.1)
+5. Cross-crate Tarjan SCC detection — `CallGraph::from_functions_with_cross_crate_db` extends Tarjan's algorithm across crate boundaries using exported symbol contracts; breaks "each crate is an island" barrier (Phase 37)
+6. Cross-crate `#[decreases]` termination verification — cross-crate mutual recursion termination measures verified with Z3 UNSAT/SAT proof; `generate_termination_vcs` activated for cross-crate callees (Phase 37)
+7. V062 InferredSummaryAlias guard — closes is_inferred + alias_preconditions co-occurrence gap; emits warning instead of silently dropping alias VCs (Phase 37.1)
+
+**Delivered:** Broke the "each crate is an island" barrier — inter-procedural pointer aliasing, opaque callee contract enforcement, and cross-crate mutual recursion detection all verified end-to-end with Z3 proofs.
+
+---
+
 ## v0.1 Formal Verification POC (Shipped: 2026-02-12)
 
 **Phases completed:** 5 phases, 17 plans

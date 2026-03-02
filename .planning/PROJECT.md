@@ -65,16 +65,17 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - ✓ v0.1 tech debt fully resolved — E2E benchmarks, bv2int docs, pointer aliasing edge cases, trigger edge cases, float VC placeholders — v0.5-audit
 - ✓ v0.1 Milestone Audit closed — status: passed, 37/37 phases pass, 0 human_needed — v0.5-audit
 
+- ✓ Cross-function pointer aliasing — `#[unsafe_requires(!alias(p,q))]` generates Z3 SAT VCs detecting aliased pointer args at call sites — v0.6
+- ✓ Opaque callee diagnostics V060/V061 — warning/error when verified function calls uncontracted callee; replaces silent skip — v0.6
+- ✓ Summary contract inference — `#[verifier::infer_summary]` auto-generates minimal contracts for opaque callees; JSON output — v0.6
+- ✓ HIR-based alias precondition parsing — `parse_alias_preconditions()` closes always-empty gap; full driver→vcgen→Z3 pipeline verified — v0.6
+- ✓ Cross-crate Tarjan SCC detection — `from_functions_with_cross_crate_db` breaks crate island barrier via virtual node injection — v0.6
+- ✓ Cross-crate `#[decreases]` termination verification — cross-crate mutual recursion termination proven with Z3 UNSAT/SAT — v0.6
+- ✓ V062 InferredSummaryAlias guard — closes is_inferred + alias_preconditions co-occurrence; emits warning instead of silent drop — v0.6
+
 ### Active
 
-#### Current Milestone: v0.6 Cross-Crate Verification
-
-**Goal:** Break the "each crate is an island" barrier — cross-function pointer aliasing, opaque callee contracts, and cross-crate mutual recursion detection
-
-**Target features:**
-- Cross-function pointer aliasing analysis for unsafe code (inter-procedural null/bounds tracking)
-- Opaque callee contract enforcement (warn/error when callee has no contract, not silent skip)
-- Cross-crate SCC detection for mutual recursion (Tarjan's across crate boundaries)
+*(Planning next milestone — see `/gsd:new-milestone`)*
 
 ### Out of Scope
 
@@ -90,11 +91,11 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.5-audit complete — 38 phases, ~125k LOC Rust, 6-crate workspace + VSCode extension; all known VCGen gaps closed, v0.1 milestone audit passed
-- **v0.5-audit achievements:** For-loop VCGen (AUFLIA + QF_LIA), prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3 bv2int fix, ghost locals filtering, tech debt closure, 22/22 UAT tests pass
-- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated
-- **Tech debt:** PtrCast alignment-check test documents 0 VCs assertion as DEBTLINE — future work for v0.6
-- **v0.6 focus:** Cross-crate verification — pointer aliasing inter-procedural (unsafe_verification.rs:1109–1135), opaque callee contracts (vcgen.rs:2366–2376), cross-crate mutual recursion SCCs (recursion_verification.rs)
+- **Current state:** v0.6 complete — 44 phases, ~103,500 LOC Rust, 6-crate workspace + VSCode extension; cross-crate verification fully delivered, 1245+ tests passing
+- **v0.6 achievements:** Cross-function pointer aliasing (ALIAS-01/02), opaque callee diagnostics V060/V061 (OPAQUE-01/02), summary contract inference (OPAQUE-03), HIR alias precondition parsing, cross-crate Tarjan SCC (XCREC-01), cross-crate termination measures (XCREC-02), V062 InferredSummaryAlias guard — all 7/7 requirements satisfied
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated (DEBTLINE); FnMut prophecy integration deferred; conservative live ranges in lifetime reasoning
+- **Tech debt:** `extract_alias_preconditions` pub visibility with test-only callers; alternative output paths (rustc_json.rs, cargo_verify.rs) statically set `inferred_summaries: None`
+- **Next:** v0.7 milestone — see `/gsd:new-milestone`
 
 ## Constraints
 
@@ -167,19 +168,26 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | Phase 11 float placeholder terms intentional PASS (Phase 32) | lhs/rhs/result placeholder VCs are correct design for float specs — not a gap | ✓ Good |
 | encode_operand() wired directly into generate_float_vcs() (Phase 33) | 3-line change closes float VC placeholder tech debt; no abstraction layer needed | ✓ Good |
 | CallGraph bidirectional name_map normalization (Phase 33) | Normalize caller names internally; return full names via name_map in all API methods | ✓ Good |
+| AliasPrecondition stores parameter indices not names (Phase 34) | Enables call-site substitution — indices are stable across call boundaries; names vary | ✓ Good |
+| OpaqueCallee always-SAT VC pattern (Phase 35) | BoolLit(true) VC with VcKind carrying diagnostic classification; mirrors DataRaceFreedom | ✓ Good |
+| infer_summary suppression via is_inferred flag on FunctionSummary (Phase 36) | Early continue in generate_call_site_vcs before has_requires check; minimal invasiveness | ✓ Good |
+| HirContracts return type for extract_contracts (Phase 36.1) | Preserves unsafe_requires across HIR→IR boundary; hir_contracts_to_ir() converter added | ✓ Good |
+| from_functions_with_cross_crate_db back-edge heuristic (Phase 37) | Virtual node injection via ContractDatabase; decreases.raw substring match for cross-crate edges | ✓ Good |
+| normalize_callee fallback for cross-crate callee names (Phase 37) | group.contains(callee) || !group.contains(callee_name) handles full-path cross-crate names | ✓ Good |
+| V062 InferredSummaryAlias guard hoists alias check before is_inferred (Phase 37.1) | Alias VCs emitted regardless of is_inferred when alias_preconditions non-empty; warning-only | ✓ Good |
 
-## Shipped: v0.5 Audit & Gap Closure (2026-02-27)
+## Shipped: v0.6 Cross-Crate Verification (2026-03-02)
 
-**Goal achieved:** Closed all known v0.5 gaps and v0.1 audit items — for-loop VCGen, prophecy fix, borrow conflict detection, SetDiscriminant VCGen, Z3/ghost fixes, tech debt resolution, and audit closure.
+**Goal achieved:** Broke the "each crate is an island" barrier — cross-function pointer aliasing, opaque callee contract enforcement, and cross-crate mutual recursion detection all verified end-to-end.
 
-**Delivered (gap closure phases 29.1–29.4, 30–33):**
-- For-loop Iterator Range VCGen: AUFLIA quantified VCs + QF_LIA bounded unrolling for `for x in 0..n` (closes VCGEN-01 partial)
-- Prophecy encoding: `*_1` in postconditions correctly resolves to `_1_prophecy` via `convert_deref` postcondition awareness
-- Borrow conflict detection: `generate_expiry_vcs()` implemented, emits `BorrowValidity` VC for use-after-expiry
-- SetDiscriminant VCGen: `Statement::SetDiscriminant` emits discriminant assertion VCs (closes VCGEN-06)
-- Z3 bv2int fix: `uses_spec_int_types()` enables QF_LIA path; ghost locals filtered from all SMT output
-- v0.1 tech debt: E2E benchmarks passing, bv2int docs created, edge case tests for unsafe/trigger/float added
-- Audit closure: v0.1 milestone audit status: **passed** (37/37 phases, 0 human_needed)
+**Delivered (phases 34–37.1):**
+- Cross-function pointer aliasing: `#[unsafe_requires(!alias(p,q))]` → spec_parser → `AliasPrecondition` → vcgen alias VC loop → Z3 SAT
+- Opaque callee diagnostics: V060 (warning) + V061 (error for unsafe context) replace silent skip at vcgen.rs:2366
+- Summary contract inference: `#[verifier::infer_summary]` proc-macro → callbacks HIR scan → is_inferred flag → vcgen suppression → JSON `inferred_summaries`
+- HIR alias precondition parsing: `parse_alias_preconditions()` in callbacks.rs closes always-empty alias_preconditions gap
+- Cross-crate Tarjan SCC: `CallGraph::from_functions_with_cross_crate_db` injects virtual nodes for contracted callees
+- Cross-crate termination: `generate_termination_vcs` uses caller-side VCs for cross-crate calls; Z3 UNSAT/SAT proof
+- V062 InferredSummaryAlias guard: closes is_inferred + alias_preconditions co-occurrence; warning emitted instead of silent drop
 
 ---
-*Last updated: 2026-02-28 after v0.6 Cross-Crate Verification milestone started*
+*Last updated: 2026-03-02 after v0.6 Cross-Crate Verification milestone complete*

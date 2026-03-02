@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
-status: unknown
-last_updated: "2026-03-02T02:34:49.289Z"
+status: complete
+last_updated: "2026-03-02T06:00:00.000Z"
 progress:
   total_phases: 44
   completed_phases: 44
@@ -15,20 +15,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-28)
+See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 37.1 Plan 01 COMPLETE (is_inferred+alias guard, V062 InferredSummaryAlias, driver wiring). ALIAS-01 and ALIAS-02 satisfied.
+**Current focus:** v0.6 milestone COMPLETE — 7/7 requirements satisfied, archived to milestones/. Planning v0.7 next milestone.
 
 ## Current Position
 
-Phase: 37.1 of 44 (Inferred Summary Alias Guard) — COMPLETE (1/1 plans complete)
-Plan: 37.1-01 complete
-Status: Phase 37.1 complete
-Last activity: 2026-03-02 — Completed 37.1-01: guard is_inferred early-continue for alias_preconditions co-occurrence, V062 InferredSummaryAlias VcKind, diagnostics.rs/callbacks.rs wiring (04852d9); ALIAS-01 and ALIAS-02 satisfied
+Milestone: v0.6 Cross-Crate Verification — COMPLETE (6/6 phases, 11/11 plans, 7/7 requirements)
+Status: Milestone archived. Git tag v0.6 created.
+Last activity: 2026-03-02 — v0.6 milestone complete: ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02 all satisfied. Archived to milestones/.
 
-Progress: [######░░░░] ~40% (v0.6 milestone, 7/~20 plans)
+Progress: [██████████] 100% (v0.6 milestone complete)
 
 ## Performance Metrics
 

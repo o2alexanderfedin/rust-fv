@@ -4,6 +4,56 @@
 
 ---
 
+## Milestone: v0.6 — Cross-Crate Verification
+
+**Shipped:** 2026-03-02
+**Phases:** 6 (34–37.1) | **Plans:** 11 | **Feature commits:** 30+
+**Timeline:** 2026-02-27 to 2026-03-02 (3 days)
+**Tests:** 1245+ passing, 53 new (0 failures)
+**Files changed:** 86 (+10,284 / -335)
+
+### What Was Built
+
+- Cross-function pointer aliasing — `#[unsafe_requires(!alias(p,q))]` → spec_parser → heap_model → vcgen alias VC → Z3 SAT violation detection
+- Opaque callee diagnostics V060/V061 — warning/error when verified function calls uncontracted callee; silent skip at vcgen.rs:2366 closed
+- Summary contract inference — `#[verifier::infer_summary]` auto-generates minimal contracts; JSON `inferred_summaries` field; VcKind suppression
+- HIR alias precondition parsing — `parse_alias_preconditions()` in callbacks.rs closes always-empty alias_preconditions gap (4 E2E tests GREEN)
+- Cross-crate Tarjan SCC — `CallGraph::from_functions_with_cross_crate_db` with virtual node injection and back-edge heuristic
+- Cross-crate `#[decreases]` termination — `generate_termination_vcs` produces Z3 UNSAT (valid) / SAT (counterexample) for cross-crate SCCs
+- V062 InferredSummaryAlias guard — closes is_inferred + alias_preconditions co-occurrence that silently dropped alias VCs
+
+### What Worked
+
+- Milestone audit before completion cycle — running `/gsd:audit-milestone` first caught ALIAS-01/02 integration gap (alias_preconditions always-empty) and XCREC-01/02 gap before calling milestone done; forced gap-closure phases 36.1 and 37.1
+- Decimal phase pattern for gap closure — 36.1 and 37.1 inserted without renumbering; each has clear dependency chain and single responsibility
+- Back-edge heuristic for cross-crate SCC — `decreases.raw.contains(callee_name)` detects cross-crate recursive edges without full call graph traversal; elegant and minimal
+- OpaqueCallee always-SAT VC pattern — mirrors DataRaceFreedom design; VcKind carries diagnostic classification; no new infrastructure needed
+
+### What Was Inefficient
+
+- v0.6 required 2 gap-closure phases (36.1, 37.1) after initial audit — 33% of phases were unplanned gap closures; integration gaps between HIR scanner and vcgen are a recurring source of unplanned work
+- Phase 37 plan 03 needed normalize_callee fallback fix mid-implementation — cross-crate callee full-path names differ from intra-crate short names; should have been anticipated
+
+### Patterns Established
+
+- **Audit before complete**: Run `/gsd:audit-milestone` as a hard gate before `/gsd:complete-milestone`; gap-closure phases are cheaper than failed milestone audits
+- **HIR→IR boundary preservation**: When adding new contract fields, return `HirContracts` (not `Contracts`) from HIR scanner so data survives the HIR→IR boundary; convert via `hir_contracts_to_ir()` at the boundary
+- **Cross-layer VC guard ordering**: When adding a guard that allows early-continue to skip logic, always check whether sub-features need the skipped code; audit all `continue`/`return` early-exits in generate_* functions for missed co-occurrence cases
+
+### Key Lessons
+
+1. **Cross-crate integration multiplies integration gap risk**: Cross-crate features have HIR→IR→vcgen→diagnostics paths each crossing module boundaries; plan a dedicated integration test phase verifying the full end-to-end before claiming requirements satisfied
+2. **Audit-driven gap closure is faster than spec-driven**: Running the audit exposed exact gaps (alias_preconditions always-empty, XCREC-01/02 not implemented) with evidence — more efficient than spec review
+3. **V0x diagnostic codes are the right abstraction for warning classification**: V060/V061/V062 allows future tooling to filter by warning category; establish the code range at phase start
+
+### Cost Observations
+
+- Model: sonnet (balanced profile throughout)
+- Sessions: ~5 (2026-02-27 to 2026-03-02)
+- Notable: Phase 37 was the largest single phase (3 plans, Tarjan SCC + termination VCs + integration tests) — correctly estimated at 3 plans; cross-crate SCC required back-edge heuristic research before implementation
+
+---
+
 ## Milestone: v0.5-audit — Audit & Gap Closure
 
 **Shipped:** 2026-02-27
@@ -156,6 +206,7 @@
 | v0.4 | 9 | 27 | Gap closure phases pattern established; post-archive UAT introduced |
 | v0.5 | 2+1 | 11 | TDD scaffold as Phase 01 gating mechanism; post-archive UAT phase validated all 22 items |
 | v0.5-audit | 9 | 22 | Audit → gap closure → complete cycle; decimal phase pattern for targeted fixes |
+| v0.6 | 6 | 11 | Audit as hard gate before complete; 2 unplanned gap-closure phases (36.1, 37.1); HIR→IR boundary preservation pattern established |
 
 ### Cumulative Quality
 
@@ -166,6 +217,7 @@
 | v0.3 | 1,613 lib | Recount (lib tests only); TypeScript tests added for VSCode |
 | v0.4 | Not counted | Focused on integration correctness over raw test count |
 | v0.5 | All 93 plans' tests green; 22/22 UAT items pass | TDD scaffold → all RED tests GREEN |
+| v0.6 | 1245+ (0 failures); 53 new tests | Cross-crate E2E tests cover full driver→HIR→vcgen→Z3 pipeline |
 
 ### Top Lessons (Verified Across Milestones)
 
