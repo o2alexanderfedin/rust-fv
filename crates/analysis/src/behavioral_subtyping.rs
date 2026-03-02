@@ -101,6 +101,7 @@ pub fn encode_precondition_weakening_vc(
 ) -> Vec<rust_fv_smtlib::command::Command> {
     use crate::encode_sort::encode_type;
     use rust_fv_smtlib::command::Command;
+    use rust_fv_smtlib::sort::Sort;
     use rust_fv_smtlib::term::Term;
 
     let mut commands = Vec::new();
@@ -116,17 +117,30 @@ pub fn encode_precondition_weakening_vc(
     )));
 
     // Declare parameter sorts and constants
+    let param_sorts: Vec<Sort> = trait_method
+        .params
+        .iter()
+        .map(|(_, ty)| encode_type(ty))
+        .collect();
+
     for (param_name, param_ty) in &trait_method.params {
         let sort = encode_type(param_ty);
         commands.push(Command::DeclareConst(param_name.clone(), sort));
     }
 
     // Build conjunction of all trait requires clauses
-    // For simplicity, we encode each requires as a symbolic predicate
+    // Each requires clause is encoded as an uninterpreted predicate (Bool-valued function).
+    // We must declare each predicate with declare-fun before using it in Term::App.
     let trait_requires = if trait_method.requires.len() == 1 {
         // Single requirement: use it directly as a symbolic term
+        let pred_name = format!("trait_requires_{}", trait_method.name);
+        commands.push(Command::DeclareFun(
+            pred_name.clone(),
+            param_sorts.clone(),
+            Sort::Bool,
+        ));
         Term::App(
-            format!("trait_requires_{}", trait_method.name),
+            pred_name,
             trait_method
                 .params
                 .iter()
@@ -134,14 +148,20 @@ pub fn encode_precondition_weakening_vc(
                 .collect(),
         )
     } else {
-        // Multiple requirements: conjoin them
+        // Multiple requirements: conjoin them, one declare-fun per clause
         let req_terms: Vec<Term> = trait_method
             .requires
             .iter()
             .enumerate()
             .map(|(i, _)| {
+                let pred_name = format!("trait_requires_{}_{}", trait_method.name, i);
+                commands.push(Command::DeclareFun(
+                    pred_name.clone(),
+                    param_sorts.clone(),
+                    Sort::Bool,
+                ));
                 Term::App(
-                    format!("trait_requires_{}_{}", trait_method.name, i),
+                    pred_name,
                     trait_method
                         .params
                         .iter()
@@ -193,6 +213,7 @@ pub fn encode_postcondition_strengthening_vc(
 ) -> Vec<rust_fv_smtlib::command::Command> {
     use crate::encode_sort::encode_type;
     use rust_fv_smtlib::command::Command;
+    use rust_fv_smtlib::sort::Sort;
     use rust_fv_smtlib::term::Term;
 
     let mut commands = Vec::new();
@@ -208,6 +229,12 @@ pub fn encode_postcondition_strengthening_vc(
     )));
 
     // Declare parameter sorts and constants (including return value)
+    let param_sorts: Vec<Sort> = trait_method
+        .params
+        .iter()
+        .map(|(_, ty)| encode_type(ty))
+        .collect();
+
     for (param_name, param_ty) in &trait_method.params {
         let sort = encode_type(param_ty);
         commands.push(Command::DeclareConst(param_name.clone(), sort));
@@ -215,33 +242,53 @@ pub fn encode_postcondition_strengthening_vc(
 
     // Declare return value
     let return_sort = encode_type(&trait_method.return_ty);
-    commands.push(Command::DeclareConst("result".to_string(), return_sort));
+    commands.push(Command::DeclareConst(
+        "result".to_string(),
+        return_sort.clone(),
+    ));
 
-    // Build conjunction of all trait ensures clauses
-    // For simplicity, we encode each ensures as a symbolic predicate
+    // Build the sort list for the predicate: all params + return value
+    let mut pred_sorts = param_sorts.clone();
+    pred_sorts.push(return_sort);
+
+    // Build conjunction of all trait ensures clauses.
+    // Each ensures clause is encoded as an uninterpreted predicate (Bool-valued function).
+    // We must declare each predicate with declare-fun before using it in Term::App.
     let trait_ensures = if trait_method.ensures.len() == 1 {
         // Single postcondition: use it directly as a symbolic term
+        let pred_name = format!("trait_ensures_{}", trait_method.name);
+        commands.push(Command::DeclareFun(
+            pred_name.clone(),
+            pred_sorts.clone(),
+            Sort::Bool,
+        ));
         let mut params: Vec<Term> = trait_method
             .params
             .iter()
             .map(|(n, _)| Term::Const(n.clone()))
             .collect();
         params.push(Term::Const("result".to_string()));
-        Term::App(format!("trait_ensures_{}", trait_method.name), params)
+        Term::App(pred_name, params)
     } else {
-        // Multiple postconditions: conjoin them
+        // Multiple postconditions: conjoin them, one declare-fun per clause
         let ens_terms: Vec<Term> = trait_method
             .ensures
             .iter()
             .enumerate()
             .map(|(i, _)| {
+                let pred_name = format!("trait_ensures_{}_{}", trait_method.name, i);
+                commands.push(Command::DeclareFun(
+                    pred_name.clone(),
+                    pred_sorts.clone(),
+                    Sort::Bool,
+                ));
                 let mut params: Vec<Term> = trait_method
                     .params
                     .iter()
                     .map(|(n, _)| Term::Const(n.clone()))
                     .collect();
                 params.push(Term::Const("result".to_string()));
-                Term::App(format!("trait_ensures_{}_{}", trait_method.name, i), params)
+                Term::App(pred_name, params)
             })
             .collect();
 

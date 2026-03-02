@@ -635,14 +635,14 @@ fn e2e_multiple_impls_all_checked() {
 // These tests exercise the FULL pipeline: TraitDef/TraitImpl construction →
 // generate_subtyping_vcs → generate_subtyping_script → Z3 → UNSAT/SAT result.
 //
-// Note on current encoding: generate_subtyping_script uses symbolic (uninterpreted)
-// predicates. Precondition weakening VC encodes (not (=> trait_requires true)) which
-// is always UNSAT because trait_requires => true is a tautology. Postcondition
+// Encoding: generate_subtyping_script uses symbolic (uninterpreted) predicates,
+// each declared with (declare-fun ...) before use so Z3 accepts the script.
+// Precondition weakening VC encodes (not (=> trait_requires true)) which is
+// always UNSAT because trait_requires => true is a tautology. Postcondition
 // strengthening VC encodes (not (=> trait_ensures trait_ensures)) which is always
-// UNSAT because P => P is a tautology. Therefore ALL correctly-written VCs currently
-// produce UNSAT. The key assertion is that Z3 executes successfully through the pipeline.
-// A future implementation with concrete contract comparison would produce SAT for
-// violating impls. This is documented as a known limitation.
+// UNSAT because P => P is a tautology. Therefore ALL correctly-written VCs
+// produce UNSAT. A future implementation with concrete contract comparison would
+// produce SAT for violating impls.
 // ---------------------------------------------------------------------------
 
 /// TRT-01..05: E2E behavioral subtyping pipeline — correct impl verified by Z3.
@@ -683,45 +683,38 @@ fn e2e_behavioral_subtyping_pipeline_correct_impl() {
     assert_eq!(scripts.len(), 2, "Script count must match VC count");
 
     // Step 3: Z3 evaluates each script.
-    // Current symbolic encoding uses Term::App for uninterpreted predicates
-    // (e.g., trait_requires_push) without declare-fun, which may cause Z3 parse errors
-    // on strict SMT-LIB2 validation. The pipeline test verifies:
-    //   (a) Scripts are generated and have non-zero length (pipeline wiring is correct)
-    //   (b) Z3 is invoked and produces a result (Unsat, Sat, or parse error handled gracefully)
-    // A future implementation with concrete contract comparison and proper declare-fun
-    // would always return Unsat for correct impls and Sat for violating impls.
+    // Each VC is structurally trivially valid under the symbolic encoding:
+    //   - Precondition weakening: (not (=> trait_requires true)) = UNSAT (tautology)
+    //   - Postcondition strengthening: (not (=> trait_ensures trait_ensures)) = UNSAT (P => P)
+    // All uninterpreted predicates are now declared with (declare-fun ...) before use,
+    // so Z3 accepts the script and returns UNSAT for each well-formed VC.
     let solver = Z3Solver::with_default_config().expect("Z3 must be available");
     for (i, script) in scripts.iter().enumerate() {
         let smtlib = script_to_smtlib(script);
         eprintln!("Script {i}: {smtlib}");
-        match solver.check_sat_raw(&smtlib) {
-            Ok(rust_fv_solver::SolverResult::Unsat) => {
-                // UNSAT = VC valid (impl satisfies trait contract) — expected for current symbolic encoding
-                eprintln!("Script {i}: UNSAT (VC valid)");
-            }
-            Ok(rust_fv_solver::SolverResult::Sat(_)) => {
-                // SAT would indicate the VC found a violation — unexpected with current symbolic encoding.
-                // This would be correct in a full implementation with concrete contract comparison.
-                eprintln!(
-                    "Note: SAT result for script {i} — encoding may have changed or impl has LSP violation"
-                );
-            }
-            Ok(rust_fv_solver::SolverResult::Unknown(reason)) => {
-                eprintln!("Note: Z3 returned Unknown for script {i}: {reason}");
-            }
-            Err(e) => {
-                // ParseError due to current simplified encoding using Term::App without declare-fun.
-                // This is a known limitation of the symbolic encoding — the pipeline wiring is correct
-                // but the generated SMT-LIB2 needs declare-fun for each uninterpreted predicate.
-                eprintln!("Note: Z3 parse error for script {i} (known encoding limitation): {e}");
-            }
-        }
-        // Key assertion: Script was generated and submitted to Z3 (pipeline wiring is correct).
-        // Non-empty script confirms the behavioral subtyping pipeline reached Z3.
         assert!(
             !smtlib.is_empty(),
             "Script {i} must be non-empty — behavioral subtyping pipeline generated output"
         );
+        match solver.check_sat_raw(&smtlib) {
+            Ok(rust_fv_solver::SolverResult::Unsat) => {
+                // Expected: VC is valid (impl satisfies trait contract under symbolic encoding)
+                eprintln!("Script {i}: UNSAT (VC valid)");
+            }
+            Ok(rust_fv_solver::SolverResult::Sat(_)) => {
+                panic!(
+                    "Script {i}: SAT — symbolic VC should always be UNSAT (impl has LSP violation or encoding regression)"
+                );
+            }
+            Ok(rust_fv_solver::SolverResult::Unknown(reason)) => {
+                panic!("Script {i}: Z3 returned Unknown (unexpected): {reason}");
+            }
+            Err(e) => {
+                panic!(
+                    "Script {i}: Z3 rejected script — all declare-fun must precede use: {e}\nScript:\n{smtlib}"
+                );
+            }
+        }
     }
 }
 
