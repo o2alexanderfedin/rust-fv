@@ -282,6 +282,20 @@ pub fn generate_vcs_with_db(
         declarations.append(&mut closure_decls);
     }
 
+    // Wire prophecy declarations for FnMut closures with mutable captures (ByMutRef fields).
+    // detect_closure_prophecies returns empty for Fn/FnOnce or ByMove/ByRef captures.
+    let mut closure_prophecy_decls: Vec<Command> = Vec::new();
+    for ci in &closure_infos {
+        let cp = crate::encode_prophecy::detect_closure_prophecies(ci);
+        if !cp.is_empty() {
+            let mut decls = crate::encode_prophecy::prophecy_declarations(&cp);
+            closure_prophecy_decls.append(&mut decls);
+        }
+    }
+    if !closure_prophecy_decls.is_empty() {
+        declarations.extend(closure_prophecy_decls);
+    }
+
     // Inject trait bound premises for generic functions.
     // For each generic parameter with trait bounds, call trait_bounds_as_smt_assumptions()
     // and inject the resulting terms as Assert commands in the declarations list.
@@ -7653,7 +7667,8 @@ mod tests {
 
     #[test]
     fn test_vcgen_fnmut_closure_prophecy() {
-        // Function with FnMut closure parameter
+        use crate::ir::CaptureMode;
+        // Function with FnMut closure parameter having a ByMutRef capture
         let func = Function {
             name: "apply_fnmut".to_string(),
             params: vec![Local::new(
@@ -7663,7 +7678,7 @@ mod tests {
                     env_fields: vec![(
                         "count".to_string(),
                         Ty::Int(IntTy::I32),
-                        crate::ir::CaptureMode::ByMove,
+                        CaptureMode::ByMutRef,
                     )],
                     params: vec![],
                     return_ty: Ty::Unit,
@@ -7698,11 +7713,76 @@ mod tests {
         };
 
         let result = generate_vcs(&func, None);
-
-        // For FnMut closures with mutable captures, should eventually generate prophecy variable declarations
-        // For now, just verify VCs are generated without errors
-        // Just check that the function completed without panicking
+        // No contracts means no VC conditions — test with ensures contract below
         let _ = result.conditions.len();
+
+        // Build a function with an ensures contract so VCs are generated
+        let func_with_contract = Function {
+            name: "apply_fnmut_contract".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "mutator".to_string(),
+                    env_fields: vec![(
+                        "count".to_string(),
+                        Ty::Int(IntTy::I32),
+                        CaptureMode::ByMutRef,
+                    )],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: crate::ir::ClosureTrait::FnMut,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+
+        let result2 = generate_vcs(&func_with_contract, None);
+        assert!(
+            !result2.conditions.is_empty(),
+            "Should have at least one VC for ensures contract"
+        );
+
+        let script_str = format!("{}", result2.conditions[0].script);
+        assert!(
+            script_str.contains("declare-const count_initial"),
+            "VC script must contain declare-const count_initial for ByMutRef captured field 'count'. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const count_prophecy"),
+            "VC script must contain declare-const count_prophecy for ByMutRef captured field 'count'. Script:\n{}",
+            script_str
+        );
     }
 
     #[test]
