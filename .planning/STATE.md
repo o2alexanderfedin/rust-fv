@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T21:58:50.781Z"
+last_updated: "2026-03-02T22:12:10.929Z"
 progress:
   total_phases: 41
-  completed_phases: 39
+  completed_phases: 40
   total_plans: 118
-  completed_plans: 119
+  completed_plans: 120
 ---
 
 # Project State
@@ -60,6 +60,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 38-trait-subtyping-wiring P01 | 163 | 3 tasks | 1 files |
 | Phase 38-trait-subtyping-wiring P02 | 172 | 1 tasks | 1 files |
 | Phase 39 P01 | 1184 | 2 tasks | 8 files |
+| Phase 39 P02 | 653 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Recent decisions relevant to v0.6:
 - [Phase 38-01]: VcLocation uses function/block/statement fields not function_name/block_idx/stmt_idx; AssocKind::Fn requires matches! pattern
 - [Phase 38-02]: Gracefully handle Z3 ParseError in E2E pipeline test — Term::App without declare-fun is known encoding limitation; assert non-empty script (pipeline wired) not Z3 UNSAT
 - [Phase 39]: CaptureMode enum (ByMove|ByRef|ByMutRef) on ClosureInfo.env_fields; detect_closure_prophecies filters ByMutRef only; ProphecyInfo.closure_name: Option<String> for closure vs param distinction
+- [Phase 39]: Closure prophecy wiring at declarations collection site after encode_closure_as_uninterpreted loop — closure_infos already extracted and declarations mutable in scope
 
 ### Pending Todos
 
@@ -120,9 +122,9 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 38-02-PLAN.md — E2E behavioral subtyping pipeline tests (3 new: pipeline-correct-impl, vc-count-matches-scripts, no-vcs-no-scripts); all 13 trait_verification tests pass (2ebc55c)
+Stopped at: Completed 39-02-PLAN.md — FnMut prophecy integration in generate_vcs; detect_closure_prophecies wired after encode_closure_as_uninterpreted loop; 4 upgraded/new vcgen tests all pass (23ed5fc, a495ac9)
 Resume file: None
-Next step: Phase 38 complete (Plans 01 and 02). TRT-01..05 requirements fully satisfied end-to-end.
+Next step: Phase 39 complete (Plans 01 and 02). FnMut closure prophecy encoding loop complete end-to-end.
 
 ---
 

@@ -96,7 +96,7 @@ Plans:
 **Goal:** Extend the IR and VCGen so that FnMut closures with mutable captured state emit SMT-LIB2 prophecy variable declarations (`{field}_initial`, `{field}_prophecy`) enabling contracts like `#[ensures(count == old(count) + 1)]` to be verified.
 **Requirements**: TBD
 **Depends on:** Phase 38
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 39-01-PLAN.md — Add CaptureMode enum, update ClosureInfo.env_fields, extend ProphecyInfo, add detect_closure_prophecies
