@@ -260,6 +260,24 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         }
     };
 
+    // Generic function routing:
+    // Functions with non-empty generic_params are verified via the parametric axiom
+    // approach in generate_vcs_with_db (vcgen.rs lines 285-298 inject trait bound
+    // assumptions for each generic parameter). This is activated by mir_converter.rs
+    // populating generic_params from tcx.generics_of().
+    //
+    // The monomorphization path (generate_vcs_monomorphized) requires a populated
+    // MonomorphizationRegistry with call-site instantiation data. That requires
+    // call-site analysis (type-checking the caller body), which is not yet threaded
+    // through VerificationTask. Tracked in tech_debt as GENERICS-02.
+    if task.ir_func.is_generic() {
+        tracing::debug!(
+            function = %task.name,
+            generic_params = ?task.ir_func.generic_params.iter().map(|gp| &gp.name).collect::<Vec<_>>(),
+            "Verifying generic function via parametric axiom path"
+        );
+    }
+
     // Generate VCs with inter-procedural support and ghost predicate expansion
     let mut func_vcs = rust_fv_analysis::vcgen::generate_vcs_with_db(
         &task.ir_func,

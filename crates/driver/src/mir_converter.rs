@@ -42,6 +42,71 @@ fn is_ghost_local(source_name: &str) -> bool {
     source_name.starts_with("__ghost_")
 }
 
+/// Extract generic type parameters from a function's generics.
+///
+/// Calls `tcx.generics_of(def_id)` to enumerate type parameters, then
+/// `tcx.predicates_of(def_id)` to extract trait bounds for each.
+///
+/// Lifetime and const generic parameters are skipped — lifetimes are
+/// handled separately in `lifetime_params`, and const generics are not
+/// supported in the verification IR.
+///
+/// `"Sized"` bounds are filtered out as they are always implied and
+/// add no verification value.
+fn convert_generic_params(
+    tcx: TyCtxt<'_>,
+    def_id: rustc_hir::def_id::DefId,
+) -> Vec<ir::GenericParam> {
+    use rustc_middle::ty::GenericParamDefKind;
+
+    let generics = tcx.generics_of(def_id);
+    let predicates = tcx.predicates_of(def_id);
+
+    generics
+        .own_params
+        .iter()
+        .filter_map(|param| {
+            if !matches!(param.kind, GenericParamDefKind::Type { .. }) {
+                return None;
+            }
+            let param_name = param.name.as_str().to_string();
+
+            // Collect trait bounds that apply to this specific type parameter.
+            let trait_bounds: Vec<String> = predicates
+                .predicates
+                .iter()
+                .filter_map(|(clause, _span)| {
+                    let trait_pred = clause.as_trait_clause()?.skip_binder();
+                    // Only include bounds on THIS parameter (self_ty == Param(param_name))
+                    if let ty::TyKind::Param(p) = trait_pred.trait_ref.self_ty().kind() {
+                        if p.name.as_str() != param_name {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                    let trait_name = tcx
+                        .def_path_str(trait_pred.trait_ref.def_id)
+                        .split("::")
+                        .last()
+                        .unwrap_or("")
+                        .to_string();
+                    // Skip Sized — always implied, adds no verification value
+                    if trait_name == "Sized" {
+                        return None;
+                    }
+                    Some(trait_name)
+                })
+                .collect();
+
+            Some(ir::GenericParam {
+                name: param_name,
+                trait_bounds,
+            })
+        })
+        .collect()
+}
+
 /// Convert a rustc MIR body to our IR Function.
 pub fn convert_mir(
     tcx: TyCtxt<'_>,
@@ -133,7 +198,7 @@ pub fn convert_mir(
         basic_blocks,
         contracts,
         loops: vec![],
-        generic_params: vec![],
+        generic_params: convert_generic_params(tcx, def_id),
         prophecies: vec![],
         lifetime_params: vec![],
         outlives_constraints: vec![],
