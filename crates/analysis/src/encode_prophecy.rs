@@ -30,7 +30,7 @@ use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::term::Term;
 
 use crate::encode_sort::encode_type;
-use crate::ir::{Function, Mutability, ProphecyInfo, Ty};
+use crate::ir::{CaptureMode, ClosureInfo, Function, Mutability, ProphecyInfo, Ty};
 
 /// Detect all mutable reference parameters and create prophecy metadata.
 ///
@@ -173,6 +173,29 @@ pub fn detect_nested_prophecies(func: &Function) -> Vec<ProphecyInfo> {
     }
 
     prophecies
+}
+
+/// Detect mutable captures in a FnMut closure and create prophecy metadata.
+///
+/// For each env_field with CaptureMode::ByMutRef, produces a ProphecyInfo
+/// mirroring detect_prophecies but scoping to closure env fields.
+///
+/// CaptureMode::ByMove and CaptureMode::ByRef fields produce no prophecies —
+/// only mutable captures require pre/post state tracking.
+pub fn detect_closure_prophecies(closure_info: &ClosureInfo) -> Vec<ProphecyInfo> {
+    closure_info
+        .env_fields
+        .iter()
+        .filter(|(_, _, mode)| *mode == CaptureMode::ByMutRef)
+        .map(|(field_name, ty, _)| ProphecyInfo {
+            param_name: field_name.clone(),
+            initial_var: format!("{}_initial", field_name),
+            prophecy_var: format!("{}_prophecy", field_name),
+            inner_ty: ty.clone(),
+            deref_level: 0,
+            closure_name: Some(closure_info.name.clone()),
+        })
+        .collect()
 }
 
 /// Generate SMT declarations for nested prophecy variables.
@@ -672,5 +695,137 @@ mod tests {
         let func = make_func_with_mut_ref();
         let prophecies = detect_prophecies(&func);
         assert_eq!(prophecies[0].deref_level, 0);
+    }
+
+    // ====== detect_closure_prophecies tests (Phase 39) ======
+
+    #[test]
+    fn test_detect_closure_prophecies_by_mut_ref() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait};
+        let closure = ClosureInfo {
+            name: "counter".to_string(),
+            env_fields: vec![(
+                "count".to_string(),
+                Ty::Int(IntTy::I32),
+                CaptureMode::ByMutRef,
+            )],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+        let result = detect_closure_prophecies(&closure);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_empty() {
+        use crate::ir::{ClosureInfo, ClosureTrait};
+        let closure = ClosureInfo {
+            name: "c".to_string(),
+            env_fields: vec![],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::Fn,
+        };
+        assert_eq!(detect_closure_prophecies(&closure).len(), 0);
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_by_move_no_prophecy() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait};
+        let closure = ClosureInfo {
+            name: "c".to_string(),
+            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove)],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::Fn,
+        };
+        assert_eq!(detect_closure_prophecies(&closure).len(), 0);
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_by_ref_no_prophecy() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait};
+        let closure = ClosureInfo {
+            name: "c".to_string(),
+            env_fields: vec![("y".to_string(), Ty::Bool, CaptureMode::ByRef)],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::Fn,
+        };
+        assert_eq!(detect_closure_prophecies(&closure).len(), 0);
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_naming_convention() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait};
+        let closure = ClosureInfo {
+            name: "counter".to_string(),
+            env_fields: vec![(
+                "count".to_string(),
+                Ty::Int(IntTy::I32),
+                CaptureMode::ByMutRef,
+            )],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+        let result = detect_closure_prophecies(&closure);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].param_name, "count");
+        assert_eq!(result[0].initial_var, "count_initial");
+        assert_eq!(result[0].prophecy_var, "count_prophecy");
+        assert_eq!(result[0].inner_ty, Ty::Int(IntTy::I32));
+        assert_eq!(result[0].deref_level, 0);
+        assert_eq!(result[0].closure_name, Some("counter".to_string()));
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_multiple_by_mut_ref() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait, IntTy as IITy};
+        let closure = ClosureInfo {
+            name: "multi".to_string(),
+            env_fields: vec![
+                ("a".to_string(), Ty::Int(IITy::I32), CaptureMode::ByMutRef),
+                ("b".to_string(), Ty::Bool, CaptureMode::ByMove),
+                ("c".to_string(), Ty::Int(IITy::I64), CaptureMode::ByMutRef),
+            ],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+        let result = detect_closure_prophecies(&closure);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].param_name, "a");
+        assert_eq!(result[1].param_name, "c");
+    }
+
+    #[test]
+    fn test_detect_closure_prophecies_declarations_reusable() {
+        use crate::ir::{CaptureMode, ClosureInfo, ClosureTrait};
+        // Verify that prophecy_declarations works on closure prophecies unchanged
+        let closure = ClosureInfo {
+            name: "counter".to_string(),
+            env_fields: vec![(
+                "count".to_string(),
+                Ty::Int(IntTy::I32),
+                CaptureMode::ByMutRef,
+            )],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+        let prophecies = detect_closure_prophecies(&closure);
+        let commands = prophecy_declarations(&prophecies);
+        // DeclareConst count_initial, DeclareConst count_prophecy, Assert count_initial = count
+        assert_eq!(commands.len(), 3);
+        match &commands[0] {
+            Command::DeclareConst(name, _) => assert_eq!(name, "count_initial"),
+            _ => panic!("Expected DeclareConst"),
+        }
+        match &commands[1] {
+            Command::DeclareConst(name, _) => assert_eq!(name, "count_prophecy"),
+            _ => panic!("Expected DeclareConst"),
+        }
     }
 }
