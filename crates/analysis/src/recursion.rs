@@ -99,9 +99,11 @@ pub fn generate_termination_vcs(
             ..
         } = &bb.terminator
         {
-            // Normalize callee name and check if it's in the recursive group
+            // Normalize callee name and check if it's in the recursive group.
+            // Cross-crate callees: the group stores full names (e.g. "dep_crate::bar")
+            // while normalize_callee produces only the short name ("bar"). Check both.
             let normalized = normalize_callee(callee_name);
-            if !group.contains(&normalized) {
+            if !group.contains(&normalized) && !group.contains(callee_name) {
                 continue;
             }
 
