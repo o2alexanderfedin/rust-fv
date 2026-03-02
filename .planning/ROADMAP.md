@@ -89,4 +89,4 @@ Plans:
 | 36.1. Alias Precondition Parsing Fix | v0.6 | 1/1 | Complete | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 3/3 | Complete | 2026-03-02 |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 1/1 | Complete | 2026-03-02 |
-| 38. Trait Subtyping Wiring | 2/2 | Complete   | 2026-03-02 | — |
+| 38. Trait Subtyping Wiring | 2/2 | Complete    | 2026-03-02 | — |
