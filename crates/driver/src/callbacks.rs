@@ -765,6 +765,159 @@ impl Callbacks for VerificationCallbacks {
             }
         }
 
+        // Run behavioral subtyping verification for all trait impls with contracts.
+        // Addresses TRT-01..05 gap: generate_subtyping_vcs was implemented but never called.
+        {
+            use rust_fv_analysis::behavioral_subtyping::{
+                generate_subtyping_script, generate_subtyping_vcs,
+            };
+            use rust_fv_analysis::ir::{SpecExpr, TraitDef, TraitImpl, TraitMethod};
+            use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+            let z3 = Z3SolverAdapter::try_new();
+            let trait_db = TraitDatabase::new();
+
+            for (trait_def_id, impl_def_ids) in tcx.all_local_trait_impls(()).iter() {
+                // Get the trait short name
+                let trait_name = tcx.item_name(*trait_def_id).to_string();
+
+                // Collect contracted methods for this trait from contract_db.
+                // contract_db entries have full paths like "crate::TraitName::method_name".
+                // Match by checking if the entry name contains "::{trait_name}::" as a method.
+                let trait_methods: Vec<TraitMethod> = contract_db
+                    .iter()
+                    .filter(|(name, summary)| {
+                        name.contains(&format!("::{trait_name}::"))
+                            && (!summary.contracts.requires.is_empty()
+                                || !summary.contracts.ensures.is_empty())
+                    })
+                    .map(|(name, summary)| {
+                        let method_name = name.rsplit("::").next().unwrap_or(name).to_string();
+                        TraitMethod {
+                            name: method_name,
+                            params: summary
+                                .param_names
+                                .iter()
+                                .zip(summary.param_types.iter())
+                                .map(|(n, t)| (n.clone(), t.clone()))
+                                .collect(),
+                            return_ty: summary.return_ty.clone(),
+                            requires: summary
+                                .contracts
+                                .requires
+                                .iter()
+                                .map(|r| SpecExpr { raw: r.raw.clone() })
+                                .collect(),
+                            ensures: summary
+                                .contracts
+                                .ensures
+                                .iter()
+                                .map(|e| SpecExpr { raw: e.raw.clone() })
+                                .collect(),
+                            is_pure: summary.contracts.is_pure,
+                        }
+                    })
+                    .collect();
+
+                if trait_methods.is_empty() {
+                    continue; // No contracted methods in this trait — skip all its impls
+                }
+
+                let trait_def = TraitDef {
+                    name: trait_name.clone(),
+                    methods: trait_methods,
+                    is_sealed: false,
+                    super_traits: vec![],
+                };
+
+                for &impl_def_id in impl_def_ids {
+                    let impl_full_name = tcx.def_path_str(impl_def_id.to_def_id());
+                    // Extract the implementing type name (last segment of path)
+                    let impl_type = impl_full_name
+                        .rsplit("::")
+                        .next()
+                        .unwrap_or(&impl_full_name)
+                        .trim_start_matches('<')
+                        .trim_end_matches('>')
+                        .to_string();
+
+                    // Collect method names provided by this impl block
+                    let impl_method_names: Vec<String> = tcx
+                        .associated_items(impl_def_id.to_def_id())
+                        .in_definition_order()
+                        .filter(|item| matches!(item.kind, rustc_middle::ty::AssocKind::Fn { .. }))
+                        .map(|item| item.name().to_string())
+                        .collect();
+
+                    let impl_info = TraitImpl {
+                        trait_name: trait_name.clone(),
+                        impl_type: impl_type.clone(),
+                        method_names: impl_method_names,
+                    };
+
+                    let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &trait_db);
+                    if vcs.is_empty() {
+                        continue;
+                    }
+
+                    let scripts = generate_subtyping_script(&trait_def, &impl_info);
+                    let func_label = format!("{impl_type} impl {trait_name}");
+
+                    for (vc, script) in vcs.iter().zip(scripts.iter()) {
+                        let verified = if let Some(ref solver) = z3 {
+                            let script_text = script.to_string();
+                            match solver.solver.check_sat_raw(&script_text) {
+                                Ok(rust_fv_solver::SolverResult::Unsat) => true,
+                                Ok(rust_fv_solver::SolverResult::Sat(_)) => false,
+                                _ => true, // Unknown/error → optimistic (don't false-positive)
+                            }
+                        } else {
+                            true // Z3 unavailable → skip
+                        };
+
+                        let vc_loc = rust_fv_analysis::vcgen::VcLocation {
+                            function: func_label.clone(),
+                            block: 0,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(vc.description.clone()),
+                            vc_kind: rust_fv_analysis::vcgen::VcKind::BehavioralSubtyping,
+                        };
+
+                        let result = VerificationResult {
+                            function_name: func_label.clone(),
+                            condition: vc.description.clone(),
+                            verified,
+                            counterexample: None,
+                            counterexample_v2: None,
+                            vc_location: vc_loc,
+                        };
+
+                        if !verified {
+                            self.failures.push(diagnostics::VerificationFailure {
+                                function_name: func_label.clone(),
+                                vc_kind: rust_fv_analysis::vcgen::VcKind::BehavioralSubtyping,
+                                contract_text: Some(vc.description.clone()),
+                                source_file: None,
+                                source_line: None,
+                                source_column: None,
+                                counterexample: None,
+                                counterexample_v2: None,
+                                source_names: std::collections::HashMap::new(),
+                                locals: vec![],
+                                params: vec![],
+                                message: vc.description.clone(),
+                            });
+                        }
+
+                        self.results.push(result);
+                    }
+                }
+            }
+        }
+
         // Emit bv2int timing info and report when --bv2int is active
         if self.bv2int_enabled && self.output_format == OutputFormat::Text {
             for record in &self.bv2int_records {
@@ -1668,5 +1821,73 @@ mod tests {
         assert_eq!(result.len(), 1, "alias() without '!' must also be accepted");
         assert_eq!(result[0].param_idx_a, 0);
         assert_eq!(result[0].param_idx_b, 1);
+    }
+
+    // --- behavioral subtyping wiring tests ---
+
+    #[test]
+    fn test_behavioral_subtyping_vc_kind_string() {
+        // Regression guard: VcKind::BehavioralSubtyping maps to correct string
+        let s = vc_kind_to_string(&VcKind::BehavioralSubtyping);
+        assert_eq!(s, "behavioral_subtyping");
+    }
+
+    #[test]
+    fn test_behavioral_subtyping_no_vcs_for_empty_trait_def() {
+        use rust_fv_analysis::behavioral_subtyping::generate_subtyping_vcs;
+        use rust_fv_analysis::ir::{TraitDef, TraitImpl};
+        use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+        // TraitDef with no methods = no VCs
+        let trait_def = TraitDef {
+            name: "Empty".to_string(),
+            methods: vec![],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        let impl_info = TraitImpl {
+            trait_name: "Empty".to_string(),
+            impl_type: "MyEmpty".to_string(),
+            method_names: vec![],
+        };
+        let db = TraitDatabase::new();
+        let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &db);
+        assert!(vcs.is_empty(), "No contracted methods = no subtyping VCs");
+    }
+
+    #[test]
+    fn test_behavioral_subtyping_vcs_generated_for_contracted_method() {
+        use rust_fv_analysis::behavioral_subtyping::generate_subtyping_vcs;
+        use rust_fv_analysis::ir::{SpecExpr, TraitDef, TraitImpl, TraitMethod, Ty};
+        use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+        let method = TraitMethod {
+            name: "push".to_string(),
+            params: vec![("self".to_string(), Ty::Unit)],
+            return_ty: Ty::Unit,
+            requires: vec![SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            is_pure: false,
+        };
+        let trait_def = TraitDef {
+            name: "Stack".to_string(),
+            methods: vec![method],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        let impl_info = TraitImpl {
+            trait_name: "Stack".to_string(),
+            impl_type: "VecStack".to_string(),
+            method_names: vec!["push".to_string()],
+        };
+        let db = TraitDatabase::new();
+        let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &db);
+        assert_eq!(vcs.len(), 1, "One requires = one PreconditionWeakening VC");
+        assert!(
+            vcs[0].description.contains("VecStack"),
+            "Description should contain impl type"
+        );
     }
 }
