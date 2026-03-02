@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-03-01T23:36:32.416Z"
+last_updated: "2026-03-02T00:01:10.733Z"
 progress:
   total_phases: 44
   completed_phases: 42
   total_plans: 124
-  completed_plans: 123
+  completed_plans: 124
 ---
 
 # Project State
@@ -19,16 +19,16 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 37 Plan 01 COMPLETE (cross-crate SCC detection via ContractDatabase back-edge heuristic). Phase 37 Plan 02 (driver integration) is next.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 37 Plan 02 COMPLETE (cross-crate termination VC generation wired in vcgen.rs + recursion.rs). Phase 37 Plan 03 is next.
 
 ## Current Position
 
-Phase: 37 of 37 (Cross-Crate SCC Detection) — In Progress (1/3 plans complete)
-Plan: 37-01 complete
+Phase: 37 of 37 (Cross-Crate SCC Detection) — In Progress (2/3 plans complete)
+Plan: 37-02 complete
 Status: In progress
-Last activity: 2026-03-01 — Completed 37-01: CallGraph::from_functions_with_cross_crate_db implemented, 4 TDD tests GREEN (a598b85); XCREC-01, XCREC-02 satisfied
+Last activity: 2026-03-02 — Completed 37-02: generate_termination_vcs activated for cross-crate callees, vcgen.rs uses from_functions_with_cross_crate_db, 3 TDD tests GREEN (400d53a); XCREC-02 satisfied
 
-Progress: [#####░░░░░] ~30% (v0.6 milestone, 6/~20 plans)
+Progress: [######░░░░] ~40% (v0.6 milestone, 7/~20 plans)
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [#####░░░░░] ~30% (v0.6 milestone, 6/~20 plans)
 | Phase 36-summary-contract-inference P01 | 35 | 3 tasks | 33 files |
 | Phase 36-summary-contract-inference P02 | 0 | 2 tasks | 4 files |
 | Phase 37-cross-crate-scc-detection P01 | 480 | 2 tasks | 1 files |
+| Phase 37-cross-crate-scc-detection P02 | 900 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,7 @@ Recent decisions relevant to v0.6:
 - [Phase 36.1-alias-precondition-parsing]: UNSAT alias VC requires caller anti-alias precondition (_1 != _2) — alias VC is SAT-based (asserts equality = violation); distinct locals alone are insufficient without constraint
 - [Phase 36.1-alias-precondition-parsing]: parse_alias_preconditions() uses source_to_idx (source param name -> zero-based index) built by inverting build_source_names() against args_iter()
 - [Phase 37-cross-crate-scc-detection]: from_functions_with_cross_crate_db accepts ContractDatabase and injects virtual nodes for contracted callees; back-edge heuristic via decreases.raw substring match enables cross-crate SCC detection
+- [Phase 37-02]: generate_termination_vcs uses caller-side VC for cross-crate calls (callee body unavailable); vcgen.rs uses match contract_db to select from_functions_with_cross_crate_db vs from_functions
 
 ### Pending Todos
 
@@ -97,15 +99,15 @@ Recent decisions relevant to v0.6:
 
 ### Blockers/Concerns
 
-- [Phase 37 Plan 02] Driver integration: need to wire from_functions_with_cross_crate_db into recursion_verification.rs and confirm end-to-end cross-crate SCC detection in cargo verify
+None current. Phase 37 Plan 02 complete. Proceed to Phase 37 Plan 03.
 
 ## Session Continuity
 
-Last session: 2026-03-01
-Stopped at: Completed 37-01-PLAN.md — cross-crate SCC detection: CallGraph::from_functions_with_cross_crate_db implemented with virtual node injection and back-edge heuristic, 4 TDD tests GREEN (a598b85); XCREC-01, XCREC-02 satisfied
+Last session: 2026-03-02
+Stopped at: Completed 37-02-PLAN.md — cross-crate termination VC generation: contract_db activated in generate_termination_vcs, vcgen.rs wired to from_functions_with_cross_crate_db, 3 TDD tests GREEN (400d53a); XCREC-02 satisfied
 Resume file: None
-Next step: Execute Phase 37 Plan 02 — driver integration wiring from_functions_with_cross_crate_db into recursion_verification.rs
+Next step: Execute Phase 37 Plan 03
 
 ---
 
-*Last updated: 2026-03-01 — 37-01 complete: cross-crate SCC detection, CallGraph::from_functions_with_cross_crate_db with virtual node injection + back-edge heuristic, 4 TDD tests GREEN; XCREC-01/02 satisfied*
+*Last updated: 2026-03-02 — 37-02 complete: cross-crate termination VC generation, generate_termination_vcs + vcgen.rs wired to use contract_db and from_functions_with_cross_crate_db, 3 TDD tests GREEN; XCREC-02 satisfied*
