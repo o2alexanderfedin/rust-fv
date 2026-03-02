@@ -146,6 +146,10 @@ pub enum VcKind {
     OpaqueCallee,
     /// Uncontracted callee called from unsafe context. Diagnostic error V061.
     OpaqueCalleeUnsafe,
+    /// Inferred-summary callee also carries alias preconditions — alias VCs are emitted
+    /// despite is_inferred=true. Diagnostic warning V062.
+    /// Emitted once per call site where callee has both is_inferred=true and non-empty alias_preconditions.
+    InferredSummaryAlias,
 }
 
 impl VcKind {
@@ -2435,10 +2439,11 @@ fn generate_call_site_vcs(
                 }
             };
 
-            // If the callee opted into automatic summary inference, treat it as a contracted
-            // pure callee with empty requires/ensures (no-op for verification purposes).
-            // Suppress OpaqueCallee emission and skip VC generation entirely.
-            if callee_summary.is_inferred {
+            // Hoist alias_preconditions check to guard the infer_summary early-continue.
+            // If the callee has infer_summary AND alias preconditions, fall through to emit alias
+            // VCs and a V062 diagnostic warning, instead of silently skipping.
+            let has_alias_preconditions = !callee_summary.alias_preconditions.is_empty();
+            if callee_summary.is_inferred && !has_alias_preconditions {
                 tracing::debug!(
                     caller = %func.name,
                     callee = %call_site.callee_name,
@@ -2447,9 +2452,47 @@ fn generate_call_site_vcs(
                 );
                 continue;
             }
+            if callee_summary.is_inferred && has_alias_preconditions {
+                // V062: emit diagnostic warning VC — alias VCs will also be emitted below.
+                // The is_inferred flag still suppresses OpaqueCallee, but alias VCs are emitted.
+                tracing::warn!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    alias_preconditions = callee_summary.alias_preconditions.len(),
+                    "Callee has both infer_summary and alias preconditions -- emitting alias VCs \
+                     despite is_inferred=true (V062)"
+                );
+                let mut v062_script = rust_fv_smtlib::script::Script::new();
+                v062_script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+                v062_script.push(rust_fv_smtlib::command::Command::Assert(
+                    rust_fv_smtlib::term::Term::BoolLit(true),
+                ));
+                v062_script.push(rust_fv_smtlib::command::Command::CheckSat);
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "V062: callee `{}` has #[verifier::infer_summary] and {} alias \
+                         precondition(s) -- alias VCs emitted despite inferred summary",
+                        call_site.callee_name,
+                        callee_summary.alias_preconditions.len()
+                    ),
+                    script: v062_script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: call_site.block_idx,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: None,
+                        vc_kind: VcKind::InferredSummaryAlias,
+                    },
+                });
+                // Fall through to alias VC generation (do NOT continue here)
+            }
 
             let has_requires = !callee_summary.contracts.requires.is_empty();
-            let has_alias_preconditions = !callee_summary.alias_preconditions.is_empty();
 
             if !has_requires && !has_alias_preconditions {
                 tracing::debug!(
@@ -9477,6 +9520,125 @@ mod tests {
             !opaque_vcs.is_empty(),
             "test_infer_summary_no_suppression_without_flag: expected at least one OpaqueCallee \
              VC for callee absent from contract_db (no is_inferred flag), but got zero"
+        );
+    }
+
+    // --- Phase 37.1: is_inferred + alias_preconditions co-occurrence tests ---
+
+    #[test]
+    fn test_inferred_summary_with_alias_preconditions_emits_alias_vcs() {
+        // When is_inferred=true AND alias_preconditions is non-empty:
+        // - alias VCs (PointerAliasing) must be emitted
+        // - OpaqueCallee VCs must NOT be emitted (is_inferred still suppresses them)
+        // - InferredSummaryAlias VC must be emitted (V062 warning)
+        use crate::contract_db::{AliasPrecondition, ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    requires: vec![],
+                    ensures: vec![],
+                    invariants: vec![],
+                    is_pure: false,
+                    is_inferred: true,
+                    decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
+                },
+                param_names: vec!["_1".to_string()],
+                param_types: vec![Ty::RawPtr(
+                    Box::new(Ty::Unit),
+                    crate::ir::Mutability::Shared,
+                )],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![AliasPrecondition {
+                    param_idx_a: 0,
+                    param_idx_b: 0,
+                    raw: "!ptr_a.alias(ptr_b)".to_string(),
+                }],
+                is_inferred: true,
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        // Must have InferredSummaryAlias VC
+        let v062_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| vc.location.vc_kind == VcKind::InferredSummaryAlias)
+            .collect();
+        assert!(
+            !v062_vcs.is_empty(),
+            "Expected InferredSummaryAlias (V062) VC for is_inferred+alias_preconditions \
+             co-occurrence, got zero"
+        );
+        // Must NOT have OpaqueCallee VCs (is_inferred still suppresses them)
+        let opaque_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+            })
+            .collect();
+        assert!(
+            opaque_vcs.is_empty(),
+            "OpaqueCallee VCs must be suppressed even in co-occurrence case (is_inferred=true), \
+             got: {:?}",
+            opaque_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_inferred_summary_without_alias_preconditions_unchanged() {
+        // Regression: is_inferred=true + empty alias_preconditions -> unchanged behavior
+        // (continue, no VCs at all — no OpaqueCallee, no InferredSummaryAlias, no PointerAliasing)
+        use crate::contract_db::{ContractDatabase, FunctionSummary};
+        let func = make_caller_with_uncontracted_callee(false);
+        let mut contract_db = ContractDatabase::new();
+        contract_db.insert(
+            "uncontracted_callee".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    requires: vec![],
+                    ensures: vec![],
+                    invariants: vec![],
+                    is_pure: false,
+                    is_inferred: true,
+                    decreases: None,
+                    fn_specs: vec![],
+                    state_invariant: None,
+                },
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        let result = generate_vcs(&func, Some(&contract_db));
+        let call_site_vcs: Vec<_> = result
+            .conditions
+            .iter()
+            .filter(|vc| {
+                vc.location.vc_kind == VcKind::OpaqueCallee
+                    || vc.location.vc_kind == VcKind::OpaqueCalleeUnsafe
+                    || vc.location.vc_kind == VcKind::InferredSummaryAlias
+                    || vc.location.vc_kind == VcKind::PointerAliasing
+            })
+            .collect();
+        assert!(
+            call_site_vcs.is_empty(),
+            "is_inferred=true with empty alias_preconditions must emit ZERO call-site VCs, \
+             got: {:?}",
+            call_site_vcs
+                .iter()
+                .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
+                .collect::<Vec<_>>()
         );
     }
 }

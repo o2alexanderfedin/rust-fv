@@ -738,6 +738,8 @@ impl Callbacks for VerificationCallbacks {
                 if !result.verified
                     && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::Postcondition
                     && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::OpaqueCallee
+                    && result.vc_location.vc_kind
+                        != rust_fv_analysis::vcgen::VcKind::InferredSummaryAlias
                 {
                     // Use the structured pairs directly — no string re-parsing needed
                     let counterexample = result.counterexample.clone();
@@ -1318,6 +1320,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::AsyncPostcondition => "async_postcondition",
         VcKind::OpaqueCallee => "opaque_callee",
         VcKind::OpaqueCalleeUnsafe => "opaque_callee_unsafe",
+        VcKind::InferredSummaryAlias => "inferred_summary_alias",
     }
     .to_string()
 }

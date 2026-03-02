@@ -76,11 +76,13 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
     };
 
     // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, Deadlock,
-    // and OpaqueCallee (V060 — informational warning that callee is uncontracted in safe context).
+    // OpaqueCallee (V060 — informational warning that callee is uncontracted in safe context),
+    // and InferredSummaryAlias (V062 — diagnostic warning for is_inferred+alias_preconditions).
     let report_kind = if failure.vc_kind == VcKind::MemorySafety
         || failure.vc_kind == VcKind::FloatingPointNaN
         || failure.vc_kind == VcKind::Deadlock
         || failure.vc_kind == VcKind::OpaqueCallee
+        || failure.vc_kind == VcKind::InferredSummaryAlias
     {
         ReportKind::Warning
     } else {
@@ -390,6 +392,9 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::OpaqueCalleeUnsafe => {
             "opaque callee (unsafe): unverified function call in unsafe context"
         }
+        VcKind::InferredSummaryAlias => {
+            "inferred-summary callee with alias preconditions: alias VCs emitted (V062)"
+        }
     }
 }
 
@@ -544,6 +549,13 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
              See V060 (warning) for safe context, V061 (error) for unsafe context. \
              Alternatively, add `#[verifier::infer_summary]` to opt into automatic minimal \
              contract inference (pure: reads nothing, writes nothing)."
+                .to_string(),
+        ),
+        VcKind::InferredSummaryAlias => Some(
+            "V062: This callee has both #[verifier::infer_summary] and \
+             #[unsafe_requires(!alias(p, q))]. Alias VCs were emitted despite the inferred \
+             summary. Remove #[verifier::infer_summary] from callees that have explicit alias \
+             preconditions, or add explicit #[requires] contracts instead."
                 .to_string(),
         ),
         _ => None,
