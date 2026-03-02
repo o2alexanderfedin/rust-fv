@@ -62,6 +62,10 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 39 added: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.

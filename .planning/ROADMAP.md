@@ -90,3 +90,13 @@ Plans:
 | 37. Cross-Crate SCC Detection | v0.6 | 3/3 | Complete | 2026-03-02 |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 1/1 | Complete | 2026-03-02 |
 | 38. Trait Subtyping Wiring | 2/2 | Complete    | 2026-03-02 | — |
+
+### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 38
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 39 to break down)
