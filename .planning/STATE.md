@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T06:21:18.152Z"
+last_updated: "2026-03-02T21:58:50.781Z"
 progress:
-  total_phases: 39
+  total_phases: 41
   completed_phases: 39
-  total_plans: 116
-  completed_plans: 117
+  total_plans: 118
+  completed_plans: 119
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 37.1-inferred-summary-alias-guard P01 | 480 | 2 tasks | 3 files |
 | Phase 38-trait-subtyping-wiring P01 | 163 | 3 tasks | 1 files |
 | Phase 38-trait-subtyping-wiring P02 | 172 | 1 tasks | 1 files |
+| Phase 39 P01 | 1184 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,7 @@ Recent decisions relevant to v0.6:
 - [Phase 38-01]: Match trait methods from contract_db by name.contains('::{trait_name}::') — simple string match avoids HIR DefId complexity
 - [Phase 38-01]: VcLocation uses function/block/statement fields not function_name/block_idx/stmt_idx; AssocKind::Fn requires matches! pattern
 - [Phase 38-02]: Gracefully handle Z3 ParseError in E2E pipeline test — Term::App without declare-fun is known encoding limitation; assert non-empty script (pipeline wired) not Z3 UNSAT
+- [Phase 39]: CaptureMode enum (ByMove|ByRef|ByMutRef) on ClosureInfo.env_fields; detect_closure_prophecies filters ByMutRef only; ProphecyInfo.closure_name: Option<String> for closure vs param distinction
 
 ### Pending Todos
 
