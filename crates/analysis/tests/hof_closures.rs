@@ -75,6 +75,7 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
         contracts: Contracts {
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
             ..Default::default()
         },
         loops: vec![],
@@ -119,6 +120,7 @@ fn make_fnmut_func(param_name: &str) -> Function {
         contracts: Contracts {
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
             ..Default::default()
         },
         loops: vec![],

@@ -71,10 +71,13 @@ fn result_is_ok_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -105,10 +108,13 @@ fn result_is_err_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -142,10 +148,13 @@ fn result_unwrap_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // T
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -179,10 +188,13 @@ fn result_unwrap_err_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // E
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -218,10 +230,13 @@ fn result_map_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Result<U, E>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -257,10 +272,13 @@ fn result_map_err_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Result<T, O>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -291,10 +309,13 @@ fn result_and_then_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Result<U, E>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -329,10 +350,13 @@ fn result_ok_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Option<T>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -367,10 +391,13 @@ fn result_err_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Option<E>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }

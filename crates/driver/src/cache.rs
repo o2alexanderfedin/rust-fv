@@ -907,6 +907,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("my_func", &contracts, "ir_debug_repr");
@@ -924,6 +925,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("func_a", &contracts, "same_ir");
@@ -943,6 +945,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts2 = rust_fv_analysis::ir::Contracts {
@@ -955,6 +958,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("func", &contracts1, "same_ir");
@@ -972,6 +976,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("func", &contracts, "ir_v1");
@@ -989,6 +994,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts_not_pure = rust_fv_analysis::ir::Contracts {
@@ -999,6 +1005,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("func", &contracts_pure, "same_ir");
@@ -1018,6 +1025,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts_with_invariant = rust_fv_analysis::ir::Contracts {
@@ -1030,6 +1038,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key1 = VcCache::compute_key("func", &contracts_with_ensures, "same_ir");
@@ -1047,6 +1056,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let key = VcCache::compute_key("func", &contracts, "ir");
@@ -1088,6 +1098,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let hash1 = VcCache::compute_contract_hash("my_func", &contracts);
@@ -1107,6 +1118,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts2 = rust_fv_analysis::ir::Contracts {
@@ -1119,6 +1131,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let hash1 = VcCache::compute_contract_hash("func", &contracts1);
@@ -1136,6 +1149,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts_not_pure = rust_fv_analysis::ir::Contracts {
@@ -1146,6 +1160,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let hash1 = VcCache::compute_contract_hash("func", &contracts_pure);
@@ -1165,6 +1180,7 @@ mod tests {
             }),
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts_without_dec = rust_fv_analysis::ir::Contracts {
@@ -1175,6 +1191,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let hash1 = VcCache::compute_contract_hash("func", &contracts_with_dec);
@@ -1194,6 +1211,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         let contracts2 = rust_fv_analysis::ir::Contracts {
@@ -1206,6 +1224,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         // MIR hash should be the same regardless of contracts
@@ -1231,6 +1250,7 @@ mod tests {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         // Contract hash should be the same regardless of IR

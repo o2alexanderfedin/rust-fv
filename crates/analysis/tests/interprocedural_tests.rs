@@ -430,6 +430,8 @@ fn make_callee_summary(
         param_names: param_names.into_iter().map(|s| s.to_string()).collect(),
         param_types,
         return_ty,
+        alias_preconditions: vec![],
+        is_inferred: false,
     }
 }
 
@@ -455,6 +457,7 @@ fn test_call_site_precondition_satisfied() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -496,6 +499,7 @@ fn test_call_site_precondition_satisfied() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -554,6 +558,7 @@ fn test_call_site_precondition_violated() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -592,6 +597,7 @@ fn test_call_site_precondition_violated() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -690,6 +696,7 @@ fn test_call_site_postcondition_assumed() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -726,6 +733,7 @@ fn test_call_site_postcondition_assumed() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
@@ -818,6 +826,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -892,6 +901,7 @@ fn test_call_chain_no_blowup() {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 vec!["_1"],
                 vec![Ty::Int(IntTy::I32)],
@@ -941,6 +951,7 @@ fn test_call_chain_no_blowup() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1047,27 +1058,43 @@ fn test_call_without_contracts_treated_as_opaque() {
     let db = ContractDatabase::new();
     let vcs = vcgen::generate_vcs(&caller, Some(&db));
 
-    // No call-site VCs should be generated for an unknown function
-    let call_vcs: Vec<_> = vcs
+    // An OpaqueCallee diagnostic VC should be generated for the unknown function.
+    // This replaced the old "silent skip" behavior (V060 diagnostic).
+    let opaque_vcs: Vec<_> = vcs
         .conditions
         .iter()
-        .filter(|vc| vc.description.contains("call to"))
+        .filter(|vc| {
+            vc.location.vc_kind == rust_fv_analysis::vcgen::VcKind::OpaqueCallee
+                || vc.location.vc_kind == rust_fv_analysis::vcgen::VcKind::OpaqueCalleeUnsafe
+        })
         .collect();
     assert!(
-        call_vcs.is_empty(),
-        "Should not generate call-site VCs for unknown functions, got: {:?}",
-        call_vcs
+        !opaque_vcs.is_empty(),
+        "Should generate OpaqueCallee diagnostic VC for unknown function, got VCs: {:?}",
+        vcs.conditions
             .iter()
-            .map(|vc| &vc.description)
+            .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
             .collect::<Vec<_>>(),
     );
+    assert!(
+        opaque_vcs[0].description.contains("unknown_func"),
+        "OpaqueCallee VC should mention callee name 'unknown_func'"
+    );
 
-    // Compare with None contract_db -- should produce identical VCs
+    // With None contract_db, no call-site processing occurs at all (no OpaqueCallee VCs).
+    // The counts will differ: Some(&empty_db) emits OpaqueCallee, None skips call-site VCs.
     let vcs_none = vcgen::generate_vcs(&caller, None);
-    assert_eq!(
-        vcs.conditions.len(),
-        vcs_none.conditions.len(),
-        "Opaque call (empty DB) should produce same VCs as None DB"
+    let opaque_vcs_none: Vec<_> = vcs_none
+        .conditions
+        .iter()
+        .filter(|vc| {
+            vc.location.vc_kind == rust_fv_analysis::vcgen::VcKind::OpaqueCallee
+                || vc.location.vc_kind == rust_fv_analysis::vcgen::VcKind::OpaqueCalleeUnsafe
+        })
+        .collect();
+    assert!(
+        opaque_vcs_none.is_empty(),
+        "With None contract_db, no OpaqueCallee VCs should be emitted (no call-site processing)"
     );
 }
 
@@ -1089,6 +1116,7 @@ fn test_precondition_violation_reports_callee_name() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![Local {
             name: "_1".to_string(),
@@ -1127,6 +1155,7 @@ fn test_precondition_violation_reports_callee_name() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1"],
             vec![Ty::Int(IntTy::I32)],
@@ -1182,6 +1211,7 @@ fn test_multiple_preconditions_each_checked() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         vec![
             Local {
@@ -1235,6 +1265,7 @@ fn test_multiple_preconditions_each_checked() {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             vec!["_1", "_2"],
             vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],

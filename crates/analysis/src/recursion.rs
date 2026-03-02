@@ -67,7 +67,7 @@ pub fn check_missing_decreases(
 pub fn generate_termination_vcs(
     func: &Function,
     recursive_groups: &[RecursiveGroup],
-    _contract_db: Option<&ContractDatabase>,
+    contract_db: Option<&ContractDatabase>,
 ) -> Vec<VerificationCondition> {
     // Check if this function is in any recursive group
     let group = recursive_groups.iter().find(|g| g.contains(&func.name));
@@ -99,9 +99,11 @@ pub fn generate_termination_vcs(
             ..
         } = &bb.terminator
         {
-            // Normalize callee name and check if it's in the recursive group
+            // Normalize callee name and check if it's in the recursive group.
+            // Cross-crate callees: the group stores full names (e.g. "dep_crate::bar")
+            // while normalize_callee produces only the short name ("bar"). Check both.
             let normalized = normalize_callee(callee_name);
-            if !group.contains(&normalized) {
+            if !group.contains(&normalized) && !group.contains(callee_name) {
                 continue;
             }
 
@@ -196,10 +198,23 @@ pub fn generate_termination_vcs(
             script.push(Command::CheckSat);
             script.push(Command::GetModel);
 
+            // Enrich description with cross-crate callee decreases measure if available
+            let callee_decreases_note = contract_db
+                .and_then(|db| {
+                    db.get(callee_name).or_else(|| {
+                        db.iter()
+                            .find(|(k, _)| k.ends_with(&format!("::{}", normalized)))
+                            .map(|(_, v)| v)
+                    })
+                })
+                .and_then(|summary| summary.contracts.decreases.as_ref())
+                .map(|dec| format!(" [cross-crate callee decreases: {}]", dec.raw))
+                .unwrap_or_default();
+
             vcs.push(VerificationCondition {
                 description: format!(
-                    "{}: termination measure decreases at call to {} in block {}",
-                    func.name, normalized, block_idx,
+                    "{}: termination measure decreases at call to {} in block {}{}",
+                    func.name, normalized, block_idx, callee_decreases_note,
                 ),
                 script,
                 location: VcLocation {
@@ -649,6 +664,7 @@ mod tests {
             decreases: decreases.map(|d| SpecExpr { raw: d.to_string() }),
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         };
 
         // bb0: branch on _1 <= 1
@@ -963,6 +979,7 @@ mod tests {
             }),
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
             ..Default::default()
         };
 
@@ -1047,5 +1064,215 @@ mod tests {
             has_recursive_axiom,
             "Should have recursive case axiom referencing factorial_uninterp"
         );
+    }
+}
+
+#[cfg(test)]
+mod cross_crate_termination_tests {
+    use super::*;
+    use crate::call_graph::RecursiveGroup;
+    use crate::contract_db::{ContractDatabase, FunctionSummary};
+    use crate::ir::{
+        BasicBlock, Contracts, Function, IntTy, Local, Operand, Place, SpecExpr, Terminator, Ty,
+    };
+
+    /// Build a cross-crate caller "foo" with:
+    ///   params: [_1: I32]
+    ///   decreases: Some("_1")
+    ///   basic block 0: Terminator::Call { func: "bar_crate::bar", args: [Copy(_1)],
+    ///                                      destination: Place::local("_0"), target: 1 }
+    ///   basic block 1: Terminator::Return
+    fn make_cross_crate_foo() -> Function {
+        let params = vec![Local::new("_1", Ty::Int(IntTy::I32))];
+        let contracts = Contracts {
+            decreases: Some(SpecExpr {
+                raw: "_1".to_string(),
+            }),
+            ..Default::default()
+        };
+        let bb0 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "bar_crate::bar".to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_0"),
+                target: 1,
+            },
+        };
+        let bb1 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        };
+        Function {
+            name: "foo".to_string(),
+            params,
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks: vec![bb0, bb1],
+            contracts,
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    /// Build a ContractDatabase with "bar_crate::bar" entry:
+    ///   param_names: ["_1"], param_types: [I32],
+    ///   contracts.decreases: Some(SpecExpr { raw: "_1" }), return_ty: I32,
+    ///   alias_preconditions: [], is_inferred: false
+    fn make_cross_crate_db() -> ContractDatabase {
+        let mut db = ContractDatabase::new();
+        db.insert(
+            "bar_crate::bar".to_string(),
+            FunctionSummary {
+                contracts: Contracts {
+                    decreases: Some(SpecExpr {
+                        raw: "_1".to_string(),
+                    }),
+                    ..Default::default()
+                },
+                param_names: vec!["_1".to_string()],
+                param_types: vec![Ty::Int(IntTy::I32)],
+                return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        db
+    }
+
+    /// Build a RecursiveGroup containing both "foo" and "bar" (normalized callee name).
+    fn cross_crate_group() -> RecursiveGroup {
+        RecursiveGroup {
+            functions: vec!["foo".to_string(), "bar".to_string()],
+        }
+    }
+
+    #[test]
+    fn cross_crate_termination_vc_generated() {
+        let foo = make_cross_crate_foo();
+        let db = make_cross_crate_db();
+        let group = cross_crate_group();
+
+        let vcs = generate_termination_vcs(&foo, &[group], Some(&db));
+
+        assert!(
+            !vcs.is_empty(),
+            "Expected at least 1 termination VC for cross-crate recursive call, got 0"
+        );
+        assert_eq!(
+            vcs[0].location.vc_kind,
+            VcKind::Termination,
+            "VC kind should be Termination"
+        );
+        assert!(
+            vcs[0].description.contains("bar"),
+            "VC description should reference 'bar', got: {}",
+            vcs[0].description
+        );
+    }
+
+    #[test]
+    fn cross_crate_vc_is_negated_less_than() {
+        let foo = make_cross_crate_foo();
+        let db = make_cross_crate_db();
+        let group = cross_crate_group();
+
+        let vcs = generate_termination_vcs(&foo, &[group], Some(&db));
+
+        assert!(!vcs.is_empty(), "Expected at least 1 termination VC, got 0");
+        let script_str = format!("{:?}", vcs[0].script);
+        assert!(
+            script_str.contains("Not") || script_str.contains("not"),
+            "VC script should contain negation (Not/assert not), got: {}",
+            script_str
+        );
+        // The VC asserts NOT(call_measure < entry_measure) — SAT = non-decreasing counterexample
+        assert!(
+            script_str.contains("CheckSat") || script_str.contains("check-sat"),
+            "VC script should contain check-sat, got: {}",
+            script_str
+        );
+    }
+
+    #[test]
+    fn single_crate_regression_unchanged() {
+        // Use the factorial function and verify that passing None for db still generates 1 VC
+        let params = vec![Local::new("_1", Ty::Int(IntTy::I32))];
+        let contracts = Contracts {
+            decreases: Some(SpecExpr {
+                raw: "_1".to_string(),
+            }),
+            ..Default::default()
+        };
+        let bb0 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Call {
+                func: "factorial".to_string(),
+                args: vec![Operand::Copy(Place::local("_1"))],
+                destination: Place::local("_0"),
+                target: 1,
+            },
+        };
+        let bb1 = BasicBlock {
+            statements: vec![],
+            terminator: Terminator::Return,
+        };
+        let factorial = Function {
+            name: "factorial".to_string(),
+            params,
+            return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+            locals: vec![],
+            basic_blocks: vec![bb0, bb1],
+            contracts,
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+
+        let group = RecursiveGroup {
+            functions: vec!["factorial".to_string()],
+        };
+
+        // No contract_db (single-crate path)
+        let vcs = generate_termination_vcs(&factorial, &[group], None);
+
+        assert_eq!(
+            vcs.len(),
+            1,
+            "Single-crate factorial should produce exactly 1 termination VC, got {}",
+            vcs.len()
+        );
+        assert_eq!(vcs[0].location.vc_kind, VcKind::Termination);
     }
 }

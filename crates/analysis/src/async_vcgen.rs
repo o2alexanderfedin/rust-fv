@@ -428,6 +428,7 @@ mod tests {
                 raw: "_0 >= 0".to_string(),
             }],
             state_invariant: None,
+            is_inferred: false,
             ..Default::default()
         };
         let func = make_async_func(states, vec![], contracts);

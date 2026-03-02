@@ -14,6 +14,7 @@
 //!   4. Non-decreasing measure produces SAT (counterexample)
 //!   5. Structural measure via arbitrary integer expression
 
+use rust_fv_analysis::contract_db::{ContractDatabase, FunctionSummary};
 use rust_fv_analysis::ir::*;
 use rust_fv_analysis::vcgen::{self, VcKind};
 use rust_fv_solver::Z3Solver;
@@ -772,6 +773,7 @@ fn e2e_factorial_with_decreases_verified() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -826,6 +828,7 @@ fn e2e_factorial_without_decreases_rejected() {
         decreases: None, // No decreases annotation
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -882,6 +885,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let contracts_odd = Contracts {
@@ -896,6 +900,7 @@ fn e2e_mutual_recursion_even_odd_verified() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let even = make_even(contracts_even);
@@ -995,6 +1000,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let bb0 = BasicBlock {
@@ -1139,6 +1145,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -1221,6 +1228,7 @@ fn e2e_recursive_function_postcondition_uses_uninterpreted_encoding() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let factorial = make_factorial(contracts, None);
@@ -1380,6 +1388,7 @@ fn e2e_fibonacci_two_recursive_calls() {
         }),
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     };
 
     let fibonacci = make_fibonacci(contracts);
@@ -1414,6 +1423,385 @@ fn e2e_fibonacci_two_recursive_calls() {
             result.is_unsat(),
             "Fibonacci termination VC should be UNSAT (measure decreases), got: {result:?}\n\
              VC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ===========================================================================
+// Cross-crate SCC detection integration tests (Phase 37 Plan 03)
+// ===========================================================================
+//
+// These 4 tests exercise the full cross-crate SCC detection pipeline:
+//   ContractDatabase -> from_functions_with_cross_crate_db -> detect_recursion
+//   -> generate_termination_vcs -> SMT-LIB -> Z3
+//
+// The scenario simulates two crates:
+//   * "local_crate::foo" — the function under verification (in-crate)
+//   * "dep_crate::bar"   — a contracted callee in a dependency crate (in ContractDatabase)
+
+// ---------------------------------------------------------------------------
+// Cross-crate IR construction helpers
+// ---------------------------------------------------------------------------
+
+/// Build the "local_crate::foo" function:
+///   foo(_1: i32) -> i32
+///   - bb0: Terminator::Call { func: "dep_crate::bar", args: [Copy(_1)], dest: _0, target: 1 }
+///   - bb1: Terminator::Return
+///
+/// The caller's decreases is "_1" (the same parameter that is passed to bar).
+fn make_cross_crate_local_foo(contracts: Contracts) -> Function {
+    let params = vec![Local::new("_1", Ty::Int(IntTy::I32))];
+    let bb0 = BasicBlock {
+        statements: vec![],
+        terminator: Terminator::Call {
+            func: "dep_crate::bar".to_string(),
+            args: vec![Operand::Copy(Place::local("_1"))],
+            destination: Place::local("_0"),
+            target: 1,
+        },
+    };
+    let bb1 = BasicBlock {
+        statements: vec![],
+        terminator: Terminator::Return,
+    };
+    Function {
+        name: "local_crate::foo".to_string(),
+        params,
+        return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+        locals: vec![],
+        basic_blocks: vec![bb0, bb1],
+        contracts,
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    }
+}
+
+/// Build the "local_crate::foo" function with a decremented argument:
+///   foo(_1: i32) -> i32
+///   - bb0: _2 = _1 - 1; Terminator::Call { func: "dep_crate::bar", args: [Copy(_2)], dest: _0, target: 1 }
+///   - bb1: Terminator::Return
+fn make_cross_crate_local_foo_decremented(contracts: Contracts) -> Function {
+    let params = vec![Local::new("_1", Ty::Int(IntTy::I32))];
+    let locals = vec![Local::new("_2", Ty::Int(IntTy::I32))];
+    let bb0 = BasicBlock {
+        statements: vec![Statement::Assign(
+            Place::local("_2"),
+            Rvalue::BinaryOp(
+                BinOp::Sub,
+                Operand::Copy(Place::local("_1")),
+                Operand::Constant(Constant::Int(1, IntTy::I32)),
+            ),
+        )],
+        terminator: Terminator::Call {
+            func: "dep_crate::bar".to_string(),
+            args: vec![Operand::Copy(Place::local("_2"))],
+            destination: Place::local("_0"),
+            target: 1,
+        },
+    };
+    let bb1 = BasicBlock {
+        statements: vec![],
+        terminator: Terminator::Return,
+    };
+    Function {
+        name: "local_crate::foo".to_string(),
+        params,
+        return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+        locals,
+        basic_blocks: vec![bb0, bb1],
+        contracts,
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    }
+}
+
+/// Build a ContractDatabase with "dep_crate::bar" that signals cross-crate mutual recursion.
+///
+/// The key for cross-crate SCC detection: bar's decreases.raw contains "foo"
+/// (a normalized in-crate function name substring), causing the back-edge heuristic
+/// in `from_functions_with_cross_crate_db` to inject a reverse edge bar->foo.
+fn make_cross_crate_db_with_back_edge() -> ContractDatabase {
+    let mut db = ContractDatabase::new();
+    db.insert(
+        "dep_crate::bar".to_string(),
+        FunctionSummary {
+            contracts: Contracts {
+                decreases: Some(SpecExpr {
+                    // "foo" substring triggers back-edge heuristic in call_graph.rs
+                    raw: "foo".to_string(),
+                }),
+                ..Default::default()
+            },
+            param_names: vec!["_1".to_string()],
+            param_types: vec![Ty::Int(IntTy::I32)],
+            return_ty: Ty::Int(IntTy::I32),
+            alias_preconditions: vec![],
+            is_inferred: false,
+        },
+    );
+    db
+}
+
+// ===========================================================================
+// Test cross_crate_1: SCC detection reports members (XCREC-01)
+// ===========================================================================
+
+/// XCREC-01: Verifier detects a mutually recursive cycle between "local_crate::foo"
+/// and "dep_crate::bar" and generates a Termination VC that references the callee.
+///
+/// Setup:
+///   - foo calls dep_crate::bar with _1 (unchanged), has #[decreases(_1)]
+///   - bar's DB entry has decreases="foo" (triggers back-edge heuristic)
+///   - generate_vcs with Some(&db) should detect the cross-crate SCC
+///   - At least 1 VC with VcKind::Termination should be produced
+///   - The VC description should contain "foo" or "bar" (member names)
+#[test]
+fn test_cross_crate_scc_detection_reports_members() {
+    let contracts = Contracts {
+        decreases: Some(SpecExpr {
+            raw: "_1".to_string(),
+        }),
+        ..Default::default()
+    };
+    let foo = make_cross_crate_local_foo(contracts);
+    let db = make_cross_crate_db_with_back_edge();
+
+    let vcs = vcgen::generate_vcs(&foo, Some(&db));
+
+    let termination_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+        .collect();
+
+    assert!(
+        !termination_vcs.is_empty(),
+        "Expected at least 1 Termination VC for cross-crate mutually recursive foo/bar, \
+         got VCs: {:?}",
+        vcs.conditions
+            .iter()
+            .map(|vc| format!("{} ({:?})", vc.description, vc.location.vc_kind))
+            .collect::<Vec<_>>(),
+    );
+
+    // At least one VC description should reference the caller or callee name
+    let mentions_members = termination_vcs
+        .iter()
+        .any(|vc| vc.description.contains("foo") || vc.description.contains("bar"));
+    assert!(
+        mentions_members,
+        "At least one Termination VC description should mention 'foo' or 'bar' (SCC members), \
+         got descriptions: {:?}",
+        termination_vcs
+            .iter()
+            .map(|vc| &vc.description)
+            .collect::<Vec<_>>(),
+    );
+}
+
+// ===========================================================================
+// Test cross_crate_2: Well-decreasing cross-crate measure verifies UNSAT (XCREC-02)
+// ===========================================================================
+
+/// XCREC-02: A well-decreasing cross-crate termination measure (_1-1 < _1 with _1 >= 0)
+/// should be proved by Z3 (UNSAT = termination verified).
+///
+/// Setup:
+///   - foo has #[requires(_1 >= 0)], #[decreases(_1)]
+///   - foo's call block: _2 = _1 - 1; Call dep_crate::bar(_2), so bar receives _1-1
+///   - bar's DB entry signals cross-crate SCC (decreases contains "foo")
+///   - Expected: Z3 returns UNSAT for the Termination VC
+///     (measure _2 = _1-1 < _1 is provable with _1 >= 0)
+#[test]
+fn test_cross_crate_termination_decreasing_verifies_unsat() {
+    let contracts = Contracts {
+        requires: vec![SpecExpr {
+            raw: "_1 >= 0".to_string(),
+        }],
+        decreases: Some(SpecExpr {
+            raw: "_1".to_string(),
+        }),
+        ..Default::default()
+    };
+    let foo = make_cross_crate_local_foo_decremented(contracts);
+    let db = make_cross_crate_db_with_back_edge();
+
+    let vcs = vcgen::generate_vcs(&foo, Some(&db));
+
+    let termination_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+        .collect();
+
+    assert!(
+        !termination_vcs.is_empty(),
+        "Expected Termination VCs for cross-crate foo (decremented arg), \
+         got VCs: {:?}",
+        vcs.conditions
+            .iter()
+            .map(|vc| format!("{} ({:?})", vc.description, vc.location.vc_kind))
+            .collect::<Vec<_>>(),
+    );
+
+    // With _2 = _1 - 1 and precondition _1 >= 0, measure _2 < _1 is provable
+    // Z3 should return UNSAT (termination verified)
+    let solver = solver_or_skip();
+    for vc in &termination_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver.check_sat_raw(&smtlib).expect("Z3 should not error");
+        assert!(
+            result.is_unsat(),
+            "Cross-crate termination VC (decreasing measure _1-1 < _1 with _1>=0) \
+             should be UNSAT, got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+            vc.description,
+        );
+    }
+}
+
+// ===========================================================================
+// Test cross_crate_3: Non-decreasing cross-crate measure produces SAT (XCREC-02)
+// ===========================================================================
+
+/// XCREC-02: A non-decreasing cross-crate measure (foo passes _1 unchanged to bar,
+/// so bar receives the same value, not less) should produce a SAT counterexample.
+///
+/// Setup:
+///   - foo has #[decreases(_1)] but NO precondition
+///   - foo calls dep_crate::bar(_1) — passes _1 unchanged (not _1-1)
+///   - bar's DB entry signals cross-crate SCC (decreases contains "foo")
+///   - Expected: Z3 returns SAT for the Termination VC
+///     (cannot prove _1 < _1, so there is a counterexample)
+#[test]
+fn test_cross_crate_termination_non_decreasing_produces_sat() {
+    let contracts = Contracts {
+        // No requires — no precondition constraining _1
+        decreases: Some(SpecExpr {
+            raw: "_1".to_string(),
+        }),
+        ..Default::default()
+    };
+    let foo = make_cross_crate_local_foo(contracts);
+    let db = make_cross_crate_db_with_back_edge();
+
+    let vcs = vcgen::generate_vcs(&foo, Some(&db));
+
+    let termination_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+        .collect();
+
+    assert!(
+        !termination_vcs.is_empty(),
+        "Expected Termination VCs for cross-crate foo (unchanged arg, non-decreasing), \
+         got VCs: {:?}",
+        vcs.conditions
+            .iter()
+            .map(|vc| format!("{} ({:?})", vc.description, vc.location.vc_kind))
+            .collect::<Vec<_>>(),
+    );
+
+    // With _1 passed unchanged, the measure does NOT decrease (_1 is not < _1)
+    // Z3 should return SAT (counterexample — termination not proved)
+    let solver = solver_or_skip();
+    let vc = &termination_vcs[0];
+    let smtlib = script_to_smtlib(&vc.script);
+    let result = solver.check_sat_raw(&smtlib).expect("Z3 should not error");
+    assert!(
+        result.is_sat(),
+        "Cross-crate termination VC (non-decreasing measure _1 not < _1) \
+         should be SAT (counterexample), got: {result:?}\nVC: {}\nScript:\n{smtlib}",
+        vc.description,
+    );
+}
+
+// ===========================================================================
+// Test cross_crate_4: Single-crate recursion regression (success criterion 4)
+// ===========================================================================
+
+/// Regression test: single-crate recursive function verification must remain GREEN
+/// after the cross-crate changes introduced in Phase 37.
+///
+/// Uses the standard factorial fixture (make_factorial) with #[decreases(_1)]
+/// and #[requires(_1 >= 0)]. Calls generate_vcs with None for contract_db.
+/// Should produce Termination VCs that are all UNSAT.
+#[test]
+fn test_single_crate_recursion_regression() {
+    let contracts = Contracts {
+        requires: vec![SpecExpr {
+            raw: "_1 >= 0".to_string(),
+        }],
+        decreases: Some(SpecExpr {
+            raw: "_1".to_string(),
+        }),
+        ..Default::default()
+    };
+
+    // Use the existing make_factorial helper (no cross-crate changes)
+    let factorial = make_factorial(contracts, None);
+
+    // Pass None for contract_db — pure single-crate path
+    let vcs = vcgen::generate_vcs(&factorial, None);
+
+    let termination_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.location.vc_kind == VcKind::Termination)
+        .collect();
+
+    assert!(
+        !termination_vcs.is_empty(),
+        "Regression: single-crate factorial with #[decreases(_1)] must still produce \
+         Termination VCs after Phase 37 cross-crate changes. Got VCs: {:?}",
+        vcs.conditions
+            .iter()
+            .map(|vc| format!("{} ({:?})", vc.description, vc.location.vc_kind))
+            .collect::<Vec<_>>(),
+    );
+
+    // All termination VCs should be UNSAT (measure decreases: _1-1 < _1 with _1>=0)
+    let solver = solver_or_skip();
+    for vc in &termination_vcs {
+        let smtlib = script_to_smtlib(&vc.script);
+        let result = solver.check_sat_raw(&smtlib).expect("Z3 should not error");
+        assert!(
+            result.is_unsat(),
+            "Single-crate factorial termination VC should be UNSAT (regression check), \
+             got: {result:?}\nVC: {}\nScript:\n{smtlib}",
             vc.description,
         );
     }

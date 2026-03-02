@@ -1478,6 +1478,7 @@ version = "0.1.0"
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         let json = serde_json::to_string_pretty(&report).unwrap();
         let parsed = parse_json_report_from_output(&json);
@@ -1497,6 +1498,7 @@ version = "0.1.0"
                 fail: 0,
                 timeout: 0,
             },
+            inferred_summaries: None,
         };
         let json = serde_json::to_string_pretty(&report).unwrap();
         let output = format!("Some cargo output\n{}\n", json);

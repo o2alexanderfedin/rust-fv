@@ -68,10 +68,13 @@ fn option_is_some_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -102,10 +105,13 @@ fn option_is_none_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -139,10 +145,13 @@ fn option_unwrap_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string()],
             param_types: vec![Ty::Unit],
             return_ty: Ty::Unit, // Generic T
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -178,10 +187,13 @@ fn option_map_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<U>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -212,10 +224,13 @@ fn option_and_then_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Option<U>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -250,10 +265,13 @@ fn option_ok_or_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "err".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // Result<T, E>
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -288,10 +306,13 @@ fn option_unwrap_or_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "default".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // T
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }
@@ -322,10 +343,13 @@ fn option_unwrap_or_else_contract() -> StdlibContract {
                 decreases: None,
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
             },
             param_names: vec!["self".to_string(), "f".to_string()],
             param_types: vec![Ty::Unit, Ty::Unit],
             return_ty: Ty::Unit, // T
+            alias_preconditions: vec![],
+            is_inferred: false,
         },
         source: ContractSource::Builtin,
     }

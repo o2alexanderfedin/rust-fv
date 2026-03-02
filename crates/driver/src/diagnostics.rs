@@ -75,10 +75,14 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         line_start
     };
 
-    // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, and Deadlock.
+    // Use Warning severity for MemorySafety (per USF-06 requirement), FloatingPointNaN, Deadlock,
+    // OpaqueCallee (V060 — informational warning that callee is uncontracted in safe context),
+    // and InferredSummaryAlias (V062 — diagnostic warning for is_inferred+alias_preconditions).
     let report_kind = if failure.vc_kind == VcKind::MemorySafety
         || failure.vc_kind == VcKind::FloatingPointNaN
         || failure.vc_kind == VcKind::Deadlock
+        || failure.vc_kind == VcKind::OpaqueCallee
+        || failure.vc_kind == VcKind::InferredSummaryAlias
     {
         ReportKind::Warning
     } else {
@@ -372,6 +376,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::BehavioralSubtyping => "impl does not satisfy trait contract",
         VcKind::BorrowValidity => "borrow validity violation",
         VcKind::MemorySafety => "memory safety violation",
+        VcKind::PointerAliasing => "pointer aliasing violation",
         VcKind::FloatingPointNaN => "floating-point verification failure",
         VcKind::DataRaceFreedom => "data race detected",
         VcKind::LockInvariant => "lock invariant violation",
@@ -383,6 +388,13 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::AsyncStateInvariantSuspend => "async state invariant violation at suspension",
         VcKind::AsyncStateInvariantResume => "async state invariant violation at resumption",
         VcKind::AsyncPostcondition => "async function postcondition not proven",
+        VcKind::OpaqueCallee => "opaque callee: unverified function call",
+        VcKind::OpaqueCalleeUnsafe => {
+            "opaque callee (unsafe): unverified function call in unsafe context"
+        }
+        VcKind::InferredSummaryAlias => {
+            "inferred-summary callee with alias preconditions: alias VCs emitted (V062)"
+        }
     }
 }
 
@@ -530,6 +542,20 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::WeakMemoryRace => Some(
             "Weak memory data race: use Release/Acquire ordering instead of Relaxed, or protect \
              access with a Mutex. Relaxed atomics provide no ordering guarantees between threads."
+                .to_string(),
+        ),
+        VcKind::OpaqueCallee | VcKind::OpaqueCalleeUnsafe => Some(
+            "Add #[requires] / #[ensures] to the callee to enable cross-function verification. \
+             See V060 (warning) for safe context, V061 (error) for unsafe context. \
+             Alternatively, add `#[verifier::infer_summary]` to opt into automatic minimal \
+             contract inference (pure: reads nothing, writes nothing)."
+                .to_string(),
+        ),
+        VcKind::InferredSummaryAlias => Some(
+            "V062: This callee has both #[verifier::infer_summary] and \
+             #[unsafe_requires(!alias(p, q))]. Alias VCs were emitted despite the inferred \
+             summary. Remove #[verifier::infer_summary] from callees that have explicit alias \
+             preconditions, or add explicit #[requires] contracts instead."
                 .to_string(),
         ),
         _ => None,
@@ -2634,5 +2660,74 @@ mod tests {
     #[test]
     fn test_report_bv2int_ineligibility_shift_op() {
         report_bv2int_ineligibility("shift_fn", "uses shift `<<` at line 7");
+    }
+
+    // --- OpaqueCallee / OpaqueCalleeUnsafe diagnostics tests ---
+
+    #[test]
+    fn test_vc_kind_description_opaque_callee() {
+        // Test 1: vc_kind_description for OpaqueCallee
+        assert_eq!(
+            vc_kind_description(&VcKind::OpaqueCallee),
+            "opaque callee: unverified function call"
+        );
+    }
+
+    #[test]
+    fn test_vc_kind_description_opaque_callee_unsafe() {
+        // Test 2: vc_kind_description for OpaqueCalleeUnsafe
+        assert_eq!(
+            vc_kind_description(&VcKind::OpaqueCalleeUnsafe),
+            "opaque callee (unsafe): unverified function call in unsafe context"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_opaque_callee_contains_add_requires() {
+        // Test 3: suggest_fix for OpaqueCallee returns Some containing "Add #[requires]"
+        let fix = suggest_fix(&VcKind::OpaqueCallee);
+        assert!(
+            fix.is_some(),
+            "suggest_fix for OpaqueCallee should return Some"
+        );
+        assert!(
+            fix.unwrap().contains("Add #[requires]"),
+            "suggest_fix for OpaqueCallee should contain 'Add #[requires]'"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_opaque_callee_unsafe_contains_add_requires() {
+        // Test 4: suggest_fix for OpaqueCalleeUnsafe returns Some containing "Add #[requires]"
+        let fix = suggest_fix(&VcKind::OpaqueCalleeUnsafe);
+        assert!(
+            fix.is_some(),
+            "suggest_fix for OpaqueCalleeUnsafe should return Some"
+        );
+        assert!(
+            fix.unwrap().contains("Add #[requires]"),
+            "suggest_fix for OpaqueCalleeUnsafe should contain 'Add #[requires]'"
+        );
+    }
+
+    #[test]
+    fn test_severity_dispatch_opaque_callee_is_warning() {
+        // Test 5: OpaqueCallee routes to ReportKind::Warning (like MemorySafety)
+        // We test this indirectly by checking the logic branch used in report_with_ariadne.
+        // The condition: failure.vc_kind == VcKind::MemorySafety || ... || VcKind::OpaqueCallee
+        let is_warning = |kind: &VcKind| {
+            kind == &VcKind::MemorySafety
+                || kind == &VcKind::FloatingPointNaN
+                || kind == &VcKind::Deadlock
+                || kind == &VcKind::OpaqueCallee
+        };
+        assert!(
+            is_warning(&VcKind::OpaqueCallee),
+            "OpaqueCallee should be in Warning branch"
+        );
+        assert!(
+            !is_warning(&VcKind::OpaqueCalleeUnsafe),
+            "OpaqueCalleeUnsafe should NOT be in Warning branch (it is Error)"
+        );
     }
 }

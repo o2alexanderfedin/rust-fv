@@ -128,6 +128,9 @@ pub struct VerificationCallbacks {
     /// Ghost predicate database populated from #[ghost_predicate] doc attributes.
     /// Available after after_analysis() for use by the spec parser (Plan 03).
     pub ghost_pred_db: GhostPredicateDatabase,
+    /// Contract database populated during after_analysis().
+    /// Used by print_results to collect inferred_summaries for the JSON report.
+    contract_db: rust_fv_analysis::contract_db::ContractDatabase,
 }
 
 impl VerificationCallbacks {
@@ -168,6 +171,7 @@ impl VerificationCallbacks {
             bv2int_threshold,
             bv2int_records: Vec::new(),
             ghost_pred_db: GhostPredicateDatabase::new(),
+            contract_db: rust_fv_analysis::contract_db::ContractDatabase::new(),
         }
     }
 
@@ -190,6 +194,7 @@ impl VerificationCallbacks {
             bv2int_threshold: 2.0,
             bv2int_records: Vec::new(),
             ghost_pred_db: GhostPredicateDatabase::new(),
+            contract_db: rust_fv_analysis::contract_db::ContractDatabase::new(),
         }
     }
 
@@ -354,10 +359,25 @@ impl VerificationCallbacks {
                         .count(),
                 };
 
+                let inferred: Vec<json_output::InferredSummary> = self
+                    .contract_db
+                    .iter()
+                    .filter(|(_, s)| s.is_inferred)
+                    .map(|(name, _)| json_output::InferredSummary {
+                        callee: name.clone(),
+                        contract: "pure: reads nothing, writes nothing".to_string(),
+                    })
+                    .collect();
+
                 let report = json_output::JsonVerificationReport {
                     crate_name: crate_name.to_string(),
                     functions: json_functions,
                     summary,
+                    inferred_summaries: if inferred.is_empty() {
+                        None
+                    } else {
+                        Some(inferred)
+                    },
                 };
 
                 json_output::print_json_report(&report);
@@ -392,7 +412,7 @@ impl Callbacks for VerificationCallbacks {
 
         // Build the contract database for inter-procedural verification
         let mut contract_db = rust_fv_analysis::contract_db::ContractDatabase::new();
-        for (&local_def_id, contracts) in &contracts_map {
+        for (&local_def_id, hir_contracts) in &contracts_map {
             let def_id = local_def_id.to_def_id();
             let name = tcx.def_path_str(def_id);
             let mir = tcx.optimized_mir(def_id);
@@ -412,13 +432,34 @@ impl Callbacks for VerificationCallbacks {
             let return_ty =
                 mir_converter::convert_ty(mir.local_decls[rustc_middle::mir::Local::ZERO].ty);
 
+            // Build source_name → zero-based-param-index map for alias precondition resolution.
+            // build_source_names() gives "_1" → "ptr_a". We need "ptr_a" → 0 (zero-based index).
+            let source_names = crate::mir_converter::build_source_names(mir);
+            let source_to_idx: std::collections::HashMap<String, usize> = mir
+                .args_iter()
+                .enumerate()
+                .filter_map(|(zero_idx, local)| {
+                    let ssa_name = format!("_{}", local.as_usize());
+                    source_names
+                        .get(&ssa_name)
+                        .map(|src| (src.clone(), zero_idx))
+                })
+                .collect();
+
+            let alias_preconditions =
+                parse_alias_preconditions(&hir_contracts.unsafe_requires, &source_to_idx);
+
+            let ir_contracts = hir_contracts_to_ir(hir_contracts);
+
             contract_db.insert(
                 name,
                 rust_fv_analysis::contract_db::FunctionSummary {
-                    contracts: contracts.clone(),
+                    is_inferred: hir_contracts.is_inferred,
+                    contracts: ir_contracts,
                     param_names: params.iter().map(|(n, _)| n.clone()).collect(),
                     param_types: params.iter().map(|(_, t)| t.clone()).collect(),
                     return_ty,
+                    alias_preconditions,
                 },
             );
         }
@@ -429,6 +470,9 @@ impl Callbacks for VerificationCallbacks {
                 rust_fv_analysis::stdlib_contracts::loader::load_default_contracts();
             stdlib_registry.merge_into(&mut contract_db);
         }
+
+        // Store the fully-populated contract database for use in print_results (inferred_summaries)
+        self.contract_db = contract_db.clone();
 
         // Determine cache directory.
         // RUST_FV_CACHE_DIR overrides the default (used by tests to isolate cache per test run).
@@ -474,12 +518,8 @@ impl Callbacks for VerificationCallbacks {
             let mir = tcx.optimized_mir(def_id);
 
             // Convert rustc MIR to our IR
-            let ir_func = mir_converter::convert_mir(
-                tcx,
-                local_def_id,
-                mir,
-                contracts.cloned().unwrap_or_default(),
-            );
+            let ir_contracts = contracts.map(hir_contracts_to_ir).unwrap_or_default();
+            let ir_func = mir_converter::convert_mir(tcx, local_def_id, mir, ir_contracts);
 
             // Build source location map from MIR SourceInfo spans.
             // Maps (block_idx, stmt_idx) → (file, line, col) while TyCtxt is live.
@@ -697,6 +737,9 @@ impl Callbacks for VerificationCallbacks {
                 // Build structured failure if this VC failed
                 if !result.verified
                     && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::Postcondition
+                    && result.vc_location.vc_kind != rust_fv_analysis::vcgen::VcKind::OpaqueCallee
+                    && result.vc_location.vc_kind
+                        != rust_fv_analysis::vcgen::VcKind::InferredSummaryAlias
                 {
                     // Use the structured pairs directly — no string re-parsing needed
                     let counterexample = result.counterexample.clone();
@@ -719,6 +762,159 @@ impl Callbacks for VerificationCallbacks {
                 }
 
                 self.results.push(result);
+            }
+        }
+
+        // Run behavioral subtyping verification for all trait impls with contracts.
+        // Addresses TRT-01..05 gap: generate_subtyping_vcs was implemented but never called.
+        {
+            use rust_fv_analysis::behavioral_subtyping::{
+                generate_subtyping_script, generate_subtyping_vcs,
+            };
+            use rust_fv_analysis::ir::{SpecExpr, TraitDef, TraitImpl, TraitMethod};
+            use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+            let z3 = Z3SolverAdapter::try_new();
+            let trait_db = TraitDatabase::new();
+
+            for (trait_def_id, impl_def_ids) in tcx.all_local_trait_impls(()).iter() {
+                // Get the trait short name
+                let trait_name = tcx.item_name(*trait_def_id).to_string();
+
+                // Collect contracted methods for this trait from contract_db.
+                // contract_db entries have full paths like "crate::TraitName::method_name".
+                // Match by checking if the entry name contains "::{trait_name}::" as a method.
+                let trait_methods: Vec<TraitMethod> = contract_db
+                    .iter()
+                    .filter(|(name, summary)| {
+                        name.contains(&format!("::{trait_name}::"))
+                            && (!summary.contracts.requires.is_empty()
+                                || !summary.contracts.ensures.is_empty())
+                    })
+                    .map(|(name, summary)| {
+                        let method_name = name.rsplit("::").next().unwrap_or(name).to_string();
+                        TraitMethod {
+                            name: method_name,
+                            params: summary
+                                .param_names
+                                .iter()
+                                .zip(summary.param_types.iter())
+                                .map(|(n, t)| (n.clone(), t.clone()))
+                                .collect(),
+                            return_ty: summary.return_ty.clone(),
+                            requires: summary
+                                .contracts
+                                .requires
+                                .iter()
+                                .map(|r| SpecExpr { raw: r.raw.clone() })
+                                .collect(),
+                            ensures: summary
+                                .contracts
+                                .ensures
+                                .iter()
+                                .map(|e| SpecExpr { raw: e.raw.clone() })
+                                .collect(),
+                            is_pure: summary.contracts.is_pure,
+                        }
+                    })
+                    .collect();
+
+                if trait_methods.is_empty() {
+                    continue; // No contracted methods in this trait — skip all its impls
+                }
+
+                let trait_def = TraitDef {
+                    name: trait_name.clone(),
+                    methods: trait_methods,
+                    is_sealed: false,
+                    super_traits: vec![],
+                };
+
+                for &impl_def_id in impl_def_ids {
+                    let impl_full_name = tcx.def_path_str(impl_def_id.to_def_id());
+                    // Extract the implementing type name (last segment of path)
+                    let impl_type = impl_full_name
+                        .rsplit("::")
+                        .next()
+                        .unwrap_or(&impl_full_name)
+                        .trim_start_matches('<')
+                        .trim_end_matches('>')
+                        .to_string();
+
+                    // Collect method names provided by this impl block
+                    let impl_method_names: Vec<String> = tcx
+                        .associated_items(impl_def_id.to_def_id())
+                        .in_definition_order()
+                        .filter(|item| matches!(item.kind, rustc_middle::ty::AssocKind::Fn { .. }))
+                        .map(|item| item.name().to_string())
+                        .collect();
+
+                    let impl_info = TraitImpl {
+                        trait_name: trait_name.clone(),
+                        impl_type: impl_type.clone(),
+                        method_names: impl_method_names,
+                    };
+
+                    let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &trait_db);
+                    if vcs.is_empty() {
+                        continue;
+                    }
+
+                    let scripts = generate_subtyping_script(&trait_def, &impl_info);
+                    let func_label = format!("{impl_type} impl {trait_name}");
+
+                    for (vc, script) in vcs.iter().zip(scripts.iter()) {
+                        let verified = if let Some(ref solver) = z3 {
+                            let script_text = script.to_string();
+                            match solver.solver.check_sat_raw(&script_text) {
+                                Ok(rust_fv_solver::SolverResult::Unsat) => true,
+                                Ok(rust_fv_solver::SolverResult::Sat(_)) => false,
+                                _ => true, // Unknown/error → optimistic (don't false-positive)
+                            }
+                        } else {
+                            true // Z3 unavailable → skip
+                        };
+
+                        let vc_loc = rust_fv_analysis::vcgen::VcLocation {
+                            function: func_label.clone(),
+                            block: 0,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(vc.description.clone()),
+                            vc_kind: rust_fv_analysis::vcgen::VcKind::BehavioralSubtyping,
+                        };
+
+                        let result = VerificationResult {
+                            function_name: func_label.clone(),
+                            condition: vc.description.clone(),
+                            verified,
+                            counterexample: None,
+                            counterexample_v2: None,
+                            vc_location: vc_loc,
+                        };
+
+                        if !verified {
+                            self.failures.push(diagnostics::VerificationFailure {
+                                function_name: func_label.clone(),
+                                vc_kind: rust_fv_analysis::vcgen::VcKind::BehavioralSubtyping,
+                                contract_text: Some(vc.description.clone()),
+                                source_file: None,
+                                source_line: None,
+                                source_column: None,
+                                counterexample: None,
+                                counterexample_v2: None,
+                                source_names: std::collections::HashMap::new(),
+                                locals: vec![],
+                                params: vec![],
+                                message: vc.description.clone(),
+                            });
+                        }
+
+                        self.results.push(result);
+                    }
+                }
             }
         }
 
@@ -764,19 +960,29 @@ struct HirContracts {
     ensures: Vec<String>,
     invariants: Vec<String>,
     is_pure: bool,
+    /// Set when the function is annotated with `#[verifier::infer_summary]`.
+    /// Causes an empty (pure: reads/writes nothing) contract to be pre-populated
+    /// in the contract database so callers do not receive V060/V061 diagnostics.
+    is_inferred: bool,
     decreases: Option<String>,
     fn_specs: Vec<rust_fv_analysis::ir::FnSpec>,
     /// Raw expression string from `#[state_invariant(expr)]`, if present.
     state_invariant: Option<String>,
+    /// Raw predicate strings from `#[unsafe_requires(…)]` attributes.
+    /// Parsed into [`AliasPrecondition`] entries by [`parse_alias_preconditions`].
+    unsafe_requires: Vec<String>,
 }
 
 /// Extract contracts from HIR doc attributes.
 ///
 /// Our proc macros store specs as `#[doc = "rust_fv::requires::SPEC"]`.
 /// We scan all function items for these hidden doc attributes.
+///
+/// Returns `HirContracts` (not IR `Contracts`) so that `unsafe_requires` is
+/// preserved for alias-precondition resolution in the contract_db build loop.
 fn extract_contracts(
     tcx: TyCtxt<'_>,
-) -> std::collections::HashMap<rustc_hir::def_id::LocalDefId, rust_fv_analysis::ir::Contracts> {
+) -> std::collections::HashMap<rustc_hir::def_id::LocalDefId, HirContracts> {
     let mut map = std::collections::HashMap::new();
 
     for local_def_id in tcx.hir_body_owners() {
@@ -797,6 +1003,8 @@ fn extract_contracts(
                     contracts.decreases = Some(spec.to_string());
                 } else if doc == "rust_fv::pure" {
                     contracts.is_pure = true;
+                } else if doc == "rust_fv::infer_summary" {
+                    contracts.is_inferred = true;
                 } else if let Some(spec) = doc.strip_prefix("rust_fv::fn_spec::") {
                     // Format: "PARAM::PRE_STR%%POST_STR"
                     if let Some((param, rest)) = spec.split_once("::")
@@ -813,6 +1021,8 @@ fn extract_contracts(
                     }
                 } else if let Some(expr_str) = doc.strip_prefix("rust_fv::state_invariant::") {
                     contracts.state_invariant = Some(expr_str.to_string());
+                } else if let Some(spec) = doc.strip_prefix("rust_fv::unsafe_requires::") {
+                    contracts.unsafe_requires.push(spec.to_string());
                 }
             }
         }
@@ -821,42 +1031,102 @@ fn extract_contracts(
             || !contracts.ensures.is_empty()
             || !contracts.invariants.is_empty()
             || contracts.is_pure
+            || contracts.is_inferred
             || contracts.decreases.is_some()
             || !contracts.fn_specs.is_empty()
             || contracts.state_invariant.is_some()
+            || !contracts.unsafe_requires.is_empty()
         {
-            map.insert(
-                local_def_id,
-                rust_fv_analysis::ir::Contracts {
-                    requires: contracts
-                        .requires
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    ensures: contracts
-                        .ensures
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    invariants: contracts
-                        .invariants
-                        .into_iter()
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw })
-                        .collect(),
-                    is_pure: contracts.is_pure,
-                    decreases: contracts
-                        .decreases
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
-                    fn_specs: contracts.fn_specs,
-                    state_invariant: contracts
-                        .state_invariant
-                        .map(|raw| rust_fv_analysis::ir::SpecExpr { raw }),
-                },
-            );
+            map.insert(local_def_id, contracts);
         }
     }
 
     map
+}
+
+/// Convert a `HirContracts` value into the IR `Contracts` type used throughout analysis.
+///
+/// The `unsafe_requires` field is intentionally excluded — it is handled separately
+/// via [`parse_alias_preconditions`] to populate `FunctionSummary.alias_preconditions`.
+fn hir_contracts_to_ir(hir: &HirContracts) -> rust_fv_analysis::ir::Contracts {
+    rust_fv_analysis::ir::Contracts {
+        requires: hir
+            .requires
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        ensures: hir
+            .ensures
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        invariants: hir
+            .invariants
+            .iter()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() })
+            .collect(),
+        is_pure: hir.is_pure,
+        decreases: hir
+            .decreases
+            .as_ref()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() }),
+        fn_specs: hir.fn_specs.clone(),
+        state_invariant: hir
+            .state_invariant
+            .as_ref()
+            .map(|raw| rust_fv_analysis::ir::SpecExpr { raw: raw.clone() }),
+        is_inferred: hir.is_inferred,
+    }
+}
+
+/// Parse `!alias(p, q)` predicates from `unsafe_requires` strings into [`AliasPrecondition`] entries.
+///
+/// `source_to_idx` maps Rust source parameter name (e.g. `"ptr_a"`) → zero-based parameter index.
+/// Built by inverting [`build_source_names`](crate::mir_converter::build_source_names) output
+/// against `mir.args_iter()` order.
+///
+/// Both `"!alias(p, q)"` and `"alias(p, q)"` are accepted — the `!` prefix is optional.
+/// If either parameter name is not found in `source_to_idx`, the spec is skipped with a warning.
+fn parse_alias_preconditions(
+    unsafe_requires: &[String],
+    source_to_idx: &std::collections::HashMap<String, usize>,
+) -> Vec<rust_fv_analysis::contract_db::AliasPrecondition> {
+    let mut result = Vec::new();
+    for raw in unsafe_requires {
+        let inner = raw
+            .trim()
+            .strip_prefix('!')
+            .map(str::trim)
+            .unwrap_or(raw.trim());
+        if !inner.starts_with("alias(") || !inner.ends_with(')') {
+            continue;
+        }
+        let args_str = &inner["alias(".len()..inner.len() - 1];
+        let parts: Vec<&str> = args_str.splitn(2, ',').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let name_a = parts[0].trim();
+        let name_b = parts[1].trim();
+        match (source_to_idx.get(name_a), source_to_idx.get(name_b)) {
+            (Some(&ia), Some(&ib)) => {
+                result.push(rust_fv_analysis::contract_db::AliasPrecondition {
+                    param_idx_a: ia,
+                    param_idx_b: ib,
+                    raw: raw.clone(),
+                });
+            }
+            _ => {
+                tracing::warn!(
+                    spec = %raw,
+                    name_a = %name_a,
+                    name_b = %name_b,
+                    "alias() parameter name(s) not found in function signature — skipping"
+                );
+            }
+        }
+    }
+    result
 }
 
 /// Extract bound variable names from a fn_spec clause like `|x: i32| x > 0`.
@@ -1189,6 +1459,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::BehavioralSubtyping => "behavioral_subtyping",
         VcKind::BorrowValidity => "borrow_validity",
         VcKind::MemorySafety => "memory_safety",
+        VcKind::PointerAliasing => "pointer_aliasing",
         VcKind::FloatingPointNaN => "floating_point_nan",
         VcKind::DataRaceFreedom => "data_race_freedom",
         VcKind::LockInvariant => "lock_invariant",
@@ -1200,6 +1471,9 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::AsyncStateInvariantSuspend => "async_state_invariant_suspend",
         VcKind::AsyncStateInvariantResume => "async_state_invariant_resume",
         VcKind::AsyncPostcondition => "async_postcondition",
+        VcKind::OpaqueCallee => "opaque_callee",
+        VcKind::OpaqueCalleeUnsafe => "opaque_callee_unsafe",
+        VcKind::InferredSummaryAlias => "inferred_summary_alias",
     }
     .to_string()
 }
@@ -1474,5 +1748,146 @@ mod tests {
     fn test_print_results_empty() {
         let cb = VerificationCallbacks::passthrough();
         cb.print_results(); // Should not panic
+    }
+
+    // --- OpaqueCallee / OpaqueCalleeUnsafe vc_kind_to_string tests ---
+
+    #[test]
+    fn test_vc_kind_to_string_opaque_callee() {
+        // Test 6: vc_kind_to_string for OpaqueCallee returns "opaque_callee"
+        assert_eq!(vc_kind_to_string(&VcKind::OpaqueCallee), "opaque_callee");
+    }
+
+    #[test]
+    fn test_vc_kind_to_string_opaque_callee_unsafe() {
+        // Test 7: vc_kind_to_string for OpaqueCalleeUnsafe returns "opaque_callee_unsafe"
+        assert_eq!(
+            vc_kind_to_string(&VcKind::OpaqueCalleeUnsafe),
+            "opaque_callee_unsafe"
+        );
+    }
+
+    // --- parse_alias_preconditions unit tests ---
+
+    #[test]
+    fn test_parse_alias_preconditions_from_unsafe_requires() {
+        // Test 1: "!alias(ptr_a, ptr_b)" with known source_map → AliasPrecondition
+        let unsafe_requires = vec!["!alias(ptr_a, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_a".to_string(), 0usize);
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert_eq!(result.len(), 1, "Expected 1 AliasPrecondition");
+        assert_eq!(result[0].param_idx_a, 0);
+        assert_eq!(result[0].param_idx_b, 1);
+        assert_eq!(result[0].raw, "!alias(ptr_a, ptr_b)");
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_non_alias_spec() {
+        // Test 2: non-alias predicate → empty result
+        let unsafe_requires = vec!["x > 0".to_string()];
+        let source_to_idx = std::collections::HashMap::new();
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert!(result.is_empty(), "Non-alias spec must yield empty result");
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_unknown_param() {
+        // Test 3: unknown param name → empty result (with warn but no panic)
+        let unsafe_requires = vec!["!alias(unknown, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+        // "unknown" deliberately absent
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert!(
+            result.is_empty(),
+            "Unknown param must yield empty result (skipped with warn)"
+        );
+    }
+
+    #[test]
+    fn test_parse_alias_preconditions_alias_without_bang() {
+        // Test 4: "alias(ptr_a, ptr_b)" (no "!") → still accepted
+        let unsafe_requires = vec!["alias(ptr_a, ptr_b)".to_string()];
+        let mut source_to_idx = std::collections::HashMap::new();
+        source_to_idx.insert("ptr_a".to_string(), 0usize);
+        source_to_idx.insert("ptr_b".to_string(), 1usize);
+
+        let result = parse_alias_preconditions(&unsafe_requires, &source_to_idx);
+        assert_eq!(result.len(), 1, "alias() without '!' must also be accepted");
+        assert_eq!(result[0].param_idx_a, 0);
+        assert_eq!(result[0].param_idx_b, 1);
+    }
+
+    // --- behavioral subtyping wiring tests ---
+
+    #[test]
+    fn test_behavioral_subtyping_vc_kind_string() {
+        // Regression guard: VcKind::BehavioralSubtyping maps to correct string
+        let s = vc_kind_to_string(&VcKind::BehavioralSubtyping);
+        assert_eq!(s, "behavioral_subtyping");
+    }
+
+    #[test]
+    fn test_behavioral_subtyping_no_vcs_for_empty_trait_def() {
+        use rust_fv_analysis::behavioral_subtyping::generate_subtyping_vcs;
+        use rust_fv_analysis::ir::{TraitDef, TraitImpl};
+        use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+        // TraitDef with no methods = no VCs
+        let trait_def = TraitDef {
+            name: "Empty".to_string(),
+            methods: vec![],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        let impl_info = TraitImpl {
+            trait_name: "Empty".to_string(),
+            impl_type: "MyEmpty".to_string(),
+            method_names: vec![],
+        };
+        let db = TraitDatabase::new();
+        let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &db);
+        assert!(vcs.is_empty(), "No contracted methods = no subtyping VCs");
+    }
+
+    #[test]
+    fn test_behavioral_subtyping_vcs_generated_for_contracted_method() {
+        use rust_fv_analysis::behavioral_subtyping::generate_subtyping_vcs;
+        use rust_fv_analysis::ir::{SpecExpr, TraitDef, TraitImpl, TraitMethod, Ty};
+        use rust_fv_analysis::trait_analysis::TraitDatabase;
+
+        let method = TraitMethod {
+            name: "push".to_string(),
+            params: vec![("self".to_string(), Ty::Unit)],
+            return_ty: Ty::Unit,
+            requires: vec![SpecExpr {
+                raw: "x > 0".to_string(),
+            }],
+            ensures: vec![],
+            is_pure: false,
+        };
+        let trait_def = TraitDef {
+            name: "Stack".to_string(),
+            methods: vec![method],
+            is_sealed: false,
+            super_traits: vec![],
+        };
+        let impl_info = TraitImpl {
+            trait_name: "Stack".to_string(),
+            impl_type: "VecStack".to_string(),
+            method_names: vec!["push".to_string()],
+        };
+        let db = TraitDatabase::new();
+        let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &db);
+        assert_eq!(vcs.len(), 1, "One requires = one PreconditionWeakening VC");
+        assert!(
+            vcs[0].description.contains("VecStack"),
+            "Description should contain impl type"
+        );
     }
 }

@@ -458,6 +458,7 @@ fn test_overflow_verification_unconstrained_add() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     // Step 1: Generate VCs
@@ -556,6 +557,7 @@ fn test_safe_add_with_preconditions() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     // Step 1: Generate VCs
@@ -618,6 +620,7 @@ fn test_provable_postcondition() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     // Step 1: Generate VCs
@@ -690,6 +693,7 @@ fn test_postcondition_violation() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     // Step 1: Generate VCs
@@ -832,6 +836,7 @@ fn test_if_else_branches_ssa() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -880,6 +885,7 @@ fn test_if_else_wrong_postcondition() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1037,6 +1043,7 @@ fn test_multi_branch_match() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1162,6 +1169,7 @@ fn test_early_return_via_goto() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1361,6 +1369,7 @@ fn test_nested_branches() {
         decreases: None,
         fn_specs: vec![],
         state_invariant: None,
+        is_inferred: false,
     });
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1463,6 +1472,7 @@ fn test_single_branch_overflow_check() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         generic_params: vec![],
         prophecies: vec![],
@@ -1942,6 +1952,7 @@ fn test_quantifier_full_pipeline() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2062,6 +2073,7 @@ fn test_generic_max_i32_verified() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2179,6 +2191,7 @@ fn test_generic_max_u64_verified() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2296,6 +2309,7 @@ fn test_generic_max_wrong_postcondition() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2397,6 +2411,7 @@ fn test_generic_multiple_instantiations() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![GenericParam {
@@ -2576,6 +2591,7 @@ fn test_prophecy_increment_mut_ref() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2650,6 +2666,7 @@ fn test_prophecy_no_mutation_verified() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2750,6 +2767,7 @@ fn test_prophecy_conditional_mutation() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -2826,6 +2844,7 @@ fn test_prophecy_basic() {
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],

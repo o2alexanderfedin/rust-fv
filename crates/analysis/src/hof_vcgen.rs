@@ -634,6 +634,7 @@ mod tests {
             contracts: Contracts {
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
                 ..Default::default()
             },
             loops: vec![],
@@ -680,6 +681,7 @@ mod tests {
             contracts: Contracts {
                 fn_specs: vec![],
                 state_invariant: None,
+                is_inferred: false,
                 ..Default::default()
             },
             loops: vec![],

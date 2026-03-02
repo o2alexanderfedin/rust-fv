@@ -92,6 +92,25 @@ pub fn generate_bounds_check_assertion(ptr_name: &str, offset_name: &str) -> Ter
     Term::Not(Box::new(in_bounds))
 }
 
+/// Generates an alias-check assertion term: `p == q` (SAT = aliasing violation).
+///
+/// Used as the VC body for `#[unsafe_requires(!alias(p, q))]` call-site checks.
+/// If the VC is SAT, p and q have equal addresses (aliasing violation found).
+/// If the VC is UNSAT, p and q are always distinct (non-aliasing property holds).
+pub fn generate_alias_check_assertion(p_name: &str, q_name: &str) -> Term {
+    Term::Eq(
+        Box::new(Term::Const(p_name.to_string())),
+        Box::new(Term::Const(q_name.to_string())),
+    )
+}
+
+/// Same as `generate_alias_check_assertion` but takes pre-built terms.
+///
+/// Used by `spec_parser` when converting `alias(p, q)` expressions into SMT terms.
+pub fn generate_alias_check_assertion_from_terms(p: Term, q: Term) -> Term {
+    Term::Eq(Box::new(p), Box::new(q))
+}
+
 /// Returns true if the function requires heap model declarations.
 ///
 /// Heap model is needed when the function has pointer arithmetic operations
@@ -295,5 +314,69 @@ mod tests {
         };
         let func = make_test_function(vec![op]);
         assert!(!heap_model_declarations_needed(&func));
+    }
+
+    #[test]
+    fn test_generate_alias_check_assertion_different_ptrs() {
+        let term = generate_alias_check_assertion("_1", "_2");
+        // Should be (= _1 _2)
+        match term {
+            Term::Eq(left, right) => {
+                assert!(
+                    matches!(*left, Term::Const(ref name) if name == "_1"),
+                    "Expected Const(_1), got {:?}",
+                    left
+                );
+                assert!(
+                    matches!(*right, Term::Const(ref name) if name == "_2"),
+                    "Expected Const(_2), got {:?}",
+                    right
+                );
+            }
+            _ => panic!("Expected Term::Eq, got {:?}", term),
+        }
+    }
+
+    #[test]
+    fn test_generate_alias_check_assertion_same_ptr() {
+        let term = generate_alias_check_assertion("p", "p");
+        // Should be (= p p) — self-alias, always SAT
+        match term {
+            Term::Eq(left, right) => {
+                assert!(
+                    matches!(*left, Term::Const(ref name) if name == "p"),
+                    "Expected Const(p) on left, got {:?}",
+                    left
+                );
+                assert!(
+                    matches!(*right, Term::Const(ref name) if name == "p"),
+                    "Expected Const(p) on right, got {:?}",
+                    right
+                );
+            }
+            _ => panic!("Expected Term::Eq, got {:?}", term),
+        }
+    }
+
+    #[test]
+    fn test_generate_alias_check_assertion_from_terms() {
+        let p = Term::Const("ptr_a".to_string());
+        let q = Term::Const("ptr_b".to_string());
+        let term = generate_alias_check_assertion_from_terms(p, q);
+        match term {
+            Term::Eq(left, right) => {
+                assert!(
+                    matches!(*left, Term::Const(ref name) if name == "ptr_a"),
+                    "Expected Const(ptr_a), got {:?}",
+                    left
+                );
+                assert!(
+                    matches!(*right, Term::Const(ref name) if name == "ptr_b"),
+                    "Expected Const(ptr_b), got {:?}",
+                    right
+                );
+            }
+            _ => panic!("Expected Term::Eq, got {:?}", term),
+        }
     }
 }

@@ -13,6 +13,20 @@ use std::collections::HashMap;
 
 use crate::ir::{Contracts, Ty};
 
+/// A pointer non-aliasing precondition extracted from `#[unsafe_requires(!alias(p, q))]`.
+///
+/// Stored by parameter index (not name) so it survives call-site argument substitution.
+/// Plan 02 uses these entries to inject alias VCs at each call site.
+#[derive(Debug, Clone)]
+pub struct AliasPrecondition {
+    /// Zero-based index of first pointer parameter in callee signature.
+    pub param_idx_a: usize,
+    /// Zero-based index of second pointer parameter in callee signature.
+    pub param_idx_b: usize,
+    /// Raw spec text for counterexample diagnostics (e.g., "!ptr_a.alias(ptr_b)").
+    pub raw: String,
+}
+
 /// A function summary: contracts plus parameter metadata for argument substitution.
 #[derive(Debug, Clone)]
 pub struct FunctionSummary {
@@ -24,6 +38,13 @@ pub struct FunctionSummary {
     pub param_types: Vec<Ty>,
     /// Return type
     pub return_ty: Ty,
+    /// Alias preconditions extracted from `#[unsafe_requires(!alias(p, q))]`.
+    /// Plan 02 injects alias VCs at call sites using these entries.
+    pub alias_preconditions: Vec<AliasPrecondition>,
+    /// Whether the callee was annotated with `#[verifier::infer_summary]`.
+    /// When true, VCGen skips OpaqueCallee diagnostic emission for this callee
+    /// (treats it as a contracted callee with empty requires/ensures — pure no-op).
+    pub is_inferred: bool,
 }
 
 /// Maps function names to their contracts for inter-procedural verification.
@@ -67,6 +88,11 @@ impl ContractDatabase {
     pub fn is_empty(&self) -> bool {
         self.contracts.is_empty()
     }
+
+    /// Iterate over all (name, summary) entries in the database.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &FunctionSummary)> {
+        self.contracts.iter()
+    }
 }
 
 #[cfg(test)]
@@ -101,10 +127,13 @@ mod tests {
                     decreases: None,
                     fn_specs: vec![],
                     state_invariant: None,
+                    is_inferred: false,
                 },
                 param_names: vec!["_1".to_string(), "_2".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32), Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -129,6 +158,8 @@ mod tests {
                 param_names: vec![],
                 param_types: vec![],
                 return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
         db.insert(
@@ -138,6 +169,8 @@ mod tests {
                 param_names: vec!["_1".to_string()],
                 param_types: vec![Ty::Int(IntTy::I32)],
                 return_ty: Ty::Int(IntTy::I32),
+                alias_preconditions: vec![],
+                is_inferred: false,
             },
         );
 
@@ -150,5 +183,160 @@ mod tests {
     fn default_is_empty() {
         let db = ContractDatabase::default();
         assert!(db.is_empty());
+    }
+
+    #[test]
+    fn test_alias_precondition_stored() {
+        let mut db = ContractDatabase::new();
+        let ap = AliasPrecondition {
+            param_idx_a: 0,
+            param_idx_b: 1,
+            raw: "!ptr_a.alias(ptr_b)".to_string(),
+        };
+        db.insert(
+            "example".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec!["_1".to_string(), "_2".to_string()],
+                param_types: vec![Ty::Bool, Ty::Bool],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![ap],
+                is_inferred: false,
+            },
+        );
+
+        let summary = db.get("example").unwrap();
+        assert_eq!(
+            summary.alias_preconditions.len(),
+            1,
+            "Expected 1 alias precondition"
+        );
+        let stored = &summary.alias_preconditions[0];
+        assert_eq!(stored.param_idx_a, 0);
+        assert_eq!(stored.param_idx_b, 1);
+        assert_eq!(stored.raw, "!ptr_a.alias(ptr_b)");
+    }
+
+    #[test]
+    fn test_alias_preconditions_default_empty() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Unit,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        };
+        assert!(
+            summary.alias_preconditions.is_empty(),
+            "alias_preconditions should default to empty vec"
+        );
+    }
+
+    // --- iter() method tests (Phase 36-02) ---
+
+    #[test]
+    fn test_iter_empty_database() {
+        let db = ContractDatabase::new();
+        assert_eq!(
+            db.iter().count(),
+            0,
+            "iter on empty db must yield zero items"
+        );
+    }
+
+    #[test]
+    fn test_iter_returns_all_entries() {
+        let mut db = ContractDatabase::new();
+        db.insert(
+            "alpha".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        db.insert(
+            "beta".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        let mut names: Vec<&str> = db.iter().map(|(name, _)| name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn test_iter_filter_is_inferred() {
+        // Demonstrates the pattern used in callbacks.rs to collect inferred summaries
+        let mut db = ContractDatabase::new();
+        db.insert(
+            "inferred_fn".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: true,
+            },
+        );
+        db.insert(
+            "normal_fn".to_string(),
+            FunctionSummary {
+                contracts: Contracts::default(),
+                param_names: vec![],
+                param_types: vec![],
+                return_ty: Ty::Unit,
+                alias_preconditions: vec![],
+                is_inferred: false,
+            },
+        );
+        let inferred: Vec<&str> = db
+            .iter()
+            .filter(|(_, s)| s.is_inferred)
+            .map(|(name, _)| name.as_str())
+            .collect();
+        assert_eq!(inferred, vec!["inferred_fn"]);
+    }
+
+    // --- is_inferred field tests (Phase 36-01) ---
+
+    #[test]
+    fn test_function_summary_is_inferred_true() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: true,
+        };
+        assert!(
+            summary.is_inferred,
+            "FunctionSummary.is_inferred must reflect the set value"
+        );
+    }
+
+    #[test]
+    fn test_function_summary_is_inferred_defaults_false() {
+        let summary = FunctionSummary {
+            contracts: Contracts::default(),
+            param_names: vec![],
+            param_types: vec![],
+            return_ty: Ty::Bool,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        };
+        assert!(!summary.is_inferred);
     }
 }

@@ -265,6 +265,7 @@ fn make_function_with_trait_object_param(
             decreases: None,
             fn_specs: vec![],
             state_invariant: None,
+            is_inferred: false,
         },
         loops: vec![],
         generic_params: vec![],
@@ -627,4 +628,173 @@ fn e2e_multiple_impls_all_checked() {
     assert!(vcs1[0].impl_type == "Impl1");
     assert!(vcs2[0].impl_type == "Impl2");
     assert!(vcs3[0].impl_type == "Impl3");
+}
+
+// ---------------------------------------------------------------------------
+// TRT-01..05: E2E behavioral subtyping pipeline tests
+// These tests exercise the FULL pipeline: TraitDef/TraitImpl construction →
+// generate_subtyping_vcs → generate_subtyping_script → Z3 → UNSAT/SAT result.
+//
+// Encoding: generate_subtyping_script uses symbolic (uninterpreted) predicates,
+// each declared with (declare-fun ...) before use so Z3 accepts the script.
+// Precondition weakening VC encodes (not (=> trait_requires true)) which is
+// always UNSAT because trait_requires => true is a tautology. Postcondition
+// strengthening VC encodes (not (=> trait_ensures trait_ensures)) which is always
+// UNSAT because P => P is a tautology. Therefore ALL correctly-written VCs
+// produce UNSAT. A future implementation with concrete contract comparison would
+// produce SAT for violating impls.
+// ---------------------------------------------------------------------------
+
+/// TRT-01..05: E2E behavioral subtyping pipeline — correct impl verified by Z3.
+///
+/// Validates the full flow:
+///   TraitDef + TraitImpl → generate_subtyping_vcs → generate_subtyping_script → Z3 → UNSAT
+///
+/// Covers TRT-01 (VC generation), TRT-02 (Z3 submission), TRT-03 (UNSAT=valid result).
+#[test]
+fn e2e_behavioral_subtyping_pipeline_correct_impl() {
+    let _solver = solver_or_skip();
+
+    // Trait: Stack with push(requires: len < cap, ensures: len == old_len + 1)
+    let push_method = make_trait_method(
+        "push",
+        vec![
+            ("self".to_string(), Ty::Unit),
+            ("x".to_string(), Ty::Int(IntTy::I32)),
+        ],
+        Ty::Unit,
+        vec![make_spec_expr("len < cap")],
+        vec![make_spec_expr("len == old_len + 1")],
+    );
+    let trait_def = make_trait_def("Stack", vec![push_method], false, vec![]);
+    let impl_info = make_trait_impl("Stack", "VecStack", vec!["push"]);
+    let trait_db = TraitDatabase::new();
+
+    // Step 1: VCs generated — one per (method, kind) pair
+    let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &trait_db);
+    assert_eq!(
+        vcs.len(),
+        2,
+        "Should generate 2 VCs: precondition + postcondition"
+    );
+
+    // Step 2: Scripts generated — one per VC
+    let scripts = generate_subtyping_script(&trait_def, &impl_info);
+    assert_eq!(scripts.len(), 2, "Script count must match VC count");
+
+    // Step 3: Z3 evaluates each script.
+    // Each VC is structurally trivially valid under the symbolic encoding:
+    //   - Precondition weakening: (not (=> trait_requires true)) = UNSAT (tautology)
+    //   - Postcondition strengthening: (not (=> trait_ensures trait_ensures)) = UNSAT (P => P)
+    // All uninterpreted predicates are now declared with (declare-fun ...) before use,
+    // so Z3 accepts the script and returns UNSAT for each well-formed VC.
+    let solver = Z3Solver::with_default_config().expect("Z3 must be available");
+    for (i, script) in scripts.iter().enumerate() {
+        let smtlib = script_to_smtlib(script);
+        eprintln!("Script {i}: {smtlib}");
+        assert!(
+            !smtlib.is_empty(),
+            "Script {i} must be non-empty — behavioral subtyping pipeline generated output"
+        );
+        match solver.check_sat_raw(&smtlib) {
+            Ok(rust_fv_solver::SolverResult::Unsat) => {
+                // Expected: VC is valid (impl satisfies trait contract under symbolic encoding)
+                eprintln!("Script {i}: UNSAT (VC valid)");
+            }
+            Ok(rust_fv_solver::SolverResult::Sat(_)) => {
+                panic!(
+                    "Script {i}: SAT — symbolic VC should always be UNSAT (impl has LSP violation or encoding regression)"
+                );
+            }
+            Ok(rust_fv_solver::SolverResult::Unknown(reason)) => {
+                panic!("Script {i}: Z3 returned Unknown (unexpected): {reason}");
+            }
+            Err(e) => {
+                panic!(
+                    "Script {i}: Z3 rejected script — all declare-fun must precede use: {e}\nScript:\n{smtlib}"
+                );
+            }
+        }
+    }
+}
+
+/// TRT-04: E2E pipeline consistency — VC count must equal script count.
+///
+/// Validates the invariant: generate_subtyping_vcs and generate_subtyping_script
+/// produce the same number of outputs for the same inputs.
+/// Tests a multi-method trait to exercise the full pipeline.
+///
+/// Covers TRT-04 (pipeline consistency across methods).
+#[test]
+fn e2e_behavioral_subtyping_pipeline_vc_count_matches_scripts() {
+    // Multi-method trait: push (requires + ensures) and pop (ensures only)
+    let push_method = make_trait_method(
+        "push",
+        vec![
+            ("self".to_string(), Ty::Unit),
+            ("x".to_string(), Ty::Int(IntTy::I32)),
+        ],
+        Ty::Unit,
+        vec![make_spec_expr("len < cap")],
+        vec![make_spec_expr("len == old_len + 1")],
+    );
+    let pop_method = make_trait_method(
+        "pop",
+        vec![("self".to_string(), Ty::Unit)],
+        Ty::Bool,
+        vec![],
+        vec![make_spec_expr("result == true || result == false")],
+    );
+    let trait_def = make_trait_def("Stack", vec![push_method, pop_method], false, vec![]);
+    let impl_info = make_trait_impl("Stack", "VecStack", vec!["push", "pop"]);
+    let trait_db = TraitDatabase::new();
+
+    // Both functions must produce the same count
+    let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &trait_db);
+    let scripts = generate_subtyping_script(&trait_def, &impl_info);
+
+    // push has requires+ensures → 2 VCs; pop has ensures only → 1 VC → total 3
+    assert_eq!(vcs.len(), 3, "push(pre+post) + pop(post) = 3 VCs");
+    assert_eq!(
+        scripts.len(),
+        vcs.len(),
+        "Script count must equal VC count — pipeline is consistent"
+    );
+}
+
+/// TRT-05: E2E pipeline short-circuit — no contracts → 0 VCs and 0 scripts → Z3 never called.
+///
+/// Validates that a trait with no contracted methods short-circuits the pipeline:
+/// generate_subtyping_vcs returns empty, generate_subtyping_script returns empty,
+/// and Z3 is never invoked (avoiding unnecessary solver overhead).
+///
+/// Covers TRT-05 (no-contract short-circuit).
+#[test]
+fn e2e_behavioral_subtyping_pipeline_no_vcs_no_scripts() {
+    // Trait with a method that has NO contracts
+    let noop_method = make_trait_method(
+        "noop",
+        vec![("self".to_string(), Ty::Unit)],
+        Ty::Unit,
+        vec![], // no requires
+        vec![], // no ensures
+    );
+    let trait_def = make_trait_def("NoContract", vec![noop_method], false, vec![]);
+    let impl_info = make_trait_impl("NoContract", "MyImpl", vec!["noop"]);
+    let trait_db = TraitDatabase::new();
+
+    // Step 1: No VCs — method has no contracts
+    let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &trait_db);
+    assert_eq!(vcs.len(), 0, "No contracted methods → 0 VCs");
+
+    // Step 2: No scripts — no VCs to generate scripts for
+    let scripts = generate_subtyping_script(&trait_def, &impl_info);
+    assert_eq!(scripts.len(), 0, "No contracted methods → 0 scripts");
+
+    // Step 3: Z3 is NOT called (nothing to submit) — verified by empty scripts collection
+    // This confirms the pipeline short-circuits correctly and avoids unnecessary Z3 invocation
+    assert!(
+        scripts.is_empty(),
+        "Empty scripts confirm Z3 was not invoked for a trait with no contracts"
+    );
 }

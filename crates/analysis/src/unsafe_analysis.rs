@@ -4,6 +4,7 @@
 //! in Rust functions. It classifies raw pointer operations, determines which require
 //! null checks or bounds checks, and identifies missing safety contracts.
 
+use crate::contract_db::AliasPrecondition;
 use crate::ir::{Function, RawPtrProvenance, SpecExpr, UnsafeBlockInfo, UnsafeOperation};
 
 /// Detects all unsafe blocks in a function.
@@ -109,6 +110,56 @@ pub fn get_unsafe_ensures(func: &Function) -> Vec<&SpecExpr> {
         .as_ref()
         .map(|c| c.ensures.iter().collect())
         .unwrap_or_default()
+}
+
+/// Extract alias preconditions from `#[unsafe_requires]` annotations.
+///
+/// Parses raw spec strings for `alias(param_a, param_b)` or
+/// `!alias(param_a, param_b)` patterns. Returns `AliasPrecondition`
+/// items with parameter indices resolved against `func.params`.
+///
+/// Only finds direct `alias(...)` calls. Negation (`!alias(...)`)
+/// is accepted — the non-aliasing constraint is the precondition.
+pub fn extract_alias_preconditions(func: &Function) -> Vec<AliasPrecondition> {
+    let unsafe_requires = get_unsafe_requires(func);
+    let mut result = Vec::new();
+
+    for spec in unsafe_requires {
+        let raw = spec.raw.trim();
+        // Strip leading `!` — both "alias(p,q)" and "!alias(p,q)" are preconditions
+        let inner = raw.strip_prefix('!').map(str::trim).unwrap_or(raw);
+
+        // Match alias(param_a, param_b) — simple pattern match on raw string
+        if !inner.starts_with("alias(") || !inner.ends_with(')') {
+            continue;
+        }
+        let args_str = &inner["alias(".len()..inner.len() - 1];
+        let parts: Vec<&str> = args_str.splitn(2, ',').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let name_a = parts[0].trim();
+        let name_b = parts[1].trim();
+
+        // Resolve param indices: func.params are zero-based
+        let idx_a = func.params.iter().position(|p| p.name == name_a);
+        let idx_b = func.params.iter().position(|p| p.name == name_b);
+
+        if let (Some(ia), Some(ib)) = (idx_a, idx_b) {
+            result.push(AliasPrecondition {
+                param_idx_a: ia,
+                param_idx_b: ib,
+                raw: spec.raw.clone(),
+            });
+        } else {
+            tracing::warn!(
+                function = %func.name,
+                spec = %spec.raw,
+                "alias() parameter names not found in function signature — skipping"
+            );
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -386,5 +437,109 @@ mod tests {
         let func = make_test_function(false, vec![], vec![], None);
         let requires = get_unsafe_requires(&func);
         assert!(requires.is_empty());
+    }
+
+    // ---------------------------------------------------------------------------
+    // Tests for extract_alias_preconditions (Phase 34 Plan 02)
+    // ---------------------------------------------------------------------------
+
+    fn make_function_with_params(
+        params: Vec<Local>,
+        unsafe_contracts: Option<UnsafeContracts>,
+    ) -> Function {
+        Function {
+            name: "swap_unsafe".to_string(),
+            params,
+            return_local: Local::new("_0", Ty::Bool),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: crate::ir::Terminator::Return,
+            }],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts,
+            is_unsafe_fn: true,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_extract_alias_preconditions_basic() {
+        // Function with params _1, _2 and unsafe_requires raw="!alias(_1, _2)"
+        let params = vec![
+            Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Bool), crate::ir::Mutability::Mutable),
+            ),
+            Local::new(
+                "_2",
+                Ty::RawPtr(Box::new(Ty::Bool), crate::ir::Mutability::Mutable),
+            ),
+        ];
+        let unsafe_contracts = Some(UnsafeContracts {
+            requires: vec![SpecExpr {
+                raw: "!alias(_1, _2)".to_string(),
+            }],
+            ensures: vec![],
+            is_trusted: false,
+        });
+        let func = make_function_with_params(params, unsafe_contracts);
+        let preconditions = extract_alias_preconditions(&func);
+        assert_eq!(preconditions.len(), 1);
+        assert_eq!(preconditions[0].param_idx_a, 0);
+        assert_eq!(preconditions[0].param_idx_b, 1);
+        assert_eq!(preconditions[0].raw, "!alias(_1, _2)");
+    }
+
+    #[test]
+    fn test_extract_alias_preconditions_no_contracts() {
+        // Function with no unsafe_contracts returns empty vec
+        let params = vec![
+            Local::new(
+                "_1",
+                Ty::RawPtr(Box::new(Ty::Bool), crate::ir::Mutability::Mutable),
+            ),
+            Local::new(
+                "_2",
+                Ty::RawPtr(Box::new(Ty::Bool), crate::ir::Mutability::Mutable),
+            ),
+        ];
+        let func = make_function_with_params(params, None);
+        let preconditions = extract_alias_preconditions(&func);
+        assert!(preconditions.is_empty());
+    }
+
+    #[test]
+    fn test_extract_alias_preconditions_non_alias_requires() {
+        // Function with unsafe_requires raw="_1 != 0" (no alias term) returns empty vec
+        let params = vec![Local::new(
+            "_1",
+            Ty::RawPtr(Box::new(Ty::Bool), crate::ir::Mutability::Mutable),
+        )];
+        let unsafe_contracts = Some(UnsafeContracts {
+            requires: vec![SpecExpr {
+                raw: "_1 != 0".to_string(),
+            }],
+            ensures: vec![],
+            is_trusted: false,
+        });
+        let func = make_function_with_params(params, unsafe_contracts);
+        let preconditions = extract_alias_preconditions(&func);
+        assert!(preconditions.is_empty());
     }
 }

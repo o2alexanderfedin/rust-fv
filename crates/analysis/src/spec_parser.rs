@@ -779,6 +779,35 @@ fn convert_call(
                 return convert_final_value(&call_expr.args[0], func, bound_vars);
             }
 
+            "alias" => {
+                // alias(p, q) — pointer non-aliasing predicate
+                // Encodes as SAT-check: (= p q) on BitVec 64
+                // Two arguments required: alias(ptr_a, ptr_b)
+                if call_expr.args.len() != 2 {
+                    tracing::warn!("alias() requires exactly 2 arguments: alias(ptr_a, ptr_b)");
+                    return None;
+                }
+                let p_term = convert_expr_with_bounds(
+                    &call_expr.args[0],
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                let q_term = convert_expr_with_bounds(
+                    &call_expr.args[1],
+                    func,
+                    false,
+                    in_postcondition,
+                    in_int_mode,
+                    bound_vars,
+                )?;
+                return Some(
+                    crate::heap_model::generate_alias_check_assertion_from_terms(p_term, q_term),
+                );
+            }
+
             "pts_to" => {
                 // pts_to(ptr, value) — raw pointer ownership predicate
                 if call_expr.args.len() != 2 {
@@ -2864,5 +2893,108 @@ mod tests {
             matches!(term.unwrap(), Term::BoolLit(false)),
             "ghost predicate at depth=0 must return BoolLit(false)"
         );
+    }
+
+    /// Build a function with two raw pointer parameters (_1: *const i32, _2: *const i32).
+    fn make_alias_func() -> Function {
+        Function {
+            name: "test_alias".to_string(),
+            return_local: Local {
+                name: "_0".to_string(),
+                ty: Ty::Bool,
+                is_ghost: false,
+            },
+            params: vec![
+                Local {
+                    name: "_1".to_string(),
+                    ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), crate::ir::Mutability::Shared),
+                    is_ghost: false,
+                },
+                Local {
+                    name: "_2".to_string(),
+                    ty: Ty::RawPtr(Box::new(Ty::Int(IntTy::I32)), crate::ir::Mutability::Shared),
+                    is_ghost: false,
+                },
+            ],
+            locals: vec![],
+            basic_blocks: vec![],
+            contracts: Contracts::default(),
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_alias_parse_basic() {
+        // alias(_1, _2) should parse to Some(Term::Eq(...))
+        let func = make_alias_func();
+        let term = parse_spec_expr("alias(_1, _2)", &func);
+        assert!(
+            term.is_some(),
+            "alias(_1, _2) should parse successfully, got None"
+        );
+        assert!(
+            matches!(term.unwrap(), Term::Eq(_, _)),
+            "alias(_1, _2) must produce Term::Eq"
+        );
+    }
+
+    #[test]
+    fn test_alias_parse_wrong_arity_one() {
+        // alias(_1) with only one argument should return None
+        let func = make_alias_func();
+        let term = parse_spec_expr("alias(_1)", &func);
+        assert!(
+            term.is_none(),
+            "alias() with 1 argument should return None (wrong arity)"
+        );
+    }
+
+    #[test]
+    fn test_alias_parse_wrong_arity_three() {
+        // alias(_1, _2, _1) with three arguments should return None
+        let func = make_alias_func();
+        let term = parse_spec_expr("alias(_1, _2, _1)", &func);
+        assert!(
+            term.is_none(),
+            "alias() with 3 arguments should return None (wrong arity)"
+        );
+    }
+
+    #[test]
+    fn test_alias_negated() {
+        // !alias(_1, _2) should parse to Some(Term::Not(Term::Eq(...)))
+        let func = make_alias_func();
+        let term = parse_spec_expr("!alias(_1, _2)", &func);
+        assert!(
+            term.is_some(),
+            "!alias(_1, _2) should parse successfully, got None"
+        );
+        match term.unwrap() {
+            Term::Not(inner) => {
+                assert!(
+                    matches!(*inner, Term::Eq(_, _)),
+                    "!alias must wrap Term::Eq, got {:?}",
+                    inner
+                );
+            }
+            other => panic!("Expected Term::Not(Term::Eq(...)), got {:?}", other),
+        }
     }
 }
