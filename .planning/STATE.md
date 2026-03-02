@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.6
-milestone_name: Cross-Crate Verification
-status: complete
-last_updated: "2026-03-02T06:00:00.000Z"
+milestone: v0.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-02T06:08:24.300Z"
 progress:
-  total_phases: 44
-  completed_phases: 44
-  total_plans: 125
-  completed_plans: 126
+  total_phases: 39
+  completed_phases: 38
+  total_plans: 116
+  completed_plans: 116
 ---
 
 # Project State
@@ -57,6 +57,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 37-cross-crate-scc-detection P02 | 900 | 2 tasks | 2 files |
 | Phase 37-cross-crate-scc-detection P03 | 720 | 2 tasks | 2 files |
 | Phase 37.1-inferred-summary-alias-guard P01 | 480 | 2 tasks | 3 files |
+| Phase 38-trait-subtyping-wiring P01 | 163 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions relevant to v0.6:
 - [Phase 37-03]: normalize_callee fallback — generate_termination_vcs group check uses || !group.contains(callee_name) to match full-path cross-crate callee names stored in RecursiveGroup
 - [Phase 37-03]: Cross-crate SCC integration test pattern — ContractDatabase with back-edge heuristic (decreases.raw contains in-crate fn name) -> generate_vcs -> filter Termination VCs -> Z3 UNSAT/SAT check
 - [Phase 37.1-inferred-summary-alias-guard]: V062 InferredSummaryAlias: hoist has_alias_preconditions before is_inferred guard; always-SAT warning VC; excluded from failure-push; Warning severity in diagnostics
+- [Phase 38-01]: Wire generate_subtyping_vcs sequentially after verify_functions_parallel block — mirrors OpaqueCallee/InferredSummaryAlias BoolLit VC pattern
+- [Phase 38-01]: Match trait methods from contract_db by name.contains('::{trait_name}::') — simple string match avoids HIR DefId complexity
+- [Phase 38-01]: VcLocation uses function/block/statement fields not function_name/block_idx/stmt_idx; AssocKind::Fn requires matches! pattern
 
 ### Pending Todos
 
@@ -107,11 +111,11 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 37.1-01-PLAN.md — guard is_inferred+alias co-occurrence, V062 InferredSummaryAlias (04852d9); ALIAS-01 and ALIAS-02 satisfied; Phase 37.1 complete
+Last session: 2026-03-01
+Stopped at: Completed 38-01-PLAN.md — generate_subtyping_vcs wired into after_analysis via tcx.all_local_trait_impls HIR scanning; TRT-01..05 closed (fa09c0b)
 Resume file: None
-Next step: Phase 37.1 complete. Next phase or milestone planning.
+Next step: Phase 38 Plan 01 complete. Continue with Phase 38 Plan 02 (integration tests).
 
 ---
 
-*Last updated: 2026-03-02 — 37.1-01 complete: guard is_inferred+alias co-occurrence, VcKind::InferredSummaryAlias (V062), diagnostics.rs/callbacks.rs wiring; ALIAS-01 and ALIAS-02 satisfied; Phase 37.1 fully complete*
+*Last updated: 2026-03-01 — 38-01 complete: generate_subtyping_vcs wired into callbacks.rs after_analysis, VcKind::BehavioralSubtyping used in VerificationResult construction, all 3 behavioral subtyping unit tests pass; TRT-01..05 satisfied*
