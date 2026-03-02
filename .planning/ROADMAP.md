@@ -145,16 +145,19 @@ Plans:
 - [ ] 37-03-PLAN.md — Integration tests: cross-crate SCC detection, termination VC UNSAT/SAT, single-crate regression (XCREC-01, XCREC-02)
 
 ### Phase 37.1: Inferred Summary + Alias Precondition Guard
-**Goal**: Close the integration gap where combining `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p, q))]` on the same function silently drops alias VCs due to the `is_inferred` early-continue at `vcgen.rs:2436`
+**Goal**: Close the integration gap where combining `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p, q))]` on the same function silently drops alias VCs due to the `is_inferred` early-continue at `vcgen.rs:2441`
 **Depends on**: Phase 37
 **Requirements**: ALIAS-01, ALIAS-02 (edge case guard)
 **Gap Closure**: Closes integration gap from v0.6 audit — `is_inferred + alias_preconditions co-occurrence silently drops alias VCs`
 **Success Criteria** (what must be TRUE):
-  1. When a function has both `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p,q))]`, `cargo verify` emits a diagnostic warning (V06x-series) instead of silently dropping the alias VCs
+  1. When a function has both `#[verifier::infer_summary]` and `#[unsafe_requires(!alias(p,q))]`, `cargo verify` emits a diagnostic warning (V062) instead of silently dropping the alias VCs
   2. A test covers the combined-annotation scenario and verifies the diagnostic is emitted
-  3. The `is_inferred` early-continue path in `vcgen.rs:2436` is guarded: if `alias_preconditions` is non-empty, skip the early continue and emit alias VCs regardless of `is_inferred`
+  3. The `is_inferred` early-continue path in `vcgen.rs:2441` is guarded: if `alias_preconditions` is non-empty, skip the early continue and emit alias VCs regardless of `is_inferred`
   4. Existing `is_inferred` behavior (suppress V060 opaque warning) is unchanged for functions without alias preconditions
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 37.1-01-PLAN.md — Guard is_inferred early-continue + VcKind::InferredSummaryAlias (V062) + diagnostics.rs/callbacks.rs wiring + unit tests
 
 ## Progress
 
@@ -167,4 +170,4 @@ Plans:
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36.1. Alias Precondition Parsing Fix | v0.6 | Complete | 2026-03-01 | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | 3/3 | Complete    | 2026-03-02 | - |
-| 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 0/TBD | Not started | - |
+| 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 0/1 | Not started | - |
