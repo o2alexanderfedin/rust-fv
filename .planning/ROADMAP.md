@@ -64,7 +64,7 @@ Phases 29.1-33: for-loop VCGen, prophecy fix, borrow conflict detection, stdlib 
 - [x] **Phase 35: Opaque Callee Diagnostics** - Warn/error when callee has no contract instead of silently skipping (completed 2026-02-28)
 - [x] **Phase 36: Summary Contract Inference** - Auto-infer minimal read/write contracts for opaque callees via `#[verifier::infer_summary]` (completed 2026-02-28)
 - [x] **Phase 36.1: Alias Precondition Parsing Fix** - Close ALIAS-01/02 integration gap: parse `!alias(p, q)` predicates from `unsafe_requires` doc attributes in `callbacks.rs` HIR scanner (completed 2026-03-01)
-- [ ] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification
+- [x] **Phase 37: Cross-Crate SCC Detection** - Tarjan's SCC extended across crate boundaries with termination measure verification (completed 2026-03-02)
 - [ ] **Phase 37.1: Inferred Summary + Alias Precondition Guard** - Close integration gap: guard against `is_inferred + alias_preconditions` co-occurrence that silently drops alias VCs; emit diagnostic instead of silent suppression
 
 ## Phase Details
@@ -166,5 +166,5 @@ Plans:
 | 35. Opaque Callee Diagnostics | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36. Summary Contract Inference | v0.6 | 2/2 | Complete | 2026-02-28 |
 | 36.1. Alias Precondition Parsing Fix | v0.6 | Complete | 2026-03-01 | 2026-03-01 |
-| 37. Cross-Crate SCC Detection | 2/3 | In Progress|  | - |
+| 37. Cross-Crate SCC Detection | 3/3 | Complete   | 2026-03-02 | - |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 0/TBD | Not started | - |
