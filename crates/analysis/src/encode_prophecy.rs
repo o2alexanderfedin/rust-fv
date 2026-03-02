@@ -47,6 +47,7 @@ pub fn detect_prophecies(func: &Function) -> Vec<ProphecyInfo> {
                 prophecy_var: format!("{}_prophecy", param.name),
                 inner_ty: (**inner_ty).clone(),
                 deref_level: 0,
+                closure_name: None,
             });
         }
     }
@@ -163,6 +164,7 @@ pub fn detect_nested_prophecies(func: &Function) -> Vec<ProphecyInfo> {
                 prophecy_var,
                 inner_ty: (**inner_ty).clone(),
                 deref_level: level,
+                closure_name: None,
             });
 
             current_ty = inner_ty;

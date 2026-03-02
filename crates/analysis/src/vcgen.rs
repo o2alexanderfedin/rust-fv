@@ -7660,7 +7660,11 @@ mod tests {
                 "closure_param",
                 Ty::Closure(Box::new(crate::ir::ClosureInfo {
                     name: "mutator".to_string(),
-                    env_fields: vec![("count".to_string(), Ty::Int(IntTy::I32))],
+                    env_fields: vec![(
+                        "count".to_string(),
+                        Ty::Int(IntTy::I32),
+                        crate::ir::CaptureMode::ByMove,
+                    )],
                     params: vec![],
                     return_ty: Ty::Unit,
                     trait_kind: crate::ir::ClosureTrait::FnMut,
@@ -7795,7 +7799,11 @@ mod tests {
                 "_2",
                 Ty::Closure(Box::new(crate::ir::ClosureInfo {
                     name: "add_x".to_string(),
-                    env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+                    env_fields: vec![(
+                        "x".to_string(),
+                        Ty::Int(IntTy::I32),
+                        crate::ir::CaptureMode::ByMove,
+                    )],
                     params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
                     return_ty: Ty::Int(IntTy::I32),
                     trait_kind: crate::ir::ClosureTrait::Fn,

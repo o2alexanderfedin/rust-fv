@@ -57,7 +57,7 @@ pub fn defunctionalize_closure_call(info: &ClosureInfo, _call_args: &[Operand]) 
 
     // Build environment field selectors
     let mut env_selectors = Vec::new();
-    for (field_name, field_ty) in &info.env_fields {
+    for (field_name, field_ty, _capture_mode) in &info.env_fields {
         let selector_name = format!("{}-{}", info.name, field_name);
         let field_sort = encode_type(field_ty);
         env_selectors.push((selector_name, field_sort));
@@ -126,7 +126,7 @@ pub fn encode_closure_as_uninterpreted(info: &ClosureInfo) -> Vec<Command> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{IntTy, Ty};
+    use crate::ir::{CaptureMode, IntTy, Ty};
 
     #[test]
     fn test_defunctionalize_fn_closure() {
@@ -134,8 +134,8 @@ mod tests {
         let info = ClosureInfo {
             name: "closure_add".to_string(),
             env_fields: vec![
-                ("x".to_string(), Ty::Int(IntTy::I32)),
-                ("y".to_string(), Ty::Int(IntTy::I32)),
+                ("x".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove),
+                ("y".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove),
             ],
             params: vec![("z".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),
@@ -171,7 +171,11 @@ mod tests {
         // FnMut closure: |x: i32| -> () with mutable capture count: i32
         let info = ClosureInfo {
             name: "closure_increment".to_string(),
-            env_fields: vec![("count".to_string(), Ty::Int(IntTy::I32))],
+            env_fields: vec![(
+                "count".to_string(),
+                Ty::Int(IntTy::I32),
+                CaptureMode::ByMove,
+            )],
             params: vec![("x".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Unit,
             trait_kind: ClosureTrait::FnMut,
@@ -189,7 +193,7 @@ mod tests {
         // FnOnce closure: || -> i32 with moved capture data
         let info = ClosureInfo {
             name: "closure_consume".to_string(),
-            env_fields: vec![("data".to_string(), Ty::Int(IntTy::I32))],
+            env_fields: vec![("data".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove)],
             params: vec![],
             return_ty: Ty::Int(IntTy::I32),
             trait_kind: ClosureTrait::FnOnce,
@@ -205,7 +209,7 @@ mod tests {
     fn test_encode_closure_call_term() {
         let info = ClosureInfo {
             name: "closure_add".to_string(),
-            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove)],
             params: vec![("z".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),
             trait_kind: ClosureTrait::Fn,
@@ -278,9 +282,9 @@ mod tests {
         let info = ClosureInfo {
             name: "closure_multi".to_string(),
             env_fields: vec![
-                ("a".to_string(), Ty::Int(IntTy::I32)),
-                ("b".to_string(), Ty::Bool),
-                ("c".to_string(), Ty::Int(IntTy::I64)),
+                ("a".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove),
+                ("b".to_string(), Ty::Bool, CaptureMode::ByMove),
+                ("c".to_string(), Ty::Int(IntTy::I64), CaptureMode::ByMove),
             ],
             params: vec![],
             return_ty: Ty::Unit,
