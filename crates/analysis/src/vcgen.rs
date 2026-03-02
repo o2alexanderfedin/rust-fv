@@ -7785,6 +7785,174 @@ mod tests {
         );
     }
 
+    #[cfg(test)]
+    fn make_fn_closure_func(
+        trait_kind: crate::ir::ClosureTrait,
+        capture_mode: crate::ir::CaptureMode,
+    ) -> Function {
+        Function {
+            name: "apply_fn".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "capturer".to_string(),
+                    env_fields: vec![("val".to_string(), Ty::Int(IntTy::I32), capture_mode)],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fn_closure_by_ref_no_prophecy_declarations() {
+        use crate::ir::{CaptureMode, ClosureTrait};
+        // Fn closure with ByRef capture — should NOT emit prophecy declarations
+        let func = make_fn_closure_func(ClosureTrait::Fn, CaptureMode::ByRef);
+        let result = generate_vcs(&func, None);
+        for vc in &result.conditions {
+            let script_str = format!("{}", vc.script);
+            assert!(
+                !script_str.contains("_initial"),
+                "Fn/ByRef closure must not emit prophecy declarations. Script:\n{}",
+                script_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fnmut_closure_by_move_no_prophecy_declarations() {
+        use crate::ir::{CaptureMode, ClosureTrait};
+        // FnMut closure with ByMove capture — should NOT emit prophecy declarations
+        let func = make_fn_closure_func(ClosureTrait::FnMut, CaptureMode::ByMove);
+        let result = generate_vcs(&func, None);
+        for vc in &result.conditions {
+            let script_str = format!("{}", vc.script);
+            assert!(
+                !script_str.contains("_initial"),
+                "FnMut/ByMove closure must not emit prophecy declarations. Script:\n{}",
+                script_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fnmut_closure_two_by_mut_ref_both_declared() {
+        use crate::ir::{CaptureMode, ClosureTrait, IntTy as IITy};
+        // FnMut closure with two ByMutRef captures — both must appear in VC script
+        let func = Function {
+            name: "apply_multi_fnmut".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "multi_counter".to_string(),
+                    env_fields: vec![
+                        (
+                            "count".to_string(),
+                            Ty::Int(IITy::I32),
+                            CaptureMode::ByMutRef,
+                        ),
+                        (
+                            "total".to_string(),
+                            Ty::Int(IITy::I64),
+                            CaptureMode::ByMutRef,
+                        ),
+                    ],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: ClosureTrait::FnMut,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+
+        let result = generate_vcs(&func, None);
+        assert!(!result.conditions.is_empty());
+        let script_str = format!("{}", result.conditions[0].script);
+        assert!(
+            script_str.contains("declare-const count_initial"),
+            "Must declare count_initial. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const count_prophecy"),
+            "Must declare count_prophecy. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const total_initial"),
+            "Must declare total_initial. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const total_prophecy"),
+            "Must declare total_prophecy. Script:\n{}",
+            script_str
+        );
+    }
+
     #[test]
     fn test_vcgen_fnonce_double_call_diagnostic() {
         use crate::closure_analysis;
