@@ -93,10 +93,11 @@ Plans:
 
 ### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
 
-**Goal:** [To be planned]
+**Goal:** Extend the IR and VCGen so that FnMut closures with mutable captured state emit SMT-LIB2 prophecy variable declarations (`{field}_initial`, `{field}_prophecy`) enabling contracts like `#[ensures(count == old(count) + 1)]` to be verified.
 **Requirements**: TBD
 **Depends on:** Phase 38
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 39 to break down)
+- [ ] 39-01-PLAN.md — Add CaptureMode enum, update ClosureInfo.env_fields, extend ProphecyInfo, add detect_closure_prophecies
+- [ ] 39-02-PLAN.md — Wire detect_closure_prophecies into vcgen.rs, upgrade fnmut_closure_prophecy test with SMT assertions
