@@ -69,6 +69,11 @@ Phases 34–37.1: cross-function pointer aliasing, opaque callee diagnostics V06
 
 </details>
 
+### Phase 38: Trait Subtyping Wiring
+**Goal:** Wire `generate_subtyping_vcs` into the driver's `after_analysis` pipeline so behavioral subtyping VCs are submitted to Z3 for every trait impl with contracts.
+**Requirements:** TRT-01, TRT-02, TRT-03, TRT-04, TRT-05
+**Gap Closure:** Closes gaps from vAll cross-milestone audit (TRT-01..05 partial, integration orphan, broken E2E flow)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -79,3 +84,4 @@ Phases 34–37.1: cross-function pointer aliasing, opaque callee diagnostics V06
 | 36.1. Alias Precondition Parsing Fix | v0.6 | 1/1 | Complete | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 3/3 | Complete | 2026-03-02 |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 1/1 | Complete | 2026-03-02 |
+| 38. Trait Subtyping Wiring | vAll gap-closure | 0/? | Pending | — |
