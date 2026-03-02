@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.6
 milestone_name: Cross-Crate Verification
 status: unknown
-last_updated: "2026-03-02T00:18:17.129Z"
+last_updated: "2026-03-02T02:26:05.294Z"
 progress:
   total_phases: 44
-  completed_phases: 43
-  total_plans: 124
-  completed_plans: 125
+  completed_phases: 44
+  total_plans: 125
+  completed_plans: 126
 ---
 
 # Project State
@@ -19,14 +19,14 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.6 Cross-Crate Verification — Phase 37 Plan 03 COMPLETE (cross-crate SCC integration tests + normalize_callee bug fix). All 3 plans of Phase 37 complete. XCREC-01 and XCREC-02 satisfied.
+**Current focus:** v0.6 Cross-Crate Verification — Phase 37.1 Plan 01 COMPLETE (is_inferred+alias guard, V062 InferredSummaryAlias, driver wiring). ALIAS-01 and ALIAS-02 satisfied.
 
 ## Current Position
 
-Phase: 37 of 37 (Cross-Crate SCC Detection) — COMPLETE (3/3 plans complete)
-Plan: 37-03 complete
-Status: Phase 37 complete
-Last activity: 2026-03-02 — Completed 37-03: 4 cross-crate SCC integration tests GREEN, fixed normalize_callee group membership bug in generate_termination_vcs (53bf3f2); XCREC-01 and XCREC-02 demonstrated end-to-end
+Phase: 37.1 of 44 (Inferred Summary Alias Guard) — COMPLETE (1/1 plans complete)
+Plan: 37.1-01 complete
+Status: Phase 37.1 complete
+Last activity: 2026-03-02 — Completed 37.1-01: guard is_inferred early-continue for alias_preconditions co-occurrence, V062 InferredSummaryAlias VcKind, diagnostics.rs/callbacks.rs wiring (04852d9); ALIAS-01 and ALIAS-02 satisfied
 
 Progress: [######░░░░] ~40% (v0.6 milestone, 7/~20 plans)
 
@@ -57,6 +57,7 @@ Progress: [######░░░░] ~40% (v0.6 milestone, 7/~20 plans)
 | Phase 37-cross-crate-scc-detection P01 | 480 | 2 tasks | 1 files |
 | Phase 37-cross-crate-scc-detection P02 | 900 | 2 tasks | 2 files |
 | Phase 37-cross-crate-scc-detection P03 | 720 | 2 tasks | 2 files |
+| Phase 37.1-inferred-summary-alias-guard P01 | 480 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,7 @@ Recent decisions relevant to v0.6:
 - [Phase 37-02]: generate_termination_vcs uses caller-side VC for cross-crate calls (callee body unavailable); vcgen.rs uses match contract_db to select from_functions_with_cross_crate_db vs from_functions
 - [Phase 37-03]: normalize_callee fallback — generate_termination_vcs group check uses || !group.contains(callee_name) to match full-path cross-crate callee names stored in RecursiveGroup
 - [Phase 37-03]: Cross-crate SCC integration test pattern — ContractDatabase with back-edge heuristic (decreases.raw contains in-crate fn name) -> generate_vcs -> filter Termination VCs -> Z3 UNSAT/SAT check
+- [Phase 37.1-inferred-summary-alias-guard]: V062 InferredSummaryAlias: hoist has_alias_preconditions before is_inferred guard; always-SAT warning VC; excluded from failure-push; Warning severity in diagnostics
 
 ### Pending Todos
 
@@ -107,10 +109,10 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 37-03-PLAN.md — 4 cross-crate SCC integration tests GREEN, fixed normalize_callee group membership bug (53bf3f2); XCREC-01 and XCREC-02 demonstrated end-to-end with Z3
+Stopped at: Completed 37.1-01-PLAN.md — guard is_inferred+alias co-occurrence, V062 InferredSummaryAlias (04852d9); ALIAS-01 and ALIAS-02 satisfied; Phase 37.1 complete
 Resume file: None
-Next step: Phase 37 complete. v0.6 milestone review or next milestone planning.
+Next step: Phase 37.1 complete. Next phase or milestone planning.
 
 ---
 
-*Last updated: 2026-03-02 — 37-03 complete: 4 cross-crate SCC integration tests, normalize_callee bug fix in generate_termination_vcs; XCREC-01 and XCREC-02 demonstrated end-to-end; Phase 37 fully complete*
+*Last updated: 2026-03-02 — 37.1-01 complete: guard is_inferred+alias co-occurrence, VcKind::InferredSummaryAlias (V062), diagnostics.rs/callbacks.rs wiring; ALIAS-01 and ALIAS-02 satisfied; Phase 37.1 fully complete*
