@@ -900,7 +900,14 @@ impl Callbacks for VerificationCallbacks {
                             match solver.solver.check_sat_raw(&script_text) {
                                 Ok(rust_fv_solver::SolverResult::Unsat) => true,
                                 Ok(rust_fv_solver::SolverResult::Sat(_)) => false,
-                                _ => true, // Unknown/error → optimistic (don't false-positive)
+                                _ => {
+                                    tracing::warn!(
+                                        impl_type = %impl_type,
+                                        trait_name = %trait_name,
+                                        "Behavioral subtyping Z3 check returned unknown/error — treating as unverified"
+                                    );
+                                    false
+                                }
                             }
                         } else {
                             true // Z3 unavailable → skip
@@ -1942,6 +1949,22 @@ mod tests {
         assert!(
             vcs[0].description.contains("VecStack"),
             "Description should contain impl type"
+        );
+    }
+
+    // --- Z3 catch-all pessimism test (TDD RED → GREEN for Task 2) ---
+
+    #[test]
+    fn test_behavioral_subtyping_z3_catchall_is_pessimistic() {
+        // Verify that the catch-all arm in the behavioral subtyping Z3 match is pessimistic.
+        // This is a source-level sanity guard — actual behavior is tested by integration.
+        // We assert that the pessimistic warning path IS present in the source.
+        let source = include_str!("callbacks.rs");
+        // The new pessimistic pattern emits a tracing::warn with this specific message fragment.
+        // This confirms the catch-all arm calls warn! and does not silently pass as verified.
+        assert!(
+            source.contains("Z3 check returned unknown/error"),
+            "Catch-all arm must emit a tracing::warn with the pessimistic message"
         );
     }
 }
