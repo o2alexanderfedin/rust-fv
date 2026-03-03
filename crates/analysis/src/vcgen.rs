@@ -2174,6 +2174,11 @@ fn generate_contract_vcs(
 pub fn normalize_callee_name(raw: &str) -> String {
     let trimmed = raw.trim();
     let stripped = trimmed.strip_prefix("const ").unwrap_or(trimmed).trim();
+    // Preserve dyn-dispatch callee names like "<dyn Stack>::push" intact — the
+    // dyn-dispatch resolution in generate_call_site_vcs needs the full form.
+    if stripped.starts_with("<dyn ") {
+        return stripped.to_string();
+    }
     // Take the last segment after `::`
     stripped
         .rsplit_once("::")
