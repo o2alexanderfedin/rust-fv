@@ -93,7 +93,7 @@ Plans:
 | 39. FnMut Prophecy Variable Encoding | v0.7 | 2/2 | Complete | 2026-03-02 |
 | generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
 | 40. Generics Verification Completion | v0.7 | Complete    | 2026-03-03 | 2026-03-02 |
-| 41. Phase 38 Hardening | v0.7 | 0/— | Pending | — |
+| 41. Phase 38 Hardening | v0.7 | 0/2 | Pending | — |
 | 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
 
 ### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
@@ -124,6 +124,11 @@ Plans:
 **Requirements:** TRT-02, TRT-04
 **Gap Closure:** Closes gaps from v0.1 milestone audit — TRT-02 partial (dyn dispatch not bridged), TRT-04 partial (sealed trait inactive), Z3 silent-pass integration gap
 **Depends on:** Phase 38
+**Plans:** 2 plans
+
+Plans:
+- [ ] 41-01-PLAN.md — Sealed trait HIR visibility detection + Z3 pessimistic catch-all (TRT-04)
+- [ ] 41-02-PLAN.md — Dyn dispatch callee name resolution in generate_call_site_vcs (TRT-02)
 
 ### Phase 42: Phase 39 Production Wiring (Ty::Closure from Real MIR)
 **Goal:** Wire `mir_converter.rs` to emit `Ty::Closure` variants from real rustc MIR closure lowering so the Phase 39 prophecy machinery is reachable from the production driver pipeline, and fix `CaptureMode` to detect real `ByMutRef` captures instead of always defaulting to `ByMove`.
