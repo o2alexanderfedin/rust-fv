@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T02:12:03.984Z"
+last_updated: "2026-03-03T02:29:52.369Z"
 progress:
   total_phases: 44
   completed_phases: 40
   total_plans: 121
-  completed_plans: 121
+  completed_plans: 122
 ---
 
 # Project State
@@ -62,6 +62,8 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 39 P01 | 1184 | 2 tasks | 8 files |
 | Phase 39 P02 | 653 | 2 tasks | 1 files |
 | Phase 40-generics-verification-completion P01 | 900 | 3 tasks | 3 files |
+| Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
+| Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -112,6 +114,8 @@ Recent decisions relevant to v0.6:
 - [Phase 39]: CaptureMode enum (ByMove|ByRef|ByMutRef) on ClosureInfo.env_fields; detect_closure_prophecies filters ByMutRef only; ProphecyInfo.closure_name: Option<String> for closure vs param distinction
 - [Phase 39]: Closure prophecy wiring at declarations collection site after encode_closure_as_uninterpreted loop — closure_infos already extracted and declarations mutable in scope
 - [Phase 40-generics-verification-completion]: trait_bounds_as_smt_assumptions returns Vec<Command>: callers use declarations.extend() directly; Ord/PartialOrd emit DeclareSort+DeclareFun+parameter-scoped axioms; Eq/PartialEq emit BoolLit(true) since SMT equality is built-in
+- [Phase 40-02]: TypeInstantiation uses substitutions field (not type_map); FunctionVCs requires function_name field — both corrected during implementation
+- [Phase 40-02]: verify_single routing: is_generic() + non-empty registry -> generate_vcs_monomorphized; else -> generate_vcs_with_db parametric path
 
 ### Pending Todos
 
@@ -124,9 +128,9 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 40-01-PLAN.md — trait_bounds_as_smt_assumptions returns Vec<Command> with real Ord/PartialOrd axioms; vcgen.rs uses declarations.extend(assumptions); GENERICS-01 closed; all workspace tests pass (a7b117a)
+Stopped at: Completed 40-02-PLAN.md — MonomorphizationRegistry threaded through VerificationTask; generate_vcs_monomorphized wired in verify_single(); GENERICS-02 closed; all workspace tests pass (b6cdd4f)
 Resume file: None
-Next step: Phase 40 Plan 02 (GENERICS-02 gap closure).
+Next step: Phase 40 Plan 03 (if exists) or Phase 40 complete — check ROADMAP.md for next phase.
 
 ---
 
