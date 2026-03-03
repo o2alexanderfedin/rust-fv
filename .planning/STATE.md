@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T02:40:18.362Z"
+last_updated: "2026-03-03T03:11:28.194Z"
 progress:
   total_phases: 44
   completed_phases: 41
-  total_plans: 121
-  completed_plans: 123
+  total_plans: 123
+  completed_plans: 124
 ---
 
 # Project State
@@ -65,6 +65,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
 | Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
 | Phase 40-generics-verification-completion P03 | 157 | 2 tasks | 2 files |
+| Phase 41-phase-38-hardening P01 | 20 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,8 @@ Recent decisions relevant to v0.6:
 - [Phase 40-02]: TypeInstantiation uses substitutions field (not type_map); FunctionVCs requires function_name field — both corrected during implementation
 - [Phase 40-02]: verify_single routing: is_generic() + non-empty registry -> generate_vcs_monomorphized; else -> generate_vcs_with_db parametric path
 - [Phase 40-03]: VERIFICATION.md scores 3/4 truths VERIFIED with Truth 3 as VERIFIED/PARTIAL (routing verified, axiom content completed by Phase 40-01); audit blocker CLEARED
+- [Phase 41-phase-38-hardening]: Use format!({vis:?}).contains('Public') heuristic for sealed trait visibility check — resilient to rustc internal changes
+- [Phase 41-phase-38-hardening]: Z3 catch-all in behavioral subtyping block made pessimistic: unknown/error => false + tracing::warn (soundness over completeness)
 
 ### Pending Todos
 
@@ -130,10 +133,10 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 40-02-PLAN.md — MonomorphizationRegistry threaded through VerificationTask; generate_vcs_monomorphized wired in verify_single(); GENERICS-02 closed; all workspace tests pass (b6cdd4f)
+Stopped at: Completed 41-01-PLAN.md — HIR sealed detection (tcx.visibility + detect_sealed_trait) + Z3 pessimistic catch-all (false + tracing::warn); TRT-04 closed (bf12fbc, 83db3ee)
 Resume file: None
-Next step: Phase 40 Plan 03 (if exists) or Phase 40 complete — check ROADMAP.md for next phase.
+Next step: Phase 41 Plan 02 — check ROADMAP.md for next phase.
 
 ---
 
-*Last updated: 2026-03-03 — 40-01 complete: trait_bounds_as_smt_assumptions changed from Vec<Term> BoolLit no-ops to Vec<Command> with DeclareSort/DeclareFun/Assert axioms for Ord; GENERICS-01 closed*
+*Last updated: 2026-03-03 — 41-01 complete: HIR-derived is_sealed via tcx.visibility in behavioral subtyping block; Z3 catch-all changed from true to false+warn; TRT-04 satisfied*
