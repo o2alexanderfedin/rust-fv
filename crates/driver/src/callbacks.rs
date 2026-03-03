@@ -774,7 +774,7 @@ impl Callbacks for VerificationCallbacks {
                 generate_subtyping_script, generate_subtyping_vcs,
             };
             use rust_fv_analysis::ir::{SpecExpr, TraitDef, TraitImpl, TraitMethod};
-            use rust_fv_analysis::trait_analysis::TraitDatabase;
+            use rust_fv_analysis::trait_analysis::{TraitDatabase, detect_sealed_trait};
 
             let z3 = Z3SolverAdapter::try_new();
             let trait_db = TraitDatabase::new();
@@ -825,11 +825,40 @@ impl Callbacks for VerificationCallbacks {
                     continue; // No contracted methods in this trait — skip all its impls
                 }
 
+                // Detect sealed trait: check HIR visibility from TyCtxt
+                // trait_def_id is already DefId (from all_local_trait_impls map key)
+                let vis = tcx.visibility(*trait_def_id);
+                // Visibility::Public => open-world; any restriction => sealed
+                let vis_str = format!("{vis:?}");
+                let vis_str_normalized = if vis_str.contains("Public") {
+                    "pub"
+                } else {
+                    "pub(crate)" // any restriction (Restricted) treated as sealed
+                };
+
+                // Collect super-trait names for sealed pattern detection
+                let super_trait_names: Vec<String> = tcx
+                    .explicit_super_predicates_of(*trait_def_id)
+                    .skip_binder()
+                    .iter()
+                    .filter_map(|(clause, _span)| {
+                        if let rustc_middle::ty::ClauseKind::Trait(trait_pred) =
+                            clause.kind().skip_binder()
+                        {
+                            Some(tcx.item_name(trait_pred.def_id()).to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                let is_sealed = detect_sealed_trait(vis_str_normalized, &super_trait_names);
+
                 let trait_def = TraitDef {
                     name: trait_name.clone(),
                     methods: trait_methods,
-                    is_sealed: false,
-                    super_traits: vec![],
+                    is_sealed,
+                    super_traits: super_trait_names,
                 };
 
                 for &impl_def_id in impl_def_ids {
@@ -1855,6 +1884,29 @@ mod tests {
         let db = TraitDatabase::new();
         let vcs = generate_subtyping_vcs(&trait_def, &impl_info, &db);
         assert!(vcs.is_empty(), "No contracted methods = no subtyping VCs");
+    }
+
+    // --- sealed trait detection unit tests (TDD RED → GREEN for Task 1) ---
+
+    #[test]
+    fn test_sealed_trait_detection_uses_detect_sealed_trait_pub_crate() {
+        // pub(crate) visibility → sealed = true
+        // This tests the logic used in the behavioral subtyping block's is_sealed computation
+        use rust_fv_analysis::trait_analysis::detect_sealed_trait;
+        assert!(
+            detect_sealed_trait("pub(crate)", &[]),
+            "pub(crate) trait must be detected as sealed"
+        );
+    }
+
+    #[test]
+    fn test_sealed_trait_detection_uses_detect_sealed_trait_pub() {
+        // pub visibility → sealed = false
+        use rust_fv_analysis::trait_analysis::detect_sealed_trait;
+        assert!(
+            !detect_sealed_trait("pub", &[]),
+            "pub trait must be detected as open (not sealed)"
+        );
     }
 
     #[test]
