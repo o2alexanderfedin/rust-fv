@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T03:11:28.194Z"
+last_updated: "2026-03-03T03:25:16.261Z"
 progress:
   total_phases: 44
-  completed_phases: 41
+  completed_phases: 42
   total_plans: 123
-  completed_plans: 124
+  completed_plans: 125
 ---
 
 # Project State
@@ -66,6 +66,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
 | Phase 40-generics-verification-completion P03 | 157 | 2 tasks | 2 files |
 | Phase 41-phase-38-hardening P01 | 20 | 2 tasks | 1 files |
+| Phase 41-phase-38-hardening P02 | 800 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,8 @@ Recent decisions relevant to v0.6:
 - [Phase 40-03]: VERIFICATION.md scores 3/4 truths VERIFIED with Truth 3 as VERIFIED/PARTIAL (routing verified, axiom content completed by Phase 40-01); audit blocker CLEARED
 - [Phase 41-phase-38-hardening]: Use format!({vis:?}).contains('Public') heuristic for sealed trait visibility check — resilient to rustc internal changes
 - [Phase 41-phase-38-hardening]: Z3 catch-all in behavioral subtyping block made pessimistic: unknown/error => false + tracing::warn (soundness over completeness)
+- [Phase 41-phase-38-hardening]: normalize_callee_name preserves <dyn TraitName>::method forms intact — dyn dispatch resolution requires the full form to remain after normalization
+- [Phase 41-phase-38-hardening]: parse_dyn_dispatch_callee uses suffix-match (name.contains(TraitName::method)) in contract_db.iter() — handles bare and fully-qualified keys
 
 ### Pending Todos
 
@@ -133,10 +136,10 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 41-01-PLAN.md — HIR sealed detection (tcx.visibility + detect_sealed_trait) + Z3 pessimistic catch-all (false + tracing::warn); TRT-04 closed (bf12fbc, 83db3ee)
+Stopped at: Completed 41-02-PLAN.md — dyn dispatch call-site VC resolution (parse_dyn_dispatch_callee + normalize_callee_name fix); TRT-02 satisfied (bd95119, ff25d1c)
 Resume file: None
-Next step: Phase 41 Plan 02 — check ROADMAP.md for next phase.
+Next step: Phase 41 complete — check ROADMAP.md for next phase.
 
 ---
 
-*Last updated: 2026-03-03 — 41-01 complete: HIR-derived is_sealed via tcx.visibility in behavioral subtyping block; Z3 catch-all changed from true to false+warn; TRT-04 satisfied*
+*Last updated: 2026-03-03 — 41-02 complete: dyn dispatch call-site VC resolution via parse_dyn_dispatch_callee + normalize_callee_name preservation; TRT-02 satisfied*
