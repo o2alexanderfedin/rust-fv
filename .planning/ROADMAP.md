@@ -92,7 +92,7 @@ Plans:
 | 38. Trait Subtyping Wiring | v0.7 | 2/2 | Complete | 2026-03-02 |
 | 39. FnMut Prophecy Variable Encoding | v0.7 | 2/2 | Complete | 2026-03-02 |
 | generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
-| 40. Generics Verification Completion | v0.7 | 3/3 | Pending | — |
+| 40. Generics Verification Completion | 1/3 | In Progress|  | — |
 | 41. Phase 38 Hardening | v0.7 | 0/— | Pending | — |
 | 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
 
@@ -112,7 +112,7 @@ Plans:
 **Requirements:** GENERICS-01, GENERICS-02
 **Gap Closure:** Closes gaps from v0.1 milestone audit — broken "Generic function trait-bound-aware verification" flow, unverified generics-fix phase, semantic no-op parametric axioms
 **Depends on:** generics-fix
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 40-01-PLAN.md — Fix trait_bounds_as_smt_assumptions: real Ord/PartialOrd SMT axioms (GENERICS-01)

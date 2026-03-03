@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-02T22:21:30.101Z"
+last_updated: "2026-03-03T02:12:03.984Z"
 progress:
-  total_phases: 41
+  total_phases: 44
   completed_phases: 40
-  total_plans: 118
-  completed_plans: 120
+  total_plans: 121
+  completed_plans: 121
 ---
 
 # Project State
@@ -61,6 +61,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 38-trait-subtyping-wiring P02 | 172 | 1 tasks | 1 files |
 | Phase 39 P01 | 1184 | 2 tasks | 8 files |
 | Phase 39 P02 | 653 | 2 tasks | 1 files |
+| Phase 40-generics-verification-completion P01 | 900 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,7 @@ Recent decisions relevant to v0.6:
 - [Phase 38-02]: Gracefully handle Z3 ParseError in E2E pipeline test — Term::App without declare-fun is known encoding limitation; assert non-empty script (pipeline wired) not Z3 UNSAT
 - [Phase 39]: CaptureMode enum (ByMove|ByRef|ByMutRef) on ClosureInfo.env_fields; detect_closure_prophecies filters ByMutRef only; ProphecyInfo.closure_name: Option<String> for closure vs param distinction
 - [Phase 39]: Closure prophecy wiring at declarations collection site after encode_closure_as_uninterpreted loop — closure_infos already extracted and declarations mutable in scope
+- [Phase 40-generics-verification-completion]: trait_bounds_as_smt_assumptions returns Vec<Command>: callers use declarations.extend() directly; Ord/PartialOrd emit DeclareSort+DeclareFun+parameter-scoped axioms; Eq/PartialEq emit BoolLit(true) since SMT equality is built-in
 
 ### Pending Todos
 
@@ -121,11 +123,11 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 39-02-PLAN.md — FnMut prophecy integration in generate_vcs; detect_closure_prophecies wired after encode_closure_as_uninterpreted loop; 4 upgraded/new vcgen tests all pass (23ed5fc, a495ac9)
+Last session: 2026-03-03
+Stopped at: Completed 40-01-PLAN.md — trait_bounds_as_smt_assumptions returns Vec<Command> with real Ord/PartialOrd axioms; vcgen.rs uses declarations.extend(assumptions); GENERICS-01 closed; all workspace tests pass (a7b117a)
 Resume file: None
-Next step: Phase 39 complete (Plans 01 and 02). FnMut closure prophecy encoding loop complete end-to-end.
+Next step: Phase 40 Plan 02 (GENERICS-02 gap closure).
 
 ---
 
-*Last updated: 2026-03-02 — 38-02 complete: 3 E2E behavioral subtyping pipeline tests added to trait_verification.rs; all 13 tests pass; TRT-01..05 pipeline acceptance verified*
+*Last updated: 2026-03-03 — 40-01 complete: trait_bounds_as_smt_assumptions changed from Vec<Term> BoolLit no-ops to Vec<Command> with DeclareSort/DeclareFun/Assert axioms for Ord; GENERICS-01 closed*
