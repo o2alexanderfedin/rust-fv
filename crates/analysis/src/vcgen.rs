@@ -2182,6 +2182,26 @@ pub fn normalize_callee_name(raw: &str) -> String {
         .to_string()
 }
 
+/// Extract (trait_name, method_name) from a dyn-dispatch callee name.
+///
+/// Handles patterns produced by rustc MIR for virtual dispatch:
+/// - `<dyn Stack>::push` → ("Stack", "push")
+/// - `<dyn Stack as Stack>::push` → ("Stack", "push")
+///
+/// Returns None for non-dyn callee names.
+fn parse_dyn_dispatch_callee(callee_name: &str) -> Option<(&str, &str)> {
+    let inner = callee_name.strip_prefix("<dyn ")?;
+    let gt_pos = inner.find('>')?;
+    let trait_part = &inner[..gt_pos];
+    // Handle "<dyn Stack as Stack>" — take the part before " as "
+    let trait_name = trait_part.split(" as ").next()?.trim();
+    let method_name = callee_name.rsplit("::").next()?;
+    if method_name.is_empty() || method_name.starts_with('<') {
+        return None;
+    }
+    Some((trait_name, method_name))
+}
+
 /// Recursively substitute named constants in a Term tree.
 ///
 /// For each `Term::Const(name)` where `substitutions` contains a mapping,
@@ -2396,58 +2416,133 @@ fn generate_call_site_vcs(
             let callee_summary = match contract_db.get(&call_site.callee_name) {
                 Some(s) => s,
                 None => {
-                    tracing::debug!(
-                        caller = %func.name,
-                        callee = %call_site.callee_name,
-                        "Call to function without contracts -- emitting opaque callee diagnostic"
-                    );
-                    let is_unsafe_context = func.is_unsafe_fn
-                        || func
-                            .unsafe_blocks
+                    // TRT-02: Try dyn-dispatch callee resolution before emitting OpaqueCallee.
+                    // Callee names like "<dyn Stack>::push" are normalized to "Stack::push"
+                    // for contract_db lookup, enabling trait-level contracts at dyn call sites.
+                    if let Some((dyn_trait_name, dyn_method_name)) =
+                        parse_dyn_dispatch_callee(&call_site.callee_name)
+                    {
+                        let search_suffix = format!("{dyn_trait_name}::{dyn_method_name}");
+                        let resolved = contract_db
                             .iter()
-                            .any(|b| b.block_index == call_site.block_idx);
-                    let vc_kind = if is_unsafe_context {
-                        VcKind::OpaqueCalleeUnsafe
+                            .find(|(name, _)| name.contains(&search_suffix))
+                            .map(|(_, s)| s);
+                        if let Some(summary) = resolved {
+                            tracing::debug!(
+                                caller = %func.name,
+                                dyn_callee = %call_site.callee_name,
+                                resolved_to = %search_suffix,
+                                "Resolved dyn dispatch callee to trait contract"
+                            );
+                            summary
+                        } else {
+                            // No trait contract found — fall through to OpaqueCallee diagnostic.
+                            tracing::debug!(
+                                caller = %func.name,
+                                callee = %call_site.callee_name,
+                                "Dyn dispatch callee has no matching trait contract -- emitting opaque callee diagnostic"
+                            );
+                            let is_unsafe_context = func.is_unsafe_fn
+                                || func
+                                    .unsafe_blocks
+                                    .iter()
+                                    .any(|b| b.block_index == call_site.block_idx);
+                            let vc_kind = if is_unsafe_context {
+                                VcKind::OpaqueCalleeUnsafe
+                            } else {
+                                VcKind::OpaqueCallee
+                            };
+                            let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
+                            if seen_opaque.contains(&dedup_key) {
+                                continue;
+                            }
+                            seen_opaque.insert(dedup_key);
+                            let description = format!(
+                                "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
+                                call_site.callee_name, func.name
+                            );
+                            let contract_text = format!(
+                                "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
+                                call_site.callee_name
+                            );
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_BV".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::BoolLit(true),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+                            vcs.push(VerificationCondition {
+                                description,
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: call_site.block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(contract_text),
+                                    vc_kind,
+                                },
+                            });
+                            continue;
+                        }
                     } else {
-                        VcKind::OpaqueCallee
-                    };
-                    // Deduplicate: one diagnostic per (callee_name, context) per function.
-                    let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
-                    if seen_opaque.contains(&dedup_key) {
+                        tracing::debug!(
+                            caller = %func.name,
+                            callee = %call_site.callee_name,
+                            "Call to function without contracts -- emitting opaque callee diagnostic"
+                        );
+                        let is_unsafe_context = func.is_unsafe_fn
+                            || func
+                                .unsafe_blocks
+                                .iter()
+                                .any(|b| b.block_index == call_site.block_idx);
+                        let vc_kind = if is_unsafe_context {
+                            VcKind::OpaqueCalleeUnsafe
+                        } else {
+                            VcKind::OpaqueCallee
+                        };
+                        // Deduplicate: one diagnostic per (callee_name, context) per function.
+                        let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
+                        if seen_opaque.contains(&dedup_key) {
+                            continue;
+                        }
+                        seen_opaque.insert(dedup_key);
+                        let description = format!(
+                            "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
+                            call_site.callee_name, func.name
+                        );
+                        let contract_text = format!(
+                            "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
+                            call_site.callee_name
+                        );
+                        let mut script = rust_fv_smtlib::script::Script::new();
+                        script.push(rust_fv_smtlib::command::Command::SetLogic(
+                            "QF_BV".to_string(),
+                        ));
+                        script.push(rust_fv_smtlib::command::Command::Assert(
+                            rust_fv_smtlib::term::Term::BoolLit(true),
+                        ));
+                        script.push(rust_fv_smtlib::command::Command::CheckSat);
+                        vcs.push(VerificationCondition {
+                            description,
+                            script,
+                            location: VcLocation {
+                                function: func.name.clone(),
+                                block: call_site.block_idx,
+                                statement: 0,
+                                source_file: None,
+                                source_line: None,
+                                source_column: None,
+                                contract_text: Some(contract_text),
+                                vc_kind,
+                            },
+                        });
                         continue;
-                    }
-                    seen_opaque.insert(dedup_key);
-                    let description = format!(
-                        "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
-                        call_site.callee_name, func.name
-                    );
-                    let contract_text = format!(
-                        "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
-                        call_site.callee_name
-                    );
-                    let mut script = rust_fv_smtlib::script::Script::new();
-                    script.push(rust_fv_smtlib::command::Command::SetLogic(
-                        "QF_BV".to_string(),
-                    ));
-                    script.push(rust_fv_smtlib::command::Command::Assert(
-                        rust_fv_smtlib::term::Term::BoolLit(true),
-                    ));
-                    script.push(rust_fv_smtlib::command::Command::CheckSat);
-                    vcs.push(VerificationCondition {
-                        description,
-                        script,
-                        location: VcLocation {
-                            function: func.name.clone(),
-                            block: call_site.block_idx,
-                            statement: 0,
-                            source_file: None,
-                            source_line: None,
-                            source_column: None,
-                            contract_text: Some(contract_text),
-                            vc_kind,
-                        },
-                    });
-                    continue;
+                    } // end else (non-dyn callee)
                 }
             };
 
@@ -9894,5 +9989,31 @@ mod tests {
                 .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
                 .collect::<Vec<_>>()
         );
+    }
+
+    // --- TRT-02: parse_dyn_dispatch_callee unit tests ---
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_standard() {
+        let result = parse_dyn_dispatch_callee("<dyn Stack>::push");
+        assert_eq!(result, Some(("Stack", "push")));
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_as_form() {
+        let result = parse_dyn_dispatch_callee("<dyn Stack as Stack>::push");
+        assert_eq!(result, Some(("Stack", "push")));
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_non_dyn() {
+        let result = parse_dyn_dispatch_callee("crate::Stack::push");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_empty() {
+        let result = parse_dyn_dispatch_callee("");
+        assert_eq!(result, None);
     }
 }
