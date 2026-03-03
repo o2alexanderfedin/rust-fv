@@ -92,7 +92,7 @@ Plans:
 | 38. Trait Subtyping Wiring | v0.7 | 2/2 | Complete | 2026-03-02 |
 | 39. FnMut Prophecy Variable Encoding | v0.7 | 2/2 | Complete | 2026-03-02 |
 | generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
-| 40. Generics Verification Completion | v0.7 | 0/— | Pending | — |
+| 40. Generics Verification Completion | v0.7 | 3/3 | Pending | — |
 | 41. Phase 38 Hardening | v0.7 | 0/— | Pending | — |
 | 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
 
@@ -112,6 +112,12 @@ Plans:
 **Requirements:** GENERICS-01, GENERICS-02
 **Gap Closure:** Closes gaps from v0.1 milestone audit — broken "Generic function trait-bound-aware verification" flow, unverified generics-fix phase, semantic no-op parametric axioms
 **Depends on:** generics-fix
+**Plans:** 3 plans
+
+Plans:
+- [ ] 40-01-PLAN.md — Fix trait_bounds_as_smt_assumptions: real Ord/PartialOrd SMT axioms (GENERICS-01)
+- [ ] 40-02-PLAN.md — Thread MonomorphizationRegistry through VerificationTask; wire generate_vcs_monomorphized (GENERICS-02)
+- [ ] 40-03-PLAN.md — Write generics-fix-VERIFICATION.md to clear audit blocker
 
 ### Phase 41: Phase 38 Hardening (Sealed Traits + Z3 Robustness + Dyn Dispatch)
 **Goal:** Implement real sealed trait detection to replace the hardcoded `is_sealed: false`, fix `generate_subtyping_script` to emit proper SMT `declare-fun` statements so Z3 parse errors are no longer silently treated as verified, and wire dynamic dispatch call-site VCs to the behavioral subtyping pipeline.
