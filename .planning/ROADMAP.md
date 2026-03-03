@@ -89,7 +89,12 @@ Plans:
 | 36.1. Alias Precondition Parsing Fix | v0.6 | 1/1 | Complete | 2026-03-01 |
 | 37. Cross-Crate SCC Detection | v0.6 | 3/3 | Complete | 2026-03-02 |
 | 37.1. Inferred Summary + Alias Precondition Guard | v0.6 | 1/1 | Complete | 2026-03-02 |
-| 38. Trait Subtyping Wiring | 2/2 | Complete    | 2026-03-02 | — |
+| 38. Trait Subtyping Wiring | v0.7 | 2/2 | Complete | 2026-03-02 |
+| 39. FnMut Prophecy Variable Encoding | v0.7 | 2/2 | Complete | 2026-03-02 |
+| generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
+| 40. Generics Verification Completion | v0.7 | 0/— | Pending | — |
+| 41. Phase 38 Hardening | v0.7 | 0/— | Pending | — |
+| 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
 
 ### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
 
@@ -101,3 +106,21 @@ Plans:
 Plans:
 - [ ] 39-01-PLAN.md — Add CaptureMode enum, update ClosureInfo.env_fields, extend ProphecyInfo, add detect_closure_prophecies
 - [ ] 39-02-PLAN.md — Wire detect_closure_prophecies into vcgen.rs, upgrade fnmut_closure_prophecy test with SMT assertions
+
+### Phase 40: Generics Verification Completion
+**Goal:** Fix parametric axiom injection so generic functions are verified against real trait bound constraints (not trivially passed via `BoolLit(true)`), thread `MonomorphizationRegistry` through `VerificationTask` to activate `generate_vcs_monomorphized`, and write a VERIFICATION.md for the generics-fix phase to clear the audit blocker.
+**Requirements:** GENERICS-01, GENERICS-02
+**Gap Closure:** Closes gaps from v0.1 milestone audit — broken "Generic function trait-bound-aware verification" flow, unverified generics-fix phase, semantic no-op parametric axioms
+**Depends on:** generics-fix
+
+### Phase 41: Phase 38 Hardening (Sealed Traits + Z3 Robustness + Dyn Dispatch)
+**Goal:** Implement real sealed trait detection to replace the hardcoded `is_sealed: false`, fix `generate_subtyping_script` to emit proper SMT `declare-fun` statements so Z3 parse errors are no longer silently treated as verified, and wire dynamic dispatch call-site VCs to the behavioral subtyping pipeline.
+**Requirements:** TRT-02, TRT-04
+**Gap Closure:** Closes gaps from v0.1 milestone audit — TRT-02 partial (dyn dispatch not bridged), TRT-04 partial (sealed trait inactive), Z3 silent-pass integration gap
+**Depends on:** Phase 38
+
+### Phase 42: Phase 39 Production Wiring (Ty::Closure from Real MIR)
+**Goal:** Wire `mir_converter.rs` to emit `Ty::Closure` variants from real rustc MIR closure lowering so the Phase 39 prophecy machinery is reachable from the production driver pipeline, and fix `CaptureMode` to detect real `ByMutRef` captures instead of always defaulting to `ByMove`.
+**Requirements:** (none declared — integration gap closure)
+**Gap Closure:** Closes gaps from v0.1 milestone audit — Phase 39 closure prophecy unreachable from real programs, broken "FnMut closure prophecy in production" flow
+**Depends on:** Phase 39
