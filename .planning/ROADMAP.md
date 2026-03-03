@@ -92,7 +92,7 @@ Plans:
 | 38. Trait Subtyping Wiring | v0.7 | 2/2 | Complete | 2026-03-02 |
 | 39. FnMut Prophecy Variable Encoding | v0.7 | 2/2 | Complete | 2026-03-02 |
 | generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
-| 40. Generics Verification Completion | v0.7 | 3/3 | Complete | 2026-03-02 |
+| 40. Generics Verification Completion | v0.7 | Complete    | 2026-03-03 | 2026-03-02 |
 | 41. Phase 38 Hardening | v0.7 | 0/— | Pending | — |
 | 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
 
