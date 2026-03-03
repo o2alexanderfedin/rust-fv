@@ -114,6 +114,53 @@ fn empty_generic_params_produces_vcs_from_ensures() {
     );
 }
 
+/// Test: ord_generic_smt_script_contains_declare_sort
+///
+/// A generic function with T: Ord bound must produce a VC script that contains
+/// DeclareSort and DeclareFun commands for the uninterpreted sort T.
+#[test]
+fn ord_generic_smt_script_contains_declare_sort() {
+    use rust_fv_smtlib::command::Command;
+
+    let func = make_generic_func(vec![GenericParam {
+        name: "T".to_string(),
+        trait_bounds: vec!["Ord".to_string()],
+    }]);
+
+    let ghost_pred_db = GhostPredicateDatabase::new();
+    let func_vcs = vcgen::generate_vcs_with_db(&func, None, &ghost_pred_db);
+
+    assert!(
+        !func_vcs.conditions.is_empty(),
+        "Must have at least one VC for the ensures contract"
+    );
+
+    let first_vc = &func_vcs.conditions[0];
+    let has_declare_sort = first_vc
+        .script
+        .commands()
+        .iter()
+        .any(|c| matches!(c, Command::DeclareSort(name, 0) if name == "T"));
+    assert!(
+        has_declare_sort,
+        "VC script must contain (declare-sort T 0) for T: Ord generic bound. \
+        Commands: {:?}",
+        first_vc.script.commands()
+    );
+
+    let has_declare_fun = first_vc
+        .script
+        .commands()
+        .iter()
+        .any(|c| matches!(c, Command::DeclareFun(name, _, _) if name.starts_with("T_")));
+    assert!(
+        has_declare_fun,
+        "VC script must contain (declare-fun T_le ...) for Ord predicate. \
+        Commands: {:?}",
+        first_vc.script.commands()
+    );
+}
+
 /// Test 3: generic_function_vc_count_matches_non_generic
 ///
 /// Both generic and non-generic versions of the same function (with same contracts)

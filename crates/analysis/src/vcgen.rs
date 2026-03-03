@@ -298,17 +298,15 @@ pub fn generate_vcs_with_db(
 
     // Inject trait bound premises for generic functions.
     // For each generic parameter with trait bounds, call trait_bounds_as_smt_assumptions()
-    // and inject the resulting terms as Assert commands in the declarations list.
-    // These serve as axioms/assumptions in all VCs generated for this function.
-    // For BoolLit(true), Z3 ignores them harmlessly (no false premises added).
+    // and extend the declarations list directly with the returned commands.
+    // For Ord/PartialOrd: emits DeclareSort + DeclareFun + reflexivity/totality axioms.
+    // For Eq/PartialEq or unknown bounds: emits BoolLit(true) as conservative no-op.
     if !func.generic_params.is_empty() {
         for gp in &func.generic_params {
             let concrete_ty = Ty::Generic(gp.name.clone());
             let assumptions =
                 crate::monomorphize::trait_bounds_as_smt_assumptions(gp, &concrete_ty);
-            for term in assumptions {
-                declarations.push(Command::Assert(term));
-            }
+            declarations.extend(assumptions);
         }
     }
 

@@ -10,6 +10,8 @@
 /// with concrete types throughout the function's IR.
 use std::collections::HashMap;
 
+use rust_fv_smtlib::command::Command;
+use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
 
 use crate::ir::{BasicBlock, Function, GenericParam, Local, Rvalue, Statement, Terminator, Ty};
@@ -291,29 +293,71 @@ pub fn trait_bound_constraints(generic: &GenericParam, concrete_ty: &Ty) -> Vec<
     constraints
 }
 
-/// Produce SMT-LIB Assert premises encoding a generic parameter's trait bound constraints.
+/// Produce SMT-LIB commands encoding a generic parameter's trait bound constraints.
 ///
-/// For integer types with Ord/PartialOrd/Eq/PartialEq: the constraints are trivially true
-/// in BV semantics (total order is guaranteed by bitvector comparisons). We emit
-/// `Term::BoolLit(true)` as a no-op assumption — it documents the contract without
-/// adding false premises.
+/// For `Ord`/`PartialOrd` bounds: declares `T` as an uninterpreted sort, declares
+/// `T_le` as an uninterpreted comparison predicate, and asserts parameter-scoped
+/// reflexivity and totality axioms for the function's actual parameters (`_1`, `_2`).
+/// Parameter-scoped axioms (rather than universally quantified) avoid Z3 quantifier
+/// instantiation issues while still providing useful constraints.
 ///
-/// For unrecognized/composite types: emit `Term::BoolLit(true)` conservatively (no
-/// contradiction, no false implications).
+/// For `Eq`/`PartialEq` bounds: SMT equality (`=`) is built into Z3 for all sorts,
+/// so no additional axioms are needed — emit `BoolLit(true)` as a no-op.
 ///
-/// Safety note (RESEARCH.md Pitfall 5): Do NOT emit incorrect ordering assumptions for
-/// non-integer types. If T is not a known integer type, always emit BoolLit(true).
-pub fn trait_bounds_as_smt_assumptions(gp: &GenericParam, _concrete_ty: &Ty) -> Vec<Term> {
-    // Check concrete_ty — for known integer/bool types, all standard trait bounds
-    // (Ord, PartialOrd, Eq, PartialEq, Copy, Clone) are trivially satisfied by BV semantics.
-    // Return BoolLit(true) for each bound as a no-op documented assumption.
-    //
-    // For unrecognized types: same conservative approach — emit BoolLit(true).
-    // This is sound: we never add false premises.
-    gp.trait_bounds
-        .iter()
-        .map(|_bound| Term::BoolLit(true))
-        .collect()
+/// For unknown bounds: emit `BoolLit(true)` conservatively (never adds false premises).
+///
+/// # Returns
+/// A `Vec<Command>` that can be directly extended into a declarations list.
+/// Callers must use `declarations.extend(assumptions)` (not `Assert`-wrapping).
+pub fn trait_bounds_as_smt_assumptions(gp: &GenericParam, _concrete_ty: &Ty) -> Vec<Command> {
+    let mut cmds = Vec::new();
+    for bound in &gp.trait_bounds {
+        match bound.as_str() {
+            "Ord" | "PartialOrd" => {
+                let sort_name = gp.name.clone();
+                let pred_name = format!("{}_le", gp.name);
+                let sort = Sort::Uninterpreted(sort_name.clone());
+                // (declare-sort T 0)
+                cmds.push(Command::DeclareSort(sort_name.clone(), 0));
+                // (declare-fun T_le (T T) Bool)
+                cmds.push(Command::DeclareFun(
+                    pred_name.clone(),
+                    vec![sort.clone(), sort],
+                    Sort::Bool,
+                ));
+                // Reflexivity: (assert (T_le _1 _1))
+                cmds.push(Command::Assert(Term::App(
+                    pred_name.clone(),
+                    vec![Term::Const("_1".to_string()), Term::Const("_1".to_string())],
+                )));
+                // Reflexivity: (assert (T_le _2 _2))
+                cmds.push(Command::Assert(Term::App(
+                    pred_name.clone(),
+                    vec![Term::Const("_2".to_string()), Term::Const("_2".to_string())],
+                )));
+                // Totality: (assert (or (T_le _1 _2) (T_le _2 _1)))
+                cmds.push(Command::Assert(Term::Or(vec![
+                    Term::App(
+                        pred_name.clone(),
+                        vec![Term::Const("_1".to_string()), Term::Const("_2".to_string())],
+                    ),
+                    Term::App(
+                        pred_name,
+                        vec![Term::Const("_2".to_string()), Term::Const("_1".to_string())],
+                    ),
+                ])));
+            }
+            "Eq" | "PartialEq" => {
+                // Equality is built into SMT (= operator) — no additional axioms needed.
+                cmds.push(Command::Assert(Term::BoolLit(true)));
+            }
+            _ => {
+                // Unknown bound: conservative soundness — no false premises.
+                cmds.push(Command::Assert(Term::BoolLit(true)));
+            }
+        }
+    }
+    cmds
 }
 
 #[cfg(test)]
@@ -1485,5 +1529,58 @@ mod tests {
         assert!(result.params[0].is_ghost);
         assert!(result.locals[0].is_ghost);
         assert!(!result.return_local.is_ghost);
+    }
+
+    #[test]
+    fn test_trait_bounds_as_smt_assumptions_ord_emits_real_commands() {
+        use crate::ir::Ty;
+        use rust_fv_smtlib::command::Command;
+
+        let gp = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Ord".to_string()],
+        };
+        let concrete_ty = Ty::Generic("T".to_string());
+        let cmds = trait_bounds_as_smt_assumptions(&gp, &concrete_ty);
+
+        assert!(
+            cmds.len() > 1,
+            "Ord bound must emit multiple commands (DeclareSort + DeclareFun + asserts), got: {:?}",
+            cmds
+        );
+        assert!(
+            cmds.iter()
+                .any(|c| matches!(c, Command::DeclareSort(name, 0) if name == "T")),
+            "Must emit DeclareSort for type parameter T, got: {:?}",
+            cmds
+        );
+        assert!(
+            cmds.iter()
+                .any(|c| matches!(c, Command::DeclareFun(_, _, _))),
+            "Must emit DeclareFun for T_le predicate, got: {:?}",
+            cmds
+        );
+    }
+
+    #[test]
+    fn test_trait_bounds_as_smt_assumptions_eq_is_noop() {
+        use crate::ir::Ty;
+        use rust_fv_smtlib::command::Command;
+        use rust_fv_smtlib::term::Term;
+
+        let gp = GenericParam {
+            name: "T".to_string(),
+            trait_bounds: vec!["Eq".to_string()],
+        };
+        let concrete_ty = Ty::Generic("T".to_string());
+        let cmds = trait_bounds_as_smt_assumptions(&gp, &concrete_ty);
+
+        // Eq is built into SMT equality — BoolLit(true) is correct for Eq
+        assert!(
+            cmds.iter()
+                .all(|c| matches!(c, Command::Assert(Term::BoolLit(true)))),
+            "Eq bound should emit only BoolLit(true) assertions (equality is built-in to SMT), got: {:?}",
+            cmds
+        );
     }
 }
