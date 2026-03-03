@@ -94,7 +94,7 @@ Plans:
 | generics-fix. Generics Verification Fix | v0.7 | 1/1 | Complete (unverified) | 2026-03-02 |
 | 40. Generics Verification Completion | v0.7 | Complete    | 2026-03-03 | 2026-03-02 |
 | 41. Phase 38 Hardening | 2/2 | Complete    | 2026-03-03 | — |
-| 42. Phase 39 Production Wiring | v0.7 | 0/— | Pending | — |
+| 42. Phase 39 Production Wiring | v0.7 | 0/1 | Pending | — |
 
 ### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
 
@@ -135,3 +135,7 @@ Plans:
 **Requirements:** (none declared — integration gap closure)
 **Gap Closure:** Closes gaps from v0.1 milestone audit — Phase 39 closure prophecy unreachable from real programs, broken "FnMut closure prophecy in production" flow
 **Depends on:** Phase 39
+**Plans:** 1 plan
+
+Plans:
+- [ ] 42-01-PLAN.md — Wire convert_closure_ty into mir_converter.rs + E2E driver integration test
