@@ -14,6 +14,7 @@ use rust_fv_analysis::ir::{
     BasicBlock, Contracts, Function, GenericParam, Local, Operand, Place, Rvalue, SpecExpr,
     Statement, Terminator, Ty,
 };
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_driver::cache::VcCache;
 use rust_fv_driver::invalidation::{InvalidationDecision, InvalidationReason};
 use rust_fv_driver::parallel::{VerificationTask, verify_functions_parallel};
@@ -95,6 +96,7 @@ fn make_generic_task(func: Function) -> VerificationTask {
         ir_func: func,
         contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
         ghost_pred_db: Arc::new(GhostPredicateDatabase::new()),
+        monomorphization_registry: Arc::new(MonomorphizationRegistry::new()),
         cache_key: [0u8; 32],
         mir_hash: [0u8; 32],
         contract_hash: [0u8; 32],
@@ -167,6 +169,67 @@ fn generic_function_with_empty_generic_params_still_verifies() {
         !task_results.is_empty(),
         "Function with empty generic_params must still produce VC results (no regression). \
         Got 0 results. Got: {:?}",
+        task_results
+            .iter()
+            .map(|r| &r.condition)
+            .collect::<Vec<_>>()
+    );
+}
+
+/// Test 5: monomorphized_path_fires_when_registry_has_instantiation
+///
+/// When MonomorphizationRegistry has a concrete instantiation for the function,
+/// verify_single() must route to generate_vcs_monomorphized (not generate_vcs_with_db).
+/// The monomorphized path substitutes T -> i32 and generates VCs for the concrete type.
+#[test]
+fn monomorphized_path_fires_when_registry_has_instantiation() {
+    use rust_fv_analysis::ir::IntTy;
+    use rust_fv_analysis::monomorphize::TypeInstantiation;
+
+    let mut registry = MonomorphizationRegistry::new();
+    let mut substitutions = std::collections::HashMap::new();
+    substitutions.insert("T".to_string(), Ty::Int(IntTy::I32));
+    registry.register(
+        "test_generic_max",
+        TypeInstantiation {
+            substitutions,
+            label: "_i32".to_string(),
+        },
+    );
+
+    let func = make_generic_test_func(vec![GenericParam {
+        name: "T".to_string(),
+        trait_bounds: vec!["Ord".to_string()],
+    }]);
+    let task = VerificationTask {
+        name: func.name.clone(),
+        ir_func: func,
+        contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
+        ghost_pred_db: Arc::new(GhostPredicateDatabase::new()),
+        monomorphization_registry: Arc::new(registry),
+        cache_key: [0u8; 32],
+        mir_hash: [0u8; 32],
+        contract_hash: [0u8; 32],
+        dependencies: vec![],
+        invalidation_decision: InvalidationDecision::verify(InvalidationReason::Fresh),
+        source_locations: HashMap::new(),
+    };
+
+    let cache_dir = temp_cache_dir("monomorphized");
+    let mut cache = VcCache::new(cache_dir);
+
+    let results = verify_functions_parallel(vec![task], &mut cache, 1, false, false);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Must have one result for test_generic_max"
+    );
+    let task_results = &results[0].results;
+    assert!(
+        !task_results.is_empty(),
+        "Monomorphized path must produce at least one VC result. \
+         Got 0 — routing may not be using generate_vcs_monomorphized. Results: {:?}",
         task_results
             .iter()
             .map(|r| &r.condition)

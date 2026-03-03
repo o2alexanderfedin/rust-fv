@@ -15,6 +15,7 @@ use crate::types::VerificationResult;
 use rust_fv_analysis::contract_db::ContractDatabase;
 use rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase;
 use rust_fv_analysis::ir::Function;
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_analysis::vcgen::{VcKind, VcLocation};
 
 /// A function verification task.
@@ -44,6 +45,10 @@ pub struct VerificationTask {
     pub source_locations: std::collections::HashMap<(usize, usize), (String, usize, usize)>,
     /// Shared ghost predicate database (populated from #[ghost_predicate] doc attrs)
     pub ghost_pred_db: Arc<GhostPredicateDatabase>,
+    /// MonomorphizationRegistry for routing generic functions to generate_vcs_monomorphized.
+    /// Empty registry means parametric path is used (trait-bound axiom injection via Plan 40-01).
+    /// Populated by call-site analysis when available (Phase 42 scope).
+    pub monomorphization_registry: Arc<MonomorphizationRegistry>,
 }
 
 /// Result of verifying a single function.
@@ -261,29 +266,45 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
     };
 
     // Generic function routing:
-    // Functions with non-empty generic_params are verified via the parametric axiom
-    // approach in generate_vcs_with_db (vcgen.rs lines 285-298 inject trait bound
-    // assumptions for each generic parameter). This is activated by mir_converter.rs
-    // populating generic_params from tcx.generics_of().
-    //
-    // The monomorphization path (generate_vcs_monomorphized) requires a populated
-    // MonomorphizationRegistry with call-site instantiation data. That requires
-    // call-site analysis (type-checking the caller body), which is not yet threaded
-    // through VerificationTask. Tracked in tech_debt as GENERICS-02.
-    if task.ir_func.is_generic() {
-        tracing::debug!(
-            function = %task.name,
-            generic_params = ?task.ir_func.generic_params.iter().map(|gp| &gp.name).collect::<Vec<_>>(),
-            "Verifying generic function via parametric axiom path"
-        );
-    }
-
-    // Generate VCs with inter-procedural support and ghost predicate expansion
-    let mut func_vcs = rust_fv_analysis::vcgen::generate_vcs_with_db(
-        &task.ir_func,
-        Some(&task.contract_db),
-        &task.ghost_pred_db,
-    );
+    // - If the function is generic AND its MonomorphizationRegistry has instantiations,
+    //   route to generate_vcs_monomorphized (concrete type substitution path).
+    // - Otherwise, use generate_vcs_with_db with trait-bound axiom assumptions
+    //   (parametric path; also handles non-generic functions and generic functions
+    //   with no registered call-site instantiations).
+    let mut func_vcs = {
+        let instantiations = task
+            .monomorphization_registry
+            .get_instantiations(&task.name);
+        if task.ir_func.is_generic() && !instantiations.is_empty() {
+            tracing::debug!(
+                function = %task.name,
+                instantiations = instantiations.len(),
+                "Generic function: routing to generate_vcs_monomorphized"
+            );
+            let all_vcs = rust_fv_analysis::vcgen::generate_vcs_monomorphized(
+                &task.ir_func,
+                &task.monomorphization_registry,
+                Some(&task.contract_db),
+            );
+            rust_fv_analysis::vcgen::FunctionVCs {
+                function_name: task.name.clone(),
+                conditions: all_vcs.into_iter().flat_map(|fvc| fvc.conditions).collect(),
+            }
+        } else {
+            if task.ir_func.is_generic() {
+                tracing::debug!(
+                    function = %task.name,
+                    generic_params = ?task.ir_func.generic_params.iter().map(|gp| &gp.name).collect::<Vec<_>>(),
+                    "Generic function: no instantiations in registry, using parametric axiom path"
+                );
+            }
+            rust_fv_analysis::vcgen::generate_vcs_with_db(
+                &task.ir_func,
+                Some(&task.contract_db),
+                &task.ghost_pred_db,
+            )
+        }
+    };
 
     // Fill source locations from the pre-built map (populated in after_analysis
     // while TyCtxt was live). Locations with source_file already set are skipped.

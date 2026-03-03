@@ -12,6 +12,7 @@ use rustc_middle::ty::TyCtxt;
 
 use rust_fv_analysis::differential::{SolverInterface, VcOutcome};
 use rust_fv_analysis::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabase};
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_smtlib::script::Script;
 
 use crate::diagnostics;
@@ -690,6 +691,7 @@ impl Callbacks for VerificationCallbacks {
                 invalidation_decision,
                 source_locations,
                 ghost_pred_db: std::sync::Arc::clone(&ghost_pred_db_arc),
+                monomorphization_registry: std::sync::Arc::new(MonomorphizationRegistry::new()),
             });
         }
 

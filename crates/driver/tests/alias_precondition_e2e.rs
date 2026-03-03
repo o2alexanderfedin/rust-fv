@@ -18,6 +18,7 @@ use rust_fv_analysis::ir::{
     BasicBlock, Contracts, Function, IntTy, Local, Mutability, Operand, Place, Statement,
     Terminator, Ty,
 };
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_analysis::vcgen::VcKind;
 use rust_fv_driver::cache::VcCache;
 use rust_fv_driver::invalidation::{InvalidationDecision, InvalidationReason};
@@ -119,6 +120,7 @@ fn make_alias_task(func: Function, contract_db: ContractDatabase) -> Verificatio
         ghost_pred_db: Arc::new(
             rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase::new(),
         ),
+        monomorphization_registry: Arc::new(MonomorphizationRegistry::new()),
         cache_key: [0u8; 32],
         mir_hash: [0u8; 32],
         contract_hash: [0u8; 32],

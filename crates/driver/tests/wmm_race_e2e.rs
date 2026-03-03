@@ -13,6 +13,7 @@ use rust_fv_analysis::ir::{
     AtomicOp, AtomicOpKind, AtomicOrdering, BasicBlock, ConcurrencyConfig, Constant, Contracts,
     Function, IntTy, Local, Operand, Place, Rvalue, Statement, Terminator, ThreadSpawn, Ty,
 };
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_analysis::vcgen::VcKind;
 use rust_fv_driver::cache::VcCache;
 use rust_fv_driver::invalidation::{InvalidationDecision, InvalidationReason};
@@ -125,6 +126,7 @@ fn test_relaxed_race_surfaces_as_driver_failure() {
         ir_func: func,
         contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
         ghost_pred_db: Arc::new(GhostPredicateDatabase::new()),
+        monomorphization_registry: Arc::new(MonomorphizationRegistry::new()),
         cache_key: [0u8; 32],
         mir_hash: [0u8; 32],
         contract_hash: [0u8; 32],
