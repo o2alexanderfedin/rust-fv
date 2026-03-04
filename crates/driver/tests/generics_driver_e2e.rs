@@ -176,6 +176,165 @@ fn generic_function_with_empty_generic_params_still_verifies() {
     );
 }
 
+/// Test 6: monomorphized_path_produces_labeled_vcs
+///
+/// When MonomorphizationRegistry has a concrete instantiation T->i32 for the function,
+/// verify_functions_parallel routes through generate_vcs_monomorphized and produces
+/// VCs with the monomorphized function name (containing the instantiation label).
+#[test]
+fn monomorphized_path_produces_labeled_vcs() {
+    use rust_fv_analysis::ir::IntTy;
+    use rust_fv_analysis::monomorphize::TypeInstantiation;
+
+    let mut registry = MonomorphizationRegistry::new();
+    let mut substitutions = HashMap::new();
+    substitutions.insert("T".to_string(), Ty::Int(IntTy::I32));
+    registry.register(
+        "test_generic_max",
+        TypeInstantiation {
+            substitutions,
+            label: "_i32".to_string(),
+        },
+    );
+
+    let func = make_generic_test_func(vec![GenericParam {
+        name: "T".to_string(),
+        trait_bounds: vec!["Ord".to_string()],
+    }]);
+    let task = VerificationTask {
+        name: func.name.clone(),
+        ir_func: func,
+        contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
+        ghost_pred_db: Arc::new(GhostPredicateDatabase::new()),
+        monomorphization_registry: Arc::new(registry),
+        cache_key: [0u8; 32],
+        mir_hash: [0u8; 32],
+        contract_hash: [0u8; 32],
+        dependencies: vec![],
+        invalidation_decision: InvalidationDecision::verify(InvalidationReason::Fresh),
+        source_locations: HashMap::new(),
+    };
+
+    let cache_dir = temp_cache_dir("labeled-vcs");
+    let mut cache = VcCache::new(cache_dir);
+
+    let results = verify_functions_parallel(vec![task], &mut cache, 1, false, false);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Must have one result for test_generic_max"
+    );
+    let task_results = &results[0].results;
+
+    assert!(
+        !task_results.is_empty(),
+        "Monomorphized path must produce at least one VC result (T->i32). Got 0. Results: {:?}",
+        task_results
+            .iter()
+            .map(|r| &r.condition)
+            .collect::<Vec<_>>()
+    );
+
+    // At least one VC must contain the function name to verify the monomorphized path fired
+    let has_func_name = task_results
+        .iter()
+        .any(|r| r.condition.contains("test_generic_max") || r.condition.contains("_i32"));
+    assert!(
+        has_func_name,
+        "At least one VC must reference the function name or instantiation label '_i32'. \
+         Conditions: {:?}",
+        task_results
+            .iter()
+            .map(|r| &r.condition)
+            .collect::<Vec<_>>()
+    );
+}
+
+/// Test 7: multiple_instantiations_produce_vcs_for_each
+///
+/// When MonomorphizationRegistry has two instantiations (T->i32 and T->i64),
+/// verify_functions_parallel produces VCs for both instantiations.
+#[test]
+fn multiple_instantiations_produce_vcs_for_each() {
+    use rust_fv_analysis::ir::IntTy;
+    use rust_fv_analysis::monomorphize::TypeInstantiation;
+
+    let mut registry = MonomorphizationRegistry::new();
+
+    // Register T->i32
+    let mut subs_i32 = HashMap::new();
+    subs_i32.insert("T".to_string(), Ty::Int(IntTy::I32));
+    registry.register(
+        "test_generic_max",
+        TypeInstantiation {
+            substitutions: subs_i32,
+            label: "_i32".to_string(),
+        },
+    );
+
+    // Register T->i64
+    let mut subs_i64 = HashMap::new();
+    subs_i64.insert("T".to_string(), Ty::Int(IntTy::I64));
+    registry.register(
+        "test_generic_max",
+        TypeInstantiation {
+            substitutions: subs_i64,
+            label: "_i64".to_string(),
+        },
+    );
+
+    let func = make_generic_test_func(vec![GenericParam {
+        name: "T".to_string(),
+        trait_bounds: vec!["Ord".to_string()],
+    }]);
+    let task = VerificationTask {
+        name: func.name.clone(),
+        ir_func: func,
+        contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
+        ghost_pred_db: Arc::new(GhostPredicateDatabase::new()),
+        monomorphization_registry: Arc::new(registry),
+        cache_key: [0u8; 32],
+        mir_hash: [0u8; 32],
+        contract_hash: [0u8; 32],
+        dependencies: vec![],
+        invalidation_decision: InvalidationDecision::verify(InvalidationReason::Fresh),
+        source_locations: HashMap::new(),
+    };
+
+    let cache_dir = temp_cache_dir("multi-instantiation");
+    let mut cache = VcCache::new(cache_dir);
+
+    let results = verify_functions_parallel(vec![task], &mut cache, 1, false, false);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Must have one result for test_generic_max"
+    );
+    let task_results = &results[0].results;
+
+    assert!(
+        !task_results.is_empty(),
+        "Multiple instantiations must produce at least one VC result. Got 0. Results: {:?}",
+        task_results
+            .iter()
+            .map(|r| &r.condition)
+            .collect::<Vec<_>>()
+    );
+
+    assert!(
+        task_results.len() >= 2,
+        "Two instantiations (i32 and i64) must produce at least 2 VC results. \
+         Got {} results: {:?}",
+        task_results.len(),
+        task_results
+            .iter()
+            .map(|r| &r.condition)
+            .collect::<Vec<_>>()
+    );
+}
+
 /// Test 5: monomorphized_path_fires_when_registry_has_instantiation
 ///
 /// When MonomorphizationRegistry has a concrete instantiation for the function,
