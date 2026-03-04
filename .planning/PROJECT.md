@@ -73,6 +73,13 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - ✓ Cross-crate `#[decreases]` termination verification — cross-crate mutual recursion termination proven with Z3 UNSAT/SAT — v0.6
 - ✓ V062 InferredSummaryAlias guard — closes is_inferred + alias_preconditions co-occurrence; emits warning instead of silent drop — v0.6
 
+- ✓ Behavioral subtyping VCs — `generate_subtyping_vcs` wired into `after_analysis` for Liskov precondition/postcondition checks on every trait impl with contracts — v0.7
+- ✓ FnMut prophecy variable encoding — `CaptureMode` enum + `detect_closure_prophecies` + `ProphecyInfo.closure_name` for mutable closure capture verification — v0.7
+- ✓ Generic function verification with real trait bound constraints — `trait_bounds_as_smt_assumptions` emits Ord/PartialOrd SMT axioms via DeclareSort+DeclareFun — v0.7
+- ✓ MonomorphizationRegistry population — `populate_monomorphization_registry` traverses MIR call sites for concrete type substitutions; `generate_vcs_monomorphized` production path activated — v0.7
+- ✓ Sealed trait detection — `detect_sealed_trait` via HIR visibility; `parse_dyn_dispatch_callee` resolves dyn dispatch to behavioral subtyping VCs — v0.7
+- ✓ Closure production wiring — `convert_closure_ty` emits `Ty::Closure` from real MIR; `ByMutRef` capture detection enables prophecy machinery — v0.7
+
 ### Active
 
 *(Planning next milestone — see `/gsd:new-milestone`)*
@@ -91,11 +98,11 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **Ecosystem:** Follows Verus model (SMT-based, Rust-native specs) but targets broader usability
 - **Competitors:** Verus (academic, requires forked compiler), Prusti (Viper-based, heavy), Kani (bounded model checking, different niche)
 - **Differentiator:** Zero-friction integration via standard `cargo` workflow, no forked compiler
-- **Current state:** v0.6 complete — 44 phases, ~103,500 LOC Rust, 6-crate workspace + VSCode extension; cross-crate verification fully delivered, 1245+ tests passing
-- **v0.6 achievements:** Cross-function pointer aliasing (ALIAS-01/02), opaque callee diagnostics V060/V061 (OPAQUE-01/02), summary contract inference (OPAQUE-03), HIR alias precondition parsing, cross-crate Tarjan SCC (XCREC-01), cross-crate termination measures (XCREC-02), V062 InferredSummaryAlias guard — all 7/7 requirements satisfied
-- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated (DEBTLINE); FnMut prophecy integration deferred; conservative live ranges in lifetime reasoning
-- **Tech debt:** `extract_alias_preconditions` pub visibility with test-only callers; alternative output paths (rustc_json.rs, cargo_verify.rs) statically set `inferred_summaries: None`
-- **Next:** v0.7 milestone — see `/gsd:new-milestone`
+- **Current state:** v0.7 complete — 44 phases, ~107,173 LOC Rust, 6-crate workspace + VSCode extension; generics and traits verification fully hardened, 2,831 tests passing
+- **v0.7 achievements:** Behavioral subtyping VCs (TRT-01..05), FnMut prophecy variables, real trait bound SMT axioms (GENERICS-01), MonomorphizationRegistry population (GENERICS-02), sealed trait detection (TRT-04), dyn dispatch VCs (TRT-02), Nyquist validation coverage — all 7/7 requirements satisfied
+- **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated (DEBTLINE); postcondition strengthening tautology in behavioral_subtyping.rs (sound but incomplete); sealed trait is_sealed flag computed but not consumed in SMT encoding
+- **Tech debt:** `extract_alias_preconditions` pub visibility with test-only callers; alternative output paths (rustc_json.rs, cargo_verify.rs) statically set `inferred_summaries: None`; `TraitDatabase` instantiated as empty (scaffolding); 2 bv2int E2E tests commented-out (Phase 18 workaround)
+- **Next:** v0.8 milestone — see `/gsd:new-milestone`
 
 ## Constraints
 
@@ -175,19 +182,26 @@ A compiler-integrated formal verification tool that mathematically proves proper
 | from_functions_with_cross_crate_db back-edge heuristic (Phase 37) | Virtual node injection via ContractDatabase; decreases.raw substring match for cross-crate edges | ✓ Good |
 | normalize_callee fallback for cross-crate callee names (Phase 37) | group.contains(callee) || !group.contains(callee_name) handles full-path cross-crate names | ✓ Good |
 | V062 InferredSummaryAlias guard hoists alias check before is_inferred (Phase 37.1) | Alias VCs emitted regardless of is_inferred when alias_preconditions non-empty; warning-only | ✓ Good |
+| Wire generate_subtyping_vcs after verify_functions_parallel (Phase 38) | Sequential placement mirrors OpaqueCallee BoolLit pattern; simple wiring | ✓ Good |
+| CaptureMode enum (ByMove/ByRef/ByMutRef) on ClosureInfo (Phase 39) | Prophecy filtering by ByMutRef only; clean enum pattern | ✓ Good |
+| trait_bounds_as_smt_assumptions returns Vec<Command> (Phase 40) | DeclareSort+DeclareFun+Assert for Ord/PartialOrd; BoolLit(true) for Eq (SMT built-in) | ✓ Good |
+| populate_monomorphization_registry MIR traversal (Phase 44) | GenericArg::as_type() for nightly-2026-02-11; dedup via HashMap equality | ✓ Good |
+| format!({vis:?}).contains('Public') for sealed trait visibility (Phase 41) | Resilient to rustc internal changes; heuristic approach | ✓ Good |
+| parse_dyn_dispatch_callee suffix-match in contract_db (Phase 41) | Handles bare and fully-qualified keys for dyn Trait dispatch | ✓ Good |
+| convert_closure_ty named tcx lifetime (Phase 42) | GenericArgsRef invariance requires explicit lifetime coherence | ✓ Good |
 
-## Shipped: v0.6 Cross-Crate Verification (2026-03-02)
+## Shipped: v0.7 Generics & Traits Hardening (2026-03-04)
 
-**Goal achieved:** Broke the "each crate is an island" barrier — cross-function pointer aliasing, opaque callee contract enforcement, and cross-crate mutual recursion detection all verified end-to-end.
+**Goal achieved:** Complete generics and trait verification — behavioral subtyping with Liskov checks, FnMut prophecy variables for mutable closure contracts, real trait bound SMT axioms for generic functions, monomorphized verification from call-site type analysis.
 
-**Delivered (phases 34–37.1):**
-- Cross-function pointer aliasing: `#[unsafe_requires(!alias(p,q))]` → spec_parser → `AliasPrecondition` → vcgen alias VC loop → Z3 SAT
-- Opaque callee diagnostics: V060 (warning) + V061 (error for unsafe context) replace silent skip at vcgen.rs:2366
-- Summary contract inference: `#[verifier::infer_summary]` proc-macro → callbacks HIR scan → is_inferred flag → vcgen suppression → JSON `inferred_summaries`
-- HIR alias precondition parsing: `parse_alias_preconditions()` in callbacks.rs closes always-empty alias_preconditions gap
-- Cross-crate Tarjan SCC: `CallGraph::from_functions_with_cross_crate_db` injects virtual nodes for contracted callees
-- Cross-crate termination: `generate_termination_vcs` uses caller-side VCs for cross-crate calls; Z3 UNSAT/SAT proof
-- V062 InferredSummaryAlias guard: closes is_inferred + alias_preconditions co-occurrence; warning emitted instead of silent drop
+**Delivered (phases 38–44 + generics-fix):**
+- Behavioral subtyping VCs: `generate_subtyping_vcs` wired into `after_analysis` pipeline for Liskov precondition/postcondition checks
+- FnMut prophecy variables: `CaptureMode` enum, `detect_closure_prophecies`, `ProphecyInfo.closure_name` for mutable closure capture
+- Real trait bound SMT axioms: `trait_bounds_as_smt_assumptions` emits Ord/PartialOrd DeclareSort+DeclareFun+Assert (replaces BoolLit(true) no-ops)
+- MonomorphizationRegistry population: `populate_monomorphization_registry` MIR traversal for T→i32 substitutions; shared Arc wiring
+- Sealed trait detection: `detect_sealed_trait` via HIR visibility; Z3 pessimistic catch-all for soundness
+- Dyn dispatch VCs: `parse_dyn_dispatch_callee` resolves `<dyn Trait>::method` to behavioral subtyping VCs
+- Closure production wiring: `convert_closure_ty` emits `Ty::Closure` from real MIR; `ByMutRef` capture detection
 
 ---
-*Last updated: 2026-03-02 after v0.6 Cross-Crate Verification milestone complete*
+*Last updated: 2026-03-04 after v0.7 Generics & Traits Hardening milestone complete*

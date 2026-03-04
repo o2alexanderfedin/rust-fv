@@ -4,6 +4,57 @@
 
 ---
 
+## Milestone: v0.7 — Generics & Traits Hardening
+
+**Shipped:** 2026-03-04
+**Phases:** 8 (38–44 + generics-fix) | **Plans:** 14 | **Feature commits:** 75
+**Timeline:** 2026-03-01 to 2026-03-03 (3 days)
+**Tests:** 2,831 passing (0 failures), up from 1,245
+**Files changed:** 114 (+13,235 / -164)
+
+### What Was Built
+
+- Behavioral subtyping VCs — `generate_subtyping_vcs` wired into `after_analysis`; Liskov precondition/postcondition checks for every trait impl with contracts
+- FnMut prophecy variable encoding — `CaptureMode` enum + `detect_closure_prophecies` + `ProphecyInfo.closure_name` for mutable closure capture verification
+- Real trait bound SMT axioms — `trait_bounds_as_smt_assumptions` emits Ord/PartialOrd via DeclareSort+DeclareFun+Assert (replaces BoolLit(true) no-ops)
+- MonomorphizationRegistry population — `populate_monomorphization_registry` traverses MIR call sites; shared Arc wiring activates `generate_vcs_monomorphized`
+- Sealed trait detection + dyn dispatch — `detect_sealed_trait` via HIR visibility; `parse_dyn_dispatch_callee` suffix-match; Z3 pessimistic catch-all
+- Closure production wiring — `convert_closure_ty` from real MIR; `ByMutRef` capture detection
+- Nyquist validation coverage — 6 VALIDATION.md files for v0.7 phases
+
+### What Worked
+
+- Audit-driven gap closure cycle — v0.7 audit caught GENERICS-02-PROD (registry always empty) and Nyquist gaps; phases 43-44 closed them precisely
+- Shared Arc pattern for MonomorphizationRegistry — single creation before task loop, threaded through VerificationTask; clean concurrent access
+- Suffix-match pattern for dyn dispatch — `name.contains(TraitName::method)` handles bare and fully-qualified keys without complex DefId resolution
+- `format!({vis:?}).contains('Public')` heuristic — resilient to rustc internal changes for sealed trait detection
+
+### What Was Inefficient
+
+- Phase 39 underestimated complexity — CaptureMode enum required touching 8 files across 3 crates; Plan 01 alone took 1184s (highest single plan duration in v0.7)
+- Phase 44 took 1395s — populate_monomorphization_registry required deep rustc TyCtxt API exploration (GenericArg::as_type vs missing .unpack() in nightly)
+- Postcondition strengthening tautology discovered late — `encode_postcondition_strengthening_vc` uses `(not (=> trait_ensures trait_ensures))` which is always UNSAT; sound but incomplete; was only documented, not fixed
+
+### Patterns Established
+
+- **Shared Arc for cross-task state**: When state is populated once and consumed by parallel tasks, create Arc before task loop and clone into each task — no mutex needed for read-only access
+- **Suffix-match for dynamic dispatch**: For resolving `<dyn Trait>::method` calls against contract databases, suffix matching is more robust than exact key lookup
+- **Nightly API discovery pattern**: When rustc nightly API differs from docs (e.g., missing `.unpack()`), use `GenericArg::as_type()` as fallback — always check actual nightly API
+
+### Key Lessons
+
+1. **MonomorphizationRegistry must be populated from real call sites**: Abstract "populate later" scaffolding (Phase 40) left registry empty until Phase 44 added actual MIR traversal; always wire production population at creation time
+2. **Postcondition completeness is separate from soundness**: A tautological VC (always UNSAT) is sound (no false negatives) but doesn't detect violations; separate "does this VC actually check something?" from "is this VC correct?"
+3. **Nyquist validation should be concurrent with implementation**: Adding VALIDATION.md retroactively (Phase 43) is pure overhead; embed validation criteria in phase planning
+
+### Cost Observations
+
+- Model: opus/sonnet mix (quality profile for trait subtyping, balanced for gap closure)
+- Sessions: ~4 (2026-03-01 to 2026-03-04)
+- Notable: Phase 39 (FnMut prophecy) and Phase 44 (registry population) were the most expensive plans — both required deep rustc API exploration
+
+---
+
 ## Milestone: v0.6 — Cross-Crate Verification
 
 **Shipped:** 2026-03-02
@@ -207,6 +258,7 @@
 | v0.5 | 2+1 | 11 | TDD scaffold as Phase 01 gating mechanism; post-archive UAT phase validated all 22 items |
 | v0.5-audit | 9 | 22 | Audit → gap closure → complete cycle; decimal phase pattern for targeted fixes |
 | v0.6 | 6 | 11 | Audit as hard gate before complete; 2 unplanned gap-closure phases (36.1, 37.1); HIR→IR boundary preservation pattern established |
+| v0.7 | 8 | 14 | Audit-driven gap closure (phases 43-44); shared Arc pattern for concurrent state; suffix-match for dyn dispatch; Nyquist validation as dedicated phase |
 
 ### Cumulative Quality
 
@@ -218,6 +270,7 @@
 | v0.4 | Not counted | Focused on integration correctness over raw test count |
 | v0.5 | All 93 plans' tests green; 22/22 UAT items pass | TDD scaffold → all RED tests GREEN |
 | v0.6 | 1245+ (0 failures); 53 new tests | Cross-crate E2E tests cover full driver→HIR→vcgen→Z3 pipeline |
+| v0.7 | 2,831 (0 failures) | +1,586 tests; behavioral subtyping, prophecy, generics, monomorphization E2E coverage |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -226,3 +279,4 @@
 3. **Post-archive UAT**: Separate end-to-end UAT phase after archiving provides clean validation signal — adopted v0.4 onwards
 4. **Exhaustive match on external APIs**: Compiler-enforced completeness for MIR/IR types is worth the verbosity — catches API changes automatically
 5. **Layer separation for cross-domain features**: Features touching driver→analysis→IDE always have integration gaps; design clear handoff boundaries upfront
+6. **Populate registries at creation**: Abstract scaffolding leaves registries empty in production; always wire real population at creation time (v0.7 lesson)
