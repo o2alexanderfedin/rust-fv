@@ -4,7 +4,7 @@ milestone: v0.1
 milestone_name: milestone
 status: Milestone archived. Git tag v0.6 created.
 stopped_at: Completed 44-01-PLAN.md (populate_monomorphization_registry + shared registry wiring)
-last_updated: "2026-03-04T05:25:54.186Z"
+last_updated: "2026-03-04T05:32:29.234Z"
 last_activity: "2026-03-02 — v0.6 milestone complete: ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02 all satisfied. Archived to milestones/."
 progress:
   total_phases: 7
