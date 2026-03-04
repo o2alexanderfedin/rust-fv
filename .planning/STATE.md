@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: Milestone archived. Git tag v0.6 created.
-stopped_at: Completed 42-01-PLAN.md
-last_updated: "2026-03-03T23:50:29.672Z"
+stopped_at: Completed 43-01-PLAN.md
+last_updated: "2026-03-04T00:43:22.281Z"
 last_activity: "2026-03-02 — v0.6 milestone complete: ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02 all satisfied. Archived to milestones/."
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 12
   percent: 100
 ---
 
@@ -71,6 +71,8 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 41-phase-38-hardening P01 | 20 | 2 tasks | 1 files |
 | Phase 41-phase-38-hardening P02 | 800 | 2 tasks | 2 files |
 | Phase 42 P01 | 602 | 2 tasks | 2 files |
+| Phase 43-nyquist-validation-coverage P01 | 2 | 3 tasks | 3 files |
+| Phase 43-nyquist-validation-coverage P02 | 127 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -131,6 +133,8 @@ Recent decisions relevant to v0.6:
 - [Phase 42]: convert_closure_ty uses named tcx lifetime for rustc lifetime coherence with GenericArgsRef invariance
 - [Phase 42]: BorrowKind::Mutable is the correct variant in nightly-2026-02-11; UpvarCapture::ByUse maps to ByMove
 - [Phase 42]: E2E prophecy assertion uses generate_vcs from analysis crate directly since VerificationResult.condition is human-readable, not SMT text
+- [Phase 43-01]: Retroactive VALIDATION.md documents record existing test evidence from VERIFICATION.md — no new tests needed for already-complete phases; nyquist_compliant: true set where >= 1 automated test per production behavior
+- [Phase 43-nyquist-validation-coverage]: Retroactive VALIDATION.md files derived directly from existing VERIFICATION.md evidence — no new test runs required since phases are already complete and verified
 
 ### Pending Todos
 
@@ -142,8 +146,8 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 
 ## Session Continuity
 
-Last session: 2026-03-03T23:47:15.339Z
-Stopped at: Completed 42-01-PLAN.md
+Last session: 2026-03-04T00:43:13.498Z
+Stopped at: Completed 43-01-PLAN.md
 Resume file: None
 Next step: Phase 41 complete — check ROADMAP.md for next phase.
 
