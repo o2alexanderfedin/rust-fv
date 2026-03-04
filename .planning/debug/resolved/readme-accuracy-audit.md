@@ -1,16 +1,16 @@
 ---
-status: awaiting_human_verify
+status: verifying
 trigger: "readme-accuracy-audit"
 created: 2026-02-27T00:00:00Z
-updated: 2026-02-27T00:00:00Z
+updated: 2026-03-03T00:00:00Z
 ---
 
 ## Current Focus
 
-hypothesis: README.md contains several inaccuracies and omissions compared to the actual implementation
-test: Compared README claims against source files in crates/macros, crates/driver, crates/solver, crates/analysis
-expecting: Fix README to accurately reflect implementation
-next_action: Rewrite README.md with accurate information
+hypothesis: README.md was missing v0.6/v0.7 features and three macros (infer_summary, override_contract, extend_contract)
+test: Cross-checked README against all source files in crates/macros, crates/analysis, crates/driver, crates/solver
+expecting: README now accurately reflects all implemented capabilities
+next_action: Request human verification
 
 ## Symptoms
 
@@ -27,6 +27,26 @@ timeline: Unknown - documentation may have drifted from implementation over time
   timestamp: 2026-02-27
 
 ## Evidence
+
+- timestamp: 2026-03-03
+  checked: crates/macros/src/lib.rs for all exported proc macros
+  found: Three macros not in README - infer_summary (line 681), override_contract (line 726), extend_contract (line 745)
+  implication: README annotations section was incomplete
+
+- timestamp: 2026-03-03
+  checked: crates/analysis/src/ for v0.6 and v0.7 features
+  found: monomorphize.rs (MonomorphizationRegistry), behavioral_subtyping.rs (SubtypingVc), trait_analysis.rs (TraitDatabase, sealed trait detection), encode_prophecy.rs (FnMut closure prophecies), call_graph.rs (cross-crate SCC via from_functions_with_cross_crate_db), ownership.rs (OwnershipKind classification), encode_quantifier.rs (trigger inference), differential.rs (bv2int equivalence testing), contract_db.rs (AliasPrecondition, FunctionSummary with is_inferred)
+  implication: Many v0.6/v0.7 features existed in code but were not reflected in README advanced analysis section
+
+- timestamp: 2026-03-03
+  checked: Cargo.toml license field
+  found: license-file = "LICENSE" (pointing to CC BY-NC-ND 4.0), dual license section in README is accurate
+  implication: License section is correct (was changed from MIT to dual license since original audit)
+
+- timestamp: 2026-03-03
+  checked: vcgen.rs for OpaqueCallee and dyn dispatch
+  found: VcKind::OpaqueCallee, VcKind::OpaqueCalleeUnsafe, parse_dyn_dispatch_callee function, extensive test coverage
+  implication: Cross-crate opaque callee diagnostics with dyn dispatch resolution are fully implemented
 
 - timestamp: 2026-02-27
   checked: Cargo.toml workspace
@@ -89,6 +109,10 @@ root_cause: README has these inaccuracies:
   6. Advanced analysis capabilities not mentioned at all (concurrency, async, floats, closures, unsafe, stdlib contracts)
   7. Import path in examples uses "rust_fv_macros" (with underscore) but crate name is "rust-fv-macros" (with hyphens) - this is correct Rust crate name mangling
 
-fix: Rewrote README.md with accurate information
-verification: cargo check passes; README cross-checked against all source files
+fix: |
+  1. Added missing "Cross-crate and stdlib contract annotations" table with infer_summary, override_contract, extend_contract
+  2. Expanded "Advanced analysis capabilities" section to include: cross-crate verification, monomorphization, ownership-aware reasoning, quantifier trigger inference, call graph analysis, differential testing, and details for traits/closures/recursion
+  3. Updated solver invocation description to mention CVC5/Yices alongside Z3
+  4. Updated workspace structure description for analysis crate
+verification: cargo check passes; README cross-checked against all source files in crates/macros/src/lib.rs, crates/analysis/src/*.rs, crates/driver/src/cargo_verify.rs, crates/solver/src/config.rs
 files_changed: [README.md]

@@ -221,6 +221,14 @@ rust-fv-macros = { path = "path/to/rust-fv-macros" }
 |-----------|---------|
 | `#[fn_spec(f, \|x\| pre => post)]` | Contract for a closure parameter: for all `x` satisfying `pre`, `f(x)` satisfies `post` |
 
+### Cross-crate and stdlib contract annotations
+
+| Annotation | Meaning |
+|-----------|---------|
+| `#[verifier::infer_summary]` | Mark a function for automatic minimal contract inference; body is treated as a pure black box (suppresses opaque callee diagnostics) |
+| `#[override_contract]` | Replace a stdlib method's built-in contract with a custom specification |
+| `#[extend_contract]` | Add extra preconditions/postconditions to an existing stdlib contract without replacing it |
+
 ### Specification expressions
 
 Expressions inside annotations are standard Rust expressions, with access to function parameters and (in `#[ensures]`) the special `result` binding:
@@ -261,7 +269,7 @@ Verification runs as a compiler plugin — it is **not** a separate tool or exte
    - **Set A** (code-inferred, always active): Derived from the code AST — overflow safety, division-by-zero absence, array bounds, etc. No annotations required.
    - **Set B** (annotation-derived, optional): Derived from `#[requires]`/`#[ensures]` contracts when present.
 4. **Annotation expansion** (if used): `#[requires]`/`#[ensures]` macros embed specifications as hidden doc attributes. The function body is unchanged.
-5. **Solver invocation**: The combined constraint list is submitted to Z3. No client-side deduplication or contradiction checking — the solver handles everything.
+5. **Solver invocation**: The combined constraint list is submitted to the SMT solver (Z3 by default; CVC5 and Yices also supported). No client-side deduplication or contradiction checking — the solver handles everything.
 6. **Result reporting**: `UNSAT` → verified. `SAT` → counterexample extracted and reported with typed Rust values.
 
 ### Advanced analysis capabilities
@@ -270,14 +278,20 @@ The `analysis` crate includes:
 
 - **Concurrency verification**: RC11 weak memory model, deadlock detection, lock invariants, channel verification, happens-before tracking
 - **Async/await verification**: State invariant checking at suspension points via `#[state_invariant]`
-- **Separation logic**: Heap model, ownership constraints, separation logic integration
-- **Closure and higher-order functions**: Defunctionalization, HOF verification condition generation
-- **Recursion / termination**: Decreases-clause verification for recursive functions
-- **Unsafe code**: Safety precondition checking for unsafe functions
+- **Separation logic**: Heap model, ownership constraints, ghost predicates (unfolded to depth 3)
+- **Closure and higher-order functions**: Defunctionalization, HOF verification condition generation, FnMut prophecy encoding for mutable captures
+- **Recursion / termination**: Decreases-clause verification for recursive functions, mutual recursion via Tarjan SCC detection
+- **Cross-crate verification**: Cross-crate SCC detection, termination measure propagation, opaque callee diagnostics with dyn-dispatch resolution
+- **Generics and monomorphization**: Per-instantiation VC generation for generic functions via `MonomorphizationRegistry`
+- **Trait verification**: Behavioral subtyping VCs (Liskov Substitution Principle), sealed trait detection, trait database, dyn dispatch VC resolution
+- **Unsafe code**: Safety precondition checking for unsafe functions, pointer aliasing VCs at call sites
 - **Floating-point**: Float verification with dedicated encoding
-- **Stdlib contracts**: Built-in contracts for `Vec`, `HashMap`, `Option`, `Result`, `String`, `Iterator`
-- **Trait verification**: Behavioral subtyping for trait implementations
-- **Bitvector-to-integer translation**: Optional `--bv2int` mode for better solver performance
+- **Ownership-aware reasoning**: Argument classification by ownership kind (moved, shared borrow, mutable borrow, copied) for tighter VCs
+- **Stdlib contracts**: Built-in contracts for `Vec`, `HashMap`, `Option`, `Result`, `String`, `Iterator`; user-extensible via `#[override_contract]` / `#[extend_contract]`
+- **Quantifier trigger inference**: Conservative trigger inference (Verus-style) with trigger validation
+- **Summary contract inference**: `#[verifier::infer_summary]` for automatic minimal contract inference
+- **Bitvector-to-integer translation**: Optional `--bv2int` mode with differential testing for encoding equivalence
+- **Call graph analysis**: Topological ordering for modular verification (leaf functions verified before callers)
 
 ## Caching
 
@@ -408,7 +422,7 @@ The default backend uses Z3's native API (via the `z3-native` feature, enabled b
 | `rust-fv-macros` | Procedural macros for annotations (`#[requires]`, `#[ensures]`, etc.) |
 | `rust-fv-smtlib` | SMT-LIB2 AST and formatter (sorts, terms, commands, scripts) |
 | `rust-fv-solver` | SMT solver interface (Z3 native API + CLI backends for Z3/CVC5/Yices) |
-| `rust-fv-analysis` | VCGen, IR, encoding, concurrency, closures, stdlib contracts |
+| `rust-fv-analysis` | VCGen, IR, encoding, concurrency, closures, traits, generics, cross-crate, stdlib contracts |
 | `rust-fv-driver` | `rustc` driver + `cargo-verify` subcommand |
 
 ## License
