@@ -208,7 +208,7 @@ fn collect_from_type(ty: &Ty, seen: &mut HashSet<String>, declarations: &mut Vec
         Ty::Closure(info) => {
             if seen.insert(info.name.clone()) {
                 // Recurse into environment field types
-                for (_field_name, field_ty) in &info.env_fields {
+                for (_field_name, field_ty, _capture_mode) in &info.env_fields {
                     collect_from_type(field_ty, seen, declarations);
                 }
                 // Closure is encoded as a datatype with environment fields
@@ -218,7 +218,7 @@ fn collect_from_type(ty: &Ty, seen: &mut HashSet<String>, declarations: &mut Vec
                     fields: info
                         .env_fields
                         .iter()
-                        .map(|(field_name, field_ty)| {
+                        .map(|(field_name, field_ty, _capture_mode)| {
                             (format!("{}-{field_name}", info.name), encode_type(field_ty))
                         })
                         .collect(),
@@ -669,7 +669,11 @@ mod tests {
         use crate::ir::{ClosureInfo, ClosureTrait};
         let info = ClosureInfo {
             name: "closure_add".to_string(),
-            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+            env_fields: vec![(
+                "x".to_string(),
+                Ty::Int(IntTy::I32),
+                crate::ir::CaptureMode::ByMove,
+            )],
             params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),
             trait_kind: ClosureTrait::Fn,
@@ -687,8 +691,16 @@ mod tests {
         let closure_info = ClosureInfo {
             name: "test_closure".to_string(),
             env_fields: vec![
-                ("captured_x".to_string(), Ty::Int(IntTy::I32)),
-                ("captured_y".to_string(), Ty::Bool),
+                (
+                    "captured_x".to_string(),
+                    Ty::Int(IntTy::I32),
+                    crate::ir::CaptureMode::ByMove,
+                ),
+                (
+                    "captured_y".to_string(),
+                    Ty::Bool,
+                    crate::ir::CaptureMode::ByMove,
+                ),
             ],
             params: vec![("arg".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),
@@ -756,9 +768,21 @@ mod tests {
         let closure_info = ClosureInfo {
             name: "multi_type_closure".to_string(),
             env_fields: vec![
-                ("i32_field".to_string(), Ty::Int(IntTy::I32)),
-                ("bool_field".to_string(), Ty::Bool),
-                ("u64_field".to_string(), Ty::Uint(UintTy::U64)),
+                (
+                    "i32_field".to_string(),
+                    Ty::Int(IntTy::I32),
+                    crate::ir::CaptureMode::ByMove,
+                ),
+                (
+                    "bool_field".to_string(),
+                    Ty::Bool,
+                    crate::ir::CaptureMode::ByMove,
+                ),
+                (
+                    "u64_field".to_string(),
+                    Ty::Uint(UintTy::U64),
+                    crate::ir::CaptureMode::ByMove,
+                ),
             ],
             params: vec![],
             return_ty: Ty::Unit,

@@ -798,3 +798,118 @@ fn e2e_behavioral_subtyping_pipeline_no_vcs_no_scripts() {
         "Empty scripts confirm Z3 was not invoked for a trait with no contracts"
     );
 }
+
+/// TRT-02: Dynamic dispatch call site resolves to trait-level contracts.
+///
+/// When a function calls a method via `dyn Trait` (callee_name = "<dyn Stack>::push"),
+/// generate_call_site_vcs must look up Stack::push in contract_db and emit a contract-based
+/// VC — NOT an OpaqueCallee diagnostic.
+#[test]
+fn dyn_dispatch_call_site_uses_trait_contracts() {
+    use rust_fv_analysis::contract_db::{ContractDatabase, FunctionSummary};
+    use rust_fv_analysis::ghost_predicate_db::GhostPredicateDatabase;
+    use rust_fv_analysis::vcgen::{VcKind, generate_vcs_with_db};
+
+    // Build a function that calls <dyn Stack>::push via dynamic dispatch.
+    // The func field in Terminator::Call uses the raw MIR callee name;
+    // normalize_callee_name preserves "<dyn ...>" forms intact.
+    let caller = Function {
+        name: "caller".to_string(),
+        params: vec![Local {
+            name: "_1".to_string(),
+            ty: Ty::TraitObject("Stack".to_string()),
+            is_ghost: false,
+        }],
+        return_local: Local {
+            name: "_0".to_string(),
+            ty: Ty::Unit,
+            is_ghost: false,
+        },
+        locals: vec![],
+        basic_blocks: vec![
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Call {
+                    func: "<dyn Stack>::push".to_string(),
+                    args: vec![Operand::Copy(Place::local("_1"))],
+                    destination: Place::local("_0"),
+                    target: 1,
+                },
+            },
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts::default(),
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    // Build contract_db with Stack::push having a requires contract.
+    let mut contract_db = ContractDatabase::new();
+    contract_db.insert(
+        "Stack::push".to_string(),
+        FunctionSummary {
+            contracts: Contracts {
+                requires: vec![SpecExpr {
+                    raw: "_1 > 0".to_string(),
+                }],
+                ensures: vec![],
+                invariants: vec![],
+                is_pure: false,
+                decreases: None,
+                fn_specs: vec![],
+                state_invariant: None,
+                is_inferred: false,
+            },
+            param_names: vec!["_1".to_string()],
+            param_types: vec![Ty::Int(IntTy::I32)],
+            return_ty: Ty::Unit,
+            alias_preconditions: vec![],
+            is_inferred: false,
+        },
+    );
+
+    let ghost_db = GhostPredicateDatabase::new();
+    let result = generate_vcs_with_db(&caller, Some(&contract_db), &ghost_db);
+
+    // Should have at least one VC from the trait contract (not OpaqueCallee).
+    let non_opaque_vcs: Vec<_> = result
+        .conditions
+        .iter()
+        .filter(|vc| {
+            !matches!(
+                vc.location.vc_kind,
+                VcKind::OpaqueCallee | VcKind::OpaqueCalleeUnsafe
+            )
+        })
+        .collect();
+
+    assert!(
+        !non_opaque_vcs.is_empty(),
+        "Expected at least one contract-based VC from dyn dispatch resolution; \
+         got only opaque diagnostics. VCs: {:#?}",
+        result
+            .conditions
+            .iter()
+            .map(|vc| (&vc.description, &vc.location.vc_kind))
+            .collect::<Vec<_>>()
+    );
+}

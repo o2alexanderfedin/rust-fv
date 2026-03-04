@@ -53,7 +53,7 @@ pub struct FunctionResult {
 /// * `verbose` - If true, show per-function timing
 pub fn print_verification_results(results: &[FunctionResult], verbose: bool) {
     if results.is_empty() {
-        eprintln!("{}", "No annotated functions found.".dimmed());
+        eprintln!("{}", "No functions found.".dimmed());
         return;
     }
 

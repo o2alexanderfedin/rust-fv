@@ -16,6 +16,7 @@ use rust_fv_analysis::ghost_predicate_db::{GhostPredicate, GhostPredicateDatabas
 use rust_fv_analysis::ir::{
     BasicBlock, Contracts, Function, IntTy, Local, SpecExpr, Statement, Terminator, Ty,
 };
+use rust_fv_analysis::monomorphize::MonomorphizationRegistry;
 use rust_fv_driver::cache::VcCache;
 use rust_fv_driver::invalidation::{InvalidationDecision, InvalidationReason};
 use rust_fv_driver::parallel::{VerificationTask, verify_functions_parallel};
@@ -85,6 +86,7 @@ fn make_task(func: Function, db: GhostPredicateDatabase) -> VerificationTask {
         ir_func: func,
         contract_db: Arc::new(rust_fv_analysis::contract_db::ContractDatabase::new()),
         ghost_pred_db: Arc::new(db),
+        monomorphization_registry: Arc::new(MonomorphizationRegistry::new()),
         cache_key: [0u8; 32],
         mir_hash: [0u8; 32],
         contract_hash: [0u8; 32],

@@ -28,8 +28,8 @@
 
 use rust_fv_analysis::hof_vcgen::generate_fn_spec_vcs;
 use rust_fv_analysis::ir::{
-    BasicBlock, ClosureInfo, ClosureTrait, Contracts, FnSpec, Function, IntTy, Local, Terminator,
-    Ty,
+    BasicBlock, CaptureMode, ClosureInfo, ClosureTrait, Contracts, FnSpec, Function, IntTy, Local,
+    Terminator, Ty,
 };
 use rust_fv_smtlib::command::Command;
 use rust_fv_smtlib::script::Script;
@@ -103,7 +103,11 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
 fn make_fnmut_func(param_name: &str) -> Function {
     let closure_info = ClosureInfo {
         name: format!("closure_{param_name}"),
-        env_fields: vec![("count".to_string(), Ty::Int(IntTy::I32))],
+        env_fields: vec![(
+            "count".to_string(),
+            Ty::Int(IntTy::I32),
+            CaptureMode::ByMove,
+        )],
         params: vec![("x".to_string(), Ty::Int(IntTy::I32))],
         return_ty: Ty::Int(IntTy::I32),
         trait_kind: ClosureTrait::FnMut,

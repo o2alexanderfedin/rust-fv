@@ -2,13 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-02T06:21:18.152Z"
+status: Milestone archived. Git tag v0.6 created.
+stopped_at: Completed 43-02-PLAN.md
+last_updated: "2026-03-04T00:50:05.464Z"
+last_activity: "2026-03-02 — v0.6 milestone complete: ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02 all satisfied. Archived to milestones/."
 progress:
-  total_phases: 39
-  completed_phases: 39
-  total_plans: 116
-  completed_plans: 117
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -59,8 +62,23 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 37.1-inferred-summary-alias-guard P01 | 480 | 2 tasks | 3 files |
 | Phase 38-trait-subtyping-wiring P01 | 163 | 3 tasks | 1 files |
 | Phase 38-trait-subtyping-wiring P02 | 172 | 1 tasks | 1 files |
+| Phase 39 P01 | 1184 | 2 tasks | 8 files |
+| Phase 39 P02 | 653 | 2 tasks | 1 files |
+| Phase 40-generics-verification-completion P01 | 900 | 3 tasks | 3 files |
+| Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
+| Phase 40-generics-verification-completion P02 | 690 | 2 tasks | 7 files |
+| Phase 40-generics-verification-completion P03 | 157 | 2 tasks | 2 files |
+| Phase 41-phase-38-hardening P01 | 20 | 2 tasks | 1 files |
+| Phase 41-phase-38-hardening P02 | 800 | 2 tasks | 2 files |
+| Phase 42 P01 | 602 | 2 tasks | 2 files |
+| Phase 43-nyquist-validation-coverage P01 | 2 | 3 tasks | 3 files |
+| Phase 43-nyquist-validation-coverage P02 | 127 | 3 tasks | 3 files |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 39 added: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
 
 ### Decisions
 
@@ -102,6 +120,21 @@ Recent decisions relevant to v0.6:
 - [Phase 38-01]: Match trait methods from contract_db by name.contains('::{trait_name}::') — simple string match avoids HIR DefId complexity
 - [Phase 38-01]: VcLocation uses function/block/statement fields not function_name/block_idx/stmt_idx; AssocKind::Fn requires matches! pattern
 - [Phase 38-02]: Gracefully handle Z3 ParseError in E2E pipeline test — Term::App without declare-fun is known encoding limitation; assert non-empty script (pipeline wired) not Z3 UNSAT
+- [Phase 39]: CaptureMode enum (ByMove|ByRef|ByMutRef) on ClosureInfo.env_fields; detect_closure_prophecies filters ByMutRef only; ProphecyInfo.closure_name: Option<String> for closure vs param distinction
+- [Phase 39]: Closure prophecy wiring at declarations collection site after encode_closure_as_uninterpreted loop — closure_infos already extracted and declarations mutable in scope
+- [Phase 40-generics-verification-completion]: trait_bounds_as_smt_assumptions returns Vec<Command>: callers use declarations.extend() directly; Ord/PartialOrd emit DeclareSort+DeclareFun+parameter-scoped axioms; Eq/PartialEq emit BoolLit(true) since SMT equality is built-in
+- [Phase 40-02]: TypeInstantiation uses substitutions field (not type_map); FunctionVCs requires function_name field — both corrected during implementation
+- [Phase 40-02]: verify_single routing: is_generic() + non-empty registry -> generate_vcs_monomorphized; else -> generate_vcs_with_db parametric path
+- [Phase 40-03]: VERIFICATION.md scores 3/4 truths VERIFIED with Truth 3 as VERIFIED/PARTIAL (routing verified, axiom content completed by Phase 40-01); audit blocker CLEARED
+- [Phase 41-phase-38-hardening]: Use format!({vis:?}).contains('Public') heuristic for sealed trait visibility check — resilient to rustc internal changes
+- [Phase 41-phase-38-hardening]: Z3 catch-all in behavioral subtyping block made pessimistic: unknown/error => false + tracing::warn (soundness over completeness)
+- [Phase 41-phase-38-hardening]: normalize_callee_name preserves <dyn TraitName>::method forms intact — dyn dispatch resolution requires the full form to remain after normalization
+- [Phase 41-phase-38-hardening]: parse_dyn_dispatch_callee uses suffix-match (name.contains(TraitName::method)) in contract_db.iter() — handles bare and fully-qualified keys
+- [Phase 42]: convert_closure_ty uses named tcx lifetime for rustc lifetime coherence with GenericArgsRef invariance
+- [Phase 42]: BorrowKind::Mutable is the correct variant in nightly-2026-02-11; UpvarCapture::ByUse maps to ByMove
+- [Phase 42]: E2E prophecy assertion uses generate_vcs from analysis crate directly since VerificationResult.condition is human-readable, not SMT text
+- [Phase 43-01]: Retroactive VALIDATION.md documents record existing test evidence from VERIFICATION.md — no new tests needed for already-complete phases; nyquist_compliant: true set where >= 1 automated test per production behavior
+- [Phase 43-nyquist-validation-coverage]: Retroactive VALIDATION.md files derived directly from existing VERIFICATION.md evidence — no new test runs required since phases are already complete and verified
 
 ### Pending Todos
 
@@ -113,11 +146,11 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 38-02-PLAN.md — E2E behavioral subtyping pipeline tests (3 new: pipeline-correct-impl, vc-count-matches-scripts, no-vcs-no-scripts); all 13 trait_verification tests pass (2ebc55c)
+Last session: 2026-03-04T00:43:28.193Z
+Stopped at: Completed 43-02-PLAN.md
 Resume file: None
-Next step: Phase 38 complete (Plans 01 and 02). TRT-01..05 requirements fully satisfied end-to-end.
+Next step: Phase 41 complete — check ROADMAP.md for next phase.
 
 ---
 
-*Last updated: 2026-03-02 — 38-02 complete: 3 E2E behavioral subtyping pipeline tests added to trait_verification.rs; all 13 tests pass; TRT-01..05 pipeline acceptance verified*
+*Last updated: 2026-03-03 — 41-02 complete: dyn dispatch call-site VC resolution via parse_dyn_dispatch_callee + normalize_callee_name preservation; TRT-02 satisfied*

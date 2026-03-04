@@ -24,6 +24,17 @@ pub enum ClosureTrait {
     FnOnce,
 }
 
+/// Capture mode for a closure-captured variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureMode {
+    /// Captured by move (value ownership transferred)
+    ByMove,
+    /// Captured by shared reference (&T)
+    ByRef,
+    /// Captured by mutable reference (&mut T) — requires prophecy variables
+    ByMutRef,
+}
+
 /// A method in a trait definition with contract specifications.
 #[derive(Debug, Clone)]
 pub struct TraitMethod {
@@ -294,8 +305,9 @@ impl Default for ConcurrencyConfig {
 pub struct ClosureInfo {
     /// Unique closure identifier (e.g., "closure_add_captured")
     pub name: String,
-    /// Captured variable names and their types (environment)
-    pub env_fields: Vec<(String, Ty)>,
+    /// Captured variable names, their types, and capture mode (environment).
+    /// CaptureMode::ByMutRef fields require prophecy variable encoding.
+    pub env_fields: Vec<(String, Ty, CaptureMode)>,
     /// Closure parameter names and types
     pub params: Vec<(String, Ty)>,
     /// Closure return type
@@ -569,6 +581,8 @@ pub struct ProphecyInfo {
     pub inner_ty: Ty,
     /// Deref level: 0 for direct &mut T, 1 for outer of &mut &mut T, etc.
     pub deref_level: u32,
+    /// For closure env field prophecies: the closure name. None for regular &mut T params.
+    pub closure_name: Option<String>,
 }
 
 /// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
@@ -1546,8 +1560,12 @@ mod tests {
     #[test]
     fn test_closure_info_creation() {
         let env_fields = vec![
-            ("captured_x".to_string(), Ty::Int(IntTy::I32)),
-            ("captured_y".to_string(), Ty::Bool),
+            (
+                "captured_x".to_string(),
+                Ty::Int(IntTy::I32),
+                CaptureMode::ByMove,
+            ),
+            ("captured_y".to_string(), Ty::Bool, CaptureMode::ByMove),
         ];
         let params = vec![("arg1".to_string(), Ty::Int(IntTy::I32))];
         let return_ty = Ty::Bool;
@@ -1575,7 +1593,7 @@ mod tests {
     fn test_ty_closure_variant() {
         let info = ClosureInfo {
             name: "closure_add".to_string(),
-            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+            env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32), CaptureMode::ByMove)],
             params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),
             trait_kind: ClosureTrait::Fn,
@@ -2184,5 +2202,47 @@ mod tests {
             ..Contracts::default()
         };
         assert!(contracts.is_inferred);
+    }
+
+    // ====== CaptureMode tests (Phase 39) ======
+
+    #[test]
+    fn test_capture_mode_variants() {
+        assert_ne!(CaptureMode::ByMove, CaptureMode::ByRef);
+        assert_ne!(CaptureMode::ByRef, CaptureMode::ByMutRef);
+        assert_ne!(CaptureMode::ByMove, CaptureMode::ByMutRef);
+    }
+
+    #[test]
+    fn test_closure_info_env_fields_with_capture_mode() {
+        let info = ClosureInfo {
+            name: "test".to_string(),
+            env_fields: vec![
+                (
+                    "count".to_string(),
+                    Ty::Int(IntTy::I32),
+                    CaptureMode::ByMutRef,
+                ),
+                ("label".to_string(), Ty::Bool, CaptureMode::ByRef),
+            ],
+            params: vec![],
+            return_ty: Ty::Unit,
+            trait_kind: ClosureTrait::FnMut,
+        };
+        assert_eq!(info.env_fields[0].2, CaptureMode::ByMutRef);
+        assert_eq!(info.env_fields[1].2, CaptureMode::ByRef);
+    }
+
+    #[test]
+    fn test_prophecy_info_closure_name_none_for_param_prophecies() {
+        let p = ProphecyInfo {
+            param_name: "_1".to_string(),
+            initial_var: "_1_initial".to_string(),
+            prophecy_var: "_1_prophecy".to_string(),
+            inner_ty: Ty::Int(IntTy::I32),
+            deref_level: 0,
+            closure_name: None,
+        };
+        assert!(p.closure_name.is_none());
     }
 }

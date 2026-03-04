@@ -42,11 +42,146 @@ fn is_ghost_local(source_name: &str) -> bool {
     source_name.starts_with("__ghost_")
 }
 
-/// Convert a rustc MIR body to our IR Function.
-pub fn convert_mir(
+/// Extract generic type parameters from a function's generics.
+///
+/// Calls `tcx.generics_of(def_id)` to enumerate type parameters, then
+/// `tcx.predicates_of(def_id)` to extract trait bounds for each.
+///
+/// Lifetime and const generic parameters are skipped — lifetimes are
+/// handled separately in `lifetime_params`, and const generics are not
+/// supported in the verification IR.
+///
+/// `"Sized"` bounds are filtered out as they are always implied and
+/// add no verification value.
+fn convert_generic_params(
     tcx: TyCtxt<'_>,
+    def_id: rustc_hir::def_id::DefId,
+) -> Vec<ir::GenericParam> {
+    use rustc_middle::ty::GenericParamDefKind;
+
+    let generics = tcx.generics_of(def_id);
+    let predicates = tcx.predicates_of(def_id);
+
+    generics
+        .own_params
+        .iter()
+        .filter_map(|param| {
+            if !matches!(param.kind, GenericParamDefKind::Type { .. }) {
+                return None;
+            }
+            let param_name = param.name.as_str().to_string();
+
+            // Collect trait bounds that apply to this specific type parameter.
+            let trait_bounds: Vec<String> = predicates
+                .predicates
+                .iter()
+                .filter_map(|(clause, _span)| {
+                    let trait_pred = clause.as_trait_clause()?.skip_binder();
+                    // Only include bounds on THIS parameter (self_ty == Param(param_name))
+                    if let ty::TyKind::Param(p) = trait_pred.trait_ref.self_ty().kind() {
+                        if p.name.as_str() != param_name {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                    let trait_name = tcx
+                        .def_path_str(trait_pred.trait_ref.def_id)
+                        .split("::")
+                        .last()
+                        .unwrap_or("")
+                        .to_string();
+                    // Skip Sized — always implied, adds no verification value
+                    if trait_name == "Sized" {
+                        return None;
+                    }
+                    Some(trait_name)
+                })
+                .collect();
+
+            Some(ir::GenericParam {
+                name: param_name,
+                trait_bounds,
+            })
+        })
+        .collect()
+}
+
+/// Convert a rustc closure type to our IR `Ty::Closure`.
+///
+/// Called from inside `convert_mir` where `tcx` is available, for locals whose
+/// rustc type is `TyKind::Closure`. Populates `env_fields` with capture mode
+/// from `tcx.closure_captures()`:
+///   - `UpvarCapture::ByValue`                      → `CaptureMode::ByMove`
+///   - `UpvarCapture::ByRef(BorrowKind::MutBorrow)` → `CaptureMode::ByMutRef`
+///   - `UpvarCapture::ByRef(_)`                     → `CaptureMode::ByRef`
+///
+/// On any failure, returns `Ty::Closure` with empty `env_fields` rather
+/// than falling back to `Ty::Named` — this ensures the Phase 39 prophecy
+/// machinery remains reachable even when capture detail is unavailable.
+fn convert_closure_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: rustc_hir::def_id::DefId,
+    args: ty::GenericArgsRef<'tcx>,
+) -> ir::Ty {
+    use rustc_middle::ty::{BorrowKind, UpvarCapture};
+
+    // Attempt to resolve the LocalDefId — external closures not visited here.
+    let local_def_id = match def_id.as_local() {
+        Some(id) => id,
+        None => {
+            return ir::Ty::Closure(Box::new(ir::ClosureInfo {
+                name: format!("{def_id:?}"),
+                env_fields: vec![],
+                params: vec![],
+                return_ty: ir::Ty::Unit,
+                trait_kind: ir::ClosureTrait::FnMut,
+            }));
+        }
+    };
+
+    // Collect captured upvars.
+    let captures = tcx.closure_captures(local_def_id);
+    let env_fields: Vec<(String, ir::Ty, ir::CaptureMode)> = captures
+        .iter()
+        .map(|cap| {
+            let name = cap.var_ident.to_string();
+            // HirPlace::ty() takes no arguments in nightly-2026-02-11
+            let ty = convert_ty(cap.place.ty());
+            let mode = match cap.info.capture_kind {
+                UpvarCapture::ByValue | UpvarCapture::ByUse => ir::CaptureMode::ByMove,
+                UpvarCapture::ByRef(BorrowKind::Mutable) => ir::CaptureMode::ByMutRef,
+                UpvarCapture::ByRef(_) => ir::CaptureMode::ByRef,
+            };
+            (name, ty, mode)
+        })
+        .collect();
+
+    // Extract closure signature (params + return type) from generic args.
+    let closure_sig = args.as_closure().sig();
+    let sig = tcx.instantiate_bound_regions_with_erased(closure_sig);
+    let params: Vec<(String, ir::Ty)> = sig
+        .inputs()
+        .iter()
+        .enumerate()
+        .map(|(i, ty)| (format!("_arg{i}"), convert_ty(*ty)))
+        .collect();
+    let return_ty = convert_ty(sig.output());
+
+    ir::Ty::Closure(Box::new(ir::ClosureInfo {
+        name: format!("{def_id:?}"),
+        env_fields,
+        params,
+        return_ty,
+        trait_kind: ir::ClosureTrait::FnMut,
+    }))
+}
+
+/// Convert a rustc MIR body to our IR Function.
+pub fn convert_mir<'tcx>(
+    tcx: TyCtxt<'tcx>,
     local_def_id: LocalDefId,
-    body: &mir::Body<'_>,
+    body: &mir::Body<'tcx>,
     contracts: ir::Contracts,
 ) -> ir::Function {
     let def_id = local_def_id.to_def_id();
@@ -73,9 +208,14 @@ pub fn convert_mir(
                 .get(&ssa_name)
                 .map(|n| is_ghost_local(n))
                 .unwrap_or(false);
+            let ty = if let ty::TyKind::Closure(cl_def_id, cl_args) = decl.ty.kind() {
+                convert_closure_ty(tcx, *cl_def_id, cl_args)
+            } else {
+                convert_ty(decl.ty)
+            };
             ir::Local {
                 name: ssa_name,
-                ty: convert_ty(decl.ty),
+                ty,
                 is_ghost: ghost,
             }
         })
@@ -91,9 +231,14 @@ pub fn convert_mir(
                 .get(&ssa_name)
                 .map(|n| is_ghost_local(n))
                 .unwrap_or(false);
+            let ty = if let ty::TyKind::Closure(cl_def_id, cl_args) = decl.ty.kind() {
+                convert_closure_ty(tcx, *cl_def_id, cl_args)
+            } else {
+                convert_ty(decl.ty)
+            };
             ir::Local {
                 name: ssa_name,
-                ty: convert_ty(decl.ty),
+                ty,
                 is_ghost: ghost,
             }
         })
@@ -133,7 +278,7 @@ pub fn convert_mir(
         basic_blocks,
         contracts,
         loops: vec![],
-        generic_params: vec![],
+        generic_params: convert_generic_params(tcx, def_id),
         prophecies: vec![],
         lifetime_params: vec![],
         outlives_constraints: vec![],

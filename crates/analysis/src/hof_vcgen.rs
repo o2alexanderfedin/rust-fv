@@ -333,7 +333,7 @@ fn find_captured_vars(func: &Function, param_name: &str) -> Vec<(String, Sort)> 
                     info.env_fields
                         .iter()
                         // Use AUFLIA-safe encoding: BitVec sorts are not valid in AUFLIA
-                        .map(|(name, ty)| (name.clone(), encode_type_for_auflia(ty)))
+                        .map(|(name, ty, _capture_mode)| (name.clone(), encode_type_for_auflia(ty)))
                         .collect(),
                 )
             } else {
@@ -662,8 +662,12 @@ mod tests {
         let closure_info = ClosureInfo {
             name: format!("closure_{}", param_name),
             env_fields: vec![
-                ("count".to_string(), Ty::Int(IntTy::I32)),
-                ("flag".to_string(), Ty::Bool),
+                (
+                    "count".to_string(),
+                    Ty::Int(IntTy::I32),
+                    crate::ir::CaptureMode::ByMove,
+                ),
+                ("flag".to_string(), Ty::Bool, crate::ir::CaptureMode::ByMove),
             ],
             params: vec![("x".to_string(), Ty::Int(IntTy::I32))],
             return_ty: Ty::Int(IntTy::I32),

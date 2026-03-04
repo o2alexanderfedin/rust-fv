@@ -282,19 +282,31 @@ pub fn generate_vcs_with_db(
         declarations.append(&mut closure_decls);
     }
 
+    // Wire prophecy declarations for FnMut closures with mutable captures (ByMutRef fields).
+    // detect_closure_prophecies returns empty for Fn/FnOnce or ByMove/ByRef captures.
+    let mut closure_prophecy_decls: Vec<Command> = Vec::new();
+    for ci in &closure_infos {
+        let cp = crate::encode_prophecy::detect_closure_prophecies(ci);
+        if !cp.is_empty() {
+            let mut decls = crate::encode_prophecy::prophecy_declarations(&cp);
+            closure_prophecy_decls.append(&mut decls);
+        }
+    }
+    if !closure_prophecy_decls.is_empty() {
+        declarations.extend(closure_prophecy_decls);
+    }
+
     // Inject trait bound premises for generic functions.
     // For each generic parameter with trait bounds, call trait_bounds_as_smt_assumptions()
-    // and inject the resulting terms as Assert commands in the declarations list.
-    // These serve as axioms/assumptions in all VCs generated for this function.
-    // For BoolLit(true), Z3 ignores them harmlessly (no false premises added).
+    // and extend the declarations list directly with the returned commands.
+    // For Ord/PartialOrd: emits DeclareSort + DeclareFun + reflexivity/totality axioms.
+    // For Eq/PartialEq or unknown bounds: emits BoolLit(true) as conservative no-op.
     if !func.generic_params.is_empty() {
         for gp in &func.generic_params {
             let concrete_ty = Ty::Generic(gp.name.clone());
             let assumptions =
                 crate::monomorphize::trait_bounds_as_smt_assumptions(gp, &concrete_ty);
-            for term in assumptions {
-                declarations.push(Command::Assert(term));
-            }
+            declarations.extend(assumptions);
         }
     }
 
@@ -2162,12 +2174,37 @@ fn generate_contract_vcs(
 pub fn normalize_callee_name(raw: &str) -> String {
     let trimmed = raw.trim();
     let stripped = trimmed.strip_prefix("const ").unwrap_or(trimmed).trim();
+    // Preserve dyn-dispatch callee names like "<dyn Stack>::push" intact — the
+    // dyn-dispatch resolution in generate_call_site_vcs needs the full form.
+    if stripped.starts_with("<dyn ") {
+        return stripped.to_string();
+    }
     // Take the last segment after `::`
     stripped
         .rsplit_once("::")
         .map(|(_, name)| name)
         .unwrap_or(stripped)
         .to_string()
+}
+
+/// Extract (trait_name, method_name) from a dyn-dispatch callee name.
+///
+/// Handles patterns produced by rustc MIR for virtual dispatch:
+/// - `<dyn Stack>::push` → ("Stack", "push")
+/// - `<dyn Stack as Stack>::push` → ("Stack", "push")
+///
+/// Returns None for non-dyn callee names.
+fn parse_dyn_dispatch_callee(callee_name: &str) -> Option<(&str, &str)> {
+    let inner = callee_name.strip_prefix("<dyn ")?;
+    let gt_pos = inner.find('>')?;
+    let trait_part = &inner[..gt_pos];
+    // Handle "<dyn Stack as Stack>" — take the part before " as "
+    let trait_name = trait_part.split(" as ").next()?.trim();
+    let method_name = callee_name.rsplit("::").next()?;
+    if method_name.is_empty() || method_name.starts_with('<') {
+        return None;
+    }
+    Some((trait_name, method_name))
 }
 
 /// Recursively substitute named constants in a Term tree.
@@ -2384,58 +2421,133 @@ fn generate_call_site_vcs(
             let callee_summary = match contract_db.get(&call_site.callee_name) {
                 Some(s) => s,
                 None => {
-                    tracing::debug!(
-                        caller = %func.name,
-                        callee = %call_site.callee_name,
-                        "Call to function without contracts -- emitting opaque callee diagnostic"
-                    );
-                    let is_unsafe_context = func.is_unsafe_fn
-                        || func
-                            .unsafe_blocks
+                    // TRT-02: Try dyn-dispatch callee resolution before emitting OpaqueCallee.
+                    // Callee names like "<dyn Stack>::push" are normalized to "Stack::push"
+                    // for contract_db lookup, enabling trait-level contracts at dyn call sites.
+                    if let Some((dyn_trait_name, dyn_method_name)) =
+                        parse_dyn_dispatch_callee(&call_site.callee_name)
+                    {
+                        let search_suffix = format!("{dyn_trait_name}::{dyn_method_name}");
+                        let resolved = contract_db
                             .iter()
-                            .any(|b| b.block_index == call_site.block_idx);
-                    let vc_kind = if is_unsafe_context {
-                        VcKind::OpaqueCalleeUnsafe
+                            .find(|(name, _)| name.contains(&search_suffix))
+                            .map(|(_, s)| s);
+                        if let Some(summary) = resolved {
+                            tracing::debug!(
+                                caller = %func.name,
+                                dyn_callee = %call_site.callee_name,
+                                resolved_to = %search_suffix,
+                                "Resolved dyn dispatch callee to trait contract"
+                            );
+                            summary
+                        } else {
+                            // No trait contract found — fall through to OpaqueCallee diagnostic.
+                            tracing::debug!(
+                                caller = %func.name,
+                                callee = %call_site.callee_name,
+                                "Dyn dispatch callee has no matching trait contract -- emitting opaque callee diagnostic"
+                            );
+                            let is_unsafe_context = func.is_unsafe_fn
+                                || func
+                                    .unsafe_blocks
+                                    .iter()
+                                    .any(|b| b.block_index == call_site.block_idx);
+                            let vc_kind = if is_unsafe_context {
+                                VcKind::OpaqueCalleeUnsafe
+                            } else {
+                                VcKind::OpaqueCallee
+                            };
+                            let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
+                            if seen_opaque.contains(&dedup_key) {
+                                continue;
+                            }
+                            seen_opaque.insert(dedup_key);
+                            let description = format!(
+                                "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
+                                call_site.callee_name, func.name
+                            );
+                            let contract_text = format!(
+                                "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
+                                call_site.callee_name
+                            );
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_BV".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::BoolLit(true),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+                            vcs.push(VerificationCondition {
+                                description,
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: call_site.block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(contract_text),
+                                    vc_kind,
+                                },
+                            });
+                            continue;
+                        }
                     } else {
-                        VcKind::OpaqueCallee
-                    };
-                    // Deduplicate: one diagnostic per (callee_name, context) per function.
-                    let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
-                    if seen_opaque.contains(&dedup_key) {
+                        tracing::debug!(
+                            caller = %func.name,
+                            callee = %call_site.callee_name,
+                            "Call to function without contracts -- emitting opaque callee diagnostic"
+                        );
+                        let is_unsafe_context = func.is_unsafe_fn
+                            || func
+                                .unsafe_blocks
+                                .iter()
+                                .any(|b| b.block_index == call_site.block_idx);
+                        let vc_kind = if is_unsafe_context {
+                            VcKind::OpaqueCalleeUnsafe
+                        } else {
+                            VcKind::OpaqueCallee
+                        };
+                        // Deduplicate: one diagnostic per (callee_name, context) per function.
+                        let dedup_key = format!("{}:{:?}", call_site.callee_name, vc_kind);
+                        if seen_opaque.contains(&dedup_key) {
+                            continue;
+                        }
+                        seen_opaque.insert(dedup_key);
+                        let description = format!(
+                            "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
+                            call_site.callee_name, func.name
+                        );
+                        let contract_text = format!(
+                            "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
+                            call_site.callee_name
+                        );
+                        let mut script = rust_fv_smtlib::script::Script::new();
+                        script.push(rust_fv_smtlib::command::Command::SetLogic(
+                            "QF_BV".to_string(),
+                        ));
+                        script.push(rust_fv_smtlib::command::Command::Assert(
+                            rust_fv_smtlib::term::Term::BoolLit(true),
+                        ));
+                        script.push(rust_fv_smtlib::command::Command::CheckSat);
+                        vcs.push(VerificationCondition {
+                            description,
+                            script,
+                            location: VcLocation {
+                                function: func.name.clone(),
+                                block: call_site.block_idx,
+                                statement: 0,
+                                source_file: None,
+                                source_line: None,
+                                source_column: None,
+                                contract_text: Some(contract_text),
+                                vc_kind,
+                            },
+                        });
                         continue;
-                    }
-                    seen_opaque.insert(dedup_key);
-                    let description = format!(
-                        "opaque callee: call to '{}' in '{}' has no verification contract — callee behavior is unverified",
-                        call_site.callee_name, func.name
-                    );
-                    let contract_text = format!(
-                        "Add #[requires] / #[ensures] to '{}' to enable cross-function verification",
-                        call_site.callee_name
-                    );
-                    let mut script = rust_fv_smtlib::script::Script::new();
-                    script.push(rust_fv_smtlib::command::Command::SetLogic(
-                        "QF_BV".to_string(),
-                    ));
-                    script.push(rust_fv_smtlib::command::Command::Assert(
-                        rust_fv_smtlib::term::Term::BoolLit(true),
-                    ));
-                    script.push(rust_fv_smtlib::command::Command::CheckSat);
-                    vcs.push(VerificationCondition {
-                        description,
-                        script,
-                        location: VcLocation {
-                            function: func.name.clone(),
-                            block: call_site.block_idx,
-                            statement: 0,
-                            source_file: None,
-                            source_line: None,
-                            source_column: None,
-                            contract_text: Some(contract_text),
-                            vc_kind,
-                        },
-                    });
-                    continue;
+                    } // end else (non-dyn callee)
                 }
             };
 
@@ -7653,14 +7765,19 @@ mod tests {
 
     #[test]
     fn test_vcgen_fnmut_closure_prophecy() {
-        // Function with FnMut closure parameter
+        use crate::ir::CaptureMode;
+        // Function with FnMut closure parameter having a ByMutRef capture
         let func = Function {
             name: "apply_fnmut".to_string(),
             params: vec![Local::new(
                 "closure_param",
                 Ty::Closure(Box::new(crate::ir::ClosureInfo {
                     name: "mutator".to_string(),
-                    env_fields: vec![("count".to_string(), Ty::Int(IntTy::I32))],
+                    env_fields: vec![(
+                        "count".to_string(),
+                        Ty::Int(IntTy::I32),
+                        CaptureMode::ByMutRef,
+                    )],
                     params: vec![],
                     return_ty: Ty::Unit,
                     trait_kind: crate::ir::ClosureTrait::FnMut,
@@ -7694,11 +7811,244 @@ mod tests {
         };
 
         let result = generate_vcs(&func, None);
-
-        // For FnMut closures with mutable captures, should eventually generate prophecy variable declarations
-        // For now, just verify VCs are generated without errors
-        // Just check that the function completed without panicking
+        // No contracts means no VC conditions — test with ensures contract below
         let _ = result.conditions.len();
+
+        // Build a function with an ensures contract so VCs are generated
+        let func_with_contract = Function {
+            name: "apply_fnmut_contract".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "mutator".to_string(),
+                    env_fields: vec![(
+                        "count".to_string(),
+                        Ty::Int(IntTy::I32),
+                        CaptureMode::ByMutRef,
+                    )],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: crate::ir::ClosureTrait::FnMut,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            generic_params: vec![],
+            loops: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+
+        let result2 = generate_vcs(&func_with_contract, None);
+        assert!(
+            !result2.conditions.is_empty(),
+            "Should have at least one VC for ensures contract"
+        );
+
+        let script_str = format!("{}", result2.conditions[0].script);
+        assert!(
+            script_str.contains("declare-const count_initial"),
+            "VC script must contain declare-const count_initial for ByMutRef captured field 'count'. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const count_prophecy"),
+            "VC script must contain declare-const count_prophecy for ByMutRef captured field 'count'. Script:\n{}",
+            script_str
+        );
+    }
+
+    #[cfg(test)]
+    fn make_fn_closure_func(
+        trait_kind: crate::ir::ClosureTrait,
+        capture_mode: crate::ir::CaptureMode,
+    ) -> Function {
+        Function {
+            name: "apply_fn".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "capturer".to_string(),
+                    env_fields: vec![("val".to_string(), Ty::Int(IntTy::I32), capture_mode)],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fn_closure_by_ref_no_prophecy_declarations() {
+        use crate::ir::{CaptureMode, ClosureTrait};
+        // Fn closure with ByRef capture — should NOT emit prophecy declarations
+        let func = make_fn_closure_func(ClosureTrait::Fn, CaptureMode::ByRef);
+        let result = generate_vcs(&func, None);
+        for vc in &result.conditions {
+            let script_str = format!("{}", vc.script);
+            assert!(
+                !script_str.contains("_initial"),
+                "Fn/ByRef closure must not emit prophecy declarations. Script:\n{}",
+                script_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fnmut_closure_by_move_no_prophecy_declarations() {
+        use crate::ir::{CaptureMode, ClosureTrait};
+        // FnMut closure with ByMove capture — should NOT emit prophecy declarations
+        let func = make_fn_closure_func(ClosureTrait::FnMut, CaptureMode::ByMove);
+        let result = generate_vcs(&func, None);
+        for vc in &result.conditions {
+            let script_str = format!("{}", vc.script);
+            assert!(
+                !script_str.contains("_initial"),
+                "FnMut/ByMove closure must not emit prophecy declarations. Script:\n{}",
+                script_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_vcgen_fnmut_closure_two_by_mut_ref_both_declared() {
+        use crate::ir::{CaptureMode, ClosureTrait, IntTy as IITy};
+        // FnMut closure with two ByMutRef captures — both must appear in VC script
+        let func = Function {
+            name: "apply_multi_fnmut".to_string(),
+            params: vec![Local::new(
+                "closure_param",
+                Ty::Closure(Box::new(crate::ir::ClosureInfo {
+                    name: "multi_counter".to_string(),
+                    env_fields: vec![
+                        (
+                            "count".to_string(),
+                            Ty::Int(IITy::I32),
+                            CaptureMode::ByMutRef,
+                        ),
+                        (
+                            "total".to_string(),
+                            Ty::Int(IITy::I64),
+                            CaptureMode::ByMutRef,
+                        ),
+                    ],
+                    params: vec![],
+                    return_ty: Ty::Unit,
+                    trait_kind: ClosureTrait::FnMut,
+                })),
+            )],
+            return_local: Local::new("_0", Ty::Unit),
+            locals: vec![],
+            basic_blocks: vec![BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Return,
+            }],
+            contracts: Contracts {
+                requires: vec![],
+                ensures: vec![crate::ir::SpecExpr {
+                    raw: "true".to_string(),
+                }],
+                ..Contracts::default()
+            },
+            loops: vec![],
+            generic_params: vec![],
+            prophecies: vec![],
+            lifetime_params: vec![],
+            outlives_constraints: vec![],
+            borrow_info: vec![],
+            reborrow_chains: vec![],
+            unsafe_blocks: vec![],
+            unsafe_operations: vec![],
+            unsafe_contracts: None,
+            is_unsafe_fn: false,
+            thread_spawns: vec![],
+            atomic_ops: vec![],
+            sync_ops: vec![],
+            lock_invariants: vec![],
+            concurrency_config: None,
+            source_names: std::collections::HashMap::new(),
+            coroutine_info: None,
+        };
+
+        let result = generate_vcs(&func, None);
+        assert!(!result.conditions.is_empty());
+        let script_str = format!("{}", result.conditions[0].script);
+        assert!(
+            script_str.contains("declare-const count_initial"),
+            "Must declare count_initial. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const count_prophecy"),
+            "Must declare count_prophecy. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const total_initial"),
+            "Must declare total_initial. Script:\n{}",
+            script_str
+        );
+        assert!(
+            script_str.contains("declare-const total_prophecy"),
+            "Must declare total_prophecy. Script:\n{}",
+            script_str
+        );
     }
 
     #[test]
@@ -7795,7 +8145,11 @@ mod tests {
                 "_2",
                 Ty::Closure(Box::new(crate::ir::ClosureInfo {
                     name: "add_x".to_string(),
-                    env_fields: vec![("x".to_string(), Ty::Int(IntTy::I32))],
+                    env_fields: vec![(
+                        "x".to_string(),
+                        Ty::Int(IntTy::I32),
+                        crate::ir::CaptureMode::ByMove,
+                    )],
                     params: vec![("y".to_string(), Ty::Int(IntTy::I32))],
                     return_ty: Ty::Int(IntTy::I32),
                     trait_kind: crate::ir::ClosureTrait::Fn,
@@ -9640,5 +9994,31 @@ mod tests {
                 .map(|vc| format!("{:?}: {}", vc.location.vc_kind, vc.description))
                 .collect::<Vec<_>>()
         );
+    }
+
+    // --- TRT-02: parse_dyn_dispatch_callee unit tests ---
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_standard() {
+        let result = parse_dyn_dispatch_callee("<dyn Stack>::push");
+        assert_eq!(result, Some(("Stack", "push")));
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_as_form() {
+        let result = parse_dyn_dispatch_callee("<dyn Stack as Stack>::push");
+        assert_eq!(result, Some(("Stack", "push")));
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_non_dyn() {
+        let result = parse_dyn_dispatch_callee("crate::Stack::push");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_dyn_dispatch_callee_empty() {
+        let result = parse_dyn_dispatch_callee("");
+        assert_eq!(result, None);
     }
 }

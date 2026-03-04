@@ -380,6 +380,9 @@ fn fmt_nary(out: &mut String, op: &str, ts: &[rust_fv_smtlib::term::Term]) {
 // ---------------------------------------------------------------------------
 
 /// Build a ClosureInfo for testing.
+///
+/// All env_fields default to CaptureMode::ByMove. Use ClosureInfo directly
+/// if you need to specify ByRef or ByMutRef capture modes.
 fn build_closure_info(
     name: &str,
     env_fields: Vec<(&str, Ty)>,
@@ -391,7 +394,7 @@ fn build_closure_info(
         name: name.to_string(),
         env_fields: env_fields
             .into_iter()
-            .map(|(n, t)| (n.to_string(), t))
+            .map(|(n, t)| (n.to_string(), t, CaptureMode::ByMove))
             .collect(),
         params: params
             .into_iter()
