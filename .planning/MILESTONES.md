@@ -1,5 +1,26 @@
 # Milestones
 
+## v0.7 Generics & Traits Hardening (Shipped: 2026-03-04)
+
+**Phases completed:** 8 phases (38–44 + generics-fix), 14 plans
+**Tests:** 2,831 passing (0 failures), up from 1,245 in v0.6
+**Lines of code:** ~107,173 Rust (+13,235 / -164 from v0.6)
+**Timeline:** 3 days (2026-03-01 to 2026-03-03)
+**Feature commits:** 75
+**Requirements:** 7/7 (TRT-01..05, GENERICS-01, GENERICS-02) — all satisfied
+
+**Key accomplishments:**
+1. Behavioral subtyping VCs — `generate_subtyping_vcs` wired into `after_analysis` pipeline; trait impl postcondition/precondition Liskov checks submitted to Z3 for every impl with contracts (Phase 38)
+2. FnMut prophecy variable encoding — `CaptureMode` enum, `detect_closure_prophecies`, and `ProphecyInfo.closure_name` enable mutable closure capture verification with pre/post state tracking (Phase 39)
+3. Generic function verification with real trait bound constraints — `trait_bounds_as_smt_assumptions` emits real Ord/PartialOrd SMT axioms via `DeclareSort+DeclareFun+Assert`; replaces `BoolLit(true)` no-ops (Phase 40)
+4. MonomorphizationRegistry population — `populate_monomorphization_registry` traverses MIR call sites for concrete type substitutions (T→i32); shared `Arc` wiring activates `generate_vcs_monomorphized` production path (Phase 44)
+5. Sealed trait detection + dyn dispatch VCs — `detect_sealed_trait` via HIR visibility, `parse_dyn_dispatch_callee` resolves `<dyn Trait>::method` to behavioral subtyping VCs, Z3 pessimistic catch-all (Phase 41)
+6. Closure production wiring — `convert_closure_ty` emits `Ty::Closure` from real rustc MIR; `ByMutRef` capture detection enables Phase 39 prophecy machinery from real programs (Phase 42)
+
+**Delivered:** Complete generics and trait verification — behavioral subtyping with Liskov checks, FnMut prophecy variables for mutable closure contracts, real trait bound SMT axioms for generic functions, monomorphized verification from call-site type analysis, sealed trait detection, and dyn dispatch call-site resolution. All verified end-to-end with Z3.
+
+---
+
 ## v0.6 Cross-Crate Verification (Shipped: 2026-03-02)
 
 **Phases completed:** 6 phases (34–37.1), 11 plans
