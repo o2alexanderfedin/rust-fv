@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: Milestone archived. Git tag v0.6 created.
-stopped_at: Phase 44 context gathered
-last_updated: "2026-03-04T02:20:27.650Z"
+stopped_at: Completed 44-01-PLAN.md (populate_monomorphization_registry + shared registry wiring)
+last_updated: "2026-03-04T05:25:54.186Z"
 last_activity: "2026-03-02 — v0.6 milestone complete: ALIAS-01/02, OPAQUE-01/02/03, XCREC-01/02 all satisfied. Archived to milestones/."
 progress:
   total_phases: 7
-  completed_phases: 6
-  total_plans: 12
-  completed_plans: 12
+  completed_phases: 7
+  total_plans: 13
+  completed_plans: 13
   percent: 100
 ---
 
@@ -73,6 +73,7 @@ Progress: [██████████] 100% (v0.6 milestone complete)
 | Phase 42 P01 | 602 | 2 tasks | 2 files |
 | Phase 43-nyquist-validation-coverage P01 | 2 | 3 tasks | 3 files |
 | Phase 43-nyquist-validation-coverage P02 | 127 | 3 tasks | 3 files |
+| Phase 44-generics-02-monomorphization-registry-population P01 | 1395 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,7 @@ Recent decisions relevant to v0.6:
 - [Phase 42]: E2E prophecy assertion uses generate_vcs from analysis crate directly since VerificationResult.condition is human-readable, not SMT text
 - [Phase 43-01]: Retroactive VALIDATION.md documents record existing test evidence from VERIFICATION.md — no new tests needed for already-complete phases; nyquist_compliant: true set where >= 1 automated test per production behavior
 - [Phase 43-nyquist-validation-coverage]: Retroactive VALIDATION.md files derived directly from existing VERIFICATION.md evidence — no new test runs required since phases are already complete and verified
+- [Phase 44-generics-02-monomorphization-registry-population]: populate_monomorphization_registry uses GenericArg::as_type() (not .unpack() which is absent in nightly-2026-02-11); skips instantiation if ANY arg remains ty::Param; dedup via HashMap equality; shared Arc created once before task loop
 
 ### Pending Todos
 
@@ -146,9 +148,9 @@ None current. Phase 37 complete (all 3 plans). XCREC-01 and XCREC-02 satisfied e
 
 ## Session Continuity
 
-Last session: 2026-03-04T02:20:27.645Z
-Stopped at: Phase 44 context gathered
-Resume file: .planning/phases/44-generics-02-monomorphization-registry-population/44-CONTEXT.md
+Last session: 2026-03-04T05:25:54.180Z
+Stopped at: Completed 44-01-PLAN.md (populate_monomorphization_registry + shared registry wiring)
+Resume file: None
 Next step: Phase 41 complete — check ROADMAP.md for next phase.
 
 ---
