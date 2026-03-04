@@ -284,6 +284,40 @@ impl VerificationCallbacks {
             })
             .collect();
 
+        // Add functions that ran but produced 0 VCs (unannotated — trivially OK).
+        // These appear in func_metadata but not in func_map (no VC rows to group).
+        let seen_names: std::collections::HashSet<String> =
+            func_results.iter().map(|r| r.name.clone()).collect();
+        for (name, metadata) in &self.func_metadata {
+            if !seen_names.contains(name) {
+                let status = if metadata.from_cache {
+                    output::VerificationStatus::Skipped
+                } else {
+                    output::VerificationStatus::Ok
+                };
+                func_results.push(output::FunctionResult {
+                    name: name.clone(),
+                    status,
+                    message: None,
+                    vc_count: 0,
+                    verified_count: 0,
+                    invalidation_reason: metadata.invalidation_reason.as_ref().map(|r| {
+                        use crate::invalidation::InvalidationReason;
+                        match r {
+                            InvalidationReason::MirChanged => "body changed".to_string(),
+                            InvalidationReason::ContractChanged { dependency } => {
+                                format!("contract of {} changed", dependency)
+                            }
+                            InvalidationReason::Fresh => "fresh run".to_string(),
+                            InvalidationReason::CacheMiss => "not in cache".to_string(),
+                            InvalidationReason::Expired => "cache expired".to_string(),
+                        }
+                    }),
+                    duration_ms: metadata.duration_ms,
+                });
+            }
+        }
+
         // Sort by name for deterministic output
         func_results.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -505,15 +539,17 @@ impl Callbacks for VerificationCallbacks {
             let def_id = local_def_id.to_def_id();
             let name = tcx.def_path_str(def_id);
 
-            // Check if this function has any contracts
-            let contracts = contracts_map.get(&local_def_id);
-            let has_contracts =
-                contracts.is_some_and(|c| !c.requires.is_empty() || !c.ensures.is_empty());
-
-            // Skip functions without contracts
-            if !has_contracts {
+            // Only verify function items — skip closures, generators, constants, etc.
+            // Annotations (#[requires]/#[ensures]) are optional: unannotated functions
+            // get empty contracts and trivially verify (0 VCs, always OK).
+            if !matches!(
+                tcx.def_kind(def_id),
+                rustc_hir::def::DefKind::Fn | rustc_hir::def::DefKind::AssocFn
+            ) {
                 continue;
             }
+
+            let contracts = contracts_map.get(&local_def_id);
 
             // Get the optimized MIR
             let mir = tcx.optimized_mir(def_id);
