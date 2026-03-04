@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
-status: Defining requirements
-stopped_at: Milestone v0.8 started — defining requirements
-last_updated: "2026-03-04T12:00:00.000Z"
-last_activity: "2026-03-04 — Milestone v0.8 started"
+status: Roadmap created — ready to plan phases
+stopped_at: Phase 45 not started
+last_updated: "2026-03-04T12:30:00.000Z"
+last_activity: "2026-03-04 — v0.8 roadmap created (12 phases, 67 requirements mapped)"
 progress:
-  total_phases: 0
+  total_phases: 12
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -22,14 +22,37 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.8 Completeness & Coverage — close identified feature gaps
+**Current focus:** v0.8 Completeness & Coverage — close 67 identified feature gaps across 12 phases
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 45 (Quick Wins & Pattern Integration) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-04 — Milestone v0.8 started
+Status: Roadmap created, ready to begin planning
+Last activity: 2026-03-04 — v0.8 roadmap created
+
+```
+Progress: [                    ] 0/12 phases (0%)
+```
+
+## Milestone Summary
+
+**v0.8 Completeness & Coverage** — Phases 45–56
+
+| Phase | Name | Requirements | Status |
+|-------|------|--------------|--------|
+| 45 | Quick Wins & Pattern Integration | COMPL-19..22, PAT-01..04 | Not started |
+| 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Not started |
+| 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Not started |
+| 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Not started |
+| 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Not started |
+| 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
+| 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
+| 52 | Advanced Type System Features | LANG-06, LANG-07, LANG-08, LANG-09, LANG-10 | Not started |
+| 53 | Operator & Smart Pointer Verification | LANG-11, LANG-12, LANG-13, LANG-14 | Not started |
+| 54 | Stdlib Contracts Batch I | STDLIB-01..08 | Not started |
+| 55 | Stdlib Contracts Batch II & Iterators | STDLIB-09..15 | Not started |
+| 56 | Async & Concurrency Extensions | ASYNC-01..03, CONC-01..04 | Not started |
 
 ## Performance Metrics
 
@@ -49,6 +72,7 @@ Last activity: 2026-03-04 — Milestone v0.8 started
 | v0.5 + Audit | 11 | 32 | 4 days |
 | v0.6 Cross-Crate | 6 | 11 | 3 days |
 | v0.7 Generics & Traits | 8 | 14 | 3 days |
+| v0.8 Completeness (projected) | 12 | TBD | TBD |
 
 ## Accumulated Context
 
@@ -56,21 +80,32 @@ Last activity: 2026-03-04 — Milestone v0.8 started
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
+### Key v0.8 Architecture Notes
+
+- Phase 46 (SMT Datatypes) unblocks Phase 54 (stdlib contracts batch I) — stdlib collection contracts depend on proper struct/enum SMT encoding. Phase 54 is ordered after Phase 46 in the dependency chain but can be planned and implemented in parallel after Phase 46 is complete.
+- Phase 56 (Async & Concurrency) depends on both Phase 50 (async foundation) and Phase 53 (concurrency foundation) being complete.
+- Phases 51-53 (core language features) are independent of Phase 54-55 (stdlib contracts) and can be executed in parallel if needed.
+- COMPL-25 (async multi-thread limitation doc) is included in Phase 50 because it clarifies the scope boundary established there.
+
 ### Pending Todos
 
 0 pending.
 
 ### Blockers/Concerns
 
-None current.
+None current. Known tech debt from v0.7:
+- `extract_alias_preconditions` pub visibility with test-only callers
+- Alternative output paths (rustc_json.rs, cargo_verify.rs) statically set `inferred_summaries: None`
+- `TraitDatabase` instantiated as empty (scaffolding)
+- 2 bv2int E2E tests commented-out (Phase 18 workaround)
 
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: Defining requirements for v0.8
+Stopped at: v0.8 roadmap created
 Resume file: None
-Next step: Define requirements and create roadmap
+Next step: `/gsd:plan-phase 45` — Quick Wins & Pattern Integration
 
 ---
 
-*Last updated: 2026-03-04 — Milestone v0.8 started*
+*Last updated: 2026-03-04 — v0.8 roadmap created, 12 phases, 67/67 requirements mapped*

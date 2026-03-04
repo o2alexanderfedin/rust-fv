@@ -131,13 +131,79 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| COMPL-01 | Phase 46 | Pending |
+| COMPL-02 | Phase 47 | Pending |
+| COMPL-03 | Phase 47 | Pending |
+| COMPL-04 | Phase 49 | Pending |
+| COMPL-05 | Phase 46 | Pending |
+| COMPL-06 | Phase 47 | Pending |
+| COMPL-07 | Phase 46 | Pending |
+| COMPL-08 | Phase 48 | Pending |
+| COMPL-09 | Phase 48 | Pending |
+| COMPL-10 | Phase 49 | Pending |
+| COMPL-11 | Phase 46 | Pending |
+| COMPL-12 | Phase 47 | Pending |
+| COMPL-13 | Phase 48 | Pending |
+| COMPL-14 | Phase 48 | Pending |
+| COMPL-15 | Phase 49 | Pending |
+| COMPL-16 | Phase 48 | Pending |
+| COMPL-17 | Phase 49 | Pending |
+| COMPL-18 | Phase 49 | Pending |
+| COMPL-19 | Phase 45 | Pending |
+| COMPL-20 | Phase 45 | Pending |
+| COMPL-21 | Phase 45 | Pending |
+| COMPL-22 | Phase 45 | Pending |
+| COMPL-23 | Phase 50 | Pending |
+| COMPL-24 | Phase 50 | Pending |
+| COMPL-25 | Phase 50 | Pending |
+| LANG-01 | Phase 51 | Pending |
+| LANG-02 | Phase 51 | Pending |
+| LANG-03 | Phase 51 | Pending |
+| LANG-04 | Phase 51 | Pending |
+| LANG-05 | Phase 51 | Pending |
+| LANG-06 | Phase 52 | Pending |
+| LANG-07 | Phase 52 | Pending |
+| LANG-08 | Phase 52 | Pending |
+| LANG-09 | Phase 52 | Pending |
+| LANG-10 | Phase 52 | Pending |
+| LANG-11 | Phase 53 | Pending |
+| LANG-12 | Phase 53 | Pending |
+| LANG-13 | Phase 53 | Pending |
+| LANG-14 | Phase 53 | Pending |
+| LANG-15 | Phase 50 | Pending |
+| LANG-16 | Phase 50 | Pending |
+| PAT-01 | Phase 45 | Pending |
+| PAT-02 | Phase 45 | Pending |
+| PAT-03 | Phase 45 | Pending |
+| PAT-04 | Phase 45 | Pending |
+| STDLIB-01 | Phase 54 | Pending |
+| STDLIB-02 | Phase 54 | Pending |
+| STDLIB-03 | Phase 54 | Pending |
+| STDLIB-04 | Phase 54 | Pending |
+| STDLIB-05 | Phase 54 | Pending |
+| STDLIB-06 | Phase 54 | Pending |
+| STDLIB-07 | Phase 54 | Pending |
+| STDLIB-08 | Phase 54 | Pending |
+| STDLIB-09 | Phase 55 | Pending |
+| STDLIB-10 | Phase 55 | Pending |
+| STDLIB-11 | Phase 55 | Pending |
+| STDLIB-12 | Phase 55 | Pending |
+| STDLIB-13 | Phase 55 | Pending |
+| STDLIB-14 | Phase 55 | Pending |
+| STDLIB-15 | Phase 55 | Pending |
+| ASYNC-01 | Phase 56 | Pending |
+| ASYNC-02 | Phase 56 | Pending |
+| ASYNC-03 | Phase 56 | Pending |
+| CONC-01 | Phase 56 | Pending |
+| CONC-02 | Phase 56 | Pending |
+| CONC-03 | Phase 56 | Pending |
+| CONC-04 | Phase 56 | Pending |
 
 **Coverage:**
 - v0.8 requirements: 67 total
-- Mapped to phases: 0
-- Unmapped: 67 ⚠️
+- Mapped to phases: 67
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after v0.8 roadmap creation (phases 45-56)*
