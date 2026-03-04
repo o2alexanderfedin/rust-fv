@@ -82,7 +82,16 @@ A compiler-integrated formal verification tool that mathematically proves proper
 
 ### Active
 
-*(Planning next milestone — see `/gsd:new-milestone`)*
+## Current Milestone: v0.8 Completeness & Coverage
+
+**Goal:** Close as many of the 77 identified feature gaps as feasible — complete partial implementations, add missing core language features, expand stdlib contracts, and extend async/concurrency coverage.
+
+**Target features:**
+- Complete all 25 partial implementations (struct/enum datatypes, pointer alignment, iterator adapters, RefCell, etc.)
+- Add missing core language features (const generics, Drop verification, unions, Pin, FFI, etc.)
+- Expand stdlib contracts (HashSet, VecDeque, BTreeMap, Cell, OnceCell, etc.)
+- Extend async/concurrency (async closures, cancellation safety, Condvar, Barrier, fences)
+- Pattern matching integration tests (let-else, slice patterns, range patterns, @ bindings)
 
 ### Out of Scope
 
@@ -102,7 +111,7 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - **v0.7 achievements:** Behavioral subtyping VCs (TRT-01..05), FnMut prophecy variables, real trait bound SMT axioms (GENERICS-01), MonomorphizationRegistry population (GENERICS-02), sealed trait detection (TRT-04), dyn dispatch VCs (TRT-02), Nyquist validation coverage — all 7/7 requirements satisfied
 - **Known limitations:** Bounded concurrency (max threads/switches configurable), FPA theory 2-10x slower than bitvectors; PtrCast alignment-check VC not yet generated (DEBTLINE); postcondition strengthening tautology in behavioral_subtyping.rs (sound but incomplete); sealed trait is_sealed flag computed but not consumed in SMT encoding
 - **Tech debt:** `extract_alias_preconditions` pub visibility with test-only callers; alternative output paths (rustc_json.rs, cargo_verify.rs) statically set `inferred_summaries: None`; `TraitDatabase` instantiated as empty (scaffolding); 2 bv2int E2E tests commented-out (Phase 18 workaround)
-- **Next:** v0.8 milestone — see `/gsd:new-milestone`
+- **Next:** v0.8 Completeness & Coverage — close 77 identified feature gaps
 
 ## Constraints
 
@@ -204,4 +213,4 @@ A compiler-integrated formal verification tool that mathematically proves proper
 - Closure production wiring: `convert_closure_ty` emits `Ty::Closure` from real MIR; `ByMutRef` capture detection
 
 ---
-*Last updated: 2026-03-04 after v0.7 Generics & Traits Hardening milestone complete*
+*Last updated: 2026-03-04 after v0.8 Completeness & Coverage milestone started*

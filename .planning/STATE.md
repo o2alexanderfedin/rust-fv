@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.7
-milestone_name: Generics & Traits Hardening
-status: Milestone archived. Git tag v0.7 created.
-stopped_at: v0.7 milestone complete — all 8 phases shipped
-last_updated: "2026-03-04T06:30:00.000Z"
-last_activity: "2026-03-04 — v0.7 milestone complete: TRT-01..05, GENERICS-01/02 all satisfied. Archived to milestones/."
+milestone: v0.8
+milestone_name: Completeness & Coverage
+status: Defining requirements
+stopped_at: Milestone v0.8 started — defining requirements
+last_updated: "2026-03-04T12:00:00.000Z"
+last_activity: "2026-03-04 — Milestone v0.8 started"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 14
-  completed_plans: 14
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -22,15 +22,14 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** Sound, automated verification of Rust code properties with minimal developer burden -- if the tool says "verified", it must be mathematically correct; if a developer can write a spec, the tool should prove it automatically 80-90% of the time for safe Rust.
 
-**Current focus:** v0.7 milestone COMPLETE — 7/7 requirements satisfied, archived to milestones/. Planning v0.8 next milestone.
+**Current focus:** v0.8 Completeness & Coverage — close identified feature gaps
 
 ## Current Position
 
-Milestone: v0.7 Generics & Traits Hardening — COMPLETE (8/8 phases, 14/14 plans, 7/7 requirements)
-Status: Milestone archived. Git tag v0.7 created.
-Last activity: 2026-03-04 — v0.7 milestone complete: TRT-01..05, GENERICS-01/02 all satisfied. Archived to milestones/.
-
-Progress: [██████████] 100% (v0.7 milestone complete)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-04 — Milestone v0.8 started
 
 ## Performance Metrics
 
@@ -63,15 +62,15 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Blockers/Concerns
 
-None current. v0.7 milestone complete — all 7/7 requirements satisfied.
+None current.
 
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: v0.7 milestone complete
+Stopped at: Defining requirements for v0.8
 Resume file: None
-Next step: `/gsd:new-milestone` to start v0.8
+Next step: Define requirements and create roadmap
 
 ---
 
-*Last updated: 2026-03-04 — v0.7 milestone complete*
+*Last updated: 2026-03-04 — Milestone v0.8 started*
