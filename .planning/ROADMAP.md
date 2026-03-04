@@ -95,6 +95,8 @@ Plans:
 | 40. Generics Verification Completion | v0.7 | Complete    | 2026-03-03 | 2026-03-02 |
 | 41. Phase 38 Hardening | 2/2 | Complete    | 2026-03-03 | — |
 | 42. Phase 39 Production Wiring | 1/1 | Complete    | 2026-03-03 | — |
+| 43. Nyquist Validation Coverage | v0.7 | 0/6 | Pending | — |
+| 44. GENERICS-02 MonomorphizationRegistry Population | v0.7 | 0/? | Pending | — |
 
 ### Phase 39: FnMut prophecy variable encoding for mutable closure capture verification — implement prophecy pre/post state tracking in closure_analysis.rs + vcgen.rs so FnMut closures with contracts on mutated captured state can be verified
 
@@ -139,3 +141,13 @@ Plans:
 
 Plans:
 - [ ] 42-01-PLAN.md — Wire convert_closure_ty into mir_converter.rs + E2E driver integration test
+
+### Phase 43: Nyquist Validation Coverage
+**Goal:** Add VALIDATION.md to all 6 v0.7 phases (38, 39, generics-fix, 40, 41, 42) validating each against their UAT criteria so the audit's Nyquist compliance gap is closed.
+**Requirements:** (process compliance — all v0.7 phases)
+**Gap Closure:** Closes tech debt from v0.1 milestone audit — 0 VALIDATION.md files across all 44 phases
+
+### Phase 44: GENERICS-02 MonomorphizationRegistry Population
+**Goal:** Implement call-site type analysis to populate `MonomorphizationRegistry` with concrete type substitutions (T→i32 etc.) from rustc TyCtxt, activating the `generate_vcs_monomorphized` production path so generic functions are verified against both parametric and concrete monomorphized verification conditions.
+**Requirements:** GENERICS-02
+**Gap Closure:** Closes GENERICS-02-PROD integration gap and FLOW-GENERIC-MONO flow gap from v0.1 milestone audit — registry always empty in production, monomorphized verification path unreachable
