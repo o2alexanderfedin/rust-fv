@@ -1787,9 +1787,33 @@ fn encode_assignment(
             let disc_fn = format!("discriminant-{}", disc_place.local);
             Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }
-        // Repeat ([x; N]): VCGen encoding is out of scope for Phase 29 — the IR just needs to
-        // represent it. Skip the assertion so VCGen remains sound (no false claims about arrays).
-        Rvalue::Repeat(..) => return None,
+        Rvalue::Repeat(operand, count) => {
+            // Encode [expr; N] as a forall-quantified assertion:
+            // (assert (forall ((i Int)) (=> (and (>= i 0) (< i N)) (= (select arr i) val))))
+            let val = encode_operand_for_vcgen(operand, func);
+            let count_val = *count as i128;
+            let arr_name = place.local.clone();
+
+            let i_var = "repeat_idx".to_string();
+            let i_term = Term::Const(i_var.clone());
+            let arr_term = Term::Const(arr_name);
+
+            let select = Term::Select(Box::new(arr_term), Box::new(i_term.clone()));
+            let body = Term::Eq(Box::new(select), Box::new(val));
+
+            let in_bounds = Term::And(vec![
+                Term::IntGe(Box::new(i_term.clone()), Box::new(Term::IntLit(0))),
+                Term::IntLt(Box::new(i_term), Box::new(Term::IntLit(count_val))),
+            ]);
+
+            let forall_body = Term::Implies(Box::new(in_bounds), Box::new(body));
+            let forall = Term::Forall(
+                vec![(String::from("repeat_idx"), rust_fv_smtlib::sort::Sort::Int)],
+                Box::new(forall_body),
+            );
+
+            return Some(Command::Assert(forall));
+        }
     };
 
     Some(Command::Assert(Term::Eq(Box::new(lhs), Box::new(rhs))))
@@ -5780,6 +5804,52 @@ mod tests {
             &mut ssa,
         );
         assert!(result.is_some());
+    }
+
+    // === encode_assignment Repeat tests (COMPL-11) ===
+
+    #[test]
+    fn encode_assignment_repeat_emits_forall() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("arr"),
+            &Rvalue::Repeat(Operand::Constant(Constant::Int(0, IntTy::I32)), 5),
+            &func,
+            &mut ssa,
+        );
+        assert!(
+            result.is_some(),
+            "Rvalue::Repeat should produce an assertion, not None"
+        );
+        // The result should contain a Forall term
+        let cmd_text = format!("{result:?}");
+        assert!(
+            cmd_text.contains("Forall"),
+            "expected Forall in Repeat encoding, got: {cmd_text}"
+        );
+    }
+
+    #[test]
+    fn encode_assignment_repeat_forall_structure() {
+        let func = make_add_function();
+        let mut ssa = HashMap::new();
+        let result = encode_assignment(
+            &Place::local("arr"),
+            &Rvalue::Repeat(Operand::Constant(Constant::Int(0, IntTy::I32)), 5),
+            &func,
+            &mut ssa,
+        );
+        // Verify the Forall body contains Select (array access) and bounds
+        let cmd_text = format!("{result:?}");
+        assert!(
+            cmd_text.contains("Select"),
+            "expected Select in Forall body"
+        );
+        assert!(
+            cmd_text.contains("Implies"),
+            "expected Implies (bounds => equality) in Forall body"
+        );
     }
 
     // === find_local_type tests ===
