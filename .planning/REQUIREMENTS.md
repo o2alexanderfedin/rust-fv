@@ -15,11 +15,11 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [ ] **COMPL-04**: Iterator adapter chaining (filter, map, etc.) composes contracts instead of falling back to `BoolLit(true)`
 - [ ] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
 - [ ] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
-- [ ] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
+- [x] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
 - [ ] **COMPL-08**: Quantifier trigger inference filters out datatype selector symbols from candidate lists
 - [ ] **COMPL-09**: `RefCell<T>` runtime borrow count tracked as ghost state with exclusivity VCs for `borrow()`/`borrow_mut()`
 - [ ] **COMPL-10**: Cross-crate generic instantiations fully captured in MonomorphizationRegistry
-- [ ] **COMPL-11**: `Rvalue::Repeat` (`[expr; N]`) encoded as universally quantified equality or const-array store chain
+- [x] **COMPL-11**: `Rvalue::Repeat` (`[expr; N]`) encoded as universally quantified equality or const-array store chain
 - [ ] **COMPL-12**: Silent match arm fallthrough cases in vcgen.rs audited and either handled or explicitly documented
 - [ ] **COMPL-13**: Two-phase borrowing modeled for method calls like `vec.push(vec.len())`
 - [ ] **COMPL-14**: Partial struct moves tracked per-field with use-after-partial-move VCs
@@ -137,11 +137,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-04 | Phase 49 | Pending |
 | COMPL-05 | Phase 46 | Pending |
 | COMPL-06 | Phase 47 | Pending |
-| COMPL-07 | Phase 46 | Pending |
+| COMPL-07 | Phase 46 | Complete |
 | COMPL-08 | Phase 48 | Pending |
 | COMPL-09 | Phase 48 | Pending |
 | COMPL-10 | Phase 49 | Pending |
-| COMPL-11 | Phase 46 | Pending |
+| COMPL-11 | Phase 46 | Complete |
 | COMPL-12 | Phase 47 | Pending |
 | COMPL-13 | Phase 48 | Pending |
 | COMPL-14 | Phase 48 | Pending |
