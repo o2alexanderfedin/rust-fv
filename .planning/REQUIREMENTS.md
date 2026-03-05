@@ -20,7 +20,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [ ] **COMPL-09**: `RefCell<T>` runtime borrow count tracked as ghost state with exclusivity VCs for `borrow()`/`borrow_mut()`
 - [ ] **COMPL-10**: Cross-crate generic instantiations fully captured in MonomorphizationRegistry
 - [x] **COMPL-11**: `Rvalue::Repeat` (`[expr; N]`) encoded as universally quantified equality or const-array store chain
-- [ ] **COMPL-12**: Silent match arm fallthrough cases in vcgen.rs audited and either handled or explicitly documented
+- [x] **COMPL-12**: Silent match arm fallthrough cases in vcgen.rs audited and either handled or explicitly documented
 - [ ] **COMPL-13**: Two-phase borrowing modeled for method calls like `vec.push(vec.len())`
 - [ ] **COMPL-14**: Partial struct moves tracked per-field with use-after-partial-move VCs
 - [ ] **COMPL-15**: Mutable static access generates data-race VCs requiring synchronization
@@ -142,7 +142,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-09 | Phase 48 | Pending |
 | COMPL-10 | Phase 49 | Pending |
 | COMPL-11 | Phase 46 | Complete |
-| COMPL-12 | Phase 47 | Pending |
+| COMPL-12 | Phase 47 | Complete |
 | COMPL-13 | Phase 48 | Pending |
 | COMPL-14 | Phase 48 | Pending |
 | COMPL-15 | Phase 49 | Pending |

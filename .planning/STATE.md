@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 46 (SMT Datatype Foundations) — completed
-Plan: 03 of 03 complete
-Status: All plans complete including gap closure (COMPL-01 with native IsTester, COMPL-05, COMPL-07, COMPL-11)
-Last activity: 2026-03-05 — Phase 46 plan 03 complete (native IsTester discriminant encoding)
+Phase: 47 (MIR Coverage Hardening) — in progress
+Plan: 02 of 03 complete
+Status: Plan 02 complete (match arm fallthrough audit, COMPL-12)
+Last activity: 2026-03-05 — Phase 47 plan 02 complete (match arm audit for vcgen.rs and encode_term.rs)
 
 ```
 Progress: [##                  ] 1/12 phases (8%)
@@ -43,7 +43,7 @@ Progress: [##                  ] 1/12 phases (8%)
 |-------|------|--------------|--------|
 | 45 | Quick Wins & Pattern Integration | COMPL-19..22, PAT-01..04 | Plan 01/02 done |
 | 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Complete |
-| 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Not started |
+| 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Plan 02/03 done |
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Not started |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Not started |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
@@ -78,6 +78,7 @@ Progress: [##                  ] 1/12 phases (8%)
 | Phase 46 P01 | 1088 | 2 tasks | 2 files |
 | Phase 46 P02 | 1775 | 2 tasks | 3 files |
 | Phase 46 P03 | 1619 | 2 tasks | 2 files |
+| Phase 47 P02 | 2842 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 46]: Rvalue::Repeat returns early with Assert(Forall) bypassing standard lhs=rhs pattern
 - [Phase 46]: Discriminant encoding upgraded to native IsTester testers for enum types (plan 03 gap closure); non-enum fallback preserved
 - [Phase 46]: Nested spec parsing (result.inner.a) out of scope for COMPL-05 - verified via SMT output inspection
+- [Phase 47]: Kept wildcards for Term substitution functions (30+ variants, grows frequently); replaced only for stable small enums
+- [Phase 47]: Fixed pre-existing clippy issues in generate_alignment_vcs (from incomplete plan 47-01) as blocking dependency
 
 ### Key v0.8 Architecture Notes
 
@@ -112,11 +115,11 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-05T20:21:18.782Z
-Stopped at: Phase 47 context gathered
-Resume file: .planning/phases/47-mir-coverage-hardening/47-CONTEXT.md
-Next step: Begin Phase 47 (MIR Coverage Hardening)
+Last session: 2026-03-05T21:24:01Z
+Stopped at: Completed 47-02-PLAN.md
+Resume file: .planning/phases/47-mir-coverage-hardening/47-02-SUMMARY.md
+Next step: Execute Phase 47 Plan 03
 
 ---
 
-*Last updated: 2026-03-05 — Phase 46 complete with gap closure (COMPL-01 native IsTester, COMPL-05, COMPL-07, COMPL-11)*
+*Last updated: 2026-03-05 — Phase 47 plan 02 complete (match arm fallthrough audit, COMPL-12)*
