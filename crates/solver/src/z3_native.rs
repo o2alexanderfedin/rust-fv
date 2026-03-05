@@ -24,7 +24,7 @@ use rust_fv_smtlib::command::Command as SmtCmd;
 use rust_fv_smtlib::script::Script;
 use rust_fv_smtlib::sort::Sort;
 use rust_fv_smtlib::term::Term;
-use z3::ast::{BV, Bool};
+use z3::ast::{BV, Bool, Int};
 use z3::{Config, SatResult, Solver};
 
 use crate::error::SolverError;
@@ -127,6 +127,7 @@ impl crate::backend::SolverBackend for Z3NativeSolver {
 enum Z3Value {
     Bool(Bool),
     BV(BV),
+    Int(Int),
 }
 
 /// Create a Z3 constant of the given sort.
@@ -134,9 +135,7 @@ fn create_const(name: &str, sort: &Sort) -> Result<Z3Value, SolverError> {
     match sort {
         Sort::Bool => Ok(Z3Value::Bool(Bool::new_const(name))),
         Sort::BitVec(width) => Ok(Z3Value::BV(BV::new_const(name, *width))),
-        Sort::Int => Err(SolverError::ParseError(
-            "Int sort not yet supported in native backend".to_string(),
-        )),
+        Sort::Int => Ok(Z3Value::Int(Int::new_const(name))),
         _ => Err(SolverError::ParseError(format!(
             "Unsupported sort in native backend: {:?}",
             sort
@@ -209,6 +208,23 @@ fn translate_term(symbols: &HashMap<String, Z3Value>, term: &Term) -> Result<Z3V
             }
         }
 
+        // Integer literal
+        Term::IntLit(val) => Ok(Z3Value::Int(Int::from_i64(*val as i64))),
+
+        // Integer arithmetic
+        Term::IntAdd(a, b) => translate_int_binary(symbols, a, b, |x, y| Int::add(&[&x, &y])),
+        Term::IntSub(a, b) => translate_int_binary(symbols, a, b, |x, y| Int::sub(&[&x, &y])),
+        Term::IntMul(a, b) => translate_int_binary(symbols, a, b, |x, y| Int::mul(&[&x, &y])),
+        Term::IntDiv(a, b) => translate_int_binary(symbols, a, b, |x, y| x.div(&y)),
+        Term::IntMod(a, b) => translate_int_binary(symbols, a, b, |x, y| x.modulo(&y)),
+        Term::IntNeg(a) => translate_int_unary(symbols, a, |x| x.unary_minus()),
+
+        // Integer comparisons
+        Term::IntGt(a, b) => translate_int_cmp(symbols, a, b, |x, y| x.gt(&y)),
+        Term::IntLt(a, b) => translate_int_cmp(symbols, a, b, |x, y| x.lt(&y)),
+        Term::IntGe(a, b) => translate_int_cmp(symbols, a, b, |x, y| x.ge(&y)),
+        Term::IntLe(a, b) => translate_int_cmp(symbols, a, b, |x, y| x.le(&y)),
+
         // Equality
         Term::Eq(a, b) => {
             let a_ast = translate_term(symbols, a)?;
@@ -216,6 +232,7 @@ fn translate_term(symbols: &HashMap<String, Z3Value>, term: &Term) -> Result<Z3V
             match (a_ast, b_ast) {
                 (Z3Value::Bool(a_b), Z3Value::Bool(b_b)) => Ok(Z3Value::Bool(a_b.eq(&b_b))),
                 (Z3Value::BV(a_bv), Z3Value::BV(b_bv)) => Ok(Z3Value::Bool(a_bv.eq(&b_bv))),
+                (Z3Value::Int(a_i), Z3Value::Int(b_i)) => Ok(Z3Value::Bool(a_i.eq(&b_i))),
                 _ => Err(SolverError::ParseError(
                     "Eq requires matching sorts".to_string(),
                 )),
@@ -264,6 +281,9 @@ fn translate_term(symbols: &HashMap<String, Z3Value>, term: &Term) -> Result<Z3V
                 }
                 (Z3Value::Bool(c), Z3Value::Bool(t), Z3Value::Bool(e)) => {
                     Ok(Z3Value::Bool(c.ite(&t, &e)))
+                }
+                (Z3Value::Bool(c), Z3Value::Int(t), Z3Value::Int(e)) => {
+                    Ok(Z3Value::Int(c.ite(&t, &e)))
                 }
                 _ => Err(SolverError::ParseError(
                     "ITE requires Bool condition and matching branches".to_string(),
@@ -336,6 +356,64 @@ where
     }
 }
 
+/// Helper for integer binary operations.
+fn translate_int_binary<F>(
+    symbols: &HashMap<String, Z3Value>,
+    a: &Term,
+    b: &Term,
+    op: F,
+) -> Result<Z3Value, SolverError>
+where
+    F: FnOnce(Int, Int) -> Int,
+{
+    let a_ast = translate_term(symbols, a)?;
+    let b_ast = translate_term(symbols, b)?;
+    match (a_ast, b_ast) {
+        (Z3Value::Int(a_i), Z3Value::Int(b_i)) => Ok(Z3Value::Int(op(a_i, b_i))),
+        _ => Err(SolverError::ParseError(
+            "Int operation requires Int arguments".to_string(),
+        )),
+    }
+}
+
+/// Helper for integer unary operations.
+fn translate_int_unary<F>(
+    symbols: &HashMap<String, Z3Value>,
+    a: &Term,
+    op: F,
+) -> Result<Z3Value, SolverError>
+where
+    F: FnOnce(Int) -> Int,
+{
+    let a_ast = translate_term(symbols, a)?;
+    match a_ast {
+        Z3Value::Int(a_i) => Ok(Z3Value::Int(op(a_i))),
+        _ => Err(SolverError::ParseError(
+            "Int operation requires Int argument".to_string(),
+        )),
+    }
+}
+
+/// Helper for integer comparison operations.
+fn translate_int_cmp<F>(
+    symbols: &HashMap<String, Z3Value>,
+    a: &Term,
+    b: &Term,
+    op: F,
+) -> Result<Z3Value, SolverError>
+where
+    F: FnOnce(Int, Int) -> Bool,
+{
+    let a_ast = translate_term(symbols, a)?;
+    let b_ast = translate_term(symbols, b)?;
+    match (a_ast, b_ast) {
+        (Z3Value::Int(a_i), Z3Value::Int(b_i)) => Ok(Z3Value::Bool(op(a_i, b_i))),
+        _ => Err(SolverError::ParseError(
+            "Int comparison requires Int arguments".to_string(),
+        )),
+    }
+}
+
 /// Extract a model from Z3's native model representation.
 fn extract_model(model: &z3::Model, symbols: &HashMap<String, Z3Value>) -> Model {
     let mut assignments = Vec::new();
@@ -344,6 +422,7 @@ fn extract_model(model: &z3::Model, symbols: &HashMap<String, Z3Value>) -> Model
         let eval_result = match value {
             Z3Value::Bool(b) => model.eval(b, true).map(|v: Bool| v.to_string()),
             Z3Value::BV(bv) => model.eval(bv, true).map(|v: BV| v.to_string()),
+            Z3Value::Int(i) => model.eval(i, true).map(|v: Int| v.to_string()),
         };
 
         if let Some(val_str) = eval_result {
@@ -480,14 +559,13 @@ mod tests {
         assert!(result.is_sat());
     }
 
-    // ---- Error: create_const with Int sort ----
+    // ---- create_const with Int sort ----
 
     #[test]
-    fn test_create_const_int_unsupported() {
+    fn test_create_const_int() {
         let result = create_const("x", &Sort::Int);
-        assert!(result.is_err());
-        let msg = result.err().unwrap().to_string();
-        assert!(msg.contains("Int sort not yet supported"));
+        assert!(result.is_ok());
+        assert!(matches!(result.unwrap(), Z3Value::Int(_)));
     }
 
     // ---- Error: create_const with unsupported sort ----
@@ -540,18 +618,258 @@ mod tests {
         assert!(msg.contains("Undefined symbol"));
     }
 
-    // ---- Error: translate_term unsupported term ----
+    // ---- IntLit translation ----
 
     #[test]
-    fn test_translate_term_unsupported() {
+    fn test_translate_int_lit() {
         let symbols = HashMap::new();
-        let err = translate_term(
-            &symbols,
-            &Term::IntLit(42), // Int is not supported in native backend
-        );
-        assert!(err.is_err());
-        let msg = err.unwrap_err().to_string();
-        assert!(msg.contains("Unsupported term"));
+        let result = translate_term(&symbols, &Term::IntLit(42));
+        assert!(result.is_ok());
+        assert!(matches!(result.unwrap(), Z3Value::Int(_)));
+    }
+
+    // ---- Int arithmetic operations ----
+
+    #[test]
+    fn test_int_add() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::SetLogic("QF_LIA".to_string()));
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        script.push(SmtCmd::DeclareConst("y".to_string(), Sort::Int));
+        // x = 3, y = 4, x + y = 7
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(3)),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("y".to_string())),
+            Box::new(Term::IntLit(4)),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::IntAdd(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )),
+            Box::new(Term::IntLit(7)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for 3 + 4 = 7");
+    }
+
+    #[test]
+    fn test_int_sub() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::IntSub(
+                Box::new(Term::IntLit(10)),
+                Box::new(Term::IntLit(3)),
+            )),
+            Box::new(Term::Const("x".to_string())),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(7)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for 10 - 3 = 7");
+    }
+
+    #[test]
+    fn test_int_mul_div_mod() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x = 7 * 3 = 21
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntMul(
+                Box::new(Term::IntLit(7)),
+                Box::new(Term::IntLit(3)),
+            )),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(21)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for 7 * 3 = 21");
+    }
+
+    #[test]
+    fn test_int_div() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x = 21 / 3 = 7
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntDiv(
+                Box::new(Term::IntLit(21)),
+                Box::new(Term::IntLit(3)),
+            )),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(7)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for 21 / 3 = 7");
+    }
+
+    #[test]
+    fn test_int_mod() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x = 7 mod 3 = 1
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntMod(
+                Box::new(Term::IntLit(7)),
+                Box::new(Term::IntLit(3)),
+            )),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(1)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for 7 mod 3 = 1");
+    }
+
+    #[test]
+    fn test_int_neg() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x = -5
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntNeg(Box::new(Term::IntLit(5)))),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(-5)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for -5 = -5");
+    }
+
+    // ---- Int comparison operations ----
+
+    #[test]
+    fn test_int_gt_lt_ge_le() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x > 0 AND x < 10 AND x >= 5 AND x <= 5 => x = 5
+        script.push(SmtCmd::Assert(Term::IntGt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(0)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntLt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(10)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntGe(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(5)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntLe(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(5)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT for x = 5");
+    }
+
+    // ---- Int equality ----
+
+    #[test]
+    fn test_int_eq() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        script.push(SmtCmd::DeclareConst("y".to_string(), Sort::Int));
+        // x = y AND x = 42 AND y != 42 => UNSAT
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Const("y".to_string())),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(42)),
+        )));
+        script.push(SmtCmd::Assert(Term::Not(Box::new(Term::Eq(
+            Box::new(Term::Const("y".to_string())),
+            Box::new(Term::IntLit(42)),
+        )))));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_unsat(), "Expected UNSAT for x=y, x=42, y!=42");
+    }
+
+    // ---- Full QF_LIA script ----
+
+    #[test]
+    fn test_qf_lia_full_script() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::SetLogic("QF_LIA".to_string()));
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        script.push(SmtCmd::DeclareConst("y".to_string(), Sort::Int));
+        // x + y > 10, x > 0, y > 0, x < 5
+        script.push(SmtCmd::Assert(Term::IntGt(
+            Box::new(Term::IntAdd(
+                Box::new(Term::Const("x".to_string())),
+                Box::new(Term::Const("y".to_string())),
+            )),
+            Box::new(Term::IntLit(10)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntGt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(0)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntGt(
+            Box::new(Term::Const("y".to_string())),
+            Box::new(Term::IntLit(0)),
+        )));
+        script.push(SmtCmd::Assert(Term::IntLt(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(5)),
+        )));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_sat(), "Expected SAT");
+    }
+
+    // ---- ITE with Int branches ----
+
+    #[test]
+    fn test_ite_int_branches() {
+        let solver = Z3NativeSolver::new();
+        let mut script = Script::new();
+        script.push(SmtCmd::DeclareConst("c".to_string(), Sort::Bool));
+        script.push(SmtCmd::DeclareConst("x".to_string(), Sort::Int));
+        // x = ite(c, 10, 20), x = 10 => c must be true
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::Ite(
+                Box::new(Term::Const("c".to_string())),
+                Box::new(Term::IntLit(10)),
+                Box::new(Term::IntLit(20)),
+            )),
+        )));
+        script.push(SmtCmd::Assert(Term::Eq(
+            Box::new(Term::Const("x".to_string())),
+            Box::new(Term::IntLit(10)),
+        )));
+        script.push(SmtCmd::Assert(Term::Not(Box::new(Term::Const(
+            "c".to_string(),
+        )))));
+        let result = solver.solve_script(&script).expect("solve failed");
+        assert!(result.is_unsat(), "Expected UNSAT: x=10 requires c=true");
     }
 
     // ---- Error: assert requires bool ----
