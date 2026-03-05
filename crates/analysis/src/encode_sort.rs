@@ -19,9 +19,9 @@ use crate::ir::{FloatTy, Function, Ty};
 /// - `()` / `Never` → `Bool` (unit types represented as trivial)
 /// - `[T; N]` → `(Array (_ BitVec 64) T_sort)` (index by bitvec)
 /// - `&[T]` / `&T` → same as T (references are transparent for values)
-/// - Tuples → uninterpreted sort (TODO: datatypes in Phase 2)
-/// - Structs → uninterpreted sort (TODO: datatypes in Phase 2)
-/// - Enums → uninterpreted sort (TODO: datatypes in Phase 2)
+/// - Tuples → `Datatype(TupleN)` via `DeclareDatatype` (native SMT reasoning)
+/// - Structs → `Datatype(Name)` via `DeclareDatatype` with constructors/selectors
+/// - Enums → `Datatype(Name)` via `DeclareDatatype` with variant constructors/testers
 pub fn encode_type(ty: &Ty) -> Sort {
     match ty {
         Ty::Bool => Sort::Bool,
@@ -960,6 +960,56 @@ mod tests {
         } else {
             panic!("Expected Seq sort for VecDeque<bool>");
         }
+    }
+
+    // === COMPL-01: No Sort::Uninterpreted fallback for struct/enum types ===
+
+    #[test]
+    fn struct_type_never_produces_uninterpreted_sort() {
+        let ty = Ty::Struct(
+            "Point".to_string(),
+            vec![
+                ("x".to_string(), Ty::Int(IntTy::I32)),
+                ("y".to_string(), Ty::Int(IntTy::I32)),
+            ],
+        );
+        let sort = encode_type(&ty);
+        assert!(
+            !matches!(sort, Sort::Uninterpreted(_)),
+            "Struct type should produce Datatype sort, not Uninterpreted. Got: {sort:?}"
+        );
+        assert_eq!(sort, Sort::Datatype("Point".to_string()));
+    }
+
+    #[test]
+    fn enum_type_never_produces_uninterpreted_sort() {
+        let ty = Ty::Enum(
+            "Option_i32".to_string(),
+            vec![
+                ("None".to_string(), vec![]),
+                ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+            ],
+        );
+        let sort = encode_type(&ty);
+        assert!(
+            !matches!(sort, Sort::Uninterpreted(_)),
+            "Enum type should produce Datatype sort, not Uninterpreted. Got: {sort:?}"
+        );
+        assert_eq!(sort, Sort::Datatype("Option_i32".to_string()));
+    }
+
+    #[test]
+    fn struct_with_no_fields_produces_datatype_sort() {
+        let ty = Ty::Struct("Empty".to_string(), vec![]);
+        let sort = encode_type(&ty);
+        assert_eq!(sort, Sort::Datatype("Empty".to_string()));
+    }
+
+    #[test]
+    fn enum_with_no_variants_produces_datatype_sort() {
+        let ty = Ty::Enum("Never".to_string(), vec![]);
+        let sort = encode_type(&ty);
+        assert_eq!(sort, Sort::Datatype("Never".to_string()));
     }
 
     #[test]
