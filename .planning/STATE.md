@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 47 (MIR Coverage Hardening) — in progress
-Plan: 02 of 03 complete
-Status: Plan 02 complete (match arm fallthrough audit, COMPL-12)
-Last activity: 2026-03-05 — Phase 47 plan 02 complete (match arm audit for vcgen.rs and encode_term.rs)
+Plan: 02 of 03 complete (01 and 02 done)
+Status: Plan 01 complete (CastKind::PtrToPtr rename + AlignmentSafety VCs, COMPL-02/03), Plan 02 complete (match arm audit, COMPL-12)
+Last activity: 2026-03-05 — Phase 47 plan 01 complete (CastKind PtrToPtr + alignment VCs)
 
 ```
 Progress: [##                  ] 1/12 phases (8%)
@@ -78,6 +78,7 @@ Progress: [##                  ] 1/12 phases (8%)
 | Phase 46 P01 | 1088 | 2 tasks | 2 files |
 | Phase 46 P02 | 1775 | 2 tasks | 3 files |
 | Phase 46 P03 | 1619 | 2 tasks | 2 files |
+| Phase 47 P01 | 3253 | 2 tasks | 8 files |
 | Phase 47 P02 | 2842 | 2 tasks | 3 files |
 
 ## Accumulated Context
@@ -93,6 +94,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 46]: Nested spec parsing (result.inner.a) out of scope for COMPL-05 - verified via SMT output inspection
 - [Phase 47]: Kept wildcards for Term substitution functions (30+ variants, grows frequently); replaced only for stable small enums
 - [Phase 47]: Fixed pre-existing clippy issues in generate_alignment_vcs (from incomplete plan 47-01) as blocking dependency
+- [Phase 47]: Alignment VCs use bvsmod on 64-bit bitvectors; AlignmentSafety gets Warning severity (V070)
+- [Phase 47]: PtrToPtr alignment VC is side-effect in vcgen, not in encode_cast return value
 
 ### Key v0.8 Architecture Notes
 
@@ -115,11 +118,11 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-05T21:24:01Z
-Stopped at: Completed 47-02-PLAN.md
-Resume file: .planning/phases/47-mir-coverage-hardening/47-02-SUMMARY.md
+Last session: 2026-03-05T21:32:00Z
+Stopped at: Completed 47-01-PLAN.md
+Resume file: .planning/phases/47-mir-coverage-hardening/47-01-SUMMARY.md
 Next step: Execute Phase 47 Plan 03
 
 ---
 
-*Last updated: 2026-03-05 — Phase 47 plan 02 complete (match arm fallthrough audit, COMPL-12)*
+*Last updated: 2026-03-05 — Phase 47 plan 01 complete (CastKind PtrToPtr rename + AlignmentSafety VCs, COMPL-02/03)*

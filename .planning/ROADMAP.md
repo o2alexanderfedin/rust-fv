@@ -136,10 +136,10 @@ Plans:
   2. Each CastKind variant (IntToInt, FloatToInt, IntToFloat, PtrToPtr) follows a distinct encoding path in `mir_converter.rs`; no two variants share the same SMT output shape; unit tests cover all four variants
   3. Every `match arm` path in `vcgen.rs` either generates a VC or has an explicit doc-comment explaining why it is intentionally skipped; no silent fallthrough remains undocumented
   4. A function annotated with a syntactically invalid `#[requires(...)]` expression produces a rustc-style `error[V...]` diagnostic at the annotation source span instead of a logged warning that disappears silently
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
-- [ ] 47-01-PLAN.md — CastKind PtrToPtr rename + AlignmentSafety VCs + E2E (COMPL-02, COMPL-03)
-- [ ] 47-02-PLAN.md — Match arm fallthrough audit for vcgen.rs + encode_term.rs (COMPL-12)
+- [x] 47-01-PLAN.md — CastKind PtrToPtr rename + AlignmentSafety VCs + E2E (COMPL-02, COMPL-03)
+- [x] 47-02-PLAN.md — Match arm fallthrough audit for vcgen.rs + encode_term.rs (COMPL-12)
 - [ ] 47-03-PLAN.md — Spec validation V080 diagnostics (COMPL-06)
 
 ### Phase 48: Advanced Ownership & Borrows
