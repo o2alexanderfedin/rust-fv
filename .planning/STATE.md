@@ -8,10 +8,10 @@ last_updated: "2026-03-05T20:21:18.790Z"
 last_activity: 2026-03-05 — Phase 46 plan 03 complete (native IsTester discriminant encoding)
 progress:
   total_phases: 12
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 5
-  percent: 8
+  completed_plans: 8
+  percent: 12
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 47 (MIR Coverage Hardening) — in progress
-Plan: 02 of 03 complete (01 and 02 done)
-Status: Plan 01 complete (CastKind::PtrToPtr rename + AlignmentSafety VCs, COMPL-02/03), Plan 02 complete (match arm audit, COMPL-12)
-Last activity: 2026-03-05 — Phase 47 plan 01 complete (CastKind PtrToPtr + alignment VCs)
+Phase: 47 (MIR Coverage Hardening) — complete
+Plan: 03 of 03 complete
+Status: All plans complete. Plan 01 (CastKind PtrToPtr + alignment VCs, COMPL-02/03), Plan 02 (match arm audit, COMPL-12), Plan 03 (spec validation diagnostics, COMPL-06)
+Last activity: 2026-03-05 — Phase 47 plan 03 complete (SpecValidationError + V080 diagnostics)
 
 ```
-Progress: [##                  ] 1/12 phases (8%)
+Progress: [###                 ] 3/12 phases (12%)
 ```
 
 ## Milestone Summary
@@ -43,7 +43,7 @@ Progress: [##                  ] 1/12 phases (8%)
 |-------|------|--------------|--------|
 | 45 | Quick Wins & Pattern Integration | COMPL-19..22, PAT-01..04 | Plan 01/02 done |
 | 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Complete |
-| 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Plan 02/03 done |
+| 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Not started |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Not started |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
@@ -80,6 +80,7 @@ Progress: [##                  ] 1/12 phases (8%)
 | Phase 46 P03 | 1619 | 2 tasks | 2 files |
 | Phase 47 P01 | 3253 | 2 tasks | 8 files |
 | Phase 47 P02 | 2842 | 2 tasks | 3 files |
+| Phase 47 P03 | 2415 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 47]: Fixed pre-existing clippy issues in generate_alignment_vcs (from incomplete plan 47-01) as blocking dependency
 - [Phase 47]: Alignment VCs use bvsmod on 64-bit bitvectors; AlignmentSafety gets Warning severity (V070)
 - [Phase 47]: PtrToPtr alignment VC is side-effect in vcgen, not in encode_cast return value
+- [Phase 47]: Thread-local RefCell collector for spec errors avoids threading &mut Vec through 15+ helper functions
+- [Phase 47]: Box<SpecValidationError> in Result to satisfy clippy result_large_err lint
 
 ### Key v0.8 Architecture Notes
 
@@ -118,11 +121,11 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-05T21:32:00Z
-Stopped at: Completed 47-01-PLAN.md
-Resume file: .planning/phases/47-mir-coverage-hardening/47-01-SUMMARY.md
-Next step: Execute Phase 47 Plan 03
+Last session: 2026-03-05T22:17:49Z
+Stopped at: Completed 47-03-PLAN.md (Phase 47 complete)
+Resume file: .planning/phases/47-mir-coverage-hardening/47-03-SUMMARY.md
+Next step: Execute Phase 48 Plan 01
 
 ---
 
-*Last updated: 2026-03-05 — Phase 47 plan 01 complete (CastKind PtrToPtr rename + AlignmentSafety VCs, COMPL-02/03)*
+*Last updated: 2026-03-05 — Phase 47 complete (all 3 plans: PtrToPtr+alignment, match arm audit, spec validation diagnostics)*

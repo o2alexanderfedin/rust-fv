@@ -14,7 +14,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-03**: CastKind variants (IntToInt, FloatToInt, IntToFloat, PtrToPtr) disambiguated and encoded correctly in MIR converter
 - [ ] **COMPL-04**: Iterator adapter chaining (filter, map, etc.) composes contracts instead of falling back to `BoolLit(true)`
 - [x] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
-- [ ] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
+- [x] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
 - [x] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
 - [ ] **COMPL-08**: Quantifier trigger inference filters out datatype selector symbols from candidate lists
 - [ ] **COMPL-09**: `RefCell<T>` runtime borrow count tracked as ghost state with exclusivity VCs for `borrow()`/`borrow_mut()`
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-03 | Phase 47 | Complete |
 | COMPL-04 | Phase 49 | Pending |
 | COMPL-05 | Phase 46 | Complete |
-| COMPL-06 | Phase 47 | Pending |
+| COMPL-06 | Phase 47 | Complete |
 | COMPL-07 | Phase 46 | Complete |
 | COMPL-08 | Phase 48 | Pending |
 | COMPL-09 | Phase 48 | Pending |

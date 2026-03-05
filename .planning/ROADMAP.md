@@ -83,7 +83,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 
 - [x] **Phase 45: Quick Wins & Pattern Integration** - Verification item regression tests + pattern matching E2E tests (completed 2026-03-05)
 - [x] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort (gap closure: native enum testers) (completed 2026-03-05)
-- [ ] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics
+- [x] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics (completed 2026-03-05)
 - [ ] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix
 - [ ] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining
 - [ ] **Phase 50: Stdlib Ptr/Mem & Unsafe Boundary** - ptr::read/write contracts, mem::swap contracts, FFI extern "C" modeling, transmute/MaybeUninit, async limitation doc
@@ -136,7 +136,7 @@ Plans:
   2. Each CastKind variant (IntToInt, FloatToInt, IntToFloat, PtrToPtr) follows a distinct encoding path in `mir_converter.rs`; no two variants share the same SMT output shape; unit tests cover all four variants
   3. Every `match arm` path in `vcgen.rs` either generates a VC or has an explicit doc-comment explaining why it is intentionally skipped; no silent fallthrough remains undocumented
   4. A function annotated with a syntactically invalid `#[requires(...)]` expression produces a rustc-style `error[V...]` diagnostic at the annotation source span instead of a logged warning that disappears silently
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 47-01-PLAN.md — CastKind PtrToPtr rename + AlignmentSafety VCs + E2E (COMPL-02, COMPL-03)
 - [x] 47-02-PLAN.md — Match arm fallthrough audit for vcgen.rs + encode_term.rs (COMPL-12)
@@ -263,7 +263,7 @@ Plans:
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
-| 47 | 1/3 | In Progress|  | - |
+| 47 | 3/3 | Complete   | 2026-03-05 | - |
 | 48 | v0.8 | 0/? | Not started | - |
 | 49 | v0.8 | 0/? | Not started | - |
 | 50 | v0.8 | 0/? | Not started | - |
