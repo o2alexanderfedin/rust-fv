@@ -253,7 +253,7 @@ Plans:
 | 29.1-33 | v0.5-audit | 22/22 | Complete | 2026-02-27 |
 | 34-37.1 | v0.6 | 11/11 | Complete | 2026-03-02 |
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
-| 45 | 2/2 | Complete   | 2026-03-05 | - |
+| 45 | 2/2 | Complete    | 2026-03-05 | - |
 | 46 | v0.8 | 0/? | Not started | - |
 | 47 | v0.8 | 0/? | Not started | - |
 | 48 | v0.8 | 0/? | Not started | - |
