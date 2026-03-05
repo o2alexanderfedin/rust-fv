@@ -136,7 +136,11 @@ Plans:
   2. Each CastKind variant (IntToInt, FloatToInt, IntToFloat, PtrToPtr) follows a distinct encoding path in `mir_converter.rs`; no two variants share the same SMT output shape; unit tests cover all four variants
   3. Every `match arm` path in `vcgen.rs` either generates a VC or has an explicit doc-comment explaining why it is intentionally skipped; no silent fallthrough remains undocumented
   4. A function annotated with a syntactically invalid `#[requires(...)]` expression produces a rustc-style `error[V...]` diagnostic at the annotation source span instead of a logged warning that disappears silently
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 47-01-PLAN.md — CastKind PtrToPtr rename + AlignmentSafety VCs + E2E (COMPL-02, COMPL-03)
+- [ ] 47-02-PLAN.md — Match arm fallthrough audit for vcgen.rs + encode_term.rs (COMPL-12)
+- [ ] 47-03-PLAN.md — Spec validation V080 diagnostics (COMPL-06)
 
 ### Phase 48: Advanced Ownership & Borrows
 **Goal**: RefCell interior mutability is tracked as ghost state, two-phase borrows and partial struct moves are modeled, disjoint field borrows are verified, and trigger inference no longer proposes datatype selector symbols
@@ -259,7 +263,7 @@ Plans:
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
-| 47 | v0.8 | 0/? | Not started | - |
+| 47 | v0.8 | 0/3 | Planned | - |
 | 48 | v0.8 | 0/? | Not started | - |
 | 49 | v0.8 | 0/? | Not started | - |
 | 50 | v0.8 | 0/? | Not started | - |
