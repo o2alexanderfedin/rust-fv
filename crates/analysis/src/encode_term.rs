@@ -129,6 +129,9 @@ pub fn encode_field_access(base: Term, ty: &Ty, field_idx: usize) -> Option<Term
                 None
             }
         }
+        // Intentionally no encoding: Bool, Int, Uint, Float, Char, Unit, Never,
+        // Array, Slice, Ref, RawPtr, Enum, Named, SpecInt, SpecNat, Generic,
+        // Closure, TraitObject types have no field selectors in the SMT encoding.
         _ => None,
     }
 }
@@ -214,6 +217,8 @@ fn get_field_type(ty: &Ty, idx: usize) -> Option<&Ty> {
     match ty {
         Ty::Struct(_, fields) => fields.get(idx).map(|(_, ty)| ty),
         Ty::Tuple(fields) => fields.get(idx),
+        // Intentionally no field type: only Struct and Tuple have indexed fields.
+        // All other types (Bool, Int, Enum, Array, etc.) return None.
         _ => None,
     }
 }
@@ -222,6 +227,8 @@ fn get_field_type(ty: &Ty, idx: usize) -> Option<&Ty> {
 fn get_element_type(ty: &Ty) -> Option<&Ty> {
     match ty {
         Ty::Array(elem, _) | Ty::Slice(elem) => Some(elem),
+        // Intentionally no element type: only Array and Slice have indexable elements.
+        // All other types (Struct, Tuple, Int, etc.) return None.
         _ => None,
     }
 }
@@ -675,7 +682,11 @@ pub fn ty_bit_width(ty: &Ty) -> u32 {
             FloatTy::F32 => 32,
             FloatTy::F64 => 64,
         },
-        _ => 64, // pointer default (conservative)
+        // Intentionally defaults to 64: Bool, Char, Unit, Never, Tuple, Array, Slice,
+        // Ref, RawPtr, Struct, Enum, Named, SpecInt, SpecNat, Generic, Closure,
+        // TraitObject types use pointer-width (64-bit) as a conservative default
+        // for bitvector encoding when a concrete bit width is unknown.
+        _ => 64,
     }
 }
 
@@ -813,7 +824,10 @@ fn float_params(bits: u32) -> (u32, u32) {
     match bits {
         32 => (8, 24),
         64 => (11, 53),
-        _ => (11, 53), // default to f64 params
+        // Intentionally defaults to f64 params: Rust only has f32 and f64 float types.
+        // Any other bit width (from malformed IR or future extensions) uses f64 as
+        // a conservative fallback with the widest available precision.
+        _ => (11, 53),
     }
 }
 
