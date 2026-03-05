@@ -74,6 +74,8 @@ pub struct VerificationTaskResult {
     pub locals: Vec<rust_fv_analysis::ir::Local>,
     /// Typed parameter locals for `cex_render` type-dispatch in diagnostics.
     pub params: Vec<rust_fv_analysis::ir::Local>,
+    /// Spec validation errors from VC generation (V080 diagnostics).
+    pub spec_errors: Vec<rust_fv_analysis::vcgen::SpecValidationError>,
 }
 
 /// Verify multiple functions in parallel using Rayon.
@@ -171,6 +173,7 @@ pub fn verify_functions_parallel(
                 source_names: task.ir_func.source_names.clone(),
                 locals: task.ir_func.locals.clone(),
                 params: task.ir_func.params.clone(),
+                spec_errors: vec![], // Cached results don't re-parse specs
             }
         })
         .collect();
@@ -261,6 +264,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
                 source_names: task.ir_func.source_names.clone(),
                 locals: task.ir_func.locals.clone(),
                 params: task.ir_func.params.clone(),
+                spec_errors: vec![],
             };
         }
     };
@@ -399,6 +403,7 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
         source_names: task.ir_func.source_names.clone(),
         locals: task.ir_func.locals.clone(),
         params: task.ir_func.params.clone(),
+        spec_errors: func_vcs.spec_errors,
     }
 }
 
@@ -492,6 +497,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             locals: Vec::new(),
             params: Vec::new(),
+            spec_errors: vec![],
         };
 
         assert_eq!(result.name, "test_func");
@@ -515,6 +521,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             locals: Vec::new(),
             params: Vec::new(),
+            spec_errors: vec![],
         };
 
         assert!(result.from_cache);

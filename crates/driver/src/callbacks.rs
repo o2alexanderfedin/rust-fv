@@ -769,6 +769,11 @@ impl Callbacks for VerificationCallbacks {
 
         // Collect results and failures
         for task_result in task_results {
+            // Report spec validation errors as V080 diagnostics (before result processing)
+            for spec_err in &task_result.spec_errors {
+                diagnostics::report_spec_validation_error(spec_err);
+            }
+
             // Store per-function metadata
             self.func_metadata.insert(
                 task_result.name.clone(),

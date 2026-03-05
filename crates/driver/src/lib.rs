@@ -7,6 +7,7 @@
 
 pub mod cache;
 pub mod cex_render;
+pub mod diagnostics;
 pub mod invalidation;
 pub mod json_output;
 pub mod parallel;

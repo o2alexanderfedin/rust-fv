@@ -1127,6 +1127,82 @@ pub fn format_trigger_error(
     }
 }
 
+/// Format a spec validation error as a V080 diagnostic string.
+///
+/// Produces a rustc-style error message:
+/// ```text
+/// error[V080]: invalid specification expression in `function_name`
+///   --> src/lib.rs:10:5
+///   |
+///   = note: could not parse: `result >>><<< 0`
+///   = help: did you mean `>>` or `<<`?
+/// ```
+pub fn format_spec_validation_error(
+    error: &rust_fv_analysis::vcgen::SpecValidationError,
+) -> String {
+    let mut output = String::new();
+
+    // Error header
+    output.push_str(&format!(
+        "error[V080]: invalid specification expression in `{}`\n",
+        error.function_name
+    ));
+
+    // Source location
+    if let (Some(file), Some(line)) = (&error.source_file, error.source_line) {
+        if let Some(col) = error.source_column {
+            output.push_str(&format!("  --> {}:{}:{}\n", file, line, col));
+        } else {
+            output.push_str(&format!("  --> {}:{}\n", file, line));
+        }
+    }
+
+    output.push_str("  |\n");
+
+    // Error kind
+    match &error.kind {
+        rust_fv_analysis::vcgen::SpecErrorKind::ParseFailure => {
+            output.push_str(&format!(
+                "  = note: could not parse: `{}`\n",
+                error.spec_text
+            ));
+        }
+        rust_fv_analysis::vcgen::SpecErrorKind::TriggerValidationFailure(msg) => {
+            output.push_str(&format!(
+                "  = note: trigger validation failed: `{}` ({})\n",
+                error.spec_text, msg
+            ));
+        }
+    }
+
+    // Fix suggestions
+    if let Some(suggestion) = suggest_spec_fix(&error.spec_text) {
+        output.push_str(&format!("  = help: {}\n", suggestion));
+    }
+
+    output
+}
+
+/// Report a spec validation error to stderr using rustc-style diagnostics.
+pub fn report_spec_validation_error(error: &rust_fv_analysis::vcgen::SpecValidationError) {
+    let formatted = format_spec_validation_error(error);
+    eprint!("{}", formatted.red());
+}
+
+/// Suggest fixes for common spec parse failures.
+fn suggest_spec_fix(spec_text: &str) -> Option<String> {
+    if spec_text.contains(">>>") {
+        return Some("did you mean `>>` (right shift)?".to_string());
+    }
+    if spec_text.contains("<<<") {
+        return Some("did you mean `<<` (left shift)?".to_string());
+    }
+    if spec_text.trim().is_empty() {
+        return Some("provide a boolean expression, e.g., `result > 0`".to_string());
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
