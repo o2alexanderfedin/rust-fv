@@ -258,7 +258,7 @@ Plans:
 | 34-37.1 | v0.6 | 11/11 | Complete | 2026-03-02 |
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
-| 46 | 3/3 | Complete   | 2026-03-05 | - |
+| 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | v0.8 | 0/? | Not started | - |
 | 48 | v0.8 | 0/? | Not started | - |
 | 49 | v0.8 | 0/? | Not started | - |
