@@ -1251,44 +1251,70 @@ fn traverse_block(
         } => {
             let discr_term = encode_operand(discr);
 
+            // Check if discriminant comes from an enum type (use IsTester)
+            let enum_source = match discr {
+                Operand::Copy(place) | Operand::Move(place) => {
+                    find_discriminant_enum_source(func, block, &place.local)
+                }
+                _ => None,
+            };
+
             // Process each explicit target
             let mut taken_conditions = Vec::new();
             for (value, target_block) in targets {
-                // Branch condition: discr == value
-                let branch_cond = match discr {
-                    Operand::Copy(place) | Operand::Move(place) => {
-                        let discr_ty = find_local_type(func, &place.local);
-                        match discr_ty {
-                            Some(Ty::Bool) => {
-                                if *value == 1 {
-                                    discr_term.clone()
-                                } else {
-                                    Term::Not(Box::new(discr_term.clone()))
-                                }
-                            }
-                            Some(ty) => {
-                                let width = ty.bit_width().unwrap_or(32);
-                                Term::Eq(
-                                    Box::new(discr_term.clone()),
-                                    Box::new(Term::BitVecLit(*value, width)),
-                                )
-                            }
-                            None => {
-                                // Default: treat as boolean
-                                if *value == 1 {
-                                    discr_term.clone()
-                                } else {
-                                    Term::Not(Box::new(discr_term.clone()))
-                                }
-                            }
-                        }
-                    }
-                    Operand::Constant(_) => {
-                        // Constant discriminant -- unusual but handle it
+                // Branch condition: use IsTester for enum discriminants, Eq otherwise
+                let branch_cond = if let Some((ref source_local, _, variants)) = enum_source {
+                    // Map variant index to constructor name
+                    let variant_idx = *value as usize;
+                    if variant_idx < variants.len() {
+                        let variant_name = &variants[variant_idx].0;
+                        Term::IsTester(
+                            format!("mk-{variant_name}"),
+                            Box::new(Term::Const(source_local.clone())),
+                        )
+                    } else {
+                        // Fallback: out-of-range index, use Eq
                         Term::Eq(
                             Box::new(discr_term.clone()),
                             Box::new(Term::BitVecLit(*value, 32)),
                         )
+                    }
+                } else {
+                    match discr {
+                        Operand::Copy(place) | Operand::Move(place) => {
+                            let discr_ty = find_local_type(func, &place.local);
+                            match discr_ty {
+                                Some(Ty::Bool) => {
+                                    if *value == 1 {
+                                        discr_term.clone()
+                                    } else {
+                                        Term::Not(Box::new(discr_term.clone()))
+                                    }
+                                }
+                                Some(ty) => {
+                                    let width = ty.bit_width().unwrap_or(32);
+                                    Term::Eq(
+                                        Box::new(discr_term.clone()),
+                                        Box::new(Term::BitVecLit(*value, width)),
+                                    )
+                                }
+                                None => {
+                                    // Default: treat as boolean
+                                    if *value == 1 {
+                                        discr_term.clone()
+                                    } else {
+                                        Term::Not(Box::new(discr_term.clone()))
+                                    }
+                                }
+                            }
+                        }
+                        Operand::Constant(_) => {
+                            // Constant discriminant -- unusual but handle it
+                            Term::Eq(
+                                Box::new(discr_term.clone()),
+                                Box::new(Term::BitVecLit(*value, 32)),
+                            )
+                        }
                     }
                 };
 
@@ -1463,11 +1489,9 @@ fn generate_index_bounds_vcs(
 
 /// Generate discriminant assertion VCs for SetDiscriminant statements (VCGEN-06).
 ///
-/// For each `Statement::SetDiscriminant(place, variant_idx)`, emits one assertion VC:
-/// `discriminant-{place.local}(place.local) == variant_idx`
-///
-/// The discriminant function name matches the `Rvalue::Discriminant` encoding in
-/// `encode_rvalue` to ensure SMT consistency.
+/// For each `Statement::SetDiscriminant(place, variant_idx)`, emits one assertion VC
+/// using native datatype testers: `((_ is mk-VariantName) place.local)`.
+/// Falls back to uninterpreted function if enum type info is unavailable.
 fn generate_set_discriminant_vcs(
     func: &Function,
     datatype_declarations: &[Command],
@@ -1478,11 +1502,30 @@ fn generate_set_discriminant_vcs(
     for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
         for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
             if let Statement::SetDiscriminant(place, variant_idx) = stmt {
-                // Use the same naming convention as Rvalue::Discriminant
-                let disc_fn = format!("discriminant-{}", place.local);
-                let disc_term = Term::App(disc_fn, vec![Term::Const(place.local.clone())]);
-                let idx_term = Term::IntLit(*variant_idx as i128);
-                let assertion = Term::Eq(Box::new(disc_term), Box::new(idx_term));
+                // Use native IsTester if enum type is available
+                let assertion = if let Some(Ty::Enum(_name, variants)) =
+                    find_local_type(func, &place.local)
+                {
+                    if (*variant_idx) < variants.len() {
+                        let variant_name = &variants[*variant_idx].0;
+                        Term::IsTester(
+                            format!("mk-{variant_name}"),
+                            Box::new(Term::Const(place.local.clone())),
+                        )
+                    } else {
+                        // Fallback for out-of-range index
+                        let disc_fn = format!("discriminant-{}", place.local);
+                        let disc_term = Term::App(disc_fn, vec![Term::Const(place.local.clone())]);
+                        let idx_term = Term::IntLit(*variant_idx as i128);
+                        Term::Eq(Box::new(disc_term), Box::new(idx_term))
+                    }
+                } else {
+                    // Fallback: no enum type info, use uninterpreted function
+                    let disc_fn = format!("discriminant-{}", place.local);
+                    let disc_term = Term::App(disc_fn, vec![Term::Const(place.local.clone())]);
+                    let idx_term = Term::IntLit(*variant_idx as i128);
+                    Term::Eq(Box::new(disc_term), Box::new(idx_term))
+                };
 
                 // base_script selects: QF_BV (no datatypes, no int), ALL (datatypes or spec-int)
                 let mut script = base_script(
@@ -1692,6 +1735,10 @@ fn encode_rvalue_for_assignment(rvalue: &Rvalue, func: &Function, dest: &Place) 
             Some(Term::Const(len_name))
         }
         Rvalue::Discriminant(disc_place) => {
+            // When the source is an enum type, discriminant is handled by SwitchInt IsTester
+            if let Some(Ty::Enum(..)) = find_local_type(func, &disc_place.local) {
+                return None;
+            }
             let disc_fn = format!("discriminant-{}", disc_place.local);
             Some(Term::App(
                 disc_fn,
@@ -1956,23 +2003,15 @@ fn encode_assignment(
             }
         }
         Rvalue::Discriminant(disc_place) => {
-            // Encode the discriminant of an enum value as an uninterpreted selector application.
-            // The discriminant is an integer tag that SwitchInt compares against literal variant
-            // indices. We declare it as: (discriminant-{local} enum_value) where enum_value is
-            // the place holding the enum. This produces Term::App which the SwitchInt
-            // path-condition logic already handles correctly -- SwitchInt compares discr_term
-            // against BitVecLit values for each target arm.
-            //
-            // SOUNDNESS NOTE (COMPL-01): Although struct/enum types are now first-class SMT
-            // datatypes (via DeclareDatatype with constructors/selectors), the discriminant
-            // encoding still uses an uninterpreted function rather than native Z3 testers
-            // `((_ is mk-VariantName) expr)`. This is sound because:
-            //   1. Each SwitchInt branch correctly constrains the discriminant value
-            //   2. The Aggregate encoding uses the correct constructor (mk-VariantName)
-            //   3. SwitchInt generates disjoint path conditions covering all variants
-            //   4. Refactoring to native testers would require propagating enum type info
-            //      through the SwitchInt terminator encoding (significant restructuring)
-            // Native testers are deferred to a future optimization pass.
+            // When the source is an enum type with declared datatype, the discriminant
+            // extraction is handled natively by SwitchInt via Term::IsTester. The
+            // discriminant local becomes unused in the SMT encoding -- no assignment needed.
+            // For non-enum types, fall back to uninterpreted function.
+            if let Some(Ty::Enum(..)) = find_local_type(func, &disc_place.local) {
+                // Enum discriminant: SwitchInt uses IsTester directly, skip assignment
+                return None;
+            }
+            // Non-enum fallback: uninterpreted function
             let disc_fn = format!("discriminant-{}", disc_place.local);
             Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }
@@ -3995,6 +4034,31 @@ fn find_local_type<'a>(func: &'a Function, name: &str) -> Option<&'a Ty> {
     for l in &func.locals {
         if l.name == name {
             return Some(&l.ty);
+        }
+    }
+    None
+}
+
+/// Enum discriminant source info: (source_local_name, enum_name, variants).
+type EnumDiscriminantSource<'a> = (String, String, &'a [(String, Vec<Ty>)]);
+
+/// Find the enum type of a discriminant source variable.
+///
+/// Given a SwitchInt discriminant operand local name, scans the block's statements
+/// to find `Statement::Assign(_, Rvalue::Discriminant(source_place))` that assigned
+/// to this local. Returns `Some((source_local_name, enum_name, variants))` if the
+/// source is a `Ty::Enum`.
+fn find_discriminant_enum_source<'a>(
+    func: &'a Function,
+    block: &BasicBlock,
+    discr_local: &str,
+) -> Option<EnumDiscriminantSource<'a>> {
+    for stmt in block.statements.iter().rev() {
+        if let Statement::Assign(place, Rvalue::Discriminant(source_place)) = stmt
+            && place.local == discr_local
+            && let Some(Ty::Enum(name, variants)) = find_local_type(func, &source_place.local)
+        {
+            return Some((source_place.local.clone(), name.clone(), variants));
         }
     }
     None

@@ -3130,6 +3130,18 @@ fn e2e_enum_datatype_match() {
         smtlib.contains("declare-datatype Option_i32"),
         "SMT script should contain declare-datatype Option_i32. Script:\n{smtlib}"
     );
+
+    // Verify native IsTester syntax is used for discriminant branch conditions
+    assert!(
+        smtlib.contains("(_ is mk-"),
+        "SMT script should contain IsTester syntax '(_ is mk-' for enum discriminant. Script:\n{smtlib}"
+    );
+
+    // Verify no uninterpreted discriminant functions remain
+    assert!(
+        !smtlib.contains("discriminant-"),
+        "SMT script should NOT contain uninterpreted 'discriminant-' functions. Script:\n{smtlib}"
+    );
 }
 
 // ---------------------------------------------------------------------------
