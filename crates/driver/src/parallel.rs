@@ -288,6 +288,10 @@ fn verify_single(task: &VerificationTask, use_simplification: bool) -> Verificat
             );
             rust_fv_analysis::vcgen::FunctionVCs {
                 function_name: task.name.clone(),
+                spec_errors: all_vcs
+                    .iter()
+                    .flat_map(|fvc| fvc.spec_errors.clone())
+                    .collect(),
                 conditions: all_vcs.into_iter().flat_map(|fvc| fvc.conditions).collect(),
             }
         } else {

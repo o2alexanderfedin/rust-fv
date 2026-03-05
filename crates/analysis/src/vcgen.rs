@@ -61,6 +61,7 @@
 /// | `generate_concurrency_vcs` (deadlock) | SyncOpKind | `_ => {}` | Only MutexLock/MutexUnlock affect lock ordering graph |
 /// | `generate_concurrency_vcs` (channel) | SyncOpKind | `_ => {}` | Only ChannelSend/ChannelRecv produce channel VCs; RwLock* and Mutex* are not channel ops |
 /// | `extract_loop_condition` (width) | Operand | `_ => 32` | Constant discriminants default to 32-bit width (conservative) |
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use rust_fv_smtlib::command::Command;
@@ -78,6 +79,54 @@ use crate::ir::*;
 use crate::ownership::{OwnershipConstraint, classify_argument, generate_ownership_constraints};
 use crate::sep_logic;
 use crate::spec_parser;
+
+// Thread-local accumulator for spec validation errors during VC generation.
+// This avoids threading a `&mut Vec<SpecValidationError>` through every helper function.
+// Initialized by `generate_vcs_with_db`, drained after VC generation completes.
+thread_local! {
+    static SPEC_ERRORS: RefCell<Vec<SpecValidationError>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Push a spec validation error to the thread-local collector.
+fn collect_spec_error(err: SpecValidationError) {
+    SPEC_ERRORS.with(|errors| errors.borrow_mut().push(err));
+}
+
+/// Drain all collected spec errors from the thread-local collector.
+fn drain_spec_errors() -> Vec<SpecValidationError> {
+    SPEC_ERRORS.with(|errors| std::mem::take(&mut *errors.borrow_mut()))
+}
+
+/// Try to parse a spec expression, collecting any error into the thread-local accumulator.
+/// Returns `Some(term)` on success, `None` on parse failure (error recorded).
+fn try_parse_spec(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    match parse_spec(spec, func, ghost_pred_db) {
+        Ok(term) => Some(term),
+        Err(err) => {
+            collect_spec_error(*err);
+            None
+        }
+    }
+}
+
+/// Try to parse a postcondition spec, collecting any error into the thread-local accumulator.
+fn try_parse_spec_postcondition(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Option<Term> {
+    match parse_spec_postcondition(spec, func, ghost_pred_db) {
+        Ok(term) => Some(term),
+        Err(err) => {
+            collect_spec_error(*err);
+            None
+        }
+    }
+}
 
 /// A verification condition with metadata for error reporting.
 #[derive(Debug, Clone)]
@@ -199,11 +248,47 @@ impl VcKind {
     }
 }
 
+/// Error from parsing a specification expression.
+///
+/// Produced when `#[requires(...)]` or `#[ensures(...)]` contains a syntactically
+/// invalid expression. The error carries enough context for diagnostic formatting
+/// (V080 error code) in the driver.
+#[derive(Debug, Clone)]
+pub struct SpecValidationError {
+    /// The raw spec text that failed to parse.
+    pub spec_text: String,
+    /// The function where the invalid spec was found.
+    pub function_name: String,
+    /// Source file (when available from IR debug info).
+    pub source_file: Option<String>,
+    /// Source line (when available).
+    pub source_line: Option<usize>,
+    /// Source column (when available).
+    pub source_column: Option<usize>,
+    /// Classification of the error.
+    pub kind: SpecErrorKind,
+}
+
+/// Classification of spec validation errors.
+#[derive(Debug, Clone)]
+pub enum SpecErrorKind {
+    /// The expression could not be parsed by either the syn-based or simple parser.
+    ParseFailure,
+    /// Trigger validation failed on a quantified expression.
+    TriggerValidationFailure(String),
+}
+
 /// Result of generating VCs for a function.
 #[derive(Debug)]
 pub struct FunctionVCs {
     pub function_name: String,
     pub conditions: Vec<VerificationCondition>,
+    /// Spec validation errors encountered during VC generation.
+    ///
+    /// Invalid `#[requires]` or `#[ensures]` expressions that could not be parsed
+    /// are collected here instead of being silently dropped. The driver converts
+    /// these into V080 diagnostics.
+    pub spec_errors: Vec<SpecValidationError>,
 }
 
 /// A single path through the CFG: a sequence of (block_index, statements)
@@ -584,6 +669,7 @@ pub fn generate_vcs_with_db(
         return FunctionVCs {
             function_name: func.name.clone(),
             conditions: vec![],
+            spec_errors: vec![],
         };
     }
 
@@ -858,6 +944,16 @@ pub fn generate_vcs_with_db(
         conditions.extend(async_vcs);
     }
 
+    // Drain any spec validation errors accumulated during VC generation
+    let spec_errors = drain_spec_errors();
+    if !spec_errors.is_empty() {
+        tracing::warn!(
+            function = %func.name,
+            error_count = spec_errors.len(),
+            "Spec validation errors encountered during VC generation"
+        );
+    }
+
     tracing::info!(
         function = %func.name,
         vc_count = conditions.len(),
@@ -867,6 +963,7 @@ pub fn generate_vcs_with_db(
     FunctionVCs {
         function_name: func.name.clone(),
         conditions,
+        spec_errors,
     }
 }
 
@@ -1004,6 +1101,7 @@ pub fn generate_vcs_with_mode(
     FunctionVCs {
         function_name: func.name.clone(),
         conditions,
+        spec_errors: vec![], // Integer mode does not parse specs directly
     }
 }
 
@@ -2314,7 +2412,7 @@ fn generate_overflow_vc(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+            if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2412,7 +2510,7 @@ fn generate_assert_terminator_vcs(
 
             // Assume preconditions
             for pre in &func.contracts.requires {
-                if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+                if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                     script.push(Command::Assert(pre_term));
                 }
             }
@@ -2543,7 +2641,7 @@ fn generate_contract_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+            if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -2581,7 +2679,7 @@ fn generate_contract_vcs(
 
         // Negate postcondition and check if SAT (= postcondition violated)
         // Use parse_spec_postcondition so that *_1 in ensures resolves to _1_prophecy
-        if let Some(post_term) = parse_spec_postcondition(&post.raw, func, ghost_pred_db) {
+        if let Some(post_term) = try_parse_spec_postcondition(&post.raw, func, ghost_pred_db) {
             script.push(Command::Comment(format!(
                 "Check postcondition: {}",
                 post.raw
@@ -3082,7 +3180,7 @@ fn generate_call_site_vcs(
 
             for (pre_idx, pre) in callee_summary.contracts.requires.iter().enumerate() {
                 // Parse the precondition in the callee's context
-                let pre_term = match parse_spec(&pre.raw, &callee_func_context, ghost_pred_db) {
+                let pre_term = match try_parse_spec(&pre.raw, &callee_func_context, ghost_pred_db) {
                     Some(t) => t,
                     None => continue,
                 };
@@ -3108,7 +3206,8 @@ fn generate_call_site_vcs(
 
                 // Assume caller's preconditions
                 for caller_pre in &func.contracts.requires {
-                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func, ghost_pred_db)
+                    if let Some(caller_pre_term) =
+                        try_parse_spec(&caller_pre.raw, func, ghost_pred_db)
                     {
                         script.push(Command::Assert(caller_pre_term));
                     }
@@ -3145,7 +3244,7 @@ fn generate_call_site_vcs(
                     let mut footprint_ptrs = Vec::new();
                     for req in &callee_summary.contracts.requires {
                         if let Some(req_term) =
-                            parse_spec(&req.raw, &callee_func_context, ghost_pred_db)
+                            try_parse_spec(&req.raw, &callee_func_context, ghost_pred_db)
                         {
                             let fp = sep_logic::extract_pts_to_footprint(&req_term);
                             footprint_ptrs.extend(fp);
@@ -3236,7 +3335,8 @@ fn generate_call_site_vcs(
 
                 // Assume caller's preconditions
                 for caller_pre in &func.contracts.requires {
-                    if let Some(caller_pre_term) = parse_spec(&caller_pre.raw, func, ghost_pred_db)
+                    if let Some(caller_pre_term) =
+                        try_parse_spec(&caller_pre.raw, func, ghost_pred_db)
                     {
                         script.push(Command::Assert(caller_pre_term));
                     }
@@ -3333,7 +3433,7 @@ fn encode_callee_postcondition_assumptions(
     );
 
     for post in &callee_summary.contracts.ensures {
-        if let Some(post_term) = parse_spec(&post.raw, &callee_func_context, ghost_pred_db) {
+        if let Some(post_term) = try_parse_spec(&post.raw, &callee_func_context, ghost_pred_db) {
             let substituted_post = substitute_term(&post_term, &arg_subs);
             tracing::debug!(
                 caller = %func.name,
@@ -3594,7 +3694,7 @@ fn generate_loop_invariant_vcs(
     let parsed_invariants: Vec<Term> = loop_info
         .invariants
         .iter()
-        .filter_map(|inv| parse_spec(&inv.raw, func, ghost_pred_db))
+        .filter_map(|inv| try_parse_spec(&inv.raw, func, ghost_pred_db))
         .collect();
 
     if parsed_invariants.is_empty() {
@@ -3636,7 +3736,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+            if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -3706,7 +3806,7 @@ fn generate_loop_invariant_vcs(
 
         // Assume preconditions (they hold throughout)
         for pre in &func.contracts.requires {
-            if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+            if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                 script.push(Command::Assert(pre_term));
             }
         }
@@ -3794,7 +3894,7 @@ fn generate_loop_invariant_vcs(
     // Invariant + header stmts + NOT loop condition + post-loop => postcondition
     {
         for (post_idx, post) in func.contracts.ensures.iter().enumerate() {
-            if let Some(post_term) = parse_spec(&post.raw, func, ghost_pred_db) {
+            if let Some(post_term) = try_parse_spec(&post.raw, func, ghost_pred_db) {
                 let mut script = base_script(
                     datatype_declarations,
                     declarations,
@@ -3806,7 +3906,7 @@ fn generate_loop_invariant_vcs(
 
                 // Assume preconditions
                 for pre in &func.contracts.requires {
-                    if let Some(pre_term) = parse_spec(&pre.raw, func, ghost_pred_db) {
+                    if let Some(pre_term) = try_parse_spec(&pre.raw, func, ghost_pred_db) {
                         script.push(Command::Assert(pre_term));
                     }
                 }
@@ -4332,24 +4432,41 @@ fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
 ///
 /// After parsing, quantified specs (forall/exists) are automatically annotated
 /// with trigger patterns for SMT instantiation control.
-fn parse_spec(spec: &str, func: &Function, ghost_pred_db: &GhostPredicateDatabase) -> Option<Term> {
+fn parse_spec(
+    spec: &str,
+    func: &Function,
+    ghost_pred_db: &GhostPredicateDatabase,
+) -> Result<Term, Box<SpecValidationError>> {
     let term = spec_parser::parse_spec_expr_with_db(spec, func, ghost_pred_db)
-        .or_else(|| parse_simple_spec(spec, func))?;
+        .or_else(|| parse_simple_spec(spec, func))
+        .ok_or_else(|| {
+            Box::new(SpecValidationError {
+                spec_text: spec.to_string(),
+                function_name: func.name.clone(),
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                kind: SpecErrorKind::ParseFailure,
+            })
+        })?;
 
     // Annotate quantifiers with trigger patterns (validation happens here)
-    // On validation error, log and return None (spec parsing fails)
     match crate::encode_quantifier::annotate_quantifier(term) {
-        Ok(annotated_term) => Some(annotated_term),
+        Ok(annotated_term) => Ok(annotated_term),
         Err(trigger_error) => {
-            // Trigger validation error - log it and fail spec parsing
             tracing::error!(
                 "Trigger validation failed in function {}: {:?}",
                 func.name,
                 trigger_error
             );
-            // TODO: In a full implementation, we'd propagate this error to the driver
-            // for proper diagnostic formatting. For now, we log and fail parsing.
-            None
+            Err(Box::new(SpecValidationError {
+                spec_text: spec.to_string(),
+                function_name: func.name.clone(),
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                kind: SpecErrorKind::TriggerValidationFailure(format!("{:?}", trigger_error)),
+            }))
         }
     }
 }
@@ -4362,19 +4479,36 @@ fn parse_spec_postcondition(
     spec: &str,
     func: &Function,
     ghost_pred_db: &GhostPredicateDatabase,
-) -> Option<Term> {
+) -> Result<Term, Box<SpecValidationError>> {
     let term = spec_parser::parse_spec_expr_postcondition_with_db(spec, func, ghost_pred_db)
-        .or_else(|| parse_simple_spec(spec, func))?;
+        .or_else(|| parse_simple_spec(spec, func))
+        .ok_or_else(|| {
+            Box::new(SpecValidationError {
+                spec_text: spec.to_string(),
+                function_name: func.name.clone(),
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                kind: SpecErrorKind::ParseFailure,
+            })
+        })?;
 
     match crate::encode_quantifier::annotate_quantifier(term) {
-        Ok(annotated_term) => Some(annotated_term),
+        Ok(annotated_term) => Ok(annotated_term),
         Err(trigger_error) => {
             tracing::error!(
                 "Trigger validation failed in function {}: {:?}",
                 func.name,
                 trigger_error
             );
-            None
+            Err(Box::new(SpecValidationError {
+                spec_text: spec.to_string(),
+                function_name: func.name.clone(),
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                kind: SpecErrorKind::TriggerValidationFailure(format!("{:?}", trigger_error)),
+            }))
         }
     }
 }
