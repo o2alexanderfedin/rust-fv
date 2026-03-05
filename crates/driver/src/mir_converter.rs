@@ -451,7 +451,7 @@ fn convert_rvalue(rvalue: &mir::Rvalue<'_>) -> Option<ir::Rvalue> {
                 | mir::CastKind::FnPtrToPtr
                 | mir::CastKind::PointerCoercion(..)
                 | mir::CastKind::PointerExposeProvenance
-                | mir::CastKind::PointerWithExposedProvenance => ir::CastKind::Pointer,
+                | mir::CastKind::PointerWithExposedProvenance => ir::CastKind::PtrToPtr,
                 // Transmute: same-size BV reinterpret — conservatively treat as IntToInt
                 mir::CastKind::Transmute => ir::CastKind::IntToInt,
                 // Subtype: identity coercion — no semantic change

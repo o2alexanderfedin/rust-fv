@@ -728,9 +728,20 @@ pub fn encode_cast(
         CastKind::IntToFloat => encode_int_to_float_cast(src, from_bits, to_bits, from_signed),
         CastKind::FloatToInt => encode_float_to_int_cast(src, from_bits, to_bits, to_signed),
         CastKind::FloatToFloat => encode_float_to_float_cast(src, from_bits, to_bits),
-        // Pointer casts: identity on bitvector (pointer is BitVec 64)
-        CastKind::Pointer => src,
+        // PtrToPtr casts: identity on bitvector (pointer is BitVec 64).
+        // This is the only cast kind with a side-effect alignment safety VC
+        // emitted at the call site in vcgen, not inside encode_cast itself.
+        CastKind::PtrToPtr => encode_ptr_to_ptr_cast(src),
     }
+}
+
+/// Pointer-to-pointer cast: identity on bitvector representation.
+///
+/// PtrToPtr is semantically a no-op on the bitvector encoding (pointer = BitVec 64).
+/// The alignment safety VC is emitted as a side-effect at the vcgen call site,
+/// not returned from this function.
+pub fn encode_ptr_to_ptr_cast(src: Term) -> Term {
+    src
 }
 
 /// Integer-to-integer cast: widening (zero/sign extend) or narrowing (extract low bits).

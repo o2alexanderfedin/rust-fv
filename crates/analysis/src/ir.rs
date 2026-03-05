@@ -845,8 +845,10 @@ pub enum CastKind {
     FloatToInt,
     /// Float-to-float
     FloatToFloat,
-    /// Pointer casts
-    Pointer,
+    /// Pointer-to-pointer casts (PtrToPtr).
+    /// This is the only cast kind that emits a side-effect alignment safety VC
+    /// at the call site in vcgen (addr % align == 0).
+    PtrToPtr,
 }
 
 /// Mutability flag.

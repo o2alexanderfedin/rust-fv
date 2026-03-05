@@ -31,6 +31,36 @@
 ///
 /// This naturally handles if/else, match arms, and early returns without
 /// explicit phi nodes.
+///
+/// ## Match Arm Audit Table (COMPL-12)
+///
+/// Every match arm in the VC generation pipeline that skips VC generation
+/// is documented inline. This table provides a centralized index.
+///
+/// | Location | Match Subject | Arms with No VC | Reason |
+/// |----------|---------------|-----------------|--------|
+/// | `VcKind::from_overflow_op` | BinOp | `_ => Self::Overflow` | All other ops classified as generic overflow |
+/// | `traverse_block` (statements) | Rvalue (overflow scan) | `_ => {}` | Non-binary-op rvalues have no overflow to track |
+/// | `traverse_block` (terminator) | Terminator | Return, Goto, SwitchInt, Assert, Call, Unreachable | All 6 variants handled explicitly; no wildcard |
+/// | `encode_rvalue_for_assignment` | Rvalue | `_ => None` | Aggregate and Repeat handled directly in `encode_assignment` |
+/// | `build_nested_functional_update` (proj) | Projection | `_ => return None` | Deref and Index not supported in functional update |
+/// | `encode_assignment` (main match) | Rvalue | All 10 variants listed explicitly | No wildcard; every Rvalue variant encoded or early-returns |
+/// | `encode_assignment` (loop body) | Rvalue | `_ => None` | Loop body encoding only handles Use and BinaryOp; others unsupported in preservation VC |
+/// | `format_assert_description` | AssertKind | All 9 variants listed explicitly | No wildcard; exhaustive |
+/// | `terminator_successors` | Terminator | All 6 variants listed explicitly | No wildcard; exhaustive |
+/// | `extract_loop_condition` | Terminator | `_ => None` | Non-SwitchInt headers are unconditional loops (no condition) |
+/// | `collect_loop_body_assignments` | Terminator | `_ => None` | Only SwitchInt and Goto have body entries; others have no loop body |
+/// | `collect_body_only_assignments` | Terminator | `_ => None` | Same as `collect_loop_body_assignments` |
+/// | `substitute_next_state` | Term | `_ => term.clone()` | Literal terms (IntLit, BitVecLit, BoolLit, etc.) contain no variables to substitute |
+/// | `substitute_term` | Term | `_ => term.clone()` | Literal terms contain no named constants to substitute |
+/// | `encode_operand_for_vcgen` | Operand | Copy, Move, Constant | All 3 variants handled explicitly; no wildcard |
+/// | `infer_operand_type` | Operand/Constant | `_ => None` | Constants (Bool, Int, Uint, Float, Unit, Str) lack static Ty ref |
+/// | `resolve_selector_from_ty` | Ty | `_ => {}` | Only Struct and Tuple have selectors; other types have no field accessors |
+/// | `make_comparison` | (BinOp, signed) | `_ => unreachable!()` | Only comparison ops (Lt, Le, Gt, Ge) passed; others are caller error |
+/// | `generate_concurrency_vcs` (lock) | SyncOpKind | `_ => return None` | Only MutexLock/MutexUnlock produce lock invariant VCs |
+/// | `generate_concurrency_vcs` (deadlock) | SyncOpKind | `_ => {}` | Only MutexLock/MutexUnlock affect lock ordering graph |
+/// | `generate_concurrency_vcs` (channel) | SyncOpKind | `_ => {}` | Only ChannelSend/ChannelRecv produce channel VCs; RwLock* and Mutex* are not channel ops |
+/// | `extract_loop_condition` (width) | Operand | `_ => 32` | Constant discriminants default to 32-bit width (conservative) |
 use std::collections::{HashMap, HashSet};
 
 use rust_fv_smtlib::command::Command;
@@ -150,6 +180,10 @@ pub enum VcKind {
     /// despite is_inferred=true. Diagnostic warning V062.
     /// Emitted once per call site where callee has both is_inferred=true and non-empty alias_preconditions.
     InferredSummaryAlias,
+    /// Pointer alignment check (addr % align == 0 for PtrToPtr casts).
+    /// Generated when a PtrToPtr cast targets a type with alignment > 1.
+    /// Warning severity (V070), like MemorySafety.
+    AlignmentSafety,
 }
 
 impl VcKind {
@@ -158,6 +192,8 @@ impl VcKind {
         match op {
             BinOp::Div | BinOp::Rem => Self::DivisionByZero,
             BinOp::Shl | BinOp::Shr => Self::ShiftBounds,
+            // Intentionally no specific classification: all BinOp variants other than
+            // Div, Rem, Shl, Shr produce generic arithmetic overflow VCs.
             _ => Self::Overflow,
         }
     }
@@ -729,6 +765,21 @@ pub fn generate_vcs_with_db(
         }
     }
 
+    // Generate alignment safety VCs for PtrToPtr casts (COMPL-02).
+    // Scans all statements for Rvalue::Cast(CastKind::PtrToPtr, ...) and emits
+    // an assertion VC: addr % align == 0, where align comes from the target type.
+    {
+        let mut alignment_vcs = generate_alignment_vcs(func, &datatype_declarations, &declarations);
+        if !alignment_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                alignment_vc_count = alignment_vcs.len(),
+                "Generated alignment safety VCs for PtrToPtr casts"
+            );
+            conditions.append(&mut alignment_vcs);
+        }
+    }
+
     // Generate loop invariant VCs for loops with user-supplied invariants
     let detected_loops = detect_loops(func);
     for loop_info in &detected_loops {
@@ -1220,6 +1271,9 @@ fn traverse_block(
                         path_condition: state.path_condition(),
                     });
                 }
+                // Intentionally no overflow tracking: Use, UnaryOp, Cast, Ref,
+                // Aggregate, Len, Discriminant, Repeat do not produce arithmetic
+                // overflow — only BinaryOp/CheckedBinaryOp need overflow VCs.
                 _ => {}
             }
 
@@ -1582,6 +1636,141 @@ fn extract_index_operand(op: &Operand) -> Option<(&str, &str)> {
     None
 }
 
+/// Return alignment in bytes for a given type, for pointer alignment VCs.
+///
+/// Standard Rust alignment: 1 for u8/i8/bool, 2 for u16/i16, 4 for u32/i32/f32,
+/// 8 for u64/i64/f64/usize/isize/pointers. Returns 1 (trivially aligned) for
+/// types whose alignment is unknown or doesn't require checking.
+fn ty_alignment(ty: &Ty) -> u32 {
+    match ty {
+        Ty::Bool => 1,
+        Ty::Int(int_ty) => match int_ty {
+            IntTy::I8 => 1,
+            IntTy::I16 => 2,
+            IntTy::I32 => 4,
+            IntTy::I64 | IntTy::Isize | IntTy::I128 => 8,
+        },
+        Ty::Uint(uint_ty) => match uint_ty {
+            UintTy::U8 => 1,
+            UintTy::U16 => 2,
+            UintTy::U32 => 4,
+            UintTy::U64 | UintTy::Usize | UintTy::U128 => 8,
+        },
+        Ty::Float(float_ty) => match float_ty {
+            FloatTy::F32 => 4,
+            FloatTy::F64 => 8,
+        },
+        Ty::RawPtr(inner, _) | Ty::Ref(inner, _) => ty_alignment(inner),
+        _ => 1, // Unknown/complex types: trivially aligned (no VC emitted)
+    }
+}
+
+/// Generate alignment safety VCs for PtrToPtr casts.
+///
+/// For each `Rvalue::Cast(CastKind::PtrToPtr, op, target_ty)` in the function,
+/// if the target type has alignment > 1, emits a VC asserting:
+///   `(= (bvsmod addr align_bv) #x0000000000000000)`
+/// where `addr` is the source operand (pointer bitvector) and `align_bv` is
+/// the target type's alignment encoded as a 64-bit bitvector literal.
+fn generate_alignment_vcs(
+    func: &Function,
+    datatype_declarations: &[Command],
+    declarations: &[Command],
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, bb) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in bb.statements.iter().enumerate() {
+            if let Statement::Assign(_place, Rvalue::Cast(CastKind::PtrToPtr, op, target_ty)) = stmt
+            {
+                // Get the pointee type for alignment calculation
+                let pointee_ty = match target_ty {
+                    Ty::RawPtr(inner, _) | Ty::Ref(inner, _) => inner.as_ref(),
+                    _ => target_ty, // fallback: use target_ty directly
+                };
+                let align = ty_alignment(pointee_ty);
+                if align <= 1 {
+                    continue; // No alignment constraint for 1-byte alignment
+                }
+
+                // Build the alignment check: (= (bvsmod addr align) 0)
+                let addr = encode_operand_for_vcgen(op, func);
+                let align_bv = Term::BitVecLit(align as i128, 64);
+                let zero_bv = Term::BitVecLit(0, 64);
+                let modulo = Term::App("bvsmod".to_string(), vec![addr, align_bv]);
+                let alignment_check = Term::Eq(Box::new(modulo), Box::new(zero_bv));
+
+                // Build VC: assert NOT(alignment_check) then check-sat
+                // If UNSAT: alignment always holds (verified)
+                // If SAT: found a misaligned address (counterexample)
+                let mut script = base_script(
+                    datatype_declarations,
+                    declarations,
+                    uses_spec_int_types(func),
+                );
+
+                // Encode preceding assignments up to this statement for path context
+                let mut ssa = std::collections::HashMap::new();
+                for prior_bb in &func.basic_blocks[..=block_idx] {
+                    for prior_stmt in &prior_bb.statements {
+                        if let Statement::Assign(p, rv) = prior_stmt
+                            && let Some(cmd) = encode_assignment(p, rv, func, &mut ssa)
+                        {
+                            script.push(cmd);
+                        }
+                    }
+                }
+
+                script.push(Command::Assert(Term::Not(Box::new(alignment_check))));
+                script.push(Command::CheckSat);
+                script.push(Command::GetModel);
+
+                let desc = format!(
+                    "alignment check: PtrToPtr cast to {} requires {}-byte alignment at block {}",
+                    format_ty(target_ty),
+                    align,
+                    block_idx
+                );
+
+                vcs.push(VerificationCondition {
+                    description: desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: stmt_idx,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!("addr % {} == 0", align)),
+                        vc_kind: VcKind::AlignmentSafety,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Format a Ty for diagnostic messages.
+fn format_ty(ty: &Ty) -> String {
+    match ty {
+        Ty::RawPtr(inner, mutability) => {
+            let m = match mutability {
+                Mutability::Shared => "const",
+                Mutability::Mutable => "mut",
+            };
+            format!("*{m} {}", format_ty(inner))
+        }
+        Ty::Int(int_ty) => format!("{int_ty:?}").to_lowercase(),
+        Ty::Uint(uint_ty) => format!("{uint_ty:?}").to_lowercase(),
+        Ty::Float(float_ty) => format!("{float_ty:?}").to_lowercase(),
+        Ty::Bool => "bool".to_string(),
+        _ => format!("{ty:?}"),
+    }
+}
+
 /// Check if a function uses specification integer types (SpecInt/SpecNat).
 /// This determines whether we need Int theory in SMT logic.
 fn uses_spec_int_types(func: &Function) -> bool {
@@ -1745,7 +1934,10 @@ fn encode_rvalue_for_assignment(rvalue: &Rvalue, func: &Function, dest: &Place) 
                 vec![Term::Const(disc_place.local.clone())],
             ))
         }
-        _ => None, // Aggregate and Repeat handled directly in encode_assignment
+        // Intentionally no VC: Aggregate and Repeat are handled directly in
+        // `encode_assignment` which produces their own Assert commands (Aggregate
+        // via datatype constructors, Repeat via forall-quantified array assertions).
+        Rvalue::Aggregate(..) | Rvalue::Repeat(..) => None,
     }
 }
 
@@ -1823,7 +2015,10 @@ fn build_nested_functional_update(
                     return None;
                 }
             }
-            _ => return None, // Deref and Index not supported in functional update
+            // Intentionally no VC: Deref and Index projections are not supported
+            // in functional struct updates. These fall back to flat encoding in
+            // `encode_assignment`'s non-projection path.
+            Projection::Deref | Projection::Index(_) => return None,
         }
     }
 
@@ -1858,7 +2053,9 @@ fn build_nested_functional_update(
                 // after the Downcast. If Downcast is the outermost projection,
                 // the result is already the variant constructor term.
             }
-            _ => return None,
+            // Intentionally no VC: Deref and Index projections cannot appear in
+            // the reverse constructor-building walk of functional updates.
+            Projection::Deref | Projection::Index(_) => return None,
         }
     }
 
@@ -2591,7 +2788,10 @@ pub fn substitute_term(term: &Term, substitutions: &HashMap<String, Term>) -> Te
                 .map(|a| substitute_term(a, substitutions))
                 .collect(),
         ),
-        // Literals and other non-variable terms: return as-is
+        // Intentionally no substitution: literal terms (IntLit, BitVecLit, BoolLit,
+        // FpFromBits, RoundingMode, etc.) and complex compound terms not individually
+        // matched (Select, Store, IsTester, Forall, Exists, etc.) contain no bare
+        // Const names to substitute or are passed through unchanged.
         _ => term.clone(),
     }
 }
@@ -3543,6 +3743,10 @@ fn generate_loop_invariant_vcs(
                         .or_else(|| find_local_type(func, &place.local));
                     ty.map(|t| encode_binop(*op, &l, &r, t))
                 }
+                // Intentionally no encoding in loop preservation VC: CheckedBinaryOp,
+                // UnaryOp, Cast, Ref, Aggregate, Len, Discriminant, Repeat are not
+                // yet supported in loop body next-state encoding. Assignments using
+                // these rvalues are conservatively skipped (havoc'd).
                 _ => None,
             };
             if let Some(rhs_term) = rhs {
@@ -3708,7 +3912,9 @@ fn extract_loop_condition(func: &Function, header_block: BlockId) -> Option<Term
                             .and_then(|ty| ty.bit_width())
                             .unwrap_or(32)
                     }
-                    _ => 32,
+                    // Intentionally defaults to 32: constant discriminants lack
+                    // type info; 32-bit width is a safe conservative default.
+                    Operand::Constant(_) => 32,
                 };
                 return Some(Term::Eq(
                     Box::new(discr_term),
@@ -3718,7 +3924,10 @@ fn extract_loop_condition(func: &Function, header_block: BlockId) -> Option<Term
 
             Some(discr_term)
         }
-        _ => None, // Non-conditional loop header (unconditional loop)
+        // Intentionally no condition: Return, Goto, Assert, Call, Unreachable
+        // terminators at a loop header indicate an unconditional loop (e.g.,
+        // `loop { ... }`) with no branch condition to extract.
+        _ => None,
     }
 }
 
@@ -3783,6 +3992,8 @@ fn collect_loop_body_assignments(
             targets.first().map(|(_, t)| *t)
         }
         Terminator::Goto(target) => Some(*target),
+        // Intentionally no body entry: Return, Assert, Call, Unreachable terminators
+        // at a loop header have no body entry block to collect assignments from.
         _ => None,
     };
 
@@ -3853,6 +4064,8 @@ fn collect_post_loop_assignments(
     // Find the exit block: the "otherwise" target from the header's SwitchInt
     let exit_block = match &func.basic_blocks[header].terminator {
         Terminator::SwitchInt { otherwise, .. } => Some(*otherwise),
+        // Intentionally no exit block: non-SwitchInt loop headers (Goto, Return,
+        // Assert, Call, Unreachable) have no "otherwise" exit branch.
         _ => None,
     };
 
@@ -3912,6 +4125,8 @@ fn collect_body_only_assignments(
     let body_entry = match &func.basic_blocks[header].terminator {
         Terminator::SwitchInt { targets, .. } => targets.first().map(|(_, t)| *t),
         Terminator::Goto(target) => Some(*target),
+        // Intentionally no body entry: Return, Assert, Call, Unreachable terminators
+        // at a loop header have no body entry block.
         _ => None,
     };
 
@@ -3998,7 +4213,11 @@ fn substitute_next_state(term: &Term, modified_vars: &HashSet<String>) -> Term {
             Box::new(substitute_next_state(a, modified_vars)),
             Box::new(substitute_next_state(b, modified_vars)),
         ),
-        // For terms that don't contain variables (literals), return as-is
+        // Intentionally no substitution: literal terms (IntLit, BitVecLit, BoolLit,
+        // FpFromBits, RoundingMode, etc.) and complex compound terms not yet handled
+        // (App, IsTester, Select, Forall, etc.) contain no bare Const variables
+        // or are passed through unchanged. This is safe because loop invariant
+        // preservation only uses variables declared in the function scope.
         _ => term.clone(),
     }
 }
@@ -4090,11 +4309,17 @@ fn is_ghost_place(place: &Place, func: &Function) -> bool {
 fn infer_operand_type<'a>(func: &'a Function, op: &Operand) -> Option<&'a Ty> {
     match op {
         Operand::Copy(place) | Operand::Move(place) => find_local_type(func, &place.local),
+        // Intentionally returns None for all constants: inferring the Ty from a
+        // Constant would require returning a &'a Ty with 'a tied to the Function,
+        // but constants are value-typed and don't have a Function-scoped Ty reference.
+        // Type inference falls back to the destination place type in callers.
         Operand::Constant(c) => match c {
-            Constant::Bool(_) => None, // Would need static Ty ref
-            Constant::Int(_, _) => None,
-            Constant::Uint(_, _) => None,
-            _ => None,
+            Constant::Bool(_)
+            | Constant::Int(_, _)
+            | Constant::Uint(_, _)
+            | Constant::Float(_, _)
+            | Constant::Unit
+            | Constant::Str(_) => None,
         },
     }
 }
@@ -4314,6 +4539,9 @@ fn resolve_selector_from_ty<'a>(ty: &'a Ty, selector_name: &str) -> Option<&'a T
                 return fields.get(idx);
             }
         }
+        // Intentionally no selector: Bool, Int, Uint, Float, Char, Unit, Never,
+        // Array, Slice, Ref, RawPtr, Enum, Named, SpecInt, SpecNat, Generic,
+        // Closure, TraitObject types have no field selectors in the SMT encoding.
         _ => {}
     }
     None
@@ -4533,6 +4761,8 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                     let lock_op = match sync_op.kind {
                         SyncOpKind::MutexLock => LockOp::Acquire,
                         SyncOpKind::MutexUnlock => LockOp::Release,
+                        // Intentionally no lock invariant VC: RwLockRead, RwLockWrite,
+                        // RwLockUnlock, ChannelSend, ChannelRecv are not mutex ops.
                         _ => return None,
                     };
 
@@ -4597,6 +4827,9 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                 // Remove this lock from held set
                 held_locks.retain(|&id| id != lock_id);
             }
+            // Intentionally no lock-order tracking: RwLockRead, RwLockWrite,
+            // RwLockUnlock, ChannelSend, ChannelRecv do not affect mutex
+            // lock-ordering graph for deadlock detection.
             _ => {}
         }
     }
@@ -4655,6 +4888,9 @@ pub fn generate_concurrency_vcs(func: &Function) -> Vec<VerificationCondition> {
                 let mut chan_vcs = channel_operation_vcs(&channel, &op, location);
                 vcs.append(&mut chan_vcs);
             }
+            // Intentionally no channel VC: MutexLock, MutexUnlock, RwLockRead,
+            // RwLockWrite, RwLockUnlock are not channel operations and produce
+            // no channel safety VCs.
             _ => {}
         }
     }

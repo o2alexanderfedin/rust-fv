@@ -1687,6 +1687,7 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::OpaqueCallee => "opaque_callee",
         VcKind::OpaqueCalleeUnsafe => "opaque_callee_unsafe",
         VcKind::InferredSummaryAlias => "inferred_summary_alias",
+        VcKind::AlignmentSafety => "alignment_safety",
     }
     .to_string()
 }

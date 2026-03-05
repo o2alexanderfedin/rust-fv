@@ -83,6 +83,7 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         || failure.vc_kind == VcKind::Deadlock
         || failure.vc_kind == VcKind::OpaqueCallee
         || failure.vc_kind == VcKind::InferredSummaryAlias
+        || failure.vc_kind == VcKind::AlignmentSafety
     {
         ReportKind::Warning
     } else {
@@ -395,6 +396,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::InferredSummaryAlias => {
             "inferred-summary callee with alias preconditions: alias VCs emitted (V062)"
         }
+        VcKind::AlignmentSafety => "pointer alignment violation (V070)",
     }
 }
 
@@ -556,6 +558,12 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
              #[unsafe_requires(!alias(p, q))]. Alias VCs were emitted despite the inferred \
              summary. Remove #[verifier::infer_summary] from callees that have explicit alias \
              preconditions, or add explicit #[requires] contracts instead."
+                .to_string(),
+        ),
+        VcKind::AlignmentSafety => Some(
+            "V070: Pointer cast target type requires alignment. Add \
+             #[unsafe_requires(addr % align == 0)] or ensure the source pointer is \
+             already aligned to the target type's alignment."
                 .to_string(),
         ),
         _ => None,
