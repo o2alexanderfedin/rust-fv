@@ -56,10 +56,10 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 
 ### Pattern Matching (PAT)
 
-- [ ] **PAT-01**: `let`-`else` patterns verified via MIR desugaring with integration test covering diverging else path
-- [ ] **PAT-02**: Slice patterns (`[first, .., last]`) verified with length-guarded destructuring VCs
-- [ ] **PAT-03**: Range patterns in match (`1..=5`) verified via SwitchInt with integration test
-- [ ] **PAT-04**: `@` bindings in patterns verified via MIR desugaring with integration test
+- [x] **PAT-01**: `let`-`else` patterns verified via MIR desugaring with integration test covering diverging else path
+- [x] **PAT-02**: Slice patterns (`[first, .., last]`) verified with length-guarded destructuring VCs
+- [x] **PAT-03**: Range patterns in match (`1..=5`) verified via SwitchInt with integration test
+- [x] **PAT-04**: `@` bindings in patterns verified via MIR desugaring with integration test
 
 ### Standard Library Contracts (STDLIB)
 
@@ -172,10 +172,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LANG-14 | Phase 53 | Pending |
 | LANG-15 | Phase 50 | Pending |
 | LANG-16 | Phase 50 | Pending |
-| PAT-01 | Phase 45 | Pending |
-| PAT-02 | Phase 45 | Pending |
-| PAT-03 | Phase 45 | Pending |
-| PAT-04 | Phase 45 | Pending |
+| PAT-01 | Phase 45 | Complete |
+| PAT-02 | Phase 45 | Complete |
+| PAT-03 | Phase 45 | Complete |
+| PAT-04 | Phase 45 | Complete |
 | STDLIB-01 | Phase 54 | Pending |
 | STDLIB-02 | Phase 54 | Pending |
 | STDLIB-03 | Phase 54 | Pending |

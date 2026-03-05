@@ -81,7 +81,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 
 ### v0.8 Completeness & Coverage (Phases 45–56)
 
-- [ ] **Phase 45: Quick Wins & Pattern Integration** - Verification item regression tests + pattern matching E2E tests
+- [x] **Phase 45: Quick Wins & Pattern Integration** - Verification item regression tests + pattern matching E2E tests (completed 2026-03-05)
 - [ ] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort
 - [ ] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics
 - [ ] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix
@@ -106,7 +106,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
   3. A function with ghost variables does not produce spurious SMT failures — regression test is GREEN
   4. A function whose spec contains `as int` routes through QF_LIA solver path — regression test confirms correct solver selection
   5. Functions using `let`-`else`, slice patterns `[first, .., last]`, range patterns `1..=5`, and `@` bindings each produce correct VCs confirmed by integration tests
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 45-01-PLAN.md — COMPL-19..22 regression validation suite + SetDiscriminant E2E
 - [ ] 45-02-PLAN.md — Pattern matching E2E tests (PAT-01..04)
@@ -253,7 +253,7 @@ Plans:
 | 29.1-33 | v0.5-audit | 22/22 | Complete | 2026-02-27 |
 | 34-37.1 | v0.6 | 11/11 | Complete | 2026-03-02 |
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
-| 45 | 1/2 | In Progress|  | - |
+| 45 | 2/2 | Complete   | 2026-03-05 | - |
 | 46 | v0.8 | 0/? | Not started | - |
 | 47 | v0.8 | 0/? | Not started | - |
 | 48 | v0.8 | 0/? | Not started | - |
