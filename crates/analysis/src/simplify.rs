@@ -365,6 +365,9 @@ pub fn simplify_term(term: &Term) -> Term {
             let simplified_args: Vec<Term> = args.iter().map(simplify_term).collect();
             Term::App(func.clone(), simplified_args)
         }
+        Term::IsTester(constructor, inner) => {
+            Term::IsTester(constructor.clone(), Box::new(simplify_term(inner)))
+        }
         Term::Annotated(body, annotations) => {
             let simplified_body = simplify_term(body);
             // Simplify annotation values too

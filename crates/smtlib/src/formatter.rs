@@ -240,6 +240,11 @@ impl fmt::Display for Term {
                 }
             }
 
+            // --- Datatype testers ---
+            Term::IsTester(constructor, expr) => {
+                write!(f, "((_ is {constructor}) {expr})")
+            }
+
             // --- Annotations ---
             Term::Annotated(body, annotations) => {
                 if annotations.is_empty() {
@@ -1837,5 +1842,41 @@ mod tests {
             Box::new(Term::Const("s2".into())),
         )));
         assert_eq!(t.to_string(), "(seq.len (seq.++ s1 s2))");
+    }
+
+    // -----------------------------------------------------------------------
+    // Term formatting — Datatype testers
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn term_is_tester_simple_some() {
+        let t = Term::IsTester("mk-Some".into(), Box::new(Term::Const("x".into())));
+        assert_eq!(t.to_string(), "((_ is mk-Some) x)");
+    }
+
+    #[test]
+    fn term_is_tester_simple_none() {
+        let t = Term::IsTester("mk-None".into(), Box::new(Term::Const("y".into())));
+        assert_eq!(t.to_string(), "((_ is mk-None) y)");
+    }
+
+    #[test]
+    fn term_is_tester_nested_expr() {
+        // IsTester with a nested App expression
+        let inner = Term::App(
+            "select".into(),
+            vec![Term::Const("arr".into()), Term::IntLit(0)],
+        );
+        let t = Term::IsTester("mk-Variant".into(), Box::new(inner));
+        assert_eq!(t.to_string(), "((_ is mk-Variant) (select arr 0))");
+    }
+
+    #[test]
+    fn term_is_tester_partial_eq() {
+        let t1 = Term::IsTester("mk-Some".into(), Box::new(Term::Const("x".into())));
+        let t2 = Term::IsTester("mk-Some".into(), Box::new(Term::Const("x".into())));
+        let t3 = Term::IsTester("mk-None".into(), Box::new(Term::Const("x".into())));
+        assert_eq!(t1, t2);
+        assert_ne!(t1, t3);
     }
 }

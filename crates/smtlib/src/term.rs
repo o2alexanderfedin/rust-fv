@@ -145,6 +145,11 @@ pub enum Term {
     /// `(f arg1 arg2 ...)`
     App(String, Vec<Term>),
 
+    // === Datatype testers ===
+    /// Datatype tester: `((_ is constructor_name) expr)`
+    /// Used for enum variant discrimination in SMT datatype theory.
+    IsTester(String, Box<Term>),
+
     // === Annotations ===
     /// Annotated term: `(! body :key1 (val1 val2) :key2 (val3))`
     /// Used for trigger patterns on quantifiers: `(! body :pattern (f x))`

@@ -141,7 +141,8 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
         | Term::FpIsNegative(inner)
         | Term::FpIsPositive(inner)
         | Term::SeqUnit(inner)
-        | Term::SeqLen(inner) => {
+        | Term::SeqLen(inner)
+        | Term::IsTester(_, inner) => {
             collect_free_variables(inner, vars);
         }
         Term::FpSqrt(rm, inner) => {
@@ -285,7 +286,8 @@ fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
         | Term::FpIsNegative(inner)
         | Term::FpIsPositive(inner)
         | Term::SeqUnit(inner)
-        | Term::SeqLen(inner) => {
+        | Term::SeqLen(inner)
+        | Term::IsTester(_, inner) => {
             collect_trigger_candidates(inner, candidates);
         }
         Term::FpSqrt(rm, inner) => {

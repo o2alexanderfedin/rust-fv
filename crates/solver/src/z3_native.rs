@@ -291,6 +291,11 @@ fn translate_term(symbols: &HashMap<String, Z3Value>, term: &Term) -> Result<Z3V
             }
         }
 
+        // Datatype tester — not supported in native backend (use text-based solver path)
+        Term::IsTester(_, _) => Err(SolverError::ParseError(
+            "IsTester not yet supported in native backend".into(),
+        )),
+
         _ => Err(SolverError::ParseError(format!(
             "Unsupported term in native backend: {:?}",
             term

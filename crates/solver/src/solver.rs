@@ -538,6 +538,11 @@ fn format_term(output: &mut String, term: &rust_fv_smtlib::term::Term) {
             }
             output.push(')');
         }
+        Term::IsTester(constructor, expr) => {
+            output.push_str(&format!("((_ is {constructor}) "));
+            format_term(output, expr);
+            output.push(')');
+        }
         Term::Annotated(body, annotations) => {
             if annotations.is_empty() {
                 format_term(output, body);
