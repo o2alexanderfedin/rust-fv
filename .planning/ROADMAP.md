@@ -82,7 +82,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 ### v0.8 Completeness & Coverage (Phases 45–56)
 
 - [x] **Phase 45: Quick Wins & Pattern Integration** - Verification item regression tests + pattern matching E2E tests (completed 2026-03-05)
-- [ ] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort
+- [x] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort (completed 2026-03-05)
 - [ ] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics
 - [ ] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix
 - [ ] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining
@@ -121,7 +121,7 @@ Plans:
   3. Functional update on any struct rvalue (not just field-mutation) emits the correct `mk-StructName` constructor term using the new datatype; regression test from COMPL-05 remains GREEN
   4. `Z3::Sort::int()` is used in the native Z3 backend when encoding `SpecInt`/`SpecNat` sorts; no panics or fallback to uninterpreted sort for integer specs
   5. `[expr; N]` (`Rvalue::Repeat`) encodes as a universally quantified equality `(forall ((i Int)) (= (select arr i) val))` or a const-array store chain in SMT; bounds-checked access to repeated array passes verification
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 46-01-PLAN.md — Z3 native Int sort support + Rvalue::Repeat encoding (COMPL-07, COMPL-11)
 - [ ] 46-02-PLAN.md — Datatype wiring completion + functional update hardening (COMPL-01, COMPL-05)
@@ -257,7 +257,7 @@ Plans:
 | 34-37.1 | v0.6 | 11/11 | Complete | 2026-03-02 |
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
-| 46 | 1/2 | In Progress|  | - |
+| 46 | 2/2 | Complete   | 2026-03-05 | - |
 | 47 | v0.8 | 0/? | Not started | - |
 | 48 | v0.8 | 0/? | Not started | - |
 | 49 | v0.8 | 0/? | Not started | - |

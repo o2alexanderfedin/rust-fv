@@ -9,11 +9,11 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 
 ### Completeness — Partial → Complete (COMPL)
 
-- [ ] **COMPL-01**: Struct/enum types encoded as SMT `declare-datatype` with constructors, selectors, and testers instead of uninterpreted sorts
+- [x] **COMPL-01**: Struct/enum types encoded as SMT `declare-datatype` with constructors, selectors, and testers instead of uninterpreted sorts
 - [ ] **COMPL-02**: Pointer cast alignment VCs generated (`addr % align_of::<T>() == 0`) for `*const u8 -> *const u32` style casts
 - [ ] **COMPL-03**: CastKind variants (IntToInt, FloatToInt, IntToFloat, PtrToPtr) disambiguated and encoded correctly in MIR converter
 - [ ] **COMPL-04**: Iterator adapter chaining (filter, map, etc.) composes contracts instead of falling back to `BoolLit(true)`
-- [ ] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
+- [x] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
 - [ ] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
 - [x] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
 - [ ] **COMPL-08**: Quantifier trigger inference filters out datatype selector symbols from candidate lists
@@ -131,11 +131,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COMPL-01 | Phase 46 | Pending |
+| COMPL-01 | Phase 46 | Complete |
 | COMPL-02 | Phase 47 | Pending |
 | COMPL-03 | Phase 47 | Pending |
 | COMPL-04 | Phase 49 | Pending |
-| COMPL-05 | Phase 46 | Pending |
+| COMPL-05 | Phase 46 | Complete |
 | COMPL-06 | Phase 47 | Pending |
 | COMPL-07 | Phase 46 | Complete |
 | COMPL-08 | Phase 48 | Pending |
