@@ -106,7 +106,10 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
   3. A function with ghost variables does not produce spurious SMT failures — regression test is GREEN
   4. A function whose spec contains `as int` routes through QF_LIA solver path — regression test confirms correct solver selection
   5. Functions using `let`-`else`, slice patterns `[first, .., last]`, range patterns `1..=5`, and `@` bindings each produce correct VCs confirmed by integration tests
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 45-01-PLAN.md — COMPL-19..22 regression validation suite + SetDiscriminant E2E
+- [ ] 45-02-PLAN.md — Pattern matching E2E tests (PAT-01..04)
 
 ### Phase 46: SMT Datatype Foundations
 **Goal**: Structs and enums are encoded as first-class SMT datatypes with constructors and selectors, removing the uninterpreted-sort approximation that limits struct field reasoning
@@ -250,7 +253,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 | 29.1-33 | v0.5-audit | 22/22 | Complete | 2026-02-27 |
 | 34-37.1 | v0.6 | 11/11 | Complete | 2026-03-02 |
 | 38-44 + generics-fix | v0.7 | 14/14 | Complete | 2026-03-04 |
-| 45 | v0.8 | 0/? | Not started | - |
+| 45 | v0.8 | 0/2 | Planning complete | - |
 | 46 | v0.8 | 0/? | Not started | - |
 | 47 | v0.8 | 0/? | Not started | - |
 | 48 | v0.8 | 0/? | Not started | - |
