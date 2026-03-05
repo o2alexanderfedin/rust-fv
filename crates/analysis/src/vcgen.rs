@@ -1782,8 +1782,19 @@ fn encode_assignment(
             // The discriminant is an integer tag that SwitchInt compares against literal variant
             // indices. We declare it as: (discriminant-{local} enum_value) where enum_value is
             // the place holding the enum. This produces Term::App which the SwitchInt
-            // path-condition logic already handles correctly — SwitchInt compares discr_term
+            // path-condition logic already handles correctly -- SwitchInt compares discr_term
             // against BitVecLit values for each target arm.
+            //
+            // SOUNDNESS NOTE (COMPL-01): Although struct/enum types are now first-class SMT
+            // datatypes (via DeclareDatatype with constructors/selectors), the discriminant
+            // encoding still uses an uninterpreted function rather than native Z3 testers
+            // `((_ is mk-VariantName) expr)`. This is sound because:
+            //   1. Each SwitchInt branch correctly constrains the discriminant value
+            //   2. The Aggregate encoding uses the correct constructor (mk-VariantName)
+            //   3. SwitchInt generates disjoint path conditions covering all variants
+            //   4. Refactoring to native testers would require propagating enum type info
+            //      through the SwitchInt terminator encoding (significant restructuring)
+            // Native testers are deferred to a future optimization pass.
             let disc_fn = format!("discriminant-{}", disc_place.local);
             Term::App(disc_fn, vec![Term::Const(disc_place.local.clone())])
         }

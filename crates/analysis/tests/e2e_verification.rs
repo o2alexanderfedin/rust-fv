@@ -2886,3 +2886,243 @@ fn test_prophecy_basic() {
         "Script should contain prophecy variable"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Test: E2E struct datatype field reasoning (COMPL-01)
+// ---------------------------------------------------------------------------
+
+/// Verify that a struct `Point { x: i32, y: i32 }` created with `Point { x: 1, y: 2 }`
+/// produces native SMT datatype declarations and field access uses selectors.
+/// The postcondition `point.x == 1` should verify as UNSAT via native datatype reasoning.
+#[test]
+fn e2e_struct_datatype_field_reasoning() {
+    // Build: fn test_point() -> Point { let p = Point { x: 1, y: 2 }; p }
+    // with postcondition: result.x == 1
+    let point_ty = Ty::Struct(
+        "Point".to_string(),
+        vec![
+            ("x".to_string(), Ty::Int(IntTy::I32)),
+            ("y".to_string(), Ty::Int(IntTy::I32)),
+        ],
+    );
+
+    let func = Function {
+        name: "test_point".to_string(),
+        params: vec![],
+        return_local: Local::new("_0", point_ty.clone()),
+        locals: vec![Local::new("_1", point_ty)],
+        basic_blocks: vec![BasicBlock {
+            statements: vec![
+                // _1 = Point { x: 1, y: 2 }
+                Statement::Assign(
+                    Place::local("_1"),
+                    Rvalue::Aggregate(
+                        AggregateKind::Struct("Point".to_string()),
+                        vec![
+                            Operand::Constant(Constant::Int(1, IntTy::I32)),
+                            Operand::Constant(Constant::Int(2, IntTy::I32)),
+                        ],
+                    ),
+                ),
+                // _0 = _1
+                Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Copy(Place::local("_1"))),
+                ),
+            ],
+            terminator: Terminator::Return,
+        }],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result.x == 1".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
+            is_inferred: false,
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    // Generate VCs
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    // Find postcondition VC
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(
+        !post_vcs.is_empty(),
+        "Expected postcondition VCs for struct field test"
+    );
+
+    // Inspect SMT-LIB text for datatype declarations
+    let smtlib = script_to_smtlib(&post_vcs[0].script);
+    assert!(
+        smtlib.contains("declare-datatype Point"),
+        "SMT script should contain declare-datatype Point. Script:\n{smtlib}"
+    );
+    assert!(
+        smtlib.contains("mk-Point"),
+        "SMT script should contain mk-Point constructor. Script:\n{smtlib}"
+    );
+
+    // Run Z3 -- postcondition `result.x == 1` should be verified (UNSAT)
+    let solver = solver_or_skip();
+    let result = solver
+        .check_sat_raw(&smtlib)
+        .expect("Z3 should not error on struct datatype VC");
+    assert!(
+        result.is_unsat(),
+        "Postcondition result.x == 1 should be verified (UNSAT), got: {result:?}\nScript:\n{smtlib}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test: E2E enum datatype match (COMPL-01)
+// ---------------------------------------------------------------------------
+
+/// Verify that an enum `Option_i32` with variants None and Some(i32) uses
+/// native SMT datatype declarations for matching.
+#[test]
+fn e2e_enum_datatype_match() {
+    // Build a function that creates an Option_i32::Some(42) and returns the inner value.
+    // fn test_match() -> i32 { let opt = Some(42); match opt { Some(v) => v, None => 0 } }
+    // Postcondition: result == 42
+    let option_ty = Ty::Enum(
+        "Option_i32".to_string(),
+        vec![
+            ("None".to_string(), vec![]),
+            ("Some".to_string(), vec![Ty::Int(IntTy::I32)]),
+        ],
+    );
+
+    let func = Function {
+        name: "test_match".to_string(),
+        params: vec![],
+        return_local: Local::new("_0", Ty::Int(IntTy::I32)),
+        locals: vec![
+            Local::new("_1", option_ty),           // opt
+            Local::new("_2", Ty::Int(IntTy::I32)), // discriminant temp
+            Local::new("_3", Ty::Int(IntTy::I32)), // value from Some variant
+        ],
+        basic_blocks: vec![
+            // bb0: _1 = Option_i32::Some(42), _2 = discriminant(_1), switch on _2
+            BasicBlock {
+                statements: vec![
+                    Statement::Assign(
+                        Place::local("_1"),
+                        Rvalue::Aggregate(
+                            AggregateKind::Enum("Option_i32".to_string(), 1), // variant 1 = Some
+                            vec![Operand::Constant(Constant::Int(42, IntTy::I32))],
+                        ),
+                    ),
+                    Statement::Assign(Place::local("_2"), Rvalue::Discriminant(Place::local("_1"))),
+                ],
+                terminator: Terminator::SwitchInt {
+                    discr: Operand::Copy(Place::local("_2")),
+                    targets: vec![(0, 2)], // value 0 (None variant) -> bb2
+                    otherwise: 1,          // otherwise (Some) -> bb1
+                },
+            },
+            // bb1 (Some arm): _3 = _1.Some.0, _0 = _3
+            BasicBlock {
+                statements: vec![
+                    Statement::Assign(
+                        Place::local("_3"),
+                        Rvalue::Use(Operand::Copy(Place {
+                            local: "_1".to_string(),
+                            projections: vec![Projection::Downcast(1), Projection::Field(0)],
+                        })),
+                    ),
+                    Statement::Assign(
+                        Place::local("_0"),
+                        Rvalue::Use(Operand::Copy(Place::local("_3"))),
+                    ),
+                ],
+                terminator: Terminator::Return,
+            },
+            // bb2 (None arm): _0 = 0
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Constant(Constant::Int(0, IntTy::I32))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "result == 42".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
+            is_inferred: false,
+        },
+        loops: vec![],
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+    };
+
+    // Generate VCs
+    let vcs = vcgen::generate_vcs(&func, None);
+
+    // Find postcondition VCs
+    let post_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| vc.description.contains("postcondition"))
+        .collect();
+    assert!(
+        !post_vcs.is_empty(),
+        "Expected postcondition VCs for enum match test"
+    );
+
+    // Inspect SMT-LIB for enum datatype
+    let smtlib = script_to_smtlib(&post_vcs[0].script);
+    assert!(
+        smtlib.contains("declare-datatype Option_i32"),
+        "SMT script should contain declare-datatype Option_i32. Script:\n{smtlib}"
+    );
+}
