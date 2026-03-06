@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 48 (Advanced Ownership & Borrows) — in progress
-Plan: 02 of 05 complete
-Status: Plan 02 complete (RefCell ghost state VCs COMPL-09, two-phase borrow modeling COMPL-13)
-Last activity: 2026-03-06 — Phase 48 plan 02 complete (RefCell VCs + two-phase borrow skip)
+Plan: 03 of 03 complete
+Status: Phase 48 complete (partial struct move tracking COMPL-14, borrow splitting COMPL-16)
+Last activity: 2026-03-06 — Phase 48 plan 03 complete (FieldMoveTracker + borrow splitting)
 
 ```
 Progress: [###                 ] 3/12 phases (12%)
@@ -44,7 +44,7 @@ Progress: [###                 ] 3/12 phases (12%)
 | 45 | Quick Wins & Pattern Integration | COMPL-19..22, PAT-01..04 | Plan 01/02 done |
 | 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Complete |
 | 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
-| 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Plan 02/05 done |
+| 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Complete |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Not started |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
 | 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
@@ -83,6 +83,7 @@ Progress: [###                 ] 3/12 phases (12%)
 | Phase 47 P03 | 2415 | 2 tasks | 7 files |
 | Phase 48 P01 | 2406 | 2 tasks | 70 files |
 | Phase 48 P02 | 1566 | 2 tasks | 5 files |
+| Phase 48 P03 | 2621 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 48]: BorrowPhase defaults to Active for all existing BorrowInfo constructions
 - [Phase 48]: Linear block walk for RefCell ghost state tracking (branch join analysis deferred)
 - [Phase 48]: Reserved borrows skip conflict check entirely via early continue in detect_borrow_conflicts
+- [Phase 48]: FieldMoveTracker uses HashMap<(String,Vec<usize>),bool> for field paths plus HashSet for whole-struct moves
+- [Phase 48]: detect_borrow_conflicts takes Option<&Function> for backward-compatible field disjointness
+- [Phase 48]: Field disjointness compares projection paths level-by-level; prefix paths are NOT disjoint
 
 ### Key v0.8 Architecture Notes
 
@@ -128,10 +132,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T01:44:00Z
-Stopped at: Completed 48-02-PLAN.md
-Resume file: .planning/phases/48-advanced-ownership-borrows/48-02-SUMMARY.md
-Next step: Execute Phase 48 Plan 03
+Last session: 2026-03-06T02:37:00Z
+Stopped at: Completed 48-03-PLAN.md
+Resume file: .planning/phases/48-advanced-ownership-borrows/48-03-SUMMARY.md
+Next step: Execute Phase 48 Plan 04
 
 ---
 

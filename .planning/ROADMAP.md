@@ -84,7 +84,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 - [x] **Phase 45: Quick Wins & Pattern Integration** - Verification item regression tests + pattern matching E2E tests (completed 2026-03-05)
 - [x] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort (gap closure: native enum testers) (completed 2026-03-05)
 - [x] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics (completed 2026-03-05)
-- [ ] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix
+- [x] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix (completed 2026-03-06)
 - [ ] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining
 - [ ] **Phase 50: Stdlib Ptr/Mem & Unsafe Boundary** - ptr::read/write contracts, mem::swap contracts, FFI extern "C" modeling, transmute/MaybeUninit, async limitation doc
 - [ ] **Phase 51: Core Language Features I** - Const generics, HRTB, union types, Drop::drop modeling, Pin wrapper
@@ -152,7 +152,7 @@ Plans:
   3. A function that partially moves a struct field (`let x = s.field_a`) and then reads `s.field_b` verifies successfully; a subsequent read of `s.field_a` generates a use-after-move VC caught by Z3
   4. A function taking `&mut s.x` and `&s.y` simultaneously verifies successfully with disjointness confirmed in SMT; a function taking `&mut s.x` and `&s.x` produces a conflict VC
   5. Quantifier trigger inference never proposes a datatype selector symbol (e.g., `Struct-field`) as a trigger candidate; the filtered candidate list contains only user-defined or spec-level symbols
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
 - [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
@@ -300,7 +300,7 @@ Plans:
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
-| 48 | 2/3 | In Progress|  | - |
+| 48 | 3/3 | Complete   | 2026-03-06 | - |
 | 49 | v0.8 | 0/? | Not started | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |
