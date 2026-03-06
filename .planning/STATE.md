@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
 status: completed
-stopped_at: Completed 49-02-PLAN.md
-last_updated: "2026-03-06T06:39:58.156Z"
-last_activity: 2026-03-06 — Phase 49 plan 02 complete (COMPL-15 mutable static race VCs + COMPL-17 NonNull encoding)
+stopped_at: Completed 49-04-PLAN.md
+last_updated: "2026-03-06T22:42:16.262Z"
+last_activity: "2026-03-06 — Phase 49 plan 03 complete (COMPL-18 From::from at ? + COMPL-04 iterator adapter chaining)"
 progress:
   total_phases: 12
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 5
+  total_plans: 16
+  completed_plans: 16
   percent: 100
 ---
 
@@ -88,6 +88,7 @@ Progress: [##########          ] 100%
 | Phase 49 P01 | 1449 | 2 tasks | 4 files |
 | Phase 49 P02 | 2297 | 2 tasks | 9 files |
 | Phase 49 P03 | 1978 | 2 tasks | 6 files |
+| Phase 49 P04 | 1089 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 49]: StaticMutAccess synchronized field computed at MIR conversion time, not during VCGen
 - [Phase 49]: From::from registered as single generic contract (type_path std::convert::From) rather than per-conversion-pair
 - [Phase 49]: Iterator composition uses staged rewriting (stage_0, stage_1, result) for multi-adapter chains
+- [Phase 49]: Direct SMT encoding for From::from and iterator postconditions bypassing spec parser
+- [Phase 49]: raw_callee_name field on CallSiteInfo preserves pre-normalization names for trait pattern detection
 
 ### Key v0.8 Architecture Notes
 
@@ -142,8 +145,8 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T07:14:35Z
-Stopped at: Completed 49-03-PLAN.md
+Last session: 2026-03-06T22:42:16.259Z
+Stopped at: Completed 49-04-PLAN.md
 Resume file: None
 Next step: Phase 49 complete; begin Phase 50
 

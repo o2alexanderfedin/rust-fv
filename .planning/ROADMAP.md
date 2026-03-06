@@ -85,7 +85,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 - [x] **Phase 46: SMT Datatype Foundations** - struct/enum declare-datatype, Rvalue::Repeat, functional update hardening, Z3 Int sort (gap closure: native enum testers) (completed 2026-03-05)
 - [x] **Phase 47: MIR Coverage Hardening** - Pointer alignment VCs, CastKind disambiguation, match arm fallthrough audit, spec validation diagnostics (completed 2026-03-05)
 - [x] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix (completed 2026-03-06)
-- [ ] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining (gap closure in progress)
+- [x] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining (gap closure in progress) (completed 2026-03-06)
 - [ ] **Phase 50: Stdlib Ptr/Mem & Unsafe Boundary** - ptr::read/write contracts, mem::swap contracts, FFI extern "C" modeling, transmute/MaybeUninit, async limitation doc
 - [ ] **Phase 51: Core Language Features I** - Const generics, HRTB, union types, Drop::drop modeling, Pin wrapper
 - [ ] **Phase 52: Advanced Type System Features** - catch_unwind, impl Trait RPITIT, GATs, trait upcasting, negative impls
@@ -169,7 +169,7 @@ Plans:
   3. A function receiving `NonNull<u32>` does not generate a null-check VC for that pointer; a function receiving `*const u32` still generates one
   4. A function using `?` on a `Result<_, E>` where `From<E>` has a `#[ensures]` contract propagates that postcondition at the `?` call site; verified by Z3
   5. An iterator chain `iter.filter(|x| x > 0).map(|x| x * 2)` generates composed SMT contracts rather than `BoolLit(true)` fallbacks; the element-level postcondition flows from source through filter through map
-**Plans:** 4 plans (3 complete + 1 gap closure)
+**Plans:** 4/4 plans complete
 Plans:
 - [ ] 49-01-PLAN.md — Cross-crate generic registry population + V060 for uncontracted externals (COMPL-10)
 - [ ] 49-02-PLAN.md — NonNull encoding + mutable static DataRaceFreedom VCs (COMPL-15, COMPL-17)
@@ -303,7 +303,7 @@ Plans:
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
-| 49 | 3/4 | Gap closure | 2026-03-06 | - |
+| 49 | 4/4 | Complete   | 2026-03-06 | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |
 | 52 | v0.8 | 0/? | Not started | - |
