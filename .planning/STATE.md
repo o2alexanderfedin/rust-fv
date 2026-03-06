@@ -10,8 +10,8 @@ progress:
   total_phases: 12
   completed_phases: 4
   total_plans: 15
-  completed_plans: 14
-  percent: 99
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 49 (Cross-Crate & Interop Completeness) — in progress
-Plan: 02 of 03 complete
-Status: Phase 49 plan 02 complete (NonNull encoding + static mut data-race VCs)
-Last activity: 2026-03-06 — Phase 49 plan 02 complete (COMPL-15 mutable static race VCs + COMPL-17 NonNull encoding)
+Phase: 49 (Cross-Crate & Interop Completeness) — complete
+Plan: 03 of 03 complete
+Status: Phase 49 complete (From::from contracts + iterator adapter composition)
+Last activity: 2026-03-06 — Phase 49 plan 03 complete (COMPL-18 From::from at ? + COMPL-04 iterator adapter chaining)
 
 ```
-Progress: [##########          ] 99%
+Progress: [##########          ] 100%
 ```
 
 ## Milestone Summary
@@ -45,7 +45,7 @@ Progress: [##########          ] 99%
 | 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Complete |
 | 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Complete |
-| 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Plan 01 done |
+| 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Complete |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
 | 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
 | 52 | Advanced Type System Features | LANG-06, LANG-07, LANG-08, LANG-09, LANG-10 | Not started |
@@ -87,6 +87,7 @@ Progress: [##########          ] 99%
 | Phase 48 P04 | 544 | 1 tasks | 2 files |
 | Phase 49 P01 | 1449 | 2 tasks | 4 files |
 | Phase 49 P02 | 2297 | 2 tasks | 9 files |
+| Phase 49 P03 | 1978 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 49]: populate_monomorphization_registry already handles cross-crate DefIds -- no is_local filter exists, only verification tests needed
 - [Phase 49]: NonNull encoded as BitVec(64) in SMT with null/alignment VC suppression based on ptr_ty
 - [Phase 49]: StaticMutAccess synchronized field computed at MIR conversion time, not during VCGen
+- [Phase 49]: From::from registered as single generic contract (type_path std::convert::From) rather than per-conversion-pair
+- [Phase 49]: Iterator composition uses staged rewriting (stage_0, stage_1, result) for multi-adapter chains
 
 ### Key v0.8 Architecture Notes
 
@@ -139,10 +142,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T06:39:58.151Z
-Stopped at: Completed 49-02-PLAN.md
+Last session: 2026-03-06T07:14:35Z
+Stopped at: Completed 49-03-PLAN.md
 Resume file: None
-Next step: Execute Phase 48 Plan 04
+Next step: Phase 49 complete; begin Phase 50
 
 ---
 

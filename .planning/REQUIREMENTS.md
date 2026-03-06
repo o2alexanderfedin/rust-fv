@@ -12,7 +12,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-01**: Struct/enum types encoded as SMT `declare-datatype` with constructors, selectors, and testers instead of uninterpreted sorts
 - [x] **COMPL-02**: Pointer cast alignment VCs generated (`addr % align_of::<T>() == 0`) for `*const u8 -> *const u32` style casts
 - [x] **COMPL-03**: CastKind variants (IntToInt, FloatToInt, IntToFloat, PtrToPtr) disambiguated and encoded correctly in MIR converter
-- [ ] **COMPL-04**: Iterator adapter chaining (filter, map, etc.) composes contracts instead of falling back to `BoolLit(true)`
+- [x] **COMPL-04**: Iterator adapter chaining (filter, map, etc.) composes contracts instead of falling back to `BoolLit(true)`
 - [x] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
 - [x] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
 - [x] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
@@ -26,7 +26,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-15**: Mutable static access generates data-race VCs requiring synchronization
 - [x] **COMPL-16**: Borrow splitting allows simultaneous `&mut s.x` and `&s.y` verified as disjoint
 - [x] **COMPL-17**: `NonNull<T>` encoded with non-null precondition, redundant null checks eliminated
-- [ ] **COMPL-18**: `From::from()` conversion contracts verified at `?` operator usage sites
+- [x] **COMPL-18**: `From::from()` conversion contracts verified at `?` operator usage sites
 - [x] **COMPL-19**: For-loop VCGen unit tests wired to match E2E behavior (8 RED tests → GREEN)
 - [x] **COMPL-20**: SetDiscriminant VCGen verified as fully functional (not no-op) with end-to-end test
 - [x] **COMPL-21**: Ghost local assignment guard (`is_ghost_place`) verified working with regression test
@@ -134,7 +134,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-01 | Phase 46 | Complete |
 | COMPL-02 | Phase 47 | Complete |
 | COMPL-03 | Phase 47 | Complete |
-| COMPL-04 | Phase 49 | Pending |
+| COMPL-04 | Phase 49 | Complete |
 | COMPL-05 | Phase 46 | Complete |
 | COMPL-06 | Phase 47 | Complete |
 | COMPL-07 | Phase 46 | Complete |
@@ -148,7 +148,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-15 | Phase 49 | Complete |
 | COMPL-16 | Phase 48 | Complete |
 | COMPL-17 | Phase 49 | Complete |
-| COMPL-18 | Phase 49 | Pending |
+| COMPL-18 | Phase 49 | Complete |
 | COMPL-19 | Phase 45 | Complete |
 | COMPL-20 | Phase 45 | Complete |
 | COMPL-21 | Phase 45 | Complete |
