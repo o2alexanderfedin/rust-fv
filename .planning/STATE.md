@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
-status: verifying
-stopped_at: Completed 49-01-PLAN.md
-last_updated: "2026-03-06T06:25:33.085Z"
-last_activity: 2026-03-06 — Phase 49 plan 01 complete (COMPL-10 cross-crate generic instantiation capture)
+status: completed
+stopped_at: Completed 49-02-PLAN.md
+last_updated: "2026-03-06T06:39:58.156Z"
+last_activity: 2026-03-06 — Phase 49 plan 02 complete (COMPL-15 mutable static race VCs + COMPL-17 NonNull encoding)
 progress:
   total_phases: 12
   completed_phases: 4
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 99
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 49 (Cross-Crate & Interop Completeness) — in progress
-Plan: 01 complete
-Status: Phase 49 plan 01 complete (cross-crate monomorphization registry verification + E2E tests)
-Last activity: 2026-03-06 — Phase 49 plan 01 complete (COMPL-10 cross-crate generic instantiation capture)
+Plan: 02 of 03 complete
+Status: Phase 49 plan 02 complete (NonNull encoding + static mut data-race VCs)
+Last activity: 2026-03-06 — Phase 49 plan 02 complete (COMPL-15 mutable static race VCs + COMPL-17 NonNull encoding)
 
 ```
 Progress: [##########          ] 99%
@@ -86,6 +86,7 @@ Progress: [##########          ] 99%
 | Phase 48 P03 | 2621 | 2 tasks | 7 files |
 | Phase 48 P04 | 544 | 1 tasks | 2 files |
 | Phase 49 P01 | 1449 | 2 tasks | 4 files |
+| Phase 49 P02 | 2297 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 48]: Field disjointness compares projection paths level-by-level; prefix paths are NOT disjoint
 - [Phase 48]: Region names derived from bb index for borrow info; Reserved borrows activated at Call terminator arg positions
 - [Phase 49]: populate_monomorphization_registry already handles cross-crate DefIds -- no is_local filter exists, only verification tests needed
+- [Phase 49]: NonNull encoded as BitVec(64) in SMT with null/alignment VC suppression based on ptr_ty
+- [Phase 49]: StaticMutAccess synchronized field computed at MIR conversion time, not during VCGen
 
 ### Key v0.8 Architecture Notes
 
@@ -136,8 +139,8 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T06:25:33.077Z
-Stopped at: Completed 49-01-PLAN.md
+Last session: 2026-03-06T06:39:58.151Z
+Stopped at: Completed 49-02-PLAN.md
 Resume file: None
 Next step: Execute Phase 48 Plan 04
 

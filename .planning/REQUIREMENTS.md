@@ -23,9 +23,9 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-12**: Silent match arm fallthrough cases in vcgen.rs audited and either handled or explicitly documented
 - [x] **COMPL-13**: Two-phase borrowing modeled for method calls like `vec.push(vec.len())`
 - [x] **COMPL-14**: Partial struct moves tracked per-field with use-after-partial-move VCs
-- [ ] **COMPL-15**: Mutable static access generates data-race VCs requiring synchronization
+- [x] **COMPL-15**: Mutable static access generates data-race VCs requiring synchronization
 - [x] **COMPL-16**: Borrow splitting allows simultaneous `&mut s.x` and `&s.y` verified as disjoint
-- [ ] **COMPL-17**: `NonNull<T>` encoded with non-null precondition, redundant null checks eliminated
+- [x] **COMPL-17**: `NonNull<T>` encoded with non-null precondition, redundant null checks eliminated
 - [ ] **COMPL-18**: `From::from()` conversion contracts verified at `?` operator usage sites
 - [x] **COMPL-19**: For-loop VCGen unit tests wired to match E2E behavior (8 RED tests → GREEN)
 - [x] **COMPL-20**: SetDiscriminant VCGen verified as fully functional (not no-op) with end-to-end test
@@ -145,9 +145,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-12 | Phase 47 | Complete |
 | COMPL-13 | Phase 48 | Complete |
 | COMPL-14 | Phase 48 | Complete |
-| COMPL-15 | Phase 49 | Pending |
+| COMPL-15 | Phase 49 | Complete |
 | COMPL-16 | Phase 48 | Complete |
-| COMPL-17 | Phase 49 | Pending |
+| COMPL-17 | Phase 49 | Complete |
 | COMPL-18 | Phase 49 | Pending |
 | COMPL-19 | Phase 45 | Complete |
 | COMPL-20 | Phase 45 | Complete |
