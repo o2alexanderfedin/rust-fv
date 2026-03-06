@@ -169,7 +169,7 @@ Plans:
   3. A function receiving `NonNull<u32>` does not generate a null-check VC for that pointer; a function receiving `*const u32` still generates one
   4. A function using `?` on a `Result<_, E>` where `From<E>` has a `#[ensures]` contract propagates that postcondition at the `?` call site; verified by Z3
   5. An iterator chain `iter.filter(|x| x > 0).map(|x| x * 2)` generates composed SMT contracts rather than `BoolLit(true)` fallbacks; the element-level postcondition flows from source through filter through map
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
 - [ ] 49-01-PLAN.md — Cross-crate generic registry population + V060 for uncontracted externals (COMPL-10)
 - [ ] 49-02-PLAN.md — NonNull encoding + mutable static DataRaceFreedom VCs (COMPL-15, COMPL-17)
@@ -302,7 +302,7 @@ Plans:
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
-| 49 | v0.8 | 0/3 | In progress | - |
+| 49 | 1/3 | In Progress|  | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |
 | 52 | v0.8 | 0/? | Not started | - |
