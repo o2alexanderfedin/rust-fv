@@ -8,6 +8,7 @@
 //! - Missing From::from contract falls back gracefully (BoolLit(true))
 
 use rust_fv_analysis::contract_db::ContractDatabase;
+use rust_fv_analysis::ir::SpecExpr;
 use rust_fv_analysis::ir::*;
 use rust_fv_analysis::stdlib_contracts::StdlibContractRegistry;
 use rust_fv_analysis::stdlib_contracts::from::{is_identity_from, register_from_contracts};
@@ -235,7 +236,90 @@ fn from_question_mark_caller_ensures_with_from_postcondition() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 5: Missing From::from contract falls back gracefully
+// Test 5: VCGen injects From::from postcondition (from_conversion term) in SMT
+// ---------------------------------------------------------------------------
+
+#[test]
+fn from_question_mark_vcgen_from_postcondition_in_smt() {
+    let mut func = build_question_mark_mir();
+
+    // Add an ensures clause so postcondition VCs are generated —
+    // postcondition assumptions (From::from) are injected into postcondition VC scripts.
+    func.contracts.ensures.push(SpecExpr {
+        raw: "true".to_string(),
+    });
+
+    let mut db = ContractDatabase::new();
+    let registry = load_default_contracts();
+    registry.merge_into(&mut db);
+
+    let vcs = vcgen::generate_vcs(&func, Some(&db));
+
+    // Get postcondition VCs — these contain callee postcondition assumptions
+    let postcondition_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            matches!(
+                vc.location.vc_kind,
+                rust_fv_analysis::vcgen::VcKind::Postcondition
+            )
+        })
+        .collect();
+
+    assert!(
+        !postcondition_vcs.is_empty(),
+        "Should generate postcondition VCs when function has ensures clause"
+    );
+
+    // Serialize postcondition VC scripts and check for "from_conversion"
+    let all_scripts: String = postcondition_vcs
+        .iter()
+        .map(|vc| format!("{:?}", vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        all_scripts.contains("from_conversion"),
+        "From::from postcondition should inject 'from_conversion' term into postcondition VC scripts. Got scripts:\n{}",
+        all_scripts
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: Err arm's From::from call site postcondition is assumed
+// ---------------------------------------------------------------------------
+
+#[test]
+fn from_question_mark_vcgen_from_in_err_arm() {
+    let mut func = build_question_mark_mir();
+
+    // Add ensures so postcondition VCs are generated with callee assumptions
+    func.contracts.ensures.push(SpecExpr {
+        raw: "true".to_string(),
+    });
+
+    let mut db = ContractDatabase::new();
+    let registry = load_default_contracts();
+    registry.merge_into(&mut db);
+
+    let vcs = vcgen::generate_vcs(&func, Some(&db));
+
+    // The From::from postcondition "result == from_conversion(input)" should appear
+    // in at least one postcondition VC script (the Err arm path)
+    let has_from_postcondition = vcs.conditions.iter().any(|vc| {
+        let script_str = format!("{:?}", vc.script);
+        script_str.contains("from_conversion")
+    });
+
+    assert!(
+        has_from_postcondition,
+        "Err arm's From::from call should have its postcondition assumed at the early return path"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Missing From::from contract falls back gracefully
 // ---------------------------------------------------------------------------
 
 #[test]
