@@ -171,9 +171,9 @@ Plans:
   5. An iterator chain `iter.filter(|x| x > 0).map(|x| x * 2)` generates composed SMT contracts rather than `BoolLit(true)` fallbacks; the element-level postcondition flows from source through filter through map
 **Plans:** 3 plans
 Plans:
-- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
-- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
-- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
+- [ ] 49-01-PLAN.md — Cross-crate generic registry population + V060 for uncontracted externals (COMPL-10)
+- [ ] 49-02-PLAN.md — NonNull encoding + mutable static DataRaceFreedom VCs (COMPL-15, COMPL-17)
+- [ ] 49-03-PLAN.md — From::from at ? operator + iterator adapter contract composition (COMPL-18, COMPL-04)
 
 ### Phase 50: Stdlib Ptr/Mem & Unsafe Boundary
 **Goal**: Low-level pointer and memory operation contracts are available, FFI functions are modeled as opaque callees, transmute is encoded with size/alignment checks, and the async multi-threaded limitation is formally documented
@@ -302,7 +302,7 @@ Plans:
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
-| 49 | v0.8 | 0/? | Not started | - |
+| 49 | v0.8 | 0/3 | In progress | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |
 | 52 | v0.8 | 0/? | Not started | - |
