@@ -152,7 +152,11 @@ Plans:
   3. A function that partially moves a struct field (`let x = s.field_a`) and then reads `s.field_b` verifies successfully; a subsequent read of `s.field_a` generates a use-after-move VC caught by Z3
   4. A function taking `&mut s.x` and `&s.y` simultaneously verifies successfully with disjointness confirmed in SMT; a function taking `&mut s.x` and `&s.x` produces a conflict VC
   5. Quantifier trigger inference never proposes a datatype selector symbol (e.g., `Struct-field`) as a trigger candidate; the filtered candidate list contains only user-defined or spec-level symbols
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 49: Cross-Crate & Interop Completeness
 **Goal**: Generic instantiations from cross-crate call sites populate the registry, mutable statics require synchronization proof, NonNull eliminates redundant null checks, From::from contracts propagate through ?, and iterator adapters compose contracts
@@ -164,7 +168,11 @@ Plans:
   3. A function receiving `NonNull<u32>` does not generate a null-check VC for that pointer; a function receiving `*const u32` still generates one
   4. A function using `?` on a `Result<_, E>` where `From<E>` has a `#[ensures]` contract propagates that postcondition at the `?` call site; verified by Z3
   5. An iterator chain `iter.filter(|x| x > 0).map(|x| x * 2)` generates composed SMT contracts rather than `BoolLit(true)` fallbacks; the element-level postcondition flows from source through filter through map
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 50: Stdlib Ptr/Mem & Unsafe Boundary
 **Goal**: Low-level pointer and memory operation contracts are available, FFI functions are modeled as opaque callees, transmute is encoded with size/alignment checks, and the async multi-threaded limitation is formally documented
@@ -176,7 +184,11 @@ Plans:
   3. An `extern "C"` function without a user contract generates a V060 opaque-callee warning; adding `#[requires]`/`#[ensures]` to the extern item silences the warning and the contracts are used at call sites
   4. `std::mem::transmute::<u32, f32>(x)` generates a size-compatibility VC (both types are 4 bytes) and an alignment VC; `transmute::<u8, u32>` generates a SAT VC (size mismatch)
   5. Running `cargo verify` on an async function that spawns threads produces a documented warning `W080: async multi-threaded execution not modeled — sequential polling assumed`; the function still verifies under sequential model
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 51: Core Language Features I
 **Goal**: Const generic parameters participate in verification, HRTB are encoded, union field access generates reinterpretation VCs, Drop invocations are modeled at scope exit, and Pin move-prevention is enforced
@@ -188,7 +200,11 @@ Plans:
   3. A `union U { f: u32, g: f32 }` field read generates a reinterpretation-cast VC asserting bitwise equivalence; reading an uninitialized union variant generates a safety VC caught by Z3
   4. A function whose local variable implements `Drop` generates a drop-order model at scope exit; a type with `Drop` that also has `Copy` generates a compile-time diagnostic (sound rejection)
   5. A function calling `Pin::new_unchecked(&mut val)` on a non-`Unpin` type generates a move-prevention VC; code that subsequently moves the pinned value produces a Z3 SAT counterexample
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 52: Advanced Type System Features
 **Goal**: catch_unwind is modeled, impl Trait return types are resolved for verification, GATs produce well-formedness constraints, trait upcasting preserves contracts, and negative impls strengthen assumptions
@@ -200,7 +216,11 @@ Plans:
   3. A GAT `type Item<'a>` with a `where Self: 'a` bound generates a well-formedness SMT assertion at use sites; a violating instantiation produces a Z3 SAT counterexample
   4. Casting `dyn SubTrait` to `dyn SuperTrait` generates a vtable compatibility VC; contracts on `SuperTrait` methods are preserved and checked at call sites on the upcast reference
   5. A type with `impl !Send for MyType` recorded in the trait database causes any function that transfers `MyType` across a thread boundary to generate a `ThreadSafety` VC that Z3 resolves as SAT (violation)
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 53: Operator & Smart Pointer Verification
 **Goal**: Operator overloads are verified for algebraic properties, custom Deref is checked for purity, Index/IndexMut contracts enforce panic-freedom, and unsafe Send/Sync impls are validated
@@ -211,7 +231,11 @@ Plans:
   2. An `impl Deref for MyBox<T>` is verified as pure (no observable side effects); an impl that modifies state generates a purity-violation diagnostic
   3. An `impl Index<usize> for MyVec<T>` with `#[requires(index < self.len())]` is verified for panic-freedom; a call site that cannot prove the precondition produces a Z3 SAT counterexample naming the index value
   4. A type with `unsafe impl Send for MyType` generates a thread-safety VC; the verifier checks that all fields reachable from `MyType` are either `Send` themselves or guarded by synchronization primitives
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 54: Stdlib Contracts Batch I
 **Goal**: Eight additional standard library collection types have SMT contracts available for verification, expanding zero-config coverage to all common collection types
@@ -223,7 +247,11 @@ Plans:
   3. A function using `BTreeMap::insert` verifies with a sorted invariant contract; a postcondition asserting `k1 < k2 => map[k1]` appears before `map[k2]` is Z3-provable
   4. A function using `BinaryHeap::push` verifies with a heap invariant contract; `heap.peek()` is guaranteed to return the maximum element after insertion
   5. `Cell::get`/`set` and `OnceCell::get_or_init` each have contracts verifiable in zero-config mode; a function using `OnceCell` to lazily initialize a value verifies that the value is set exactly once
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 55: Stdlib Contracts Batch II & Iterators
 **Goal**: Path/OsStr/format! are modeled, iterator protocol contracts enable for-loop verification over custom iterators, and inline asm is treatable as an opaque block with user contracts
@@ -235,7 +263,11 @@ Plans:
   3. `collect::<Vec<_>>()` from an iterator preserves element-level contracts — if the source iterator has `#[ensures(item > 0)]` on `next()`, the collected `Vec` satisfies the corresponding `forall` postcondition
   4. A custom struct implementing `Iterator::next()` with `#[requires]`/`#[ensures]` contracts has those contracts used as the loop body spec during `for item in my_iter` VCGen; the for-loop verifies against the custom contracts
   5. An `unsafe { asm!(...) }` block with `#[unsafe_requires]`/`#[unsafe_ensures]` user-provided contracts generates VCs from those contracts at the asm call site; without contracts, it generates a V060 opaque warning
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ### Phase 56: Async & Concurrency Extensions
 **Goal**: Async closures are verified with combined capture and state machine specs, async streams are modeled as repeated polls, cancellation safety is checkable at each await point, and Condvar/Barrier/thread-local/fence concurrency primitives have SMT models
@@ -247,7 +279,11 @@ Plans:
   3. A future dropped at any `.await` point inside `select!` leaves all guarded state satisfying the pre-drop invariant; a function annotated `#[cancellation_safe]` is verified to hold this property across all await points
   4. A function using `Condvar::wait` generates VCs asserting: (a) the predicate holds on wakeup (spurious wakeup handled), (b) the mutex is held on both entry and exit; `notify_one`/`notify_all` VCs assert the predicate is established before notification
   5. A `Barrier::wait()` usage verifies that all participating threads reach the barrier before any proceeds; `thread_local!` storage generates no cross-thread access VCs; `fence(Ordering::SeqCst)` appears as a synchronization edge in the RC11 execution graph
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
+- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
+- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
 
 ## Progress
 
