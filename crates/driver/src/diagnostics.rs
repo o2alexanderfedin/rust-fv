@@ -2556,7 +2556,7 @@ mod tests {
     fn test_vc_kind_description_concurrency() {
         assert_eq!(
             vc_kind_description(&VcKind::DataRaceFreedom),
-            "data race detected"
+            "mutable static access requires synchronization (V100)"
         );
         assert_eq!(
             vc_kind_description(&VcKind::LockInvariant),
