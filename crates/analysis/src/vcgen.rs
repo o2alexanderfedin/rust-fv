@@ -799,6 +799,50 @@ pub fn generate_vcs_with_db(
                 });
             }
 
+            // Data-race freedom VC for mutable static access
+            if crate::unsafe_analysis::needs_data_race_check(op)
+                && let UnsafeOperation::StaticMutAccess {
+                    static_name,
+                    is_write,
+                    block_index,
+                    ..
+                } = op
+            {
+                let access_kind = if *is_write { "write to" } else { "read from" };
+                // Build a VC that asserts lack of synchronization (always SAT = violation)
+                let mut script = base_script(
+                    &datatype_declarations,
+                    &declarations,
+                    uses_spec_int_types(func),
+                );
+                // Assert "not synchronized" -- this is trivially SAT (no guard present)
+                script.push(rust_fv_smtlib::command::Command::Assert(
+                    rust_fv_smtlib::term::Term::BoolLit(true),
+                ));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                conditions.push(VerificationCondition {
+                    description: format!(
+                        "data-race-freedom: {} mutable static '{}' requires synchronization",
+                        access_kind, static_name
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: *block_index,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "mutable static '{}' access requires synchronization (Mutex/RwLock guard or atomic ordering)",
+                            static_name
+                        )),
+                        vc_kind: VcKind::DataRaceFreedom,
+                    },
+                });
+            }
+
             // Bounds-check VC
             if crate::unsafe_analysis::needs_bounds_check(op) {
                 let (ptr_local, offset_local, block_index) = match op {

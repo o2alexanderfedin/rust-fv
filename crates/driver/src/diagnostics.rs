@@ -379,7 +379,7 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::MemorySafety => "memory safety violation",
         VcKind::PointerAliasing => "pointer aliasing violation",
         VcKind::FloatingPointNaN => "floating-point verification failure",
-        VcKind::DataRaceFreedom => "data race detected",
+        VcKind::DataRaceFreedom => "mutable static access requires synchronization (V100)",
         VcKind::LockInvariant => "lock invariant violation",
         VcKind::Deadlock => "potential deadlock detected",
         VcKind::ChannelSafety => "channel operation safety violation",
@@ -524,7 +524,8 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
                 .to_string(),
         ),
         VcKind::DataRaceFreedom => Some(
-            "Add synchronization (Mutex, RwLock, or atomic operations) to protect shared state. \
+            "V100: Mutable static access requires synchronization. \
+             Add a Mutex/RwLock guard or use atomic operations to protect the mutable static. \
              Ensure all concurrent accesses to the same memory location are ordered by happens-before."
                 .to_string(),
         ),
