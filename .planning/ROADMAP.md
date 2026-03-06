@@ -152,7 +152,7 @@ Plans:
   3. A function that partially moves a struct field (`let x = s.field_a`) and then reads `s.field_b` verifies successfully; a subsequent read of `s.field_a` generates a use-after-move VC caught by Z3
   4. A function taking `&mut s.x` and `&s.y` simultaneously verifies successfully with disjointness confirmed in SMT; a function taking `&mut s.x` and `&s.x` produces a conflict VC
   5. Quantifier trigger inference never proposes a datatype selector symbol (e.g., `Struct-field`) as a trigger candidate; the filtered candidate list contains only user-defined or spec-level symbols
-**Plans:** 4 plans (3 complete, 1 gap closure)
+**Plans:** 4/4 plans complete
 Plans:
 - [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
 - [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
@@ -301,7 +301,7 @@ Plans:
 | 45 | 2/2 | Complete    | 2026-03-05 | - |
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
-| 48 | 3/3 | Complete   | 2026-03-06 | - |
+| 48 | 4/4 | Complete   | 2026-03-06 | - |
 | 49 | v0.8 | 0/? | Not started | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |

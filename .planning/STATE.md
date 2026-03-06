@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
 status: completed
-stopped_at: Phase 48 context gathered
-last_updated: "2026-03-06T00:13:04.422Z"
-last_activity: 2026-03-05 — Phase 47 plan 03 complete (SpecValidationError + V080 diagnostics)
+stopped_at: Completed 48-04-PLAN.md
+last_updated: "2026-03-06T03:36:18.049Z"
+last_activity: 2026-03-06 — Phase 48 plan 03 complete (FieldMoveTracker + borrow splitting)
 progress:
   total_phases: 12
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 9
-  percent: 14
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 12
+  percent: 12
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 48 (Advanced Ownership & Borrows) — in progress
-Plan: 03 of 03 complete
-Status: Phase 48 complete (partial struct move tracking COMPL-14, borrow splitting COMPL-16)
-Last activity: 2026-03-06 — Phase 48 plan 03 complete (FieldMoveTracker + borrow splitting)
+Phase: 48 (Advanced Ownership & Borrows) — complete
+Plan: 04 of 04 complete
+Status: Phase 48 complete (all 4 plans: COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16)
+Last activity: 2026-03-06 — Phase 48 plan 04 complete (TwoPhaseBorrow MIR detection + E2E pipeline)
 
 ```
 Progress: [###                 ] 3/12 phases (12%)
@@ -84,6 +84,7 @@ Progress: [###                 ] 3/12 phases (12%)
 | Phase 48 P01 | 2406 | 2 tasks | 70 files |
 | Phase 48 P02 | 1566 | 2 tasks | 5 files |
 | Phase 48 P03 | 2621 | 2 tasks | 7 files |
+| Phase 48 P04 | 544 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 48]: FieldMoveTracker uses HashMap<(String,Vec<usize>),bool> for field paths plus HashSet for whole-struct moves
 - [Phase 48]: detect_borrow_conflicts takes Option<&Function> for backward-compatible field disjointness
 - [Phase 48]: Field disjointness compares projection paths level-by-level; prefix paths are NOT disjoint
+- [Phase 48]: Region names derived from bb index for borrow info; Reserved borrows activated at Call terminator arg positions
 
 ### Key v0.8 Architecture Notes
 
@@ -132,9 +134,9 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T02:37:00Z
-Stopped at: Completed 48-03-PLAN.md
-Resume file: .planning/phases/48-advanced-ownership-borrows/48-03-SUMMARY.md
+Last session: 2026-03-06T03:36:18.041Z
+Stopped at: Completed 48-04-PLAN.md
+Resume file: None
 Next step: Execute Phase 48 Plan 04
 
 ---
