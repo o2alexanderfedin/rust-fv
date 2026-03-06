@@ -4,8 +4,8 @@ milestone: v0.8
 milestone_name: Completeness & Coverage
 status: completed
 stopped_at: Completed 48-04-PLAN.md
-last_updated: "2026-03-06T03:36:18.049Z"
-last_activity: 2026-03-06 — Phase 48 plan 03 complete (FieldMoveTracker + borrow splitting)
+last_updated: "2026-03-06T03:49:10.985Z"
+last_activity: 2026-03-06 — Phase 48 plan 04 complete (TwoPhaseBorrow MIR detection + E2E pipeline)
 progress:
   total_phases: 12
   completed_phases: 4
