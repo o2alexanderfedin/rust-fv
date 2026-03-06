@@ -152,11 +152,12 @@ Plans:
   3. A function that partially moves a struct field (`let x = s.field_a`) and then reads `s.field_b` verifies successfully; a subsequent read of `s.field_a` generates a use-after-move VC caught by Z3
   4. A function taking `&mut s.x` and `&s.y` simultaneously verifies successfully with disjointness confirmed in SMT; a function taking `&mut s.x` and `&s.x` produces a conflict VC
   5. Quantifier trigger inference never proposes a datatype selector symbol (e.g., `Struct-field`) as a trigger candidate; the filtered candidate list contains only user-defined or spec-level symbols
-**Plans:** 3/3 plans complete
+**Plans:** 4 plans (3 complete, 1 gap closure)
 Plans:
 - [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
 - [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
 - [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
+- [ ] 48-04-PLAN.md — Gap closure: TwoPhaseBorrow MIR converter wiring (COMPL-13)
 
 ### Phase 49: Cross-Crate & Interop Completeness
 **Goal**: Generic instantiations from cross-crate call sites populate the registry, mutable statics require synchronization proof, NonNull eliminates redundant null checks, From::from contracts propagate through ?, and iterator adapters compose contracts
