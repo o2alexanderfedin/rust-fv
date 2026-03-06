@@ -56,6 +56,14 @@ pub fn detect_borrow_conflicts(
     // For each pair of (shared, mutable) borrows, check for overlapping live ranges
     for shared in &shared_borrows {
         for mutable in &mutable_borrows {
+            // Two-phase borrow support (COMPL-13): Reserved borrows do not conflict
+            // with shared borrows. Only Active and Activated borrows conflict.
+            // This handles patterns like vec.push(vec.len()) where the &mut is
+            // Reserved during the shared borrow evaluation.
+            if mutable.phase == crate::ir::BorrowPhase::Reserved {
+                continue;
+            }
+
             // Get live ranges for both borrows
             let shared_range = live_ranges.get(&shared.local_name);
             let mutable_range = live_ranges.get(&mutable.local_name);
