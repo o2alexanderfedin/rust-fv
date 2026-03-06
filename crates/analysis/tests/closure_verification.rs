@@ -478,6 +478,7 @@ fn make_closure_caller(
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -657,6 +658,7 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -752,6 +754,7 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -844,6 +847,7 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -941,6 +945,7 @@ fn e2e_fnonce_double_call_diagnostic() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1071,6 +1076,7 @@ fn e2e_closure_contract_specification_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1168,6 +1174,7 @@ fn e2e_closure_contract_violation_detected() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1295,6 +1302,7 @@ fn e2e_fn_closure_multiple_params_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -96,6 +96,7 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -145,6 +146,7 @@ fn make_fnmut_func(param_name: &str) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

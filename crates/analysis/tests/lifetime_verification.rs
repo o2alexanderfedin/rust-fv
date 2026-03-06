@@ -109,6 +109,7 @@ fn test_lifetime_params_outlives_verified() {
                 is_mutable: false,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_2".to_string(),
@@ -116,6 +117,7 @@ fn test_lifetime_params_outlives_verified() {
                 is_mutable: false,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -130,6 +132,7 @@ fn test_lifetime_params_outlives_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Extract lifetime parameters
@@ -185,6 +188,7 @@ fn test_outlives_with_static_lifetime() {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         }],
         reborrow_chains: vec![],
         unsafe_blocks: vec![],
@@ -198,6 +202,7 @@ fn test_outlives_with_static_lifetime() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -271,6 +276,7 @@ fn test_nll_conflict_detection() {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_3".to_string(),
@@ -278,6 +284,7 @@ fn test_nll_conflict_detection() {
                 is_mutable: false,
                 deref_level: 0,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -292,6 +299,7 @@ fn test_nll_conflict_detection() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Build lifetime context
@@ -360,6 +368,7 @@ fn test_prophecy_single_mut_ref() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Detect prophecies
@@ -415,6 +424,7 @@ fn test_prophecy_nested_mut_mut() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -485,6 +495,7 @@ fn test_borrow_validity_vc_generation() {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_3".to_string(),
@@ -492,6 +503,7 @@ fn test_borrow_validity_vc_generation() {
                 is_mutable: false,
                 deref_level: 0,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -506,6 +518,7 @@ fn test_borrow_validity_vc_generation() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -577,6 +590,7 @@ fn test_reborrow_chain_detection() {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_2".to_string(),
@@ -584,6 +598,7 @@ fn test_reborrow_chain_detection() {
                 is_mutable: true,
                 deref_level: 1,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -598,6 +613,7 @@ fn test_reborrow_chain_detection() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Detect reborrow chains
@@ -675,6 +691,7 @@ fn test_reborrow_outlives_detection() {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_2".to_string(),
@@ -682,6 +699,7 @@ fn test_reborrow_outlives_detection() {
                 is_mutable: true,
                 deref_level: 1,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -696,6 +714,7 @@ fn test_reborrow_outlives_detection() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -758,6 +777,7 @@ fn test_phase9_requirement_coverage() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -796,6 +816,7 @@ fn test_phase9_requirement_coverage() {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             },
             BorrowInfo {
                 local_name: "_2".to_string(),
@@ -803,6 +824,7 @@ fn test_phase9_requirement_coverage() {
                 is_mutable: true,
                 deref_level: 1,
                 source_local: Some("_1".to_string()),
+                phase: BorrowPhase::Active,
             },
         ],
         reborrow_chains: vec![],
@@ -817,6 +839,7 @@ fn test_phase9_requirement_coverage() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let chains = detect_reborrow_chains(&reborrow_func);

@@ -102,6 +102,21 @@ pub struct OutlivesConstraint {
 
 /// Information about a borrow in the function.
 ///
+/// Two-phase borrow lifecycle state.
+///
+/// In Rust's two-phase borrow model, a mutable borrow to a method receiver
+/// goes through Reserved -> Activated phases. During the Reserved phase, the
+/// borrow does not conflict with existing shared borrows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BorrowPhase {
+    /// Standard borrow -- active immediately
+    Active,
+    /// Reserved for two-phase pattern -- does not conflict with shared borrows
+    Reserved,
+    /// Activated at call site after reservation
+    Activated,
+}
+
 /// Tracks the borrow origin, region, mutability, and whether it's a reborrow.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowInfo {
@@ -115,6 +130,8 @@ pub struct BorrowInfo {
     pub deref_level: u32,
     /// If this is a reborrow, the original borrow local name
     pub source_local: Option<String>,
+    /// Two-phase borrow lifecycle state.
+    pub phase: BorrowPhase,
 }
 
 /// A chain of reborrows from an original borrow.
@@ -382,6 +399,9 @@ pub struct Function {
     /// `Some(...)` if this function is an async fn; `None` for regular functions.
     /// Populated by the MIR converter (Plan 02) and consumed by the async VC generator (Plan 03).
     pub coroutine_info: Option<CoroutineInfo>,
+    /// Ghost state for RefCell interior mutability tracking.
+    /// Empty for functions without RefCell locals.
+    pub refcell_ghost_states: Vec<RefCellGhostState>,
 }
 
 impl Function {
@@ -583,6 +603,22 @@ pub struct ProphecyInfo {
     pub deref_level: u32,
     /// For closure env field prophecies: the closure name. None for regular &mut T params.
     pub closure_name: Option<String>,
+}
+
+/// Ghost state for RefCell interior mutability tracking.
+///
+/// Follows ProphecyInfo pattern: per-local declarations in SMT preamble.
+/// Used to model RefCell's runtime borrow checking in the verification condition.
+#[derive(Debug, Clone)]
+pub struct RefCellGhostState {
+    /// The local variable name holding the RefCell (e.g., "_1")
+    pub local_name: String,
+    /// SMT variable for shared borrow count (>= 0)
+    pub borrow_count_var: String,
+    /// SMT variable for exclusive borrow flag
+    pub is_mut_borrowed_var: String,
+    /// The inner type T in RefCell<T>
+    pub inner_ty: Ty,
 }
 
 /// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
@@ -1071,6 +1107,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(func.is_generic());
     }
@@ -1102,6 +1139,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(!func.is_generic());
     }
@@ -1138,6 +1176,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1172,6 +1211,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1203,6 +1243,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1234,6 +1275,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1268,6 +1310,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1774,6 +1817,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         assert_eq!(borrow.local_name, "_1");
         assert_eq!(borrow.region, "'a");
@@ -1790,6 +1834,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         assert!(borrow.is_mutable);
     }
@@ -1802,6 +1847,7 @@ mod tests {
             is_mutable: true,
             deref_level: 1,
             source_local: Some("_2".to_string()),
+            phase: BorrowPhase::Active,
         };
         assert_eq!(borrow.deref_level, 1);
         assert_eq!(borrow.source_local, Some("_2".to_string()));
@@ -1849,6 +1895,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -1948,6 +1995,7 @@ mod tests {
             }),
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -1988,6 +2036,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(func.source_names.is_empty());
     }
@@ -2024,6 +2073,7 @@ mod tests {
             concurrency_config: None,
             source_names: names,
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
         assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
@@ -2139,6 +2189,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         assert!(func.coroutine_info.is_none());
     }
@@ -2179,6 +2230,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: Some(coroutine_info),
+            refcell_ghost_states: vec![],
         };
         assert!(func.coroutine_info.is_some());
         let info = func.coroutine_info.unwrap();

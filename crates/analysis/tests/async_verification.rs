@@ -131,6 +131,7 @@ fn make_async_func(
             states,
             persistent_fields,
         }),
+        refcell_ghost_states: vec![],
     }
 }
 

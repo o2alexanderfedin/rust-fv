@@ -268,6 +268,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -300,6 +301,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -338,6 +340,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -497,6 +500,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 2);
@@ -543,6 +547,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 3);
@@ -583,6 +588,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies.len(), 0);
@@ -629,6 +635,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let prophecies = detect_nested_prophecies(&func);
         assert_eq!(prophecies[1].initial_var, "_1_deref_initial");
@@ -668,6 +675,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let prophecies = detect_nested_prophecies(&func);
         let commands = nested_prophecy_declarations(&prophecies);

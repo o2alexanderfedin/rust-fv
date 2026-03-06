@@ -68,6 +68,7 @@ fn make_add_with_contracts(requires: Vec<&str>, ensures: Vec<&str>) -> Function 
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }

@@ -468,6 +468,7 @@ fn test_assert_true_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -564,6 +565,7 @@ fn test_assert_false_counterexample() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -688,6 +690,7 @@ fn test_assert_after_computation() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -815,6 +818,7 @@ fn test_array_bounds_safe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -914,6 +918,7 @@ fn test_array_bounds_unsafe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1032,6 +1037,7 @@ fn test_div_by_zero_safe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1134,6 +1140,7 @@ fn test_div_by_zero_unsafe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1240,6 +1247,7 @@ fn test_unwrap_safe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1328,6 +1336,7 @@ fn test_unwrap_unsafe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1418,6 +1427,7 @@ fn test_error_message_specificity() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1594,6 +1604,7 @@ fn test_remainder_by_zero_unsafe() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 

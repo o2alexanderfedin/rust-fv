@@ -185,6 +185,7 @@ fn make_ptr_cast_function(
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }

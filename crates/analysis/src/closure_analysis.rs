@@ -233,6 +233,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = extract_closure_info(&func);
@@ -267,6 +268,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = extract_closure_info(&func);
@@ -310,6 +312,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = detect_closure_calls(&func);
@@ -355,6 +358,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let errors = validate_fnonce_single_call(&func);
@@ -411,6 +415,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let errors = validate_fnonce_single_call(&func);

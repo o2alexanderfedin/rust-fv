@@ -100,6 +100,7 @@ fn make_concurrent_function(
         concurrency_config,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

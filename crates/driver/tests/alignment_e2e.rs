@@ -53,6 +53,7 @@ fn make_ptr_cast_function(name: &str, target_pointee: Ty) -> Function {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -268,6 +269,7 @@ fn alignment_e2e_multiple_casts_multiple_vcs() {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 

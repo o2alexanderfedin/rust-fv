@@ -397,6 +397,8 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
             "inferred-summary callee with alias preconditions: alias VCs emitted (V062)"
         }
         VcKind::AlignmentSafety => "pointer alignment violation (V070)",
+        VcKind::BorrowConflict => "RefCell borrow conflict detected (V090)",
+        VcKind::UseAfterPartialMove => "use of partially-moved struct field (V091)",
     }
 }
 
@@ -564,6 +566,17 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
             "V070: Pointer cast target type requires alignment. Add \
              #[unsafe_requires(addr % align == 0)] or ensure the source pointer is \
              already aligned to the target type's alignment."
+                .to_string(),
+        ),
+        VcKind::BorrowConflict => Some(
+            "V090: RefCell borrow conflict detected. Check borrow/borrow_mut call ordering. \
+             Ensure no outstanding borrow_mut() when calling borrow(), and no outstanding \
+             borrow() when calling borrow_mut()."
+                .to_string(),
+        ),
+        VcKind::UseAfterPartialMove => Some(
+            "V091: Use of partially-moved struct field. Clone the field before moving, \
+             or restructure to avoid partial move."
                 .to_string(),
         ),
         _ => None,

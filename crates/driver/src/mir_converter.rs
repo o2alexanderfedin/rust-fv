@@ -295,6 +295,7 @@ pub fn convert_mir<'tcx>(
         concurrency_config: None,
         source_names,
         coroutine_info,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -855,6 +856,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None, // <- This is the invariant: no coroutine info for sync fns
+            refcell_ghost_states: vec![],
         };
 
         assert!(

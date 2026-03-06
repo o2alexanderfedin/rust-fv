@@ -484,6 +484,7 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -561,6 +562,7 @@ fn make_even(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -638,6 +640,7 @@ fn make_odd(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -755,6 +758,7 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -1076,6 +1080,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1170,6 +1175,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1333,6 +1339,7 @@ fn snd_recursive_without_decreases_rejected() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1495,6 +1502,7 @@ fn make_cross_crate_local_foo(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -1550,6 +1558,7 @@ fn make_cross_crate_local_foo_decremented(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

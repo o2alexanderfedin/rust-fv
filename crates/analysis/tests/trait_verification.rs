@@ -285,6 +285,7 @@ fn make_function_with_trait_object_param(
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -860,6 +861,7 @@ fn dyn_dispatch_call_site_uses_trait_contracts() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Build contract_db with Stack::push having a requires contract.

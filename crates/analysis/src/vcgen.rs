@@ -233,6 +233,14 @@ pub enum VcKind {
     /// Generated when a PtrToPtr cast targets a type with alignment > 1.
     /// Warning severity (V070), like MemorySafety.
     AlignmentSafety,
+    /// RefCell borrow conflict (runtime panic if borrow rules violated).
+    /// Generated for RefCell::borrow() when borrow_mut() outstanding, and vice versa.
+    /// Error V090.
+    BorrowConflict,
+    /// Use of a struct field after it has been partially moved out.
+    /// Generated when reading a field that was previously consumed by move.
+    /// Error V091.
+    UseAfterPartialMove,
 }
 
 impl VcKind {
@@ -3570,6 +3578,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -5125,6 +5134,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -5218,6 +5228,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -5383,6 +5394,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -5441,6 +5453,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6033,6 +6046,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6071,6 +6085,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6120,6 +6135,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6169,6 +6185,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6205,6 +6222,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -6236,6 +6254,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -6267,6 +6286,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -6417,6 +6437,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -6651,6 +6672,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6694,6 +6716,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6737,6 +6760,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6816,6 +6840,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -6994,6 +7019,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7085,6 +7111,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -7124,6 +7151,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -7233,6 +7261,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7284,6 +7313,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7326,6 +7356,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7368,6 +7399,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7408,6 +7440,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7489,6 +7522,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -7552,6 +7586,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -7615,6 +7650,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -7813,6 +7849,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7864,6 +7901,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7915,6 +7953,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7966,6 +8005,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8064,6 +8104,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8260,6 +8301,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -8433,6 +8475,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -8501,6 +8544,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -8555,6 +8599,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result2 = generate_vcs(&func_with_contract, None);
@@ -8624,6 +8669,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -8717,6 +8763,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -8806,6 +8853,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         // Validate FnOnce single-call property
@@ -8877,6 +8925,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -8923,6 +8972,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         // Call with None TraitDatabase - should work as before
@@ -8962,6 +9012,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -9007,6 +9058,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9048,6 +9100,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9106,6 +9159,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9162,6 +9216,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9224,6 +9279,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9280,6 +9336,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9366,6 +9423,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9423,6 +9481,7 @@ mod tests {
             }),
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9484,6 +9543,7 @@ mod tests {
             }),
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9541,6 +9601,7 @@ mod tests {
             }),
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9584,6 +9645,7 @@ mod tests {
             }),
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9631,6 +9693,7 @@ mod tests {
             concurrency_config: None, // No explicit config, but thread_spawns present
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -9691,6 +9754,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -9853,6 +9917,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -9913,6 +9978,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -10096,6 +10162,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -10145,6 +10212,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -10198,6 +10266,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         }
     }
 
@@ -10340,6 +10409,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let mut contract_db = ContractDatabase::new();
@@ -10770,6 +10840,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -10818,6 +10889,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -10866,6 +10938,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     }

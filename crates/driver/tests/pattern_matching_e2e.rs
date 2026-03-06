@@ -95,6 +95,7 @@ fn make_base_function(name: &str, contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

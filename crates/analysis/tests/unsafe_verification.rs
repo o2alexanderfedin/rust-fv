@@ -87,6 +87,7 @@ fn make_unsafe_function(
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -1145,6 +1146,7 @@ fn test_cross_function_pointer_aliasing() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Build ContractDatabase with swap_unsafe having an alias precondition
@@ -1235,6 +1237,7 @@ fn test_safe_function_no_unsafe_vcs() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Generate VCs
@@ -1311,6 +1314,7 @@ fn make_alias_caller(caller_name: &str, callee_name: &str, arg_a: &str, arg_b: &
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

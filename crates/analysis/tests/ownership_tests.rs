@@ -495,6 +495,7 @@ fn test_copy_semantics_preserved() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -629,6 +630,7 @@ fn test_shared_borrow_preserved() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -768,6 +770,7 @@ fn test_mutable_borrow_havoced() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -913,6 +916,7 @@ fn test_move_semantics_value_consumed() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1127,6 +1131,7 @@ fn test_mixed_ownership_call() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1264,6 +1269,7 @@ fn test_ownership_with_postcondition_assumption() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1406,6 +1412,7 @@ fn test_no_ownership_without_contract_db() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1511,6 +1518,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
             loops: vec![],
         }
     };
@@ -1737,6 +1745,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1906,6 +1915,7 @@ fn test_preservation_constraint_smt_encoding() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 

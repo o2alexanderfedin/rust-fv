@@ -66,6 +66,7 @@ fn make_add_function(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -816,6 +817,7 @@ fn make_max_function(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -1031,6 +1033,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -1157,6 +1160,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -1357,6 +1361,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -1496,6 +1501,7 @@ fn test_single_branch_overflow_check() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1605,6 +1611,7 @@ fn test_unbounded_int_addition_no_overflow() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1711,6 +1718,7 @@ fn test_unbounded_int_sum_formula() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1977,6 +1985,7 @@ fn test_quantifier_full_pipeline() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -2101,6 +2110,7 @@ fn test_generic_max_i32_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Register i32 instantiation
@@ -2219,6 +2229,7 @@ fn test_generic_max_u64_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2337,6 +2348,7 @@ fn test_generic_max_wrong_postcondition() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Register i32 instantiation
@@ -2439,6 +2451,7 @@ fn test_generic_multiple_instantiations() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2537,6 +2550,7 @@ fn test_generic_no_instantiations_warning() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2616,6 +2630,7 @@ fn test_prophecy_increment_mut_ref() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2691,6 +2706,7 @@ fn test_prophecy_no_mutation_verified() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2792,6 +2808,7 @@ fn test_prophecy_conditional_mutation() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2869,6 +2886,7 @@ fn test_prophecy_basic() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2967,6 +2985,7 @@ fn e2e_struct_datatype_field_reasoning() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Generate VCs
@@ -3108,6 +3127,7 @@ fn e2e_enum_datatype_match() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Generate VCs
@@ -3256,6 +3276,7 @@ fn e2e_nested_struct_update() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Generate VCs
@@ -3373,6 +3394,7 @@ fn e2e_functional_update_binop() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // Generate VCs

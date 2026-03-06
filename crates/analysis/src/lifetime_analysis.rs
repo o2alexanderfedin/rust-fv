@@ -253,7 +253,7 @@ pub fn compute_live_ranges(func: &Function) -> HashMap<String, Vec<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BasicBlock, Contracts, Local, Terminator, Ty};
+    use crate::ir::{BasicBlock, BorrowPhase, Contracts, Local, Terminator, Ty};
 
     // ====== LifetimeContext tests ======
 
@@ -298,6 +298,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         context.register_borrow(borrow.clone());
         assert_eq!(context.get_borrow("_1"), Some(&borrow));
@@ -312,6 +313,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let borrow2 = BorrowInfo {
             local_name: "_2".to_string(),
@@ -319,6 +321,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let borrow3 = BorrowInfo {
             local_name: "_3".to_string(),
@@ -326,6 +329,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         context.register_borrow(borrow1);
         context.register_borrow(borrow2);
@@ -347,6 +351,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let borrow2 = BorrowInfo {
             local_name: "_2".to_string(),
@@ -354,6 +359,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         context.register_borrow(borrow1);
         context.register_borrow(borrow2);
@@ -372,6 +378,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let borrow2 = BorrowInfo {
             local_name: "_2".to_string(),
@@ -379,6 +386,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         context.register_borrow(borrow1);
         context.register_borrow(borrow2);
@@ -420,6 +428,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let params = extract_lifetime_params(&func);
         assert_eq!(params.len(), 1);
@@ -453,6 +462,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let params = extract_lifetime_params(&func);
         assert_eq!(params.len(), 0);
@@ -490,6 +500,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let resolved = resolve_outlives(&func);
         assert_eq!(resolved.len(), 1);
@@ -533,6 +544,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let resolved = resolve_outlives(&func);
         // Should have original 2 plus transitive 'a: 'c
@@ -579,6 +591,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let resolved = resolve_outlives(&func);
         // Duplicates should be preserved as-is (no deduplication in this implementation)
@@ -608,6 +621,7 @@ mod tests {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             }],
             reborrow_chains: vec![],
             unsafe_blocks: vec![],
@@ -621,6 +635,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 0);
@@ -647,6 +662,7 @@ mod tests {
                     is_mutable: true,
                     deref_level: 0,
                     source_local: None,
+                    phase: BorrowPhase::Active,
                 },
                 BorrowInfo {
                     local_name: "_2".to_string(),
@@ -654,6 +670,7 @@ mod tests {
                     is_mutable: true,
                     deref_level: 1,
                     source_local: Some("_1".to_string()),
+                    phase: BorrowPhase::Active,
                 },
             ],
             reborrow_chains: vec![],
@@ -668,6 +685,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 1);
@@ -696,6 +714,7 @@ mod tests {
                     is_mutable: true,
                     deref_level: 0,
                     source_local: None,
+                    phase: BorrowPhase::Active,
                 },
                 BorrowInfo {
                     local_name: "_2".to_string(),
@@ -703,6 +722,7 @@ mod tests {
                     is_mutable: true,
                     deref_level: 1,
                     source_local: Some("_1".to_string()),
+                    phase: BorrowPhase::Active,
                 },
                 BorrowInfo {
                     local_name: "_3".to_string(),
@@ -710,6 +730,7 @@ mod tests {
                     is_mutable: true,
                     deref_level: 2,
                     source_local: Some("_2".to_string()),
+                    phase: BorrowPhase::Active,
                 },
             ],
             reborrow_chains: vec![],
@@ -724,6 +745,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 1);
@@ -759,6 +781,7 @@ mod tests {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             }],
             reborrow_chains: vec![],
             unsafe_blocks: vec![],
@@ -772,6 +795,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let context = build_lifetime_context(&func);
         assert_eq!(context.lifetimes.len(), 1);
@@ -789,6 +813,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let context = LifetimeContext::new();
         assert!(check_static_validity(&borrow, &context));
@@ -802,6 +827,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let mut context = LifetimeContext::new();
         context.add_outlives(OutlivesConstraint {
@@ -819,6 +845,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         };
         let context = LifetimeContext::new();
         assert!(!check_static_validity(&borrow, &context));
@@ -855,6 +882,7 @@ mod tests {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             }],
             reborrow_chains: vec![],
             unsafe_blocks: vec![],
@@ -868,6 +896,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let ranges = compute_live_ranges(&func);
         assert_eq!(ranges.get("_1").unwrap(), &vec![0, 1]);

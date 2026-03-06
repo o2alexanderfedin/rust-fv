@@ -48,6 +48,7 @@ fn make_func(
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -321,6 +322,7 @@ fn compl21_ghost_local_filtered() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -395,6 +397,7 @@ fn compl22_spec_int_routes_to_all_logic() {
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

@@ -60,6 +60,7 @@ fn make_function(name: &str, basic_blocks: Vec<BasicBlock>, contracts: Contracts
         concurrency_config: None,
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 

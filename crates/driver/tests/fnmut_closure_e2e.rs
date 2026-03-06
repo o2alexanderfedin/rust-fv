@@ -83,6 +83,7 @@ fn make_fnmut_closure_func() -> Function {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
@@ -217,6 +218,7 @@ fn test_fnmut_closure_no_mut_capture_no_prophecy_vars() {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     };
 
     // -- SMT-level check: no prophecy declarations for ByMove-only captures --
@@ -287,6 +289,7 @@ fn test_fnmut_closure_no_mut_capture_no_prophecy_vars() {
             concurrency_config: None,
             source_names: HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
         let cache_dir = temp_cache_dir("fn_no_prophecy");
         let (task, mut cache) = make_task(func2, cache_dir);

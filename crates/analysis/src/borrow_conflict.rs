@@ -305,7 +305,9 @@ pub fn generate_reborrow_vcs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BasicBlock, BorrowInfo, Contracts, Local, Statement, Terminator, Ty};
+    use crate::ir::{
+        BasicBlock, BorrowInfo, BorrowPhase, Contracts, Local, Statement, Terminator, Ty,
+    };
 
     // ====== detect_borrow_conflicts tests ======
 
@@ -329,6 +331,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_2".to_string(),
@@ -336,6 +339,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -359,6 +363,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_2".to_string(),
@@ -366,6 +371,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -386,6 +392,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_2".to_string(),
@@ -393,6 +400,7 @@ mod tests {
             is_mutable: false,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_3".to_string(),
@@ -400,6 +408,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -465,6 +474,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -508,6 +518,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -525,6 +536,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -572,6 +584,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -593,6 +606,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_2".to_string(),
@@ -600,6 +614,7 @@ mod tests {
             is_mutable: true,
             deref_level: 1,
             source_local: Some("_1".to_string()),
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -620,6 +635,7 @@ mod tests {
             is_mutable: true,
             deref_level: 0,
             source_local: None,
+            phase: BorrowPhase::Active,
         });
         context.register_borrow(BorrowInfo {
             local_name: "_2".to_string(),
@@ -627,6 +643,7 @@ mod tests {
             is_mutable: true,
             deref_level: 1,
             source_local: Some("_1".to_string()),
+            phase: BorrowPhase::Active,
         });
 
         let mut live_ranges = HashMap::new();
@@ -670,6 +687,7 @@ mod tests {
                 is_mutable: true,
                 deref_level: 0,
                 source_local: None,
+                phase: BorrowPhase::Active,
             }],
             reborrow_chains: vec![],
             unsafe_blocks: vec![],
@@ -683,6 +701,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let _result = generate_vcs(&func, None);
@@ -722,6 +741,7 @@ mod tests {
             concurrency_config: None,
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
+            refcell_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);

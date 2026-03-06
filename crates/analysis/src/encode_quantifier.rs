@@ -29,7 +29,7 @@ use crate::trigger_validation::{TriggerValidationError, TriggerValidator};
 pub fn infer_triggers(body: &Term, bound_vars: &[String]) -> Vec<Vec<Term>> {
     let mut triggers = Vec::new();
 
-    // Find all function applications in the body
+    // Find all function applications in the body (already filtered for datatype symbols)
     let candidates = find_trigger_candidates(body);
 
     // Filter candidates: must contain all bound variables
@@ -46,10 +46,11 @@ pub fn infer_triggers(body: &Term, bound_vars: &[String]) -> Vec<Vec<Term>> {
         }
     }
 
-    // If no valid triggers found but body contains function applications,
-    // generate a synthetic wrapper trigger to ensure quantifiers are never
-    // left without triggers (COMPL-08 safety net).
-    if triggers.is_empty() && !candidates.is_empty() || triggers.is_empty() && has_app_nodes(body) {
+    // COMPL-08 safety net: if no valid triggers found but the body contained
+    // datatype symbol applications that were filtered out, generate a synthetic
+    // wrapper trigger. This ensures quantifiers are never left without triggers
+    // when the only candidate apps were selectors/constructors/testers.
+    if triggers.is_empty() && has_filtered_datatype_apps(body) {
         triggers.push(vec![Term::App(
             "__trigger_wrap".to_string(),
             vec![body.clone()],
@@ -57,6 +58,42 @@ pub fn infer_triggers(body: &Term, bound_vars: &[String]) -> Vec<Vec<Term>> {
     }
 
     triggers
+}
+
+/// Check if a term contains Term::App nodes that are datatype symbols
+/// (i.e., would have been filtered by `is_datatype_symbol`).
+fn has_filtered_datatype_apps(term: &Term) -> bool {
+    match term {
+        Term::App(name, args) => {
+            if !args.is_empty() && is_datatype_symbol(name) {
+                return true;
+            }
+            args.iter().any(has_filtered_datatype_apps)
+        }
+        Term::Not(inner) => has_filtered_datatype_apps(inner),
+        Term::And(terms) | Term::Or(terms) | Term::Distinct(terms) => {
+            terms.iter().any(has_filtered_datatype_apps)
+        }
+        Term::Implies(a, b)
+        | Term::Iff(a, b)
+        | Term::Eq(a, b)
+        | Term::Select(a, b)
+        | Term::IntAdd(a, b)
+        | Term::IntSub(a, b)
+        | Term::IntMul(a, b)
+        | Term::IntDiv(a, b)
+        | Term::IntMod(a, b)
+        | Term::IntLt(a, b)
+        | Term::IntLe(a, b)
+        | Term::IntGt(a, b)
+        | Term::IntGe(a, b) => has_filtered_datatype_apps(a) || has_filtered_datatype_apps(b),
+        Term::Ite(c, t, e) | Term::Store(c, t, e) => {
+            has_filtered_datatype_apps(c)
+                || has_filtered_datatype_apps(t)
+                || has_filtered_datatype_apps(e)
+        }
+        _ => false,
+    }
 }
 
 /// Collect all free variables (Term::Const) in a term.
@@ -230,34 +267,6 @@ pub fn is_datatype_symbol(name: &str) -> bool {
     }
 
     false
-}
-
-/// Check if a term contains any Term::App nodes (including datatype symbols).
-fn has_app_nodes(term: &Term) -> bool {
-    match term {
-        Term::App(_, _) => true,
-        Term::Not(inner) => has_app_nodes(inner),
-        Term::And(terms) | Term::Or(terms) | Term::Distinct(terms) => {
-            terms.iter().any(has_app_nodes)
-        }
-        Term::Implies(a, b)
-        | Term::Iff(a, b)
-        | Term::Eq(a, b)
-        | Term::Select(a, b)
-        | Term::IntAdd(a, b)
-        | Term::IntSub(a, b)
-        | Term::IntMul(a, b)
-        | Term::IntDiv(a, b)
-        | Term::IntMod(a, b)
-        | Term::IntLt(a, b)
-        | Term::IntLe(a, b)
-        | Term::IntGt(a, b)
-        | Term::IntGe(a, b) => has_app_nodes(a) || has_app_nodes(b),
-        Term::Ite(c, t, e) | Term::Store(c, t, e) => {
-            has_app_nodes(c) || has_app_nodes(t) || has_app_nodes(e)
-        }
-        _ => false,
-    }
 }
 
 /// Find all function applications (Term::App) that could serve as triggers.

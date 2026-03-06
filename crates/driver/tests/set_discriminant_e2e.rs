@@ -75,6 +75,7 @@ fn make_set_discriminant_func(variant_idx: usize) -> Function {
         concurrency_config: None,
         source_names: HashMap::new(),
         coroutine_info: None,
+        refcell_ghost_states: vec![],
     }
 }
 
