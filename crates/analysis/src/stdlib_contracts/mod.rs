@@ -5,6 +5,7 @@
 //! of user code that calls stdlib methods without requiring contracts on every
 //! stdlib function.
 
+pub mod from;
 pub mod hashmap;
 pub mod iterator;
 pub mod loader;
