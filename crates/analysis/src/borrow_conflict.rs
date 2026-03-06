@@ -40,14 +40,81 @@ pub struct BorrowExpiry {
     pub expiry_block: usize,
 }
 
+/// Extract the Place that a borrow local was created from.
+///
+/// Walks function statements to find `borrow_local = Ref(_, place)` and returns the Place.
+fn extract_borrow_place(func: &Function, borrow_local: &str) -> Option<crate::ir::Place> {
+    for block in &func.basic_blocks {
+        for stmt in &block.statements {
+            if let crate::ir::Statement::Assign(dest, rvalue) = stmt
+                && dest.local == borrow_local
+                && let crate::ir::Rvalue::Ref(_, place) = rvalue
+            {
+                return Some(place.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Check if two borrows target disjoint fields of the same struct.
+///
+/// Returns `true` if both borrows originate from the same base local and
+/// their field projection paths diverge at some level (meaning they access
+/// different fields). Returns `false` if:
+/// - Either borrow's Place cannot be found
+/// - They are on different base locals (not applicable)
+/// - Either has no field projections (whole-struct borrow)
+/// - Their field paths are identical or one is a prefix of the other
+fn are_borrows_field_disjoint(func: &Function, shared_local: &str, mutable_local: &str) -> bool {
+    let shared_place = match extract_borrow_place(func, shared_local) {
+        Some(p) => p,
+        None => return false,
+    };
+    let mutable_place = match extract_borrow_place(func, mutable_local) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    // Must be the same base local
+    if shared_place.local != mutable_place.local {
+        return false;
+    }
+
+    let shared_fields = shared_place.field_indices();
+    let mutable_fields = mutable_place.field_indices();
+
+    // If either has no field projections (whole-struct borrow), NOT disjoint
+    if shared_fields.is_empty() || mutable_fields.is_empty() {
+        return false;
+    }
+
+    // Compare field paths: find first diverging index
+    let min_len = shared_fields.len().min(mutable_fields.len());
+    for i in 0..min_len {
+        if shared_fields[i] != mutable_fields[i] {
+            // Fields diverge at this level -- they are disjoint
+            return true;
+        }
+    }
+
+    // If one path is a prefix of the other, they are NOT disjoint
+    // (e.g., s.inner and s.inner.x overlap)
+    false
+}
+
 /// Detect borrow conflicts between shared and mutable borrows.
 ///
 /// For each pair of (shared_borrow, mutable_borrow), computes the intersection
 /// of their live ranges. If the intersection is non-empty, creates a BorrowConflict.
+///
+/// When `func` is provided, field-level disjointness checking is enabled (COMPL-16):
+/// borrows targeting disjoint fields of the same struct (e.g., `&mut s.x` and `&s.y`)
+/// are not considered conflicting.
 pub fn detect_borrow_conflicts(
     context: &LifetimeContext,
     live_ranges: &HashMap<String, Vec<usize>>,
-    _func: Option<&Function>,
+    func: Option<&Function>,
 ) -> Vec<BorrowConflict> {
     let mut conflicts = Vec::new();
 
@@ -77,8 +144,15 @@ pub fn detect_borrow_conflicts(
                     .copied()
                     .collect();
 
-                // If there's overlap, we have a conflict
+                // If there's overlap, check for field disjointness before reporting conflict
                 if !overlapping.is_empty() {
+                    // COMPL-16: If function is available, check if borrows target disjoint fields
+                    if let Some(f) = func
+                        && are_borrows_field_disjoint(f, &shared.local_name, &mutable.local_name)
+                    {
+                        continue; // Disjoint fields -- no conflict
+                    }
+
                     overlapping.sort_unstable();
                     conflicts.push(BorrowConflict {
                         shared_borrow: shared.local_name.clone(),
