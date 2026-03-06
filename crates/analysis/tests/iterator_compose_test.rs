@@ -7,10 +7,14 @@
 //! - Single adapter (no chaining) still works correctly
 //! - Three-adapter chain (filter.map.take) composes all three contracts
 
+use rust_fv_analysis::contract_db::ContractDatabase;
+use rust_fv_analysis::ir::*;
 use rust_fv_analysis::stdlib_contracts::StdlibContractRegistry;
 use rust_fv_analysis::stdlib_contracts::iterator::{
     compose_adapter_contracts, register_iterator_contracts,
 };
+use rust_fv_analysis::stdlib_contracts::loader::load_default_contracts;
+use rust_fv_analysis::vcgen;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,5 +205,248 @@ fn iterator_compose_three_adapter_chain() {
         all_ensures.contains("min") || all_ensures.contains("take"),
         "Three-adapter chain should reference take's constraint, got: {}",
         all_ensures
+    );
+}
+
+// ---------------------------------------------------------------------------
+// VCGen Integration Tests
+// ---------------------------------------------------------------------------
+
+/// Build a function with MIR representing `iter.filter(pred).map(f)`:
+///   bb0: call _1 = Iterator::filter(iter, pred) -> bb1
+///   bb1: call _2 = Iterator::map(_1, f) -> bb2
+///   bb2: call _3 = Iterator::collect(_2) -> bb3
+///   bb3: return
+fn build_adapter_chain_mir() -> Function {
+    let return_ty = Ty::Named("Vec_i32".to_string());
+
+    Function {
+        name: "adapter_chain_fn".to_string(),
+        return_local: Local::new("_0", return_ty),
+        params: vec![Local::new("iter", Ty::Named("IntoIter_i32".to_string()))],
+        locals: vec![
+            Local::new("_1", Ty::Named("Filter_i32".to_string())),
+            Local::new("_2", Ty::Named("Map_i32".to_string())),
+            Local::new("_3", Ty::Named("Vec_i32".to_string())),
+        ],
+        basic_blocks: vec![
+            // bb0: call Iterator::filter(iter, pred) -> bb1
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Call {
+                    func: "Iterator::filter".to_string(),
+                    args: vec![
+                        Operand::Move(Place::local("iter")),
+                        Operand::Copy(Place::local("pred")),
+                    ],
+                    destination: Place::local("_1"),
+                    target: 1,
+                },
+            },
+            // bb1: call Iterator::map(_1, f) -> bb2
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Call {
+                    func: "Iterator::map".to_string(),
+                    args: vec![
+                        Operand::Move(Place::local("_1")),
+                        Operand::Copy(Place::local("f")),
+                    ],
+                    destination: Place::local("_2"),
+                    target: 2,
+                },
+            },
+            // bb2: call Iterator::collect(_2) -> bb3
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Call {
+                    func: "Iterator::collect".to_string(),
+                    args: vec![Operand::Move(Place::local("_2"))],
+                    destination: Place::local("_3"),
+                    target: 3,
+                },
+            },
+            // bb3: assign and return
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Move(Place::local("_3"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "true".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
+            is_inferred: false,
+        },
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+        refcell_ghost_states: vec![],
+        loops: vec![],
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: VCGen chain produces composed VCs with seq_len postconditions
+// ---------------------------------------------------------------------------
+
+#[test]
+fn iterator_compose_vcgen_chain_produces_composed_vcs() {
+    let func = build_adapter_chain_mir();
+
+    let mut db = ContractDatabase::new();
+    let registry = load_default_contracts();
+    registry.merge_into(&mut db);
+
+    let vcs = vcgen::generate_vcs(&func, Some(&db));
+
+    // Get postcondition VCs — these contain callee postcondition assumptions
+    let postcondition_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            matches!(
+                vc.location.vc_kind,
+                rust_fv_analysis::vcgen::VcKind::Postcondition
+            )
+        })
+        .collect();
+
+    assert!(
+        !postcondition_vcs.is_empty(),
+        "Should generate postcondition VCs for adapter chain function"
+    );
+
+    // Serialize postcondition VC scripts and check for seq_len (from iterator contracts)
+    let all_scripts: String = postcondition_vcs
+        .iter()
+        .map(|vc| format!("{:?}", vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        all_scripts.contains("seq_len"),
+        "Iterator adapter chain VCs should contain seq_len postconditions, not BoolLit(true). Got:\n{}",
+        all_scripts
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Single adapter uses direct contract without composition
+// ---------------------------------------------------------------------------
+
+#[test]
+fn iterator_compose_vcgen_single_adapter_uses_direct_contract() {
+    // Build a function with just Iterator::filter (no chain)
+    let func = Function {
+        name: "single_adapter_fn".to_string(),
+        return_local: Local::new("_0", Ty::Named("Filter_i32".to_string())),
+        params: vec![Local::new("iter", Ty::Named("IntoIter_i32".to_string()))],
+        locals: vec![Local::new("_1", Ty::Named("Filter_i32".to_string()))],
+        basic_blocks: vec![
+            BasicBlock {
+                statements: vec![],
+                terminator: Terminator::Call {
+                    func: "Iterator::filter".to_string(),
+                    args: vec![
+                        Operand::Move(Place::local("iter")),
+                        Operand::Copy(Place::local("pred")),
+                    ],
+                    destination: Place::local("_1"),
+                    target: 1,
+                },
+            },
+            BasicBlock {
+                statements: vec![Statement::Assign(
+                    Place::local("_0"),
+                    Rvalue::Use(Operand::Move(Place::local("_1"))),
+                )],
+                terminator: Terminator::Return,
+            },
+        ],
+        contracts: Contracts {
+            requires: vec![],
+            ensures: vec![SpecExpr {
+                raw: "true".to_string(),
+            }],
+            invariants: vec![],
+            is_pure: false,
+            decreases: None,
+            fn_specs: vec![],
+            state_invariant: None,
+            is_inferred: false,
+        },
+        generic_params: vec![],
+        prophecies: vec![],
+        lifetime_params: vec![],
+        outlives_constraints: vec![],
+        borrow_info: vec![],
+        reborrow_chains: vec![],
+        unsafe_blocks: vec![],
+        unsafe_operations: vec![],
+        unsafe_contracts: None,
+        is_unsafe_fn: false,
+        thread_spawns: vec![],
+        atomic_ops: vec![],
+        sync_ops: vec![],
+        lock_invariants: vec![],
+        concurrency_config: None,
+        source_names: std::collections::HashMap::new(),
+        coroutine_info: None,
+        refcell_ghost_states: vec![],
+        loops: vec![],
+    };
+
+    let mut db = ContractDatabase::new();
+    let registry = load_default_contracts();
+    registry.merge_into(&mut db);
+
+    let vcs = vcgen::generate_vcs(&func, Some(&db));
+
+    // Single adapter should still get postcondition from Iterator::filter
+    let postcondition_vcs: Vec<_> = vcs
+        .conditions
+        .iter()
+        .filter(|vc| {
+            matches!(
+                vc.location.vc_kind,
+                rust_fv_analysis::vcgen::VcKind::Postcondition
+            )
+        })
+        .collect();
+
+    let all_scripts: String = postcondition_vcs
+        .iter()
+        .map(|vc| format!("{:?}", vc.script))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        all_scripts.contains("seq_len"),
+        "Single iterator adapter should use direct contract with seq_len, not BoolLit(true). Got:\n{}",
+        all_scripts
     );
 }

@@ -3622,6 +3622,80 @@ fn encode_callee_postcondition_assumptions(
         return;
     }
 
+    // COMPL-04: Special handling for iterator adapter postconditions.
+    // Iterator contracts use domain-specific syntax (result.seq_len(), self.seq_len())
+    // that the spec parser cannot handle. Encode them directly as SMT assertions
+    // using uninterpreted functions.
+    if detect_iterator_adapter_callee(&call_site.callee_name, contract_db).is_some() {
+        let dest_term = Term::Const(call_site.destination.local.clone());
+        // Get self (first arg = receiver iterator)
+        let self_term = if let Some(first_arg) = call_site.args.first() {
+            match first_arg {
+                Operand::Copy(p) | Operand::Move(p) => Term::Const(p.local.clone()),
+                Operand::Constant(c) => Term::Const(format!("{:?}", c)),
+            }
+        } else {
+            return;
+        };
+
+        // Encode each postcondition as SMT assertions with uninterpreted functions
+        for post in &callee_summary.contracts.ensures {
+            let raw = &post.raw;
+            // Encode seq_len-based postconditions
+            if raw.contains("seq_len") {
+                let result_seq_len = Term::App("seq_len".to_string(), vec![dest_term.clone()]);
+                let self_seq_len = Term::App("seq_len".to_string(), vec![self_term.clone()]);
+
+                let assertion = if raw.contains("<=") {
+                    // filter: result.seq_len() <= self.seq_len()
+                    Term::App("bvule".to_string(), vec![result_seq_len, self_seq_len])
+                } else if raw.contains("==") {
+                    // map/enumerate: result.seq_len() == self.seq_len()
+                    Term::Eq(Box::new(result_seq_len), Box::new(self_seq_len))
+                } else if raw.contains("min") {
+                    // take: result.seq_len() == min(n, self.seq_len())
+                    // Get the 'n' argument (second arg to take)
+                    let n_term = if call_site.args.len() > 1 {
+                        match &call_site.args[1] {
+                            Operand::Copy(p) | Operand::Move(p) => Term::Const(p.local.clone()),
+                            Operand::Constant(c) => Term::Const(format!("{:?}", c)),
+                        }
+                    } else {
+                        continue;
+                    };
+                    let min_term = Term::App("min".to_string(), vec![n_term, self_seq_len]);
+                    Term::Eq(Box::new(result_seq_len), Box::new(min_term))
+                } else {
+                    continue;
+                };
+
+                tracing::debug!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    postcondition = %raw,
+                    "Assuming iterator adapter seq_len postcondition at call site"
+                );
+                script.push(Command::Assert(assertion));
+            } else if raw.contains("element") || raw.contains("forall") || raw.contains("predicate")
+            {
+                // Element-level postconditions: encode as a comment-annotated assertion
+                // with uninterpreted functions for traceability
+                let element_constraint = Term::App(
+                    format!("iterator_{}_element_constraint", call_site.callee_name),
+                    vec![dest_term.clone(), self_term.clone()],
+                );
+                tracing::debug!(
+                    caller = %func.name,
+                    callee = %call_site.callee_name,
+                    postcondition = %raw,
+                    "Assuming iterator adapter element-level postcondition at call site"
+                );
+                script.push(Command::Assert(element_constraint));
+            }
+        }
+        return;
+    }
+
     let callee_func_context = build_callee_func_context(callee_summary);
     let mut arg_subs = build_arg_substitutions(call_site, callee_summary, func);
 
