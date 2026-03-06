@@ -41,7 +41,7 @@ fn test_reserved_borrow_no_conflict_with_shared() {
     live_ranges.insert("_1".to_string(), vec![0, 1, 2]);
     live_ranges.insert("_2".to_string(), vec![0, 1, 2]);
 
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert!(
         conflicts.is_empty(),
         "Expected no conflict for Reserved mutable borrow with shared borrow, got {}",
@@ -77,7 +77,7 @@ fn test_active_borrow_conflicts_with_shared() {
     live_ranges.insert("_1".to_string(), vec![0, 1, 2]);
     live_ranges.insert("_2".to_string(), vec![1, 2, 3]);
 
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert_eq!(
         conflicts.len(),
         1,
@@ -114,7 +114,7 @@ fn test_activated_borrow_conflicts_like_active() {
     live_ranges.insert("_1".to_string(), vec![0, 1, 2]);
     live_ranges.insert("_2".to_string(), vec![1, 2, 3]);
 
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert_eq!(
         conflicts.len(),
         1,
@@ -158,7 +158,7 @@ fn test_two_phase_pattern_no_false_positive() {
     live_ranges.insert("_1".to_string(), vec![0, 1]);
     live_ranges.insert("_2".to_string(), vec![0, 1, 2]);
 
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert!(
         conflicts.is_empty(),
         "Expected no conflict for two-phase borrow pattern (vec.push(vec.len())), got {}",
@@ -197,7 +197,7 @@ fn test_two_phase_activation_with_mut_borrow_conflict() {
     live_ranges.insert("_1".to_string(), vec![0, 1, 2]);
     live_ranges.insert("_2".to_string(), vec![1, 2, 3]);
 
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert_eq!(
         conflicts.len(),
         1,

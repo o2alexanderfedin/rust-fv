@@ -311,7 +311,7 @@ fn test_nll_conflict_detection() {
     live_ranges.insert("_3".to_string(), vec![1, 2]);
 
     // Detect conflicts
-    let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+    let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
     assert!(
         !conflicts.is_empty(),
         "Expected conflict between shared and mutable borrows"
@@ -739,7 +739,7 @@ fn test_phase9_requirement_coverage() {
     assert!(ctx.outlives_constraints().is_empty());
 
     // Verify borrow_conflict module accessible (LIF-03, LIF-04)
-    let conflicts = detect_borrow_conflicts(&ctx, &HashMap::new());
+    let conflicts = detect_borrow_conflicts(&ctx, &HashMap::new(), None);
     assert!(conflicts.is_empty());
 
     // Verify ProphecyInfo has deref_level field (LIF-02, LIF-05)

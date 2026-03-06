@@ -47,6 +47,7 @@ pub struct BorrowExpiry {
 pub fn detect_borrow_conflicts(
     context: &LifetimeContext,
     live_ranges: &HashMap<String, Vec<usize>>,
+    _func: Option<&Function>,
 ) -> Vec<BorrowConflict> {
     let mut conflicts = Vec::new();
 
@@ -325,7 +326,7 @@ mod tests {
         let context = LifetimeContext::new();
         let live_ranges = HashMap::new();
 
-        let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+        let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
         assert_eq!(conflicts.len(), 0);
     }
 
@@ -354,7 +355,7 @@ mod tests {
         live_ranges.insert("_1".to_string(), vec![0, 1, 2]);
         live_ranges.insert("_2".to_string(), vec![1, 2, 3]);
 
-        let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+        let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].shared_borrow, "_1");
         assert_eq!(conflicts[0].mutable_borrow, "_2");
@@ -386,7 +387,7 @@ mod tests {
         live_ranges.insert("_1".to_string(), vec![0, 1]);
         live_ranges.insert("_2".to_string(), vec![2, 3]);
 
-        let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+        let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
         assert_eq!(conflicts.len(), 0);
     }
 
@@ -424,7 +425,7 @@ mod tests {
         live_ranges.insert("_2".to_string(), vec![1, 2, 3]);
         live_ranges.insert("_3".to_string(), vec![1, 2]);
 
-        let conflicts = detect_borrow_conflicts(&context, &live_ranges);
+        let conflicts = detect_borrow_conflicts(&context, &live_ranges, None);
         // Both _1 and _2 conflict with _3
         assert_eq!(conflicts.len(), 2);
     }

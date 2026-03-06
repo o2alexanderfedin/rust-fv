@@ -643,8 +643,11 @@ pub fn generate_vcs_with_db(
         let live_ranges = crate::lifetime_analysis::compute_live_ranges(func);
 
         // Generate conflict VCs
-        let conflicts =
-            crate::borrow_conflict::detect_borrow_conflicts(&lifetime_ctx, &live_ranges);
+        let conflicts = crate::borrow_conflict::detect_borrow_conflicts(
+            &lifetime_ctx,
+            &live_ranges,
+            Some(func),
+        );
         let mut conflict_vcs =
             crate::borrow_conflict::generate_conflict_vcs(&conflicts, &func.name);
         conditions.append(&mut conflict_vcs);
