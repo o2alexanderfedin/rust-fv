@@ -303,7 +303,7 @@ Plans:
 | 46 | 3/3 | Complete    | 2026-03-05 | - |
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
-| 49 | 4/4 | Complete   | 2026-03-06 | - |
+| 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | v0.8 | 0/? | Not started | - |
 | 51 | v0.8 | 0/? | Not started | - |
 | 52 | v0.8 | 0/? | Not started | - |
