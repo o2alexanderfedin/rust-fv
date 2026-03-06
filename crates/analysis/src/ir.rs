@@ -200,6 +200,15 @@ pub enum UnsafeOperation {
         provenance: RawPtrProvenance,
         block_index: usize,
     },
+    /// Mutable static variable access (read or write).
+    /// Requires synchronization (Mutex/RwLock guard or atomic ordering) for data-race freedom.
+    StaticMutAccess {
+        static_name: String,
+        is_write: bool,
+        /// Whether the access is within a synchronization guard scope (MutexGuard, RwLockGuard).
+        synchronized: bool,
+        block_index: usize,
+    },
 }
 
 /// Safety contracts for unsafe functions.
@@ -929,6 +938,9 @@ pub enum Ty {
     Slice(Box<Ty>),
     Ref(Box<Ty>, Mutability),
     RawPtr(Box<Ty>, Mutability),
+    /// NonNull<T> pointer type -- guaranteed non-null.
+    /// Encoded as BitVec(64) in SMT but suppresses null-check and alignment VCs.
+    NonNull(Box<Ty>),
     Struct(String, Vec<(String, Ty)>),
     Enum(String, Vec<(String, Vec<Ty>)>),
     /// Opaque/unresolved type

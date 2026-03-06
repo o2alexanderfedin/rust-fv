@@ -208,7 +208,7 @@ pub fn render_typed_value(smt_val: &str, ty: &Ty) -> CexValue {
         Ty::Bool => render_bool(smt_val),
         Ty::Struct(name, fields) => render_struct(smt_val, name, fields),
         Ty::Enum(name, variants) => render_enum(smt_val, name, variants),
-        Ty::RawPtr(inner, _) | Ty::Ref(inner, _) => render_ptr(smt_val, inner),
+        Ty::RawPtr(inner, _) | Ty::Ref(inner, _) | Ty::NonNull(inner) => render_ptr(smt_val, inner),
         Ty::Array(elem_ty, _) | Ty::Slice(elem_ty) => render_array(smt_val, elem_ty),
         Ty::Tuple(fields) => render_tuple(smt_val, fields),
         // Fall back to raw string for unhandled types
@@ -684,6 +684,7 @@ pub fn ty_name_string(ty: &Ty) -> String {
         Ty::Generic(n) => n.clone(),
         Ty::Closure(_) => "Closure".to_string(),
         Ty::TraitObject(n) => format!("dyn {}", n),
+        Ty::NonNull(inner) => format!("NonNull<{}>", ty_name_string(inner)),
     }
 }
 

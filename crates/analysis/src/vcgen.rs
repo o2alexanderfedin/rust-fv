@@ -1795,7 +1795,7 @@ fn ty_alignment(ty: &Ty) -> u32 {
             FloatTy::F32 => 4,
             FloatTy::F64 => 8,
         },
-        Ty::RawPtr(inner, _) | Ty::Ref(inner, _) => ty_alignment(inner),
+        Ty::RawPtr(inner, _) | Ty::Ref(inner, _) | Ty::NonNull(inner) => ty_alignment(inner),
         _ => 1, // Unknown/complex types: trivially aligned (no VC emitted)
     }
 }
@@ -1820,7 +1820,7 @@ fn generate_alignment_vcs(
             {
                 // Get the pointee type for alignment calculation
                 let pointee_ty = match target_ty {
-                    Ty::RawPtr(inner, _) | Ty::Ref(inner, _) => inner.as_ref(),
+                    Ty::RawPtr(inner, _) | Ty::Ref(inner, _) | Ty::NonNull(inner) => inner.as_ref(),
                     _ => target_ty, // fallback: use target_ty directly
                 };
                 let align = ty_alignment(pointee_ty);

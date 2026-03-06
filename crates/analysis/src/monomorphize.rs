@@ -223,6 +223,7 @@ fn substitute_ty(ty: &Ty, subs: &HashMap<String, Ty>) -> Ty {
         Ty::RawPtr(inner, mutability) => {
             Ty::RawPtr(Box::new(substitute_ty(inner, subs)), *mutability)
         }
+        Ty::NonNull(inner) => Ty::NonNull(Box::new(substitute_ty(inner, subs))),
         Ty::Tuple(fields) => Ty::Tuple(fields.iter().map(|f| substitute_ty(f, subs)).collect()),
         Ty::Array(elem, n) => Ty::Array(Box::new(substitute_ty(elem, subs)), *n),
         Ty::Slice(elem) => Ty::Slice(Box::new(substitute_ty(elem, subs))),

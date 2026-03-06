@@ -52,6 +52,9 @@ pub fn encode_type(ty: &Ty) -> Sort {
         // Raw pointers treated as bitvectors (addresses)
         Ty::RawPtr(_, _) => Sort::BitVec(64),
 
+        // NonNull<T> is still a pointer -- same encoding as RawPtr
+        Ty::NonNull(_) => Sort::BitVec(64),
+
         Ty::Tuple(fields) if fields.is_empty() => Sort::Bool,
         Ty::Tuple(fields) => {
             tracing::trace!(len = fields.len(), "Encoding tuple as datatype sort");
@@ -233,7 +236,7 @@ fn collect_from_type(ty: &Ty, seen: &mut HashSet<String>, declarations: &mut Vec
         Ty::Array(elem_ty, _) | Ty::Slice(elem_ty) => {
             collect_from_type(elem_ty, seen, declarations);
         }
-        Ty::Ref(inner, _) | Ty::RawPtr(inner, _) => {
+        Ty::Ref(inner, _) | Ty::RawPtr(inner, _) | Ty::NonNull(inner) => {
             collect_from_type(inner, seen, declarations);
         }
         _ => {}

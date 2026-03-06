@@ -36,7 +36,9 @@ pub fn classify_provenance(op: &UnsafeOperation) -> RawPtrProvenance {
     match op {
         UnsafeOperation::RawDeref { provenance, .. } => provenance.clone(),
         UnsafeOperation::PtrCast { provenance, .. } => provenance.clone(),
-        UnsafeOperation::PtrArithmetic { .. } => RawPtrProvenance::Unknown,
+        UnsafeOperation::PtrArithmetic { .. } | UnsafeOperation::StaticMutAccess { .. } => {
+            RawPtrProvenance::Unknown
+        }
     }
 }
 
@@ -46,10 +48,19 @@ pub fn classify_provenance(op: &UnsafeOperation) -> RawPtrProvenance {
 /// Only RawDeref operations require null checks (PtrArithmetic and PtrCast don't dereference).
 pub fn needs_null_check(op: &UnsafeOperation) -> bool {
     match op {
-        UnsafeOperation::RawDeref { provenance, .. } => {
+        UnsafeOperation::RawDeref {
+            provenance, ptr_ty, ..
+        } => {
+            // NonNull<T> guarantees non-null -- skip null check
+            if matches!(ptr_ty, crate::ir::Ty::NonNull(_)) {
+                return false;
+            }
+            // FromRef provenance is guaranteed non-null by Rust type system
             !matches!(provenance, RawPtrProvenance::FromRef)
         }
-        UnsafeOperation::PtrArithmetic { .. } | UnsafeOperation::PtrCast { .. } => false,
+        UnsafeOperation::PtrArithmetic { .. }
+        | UnsafeOperation::PtrCast { .. }
+        | UnsafeOperation::StaticMutAccess { .. } => false,
     }
 }
 
@@ -58,6 +69,17 @@ pub fn needs_null_check(op: &UnsafeOperation) -> bool {
 /// Only PtrArithmetic operations require bounds checks (pointer offset must stay within allocation).
 pub fn needs_bounds_check(op: &UnsafeOperation) -> bool {
     matches!(op, UnsafeOperation::PtrArithmetic { .. })
+}
+
+/// Returns true if the operation is a mutable static access that needs data-race freedom VC.
+pub fn needs_data_race_check(op: &UnsafeOperation) -> bool {
+    matches!(
+        op,
+        UnsafeOperation::StaticMutAccess {
+            synchronized: false,
+            ..
+        }
+    )
 }
 
 /// Checks if an unsafe function is missing safety contracts.
