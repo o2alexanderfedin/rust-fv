@@ -251,6 +251,71 @@ pub fn convert_mir<'tcx>(
         .map(|bb| convert_basic_block(bb))
         .collect();
 
+    // COMPL-13: Collect borrow info from MIR statements.
+    //
+    // For each Assign(place, Rvalue::Ref(_, borrow_kind, borrowed_place)) statement,
+    // extract BorrowInfo with proper BorrowPhase:
+    // - Mut { kind: TwoPhaseBorrow } => Reserved (skip conflict with shared borrows)
+    // - Mut { .. }                   => Active
+    // - Shared / Fake                => Active (shared borrows always active)
+    let mut borrow_infos: Vec<ir::BorrowInfo> = Vec::new();
+    for (bb_idx, bb) in body.basic_blocks.iter().enumerate() {
+        for stmt in &bb.statements {
+            if let mir::StatementKind::Assign(box (
+                place,
+                mir::Rvalue::Ref(_, borrow_kind, _borrowed_place),
+            )) = &stmt.kind
+            {
+                let local_name = format!("_{}", place.local.as_usize());
+                let is_mutable = matches!(borrow_kind, mir::BorrowKind::Mut { .. });
+                let phase = match borrow_kind {
+                    mir::BorrowKind::Mut {
+                        kind: mir::MutBorrowKind::TwoPhaseBorrow,
+                    } => ir::BorrowPhase::Reserved,
+                    _ => ir::BorrowPhase::Active,
+                };
+                borrow_infos.push(ir::BorrowInfo {
+                    local_name,
+                    region: format!("'_{}", bb_idx),
+                    is_mutable,
+                    deref_level: 0,
+                    source_local: None,
+                    phase,
+                });
+            }
+        }
+    }
+
+    // COMPL-13: Activate reserved borrows at call sites.
+    //
+    // When a Reserved borrow's local appears as an argument in a Call terminator,
+    // the borrow transitions from Reserved to Activated (the call consumes the
+    // reservation).
+    for bb in body.basic_blocks.iter() {
+        if let Some(term) = &bb.terminator
+            && let mir::TerminatorKind::Call { args, .. } = &term.kind
+        {
+            // Collect local names used as call arguments
+            let arg_locals: Vec<String> = args
+                .iter()
+                .filter_map(|arg| {
+                    if let mir::Operand::Move(place) | mir::Operand::Copy(place) = &arg.node {
+                        Some(format!("_{}", place.local.as_usize()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Activate any Reserved borrows whose locals appear as call args
+            for bi in borrow_infos.iter_mut() {
+                if bi.phase == ir::BorrowPhase::Reserved && arg_locals.contains(&bi.local_name) {
+                    bi.phase = ir::BorrowPhase::Activated;
+                }
+            }
+        }
+    }
+
     // ASY-01 / ASY-02: Detect async fn (coroutine) and extract state machine info.
     //
     // In nightly-2026-02-11, `after_analysis` sees post-transform coroutine MIR.
@@ -282,7 +347,7 @@ pub fn convert_mir<'tcx>(
         prophecies: vec![],
         lifetime_params: vec![],
         outlives_constraints: vec![],
-        borrow_info: vec![],
+        borrow_info: borrow_infos,
         reborrow_chains: vec![],
         unsafe_blocks: vec![],
         unsafe_operations: vec![],
