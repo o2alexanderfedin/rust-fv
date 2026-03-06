@@ -90,6 +90,7 @@ fn register_next(registry: &mut StdlibContractRegistry) {
 ///
 /// Mathematical contract:
 /// - post: result.seq_len() == self.seq_len()  [map preserves length]
+/// - post: forall(|i| result.element(i) == f(source.element(i)))  [element-level]
 fn register_map(registry: &mut StdlibContractRegistry) {
     let contract = StdlibContract {
         type_path: "std::iter::Iterator".to_string(),
@@ -101,6 +102,10 @@ fn register_map(registry: &mut StdlibContractRegistry) {
                     // Map preserves sequence length (key composition property)
                     SpecExpr {
                         raw: "result.seq_len() == self.seq_len()".to_string(),
+                    },
+                    // Element-level: each output element is the function applied to input
+                    SpecExpr {
+                        raw: "forall(|i| result.element(i) == f(source.element(i)))".to_string(),
                     },
                 ],
                 invariants: vec![],
@@ -126,6 +131,7 @@ fn register_map(registry: &mut StdlibContractRegistry) {
 ///
 /// Mathematical contract:
 /// - post: result.seq_len() <= self.seq_len()  [filter reduces or maintains length]
+/// - post: forall(|x| x in result.elements ==> predicate(x))  [element-level]
 fn register_filter(registry: &mut StdlibContractRegistry) {
     let contract = StdlibContract {
         type_path: "std::iter::Iterator".to_string(),
@@ -137,6 +143,10 @@ fn register_filter(registry: &mut StdlibContractRegistry) {
                     // Filter reduces or maintains sequence length
                     SpecExpr {
                         raw: "result.seq_len() <= self.seq_len()".to_string(),
+                    },
+                    // Element-level: all elements in result satisfy the predicate
+                    SpecExpr {
+                        raw: "forall(|x| x in result.elements ==> predicate(x))".to_string(),
                     },
                 ],
                 invariants: vec![],
@@ -442,4 +452,100 @@ fn register_take(registry: &mut StdlibContractRegistry) {
     };
 
     registry.register(contract);
+}
+
+/// Compose contracts from a chain of iterator adapters.
+///
+/// Given an ordered list of adapter names and their contracts, produces a single
+/// composed `Contracts` whose postconditions represent the combined effect of
+/// all adapters in the chain.
+///
+/// Composition rules:
+/// - Length contracts chain: filter's `len <= original` + map's `len == input_len`
+///   results in `len <= original` (the most restrictive bound propagates).
+/// - Element contracts chain: filter's predicate becomes a precondition on map's
+///   input elements; map's transformation flows to output.
+/// - The composed postcondition references the original iterator's properties.
+///
+/// # Arguments
+///
+/// * `adapters` - Ordered list of `(adapter_name, contract)` pairs representing
+///   the chain from innermost (source) to outermost (final) adapter.
+///
+/// # Returns
+///
+/// A `Contracts` with composed postconditions from all adapters in the chain.
+pub fn compose_adapter_contracts(adapters: &[(String, &StdlibContract)]) -> Contracts {
+    if adapters.is_empty() {
+        return Contracts::default();
+    }
+
+    let mut composed_ensures: Vec<SpecExpr> = Vec::new();
+    let mut composed_requires: Vec<SpecExpr> = Vec::new();
+
+    // Track the cumulative length relationship.
+    // Start with "original" as the base reference.
+    let mut length_ref = "original".to_string();
+    let adapter_count = adapters.len();
+
+    for (idx, (adapter_name, contract)) in adapters.iter().enumerate() {
+        let stage = if idx == adapter_count - 1 {
+            "result".to_string()
+        } else {
+            format!("stage_{}", idx)
+        };
+
+        // Compose length contracts and element-level contracts
+        for ensure in &contract.summary.contracts.ensures {
+            let raw = &ensure.raw;
+
+            if raw.contains("seq_len") && !raw.contains("element") {
+                // Length-level postcondition: rewrite self -> input ref, result -> stage
+                let composed_raw = rewrite_length_postcondition(raw, &stage, &length_ref);
+                composed_ensures.push(SpecExpr { raw: composed_raw });
+            } else if raw.contains("element") || raw.contains("forall") || raw.contains("predicate")
+            {
+                // Element-level postcondition: rewrite with adapter+stage context
+                let composed_raw = rewrite_element_postcondition(raw, adapter_name, &stage);
+                composed_ensures.push(SpecExpr { raw: composed_raw });
+            } else if raw.contains("min") {
+                // take(n) style contract: rewrite with stage
+                let composed_raw = raw.replace("result", &stage).replace("self", &length_ref);
+                composed_ensures.push(SpecExpr { raw: composed_raw });
+            }
+        }
+
+        // Carry requires forward
+        for req in &contract.summary.contracts.requires {
+            composed_requires.push(req.clone());
+        }
+
+        // Update the length reference for the next stage
+        length_ref = stage;
+    }
+
+    Contracts {
+        requires: composed_requires,
+        ensures: composed_ensures,
+        invariants: vec![],
+        is_pure: false,
+        decreases: None,
+        fn_specs: vec![],
+        state_invariant: None,
+        is_inferred: false,
+    }
+}
+
+/// Rewrite a length postcondition to reference a specific stage in the chain.
+///
+/// Replaces `result` with the stage name and `self` with the input reference.
+fn rewrite_length_postcondition(raw: &str, stage: &str, input_ref: &str) -> String {
+    raw.replace("result", stage).replace("self", input_ref)
+}
+
+/// Rewrite an element-level postcondition with adapter and stage context.
+///
+/// Prefixes the postcondition with the adapter name and stage for traceability.
+fn rewrite_element_postcondition(raw: &str, adapter_name: &str, stage: &str) -> String {
+    format!("[{adapter_name}@{stage}] {}", raw.replace("result", stage))
 }
