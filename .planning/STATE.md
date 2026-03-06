@@ -10,8 +10,8 @@ progress:
   total_phases: 12
   completed_phases: 3
   total_plans: 8
-  completed_plans: 8
-  percent: 12
+  completed_plans: 9
+  percent: 14
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 47 (MIR Coverage Hardening) — complete
-Plan: 03 of 03 complete
-Status: All plans complete. Plan 01 (CastKind PtrToPtr + alignment VCs, COMPL-02/03), Plan 02 (match arm audit, COMPL-12), Plan 03 (spec validation diagnostics, COMPL-06)
-Last activity: 2026-03-05 — Phase 47 plan 03 complete (SpecValidationError + V080 diagnostics)
+Phase: 48 (Advanced Ownership & Borrows) — in progress
+Plan: 01 of 05 complete
+Status: Plan 01 complete (trigger filter COMPL-08, BorrowPhase/RefCellGhostState/BorrowConflict/UseAfterPartialMove IR foundations)
+Last activity: 2026-03-06 — Phase 48 plan 01 complete (datatype symbol filter + IR type foundations)
 
 ```
 Progress: [###                 ] 3/12 phases (12%)
@@ -44,7 +44,7 @@ Progress: [###                 ] 3/12 phases (12%)
 | 45 | Quick Wins & Pattern Integration | COMPL-19..22, PAT-01..04 | Plan 01/02 done |
 | 46 | SMT Datatype Foundations | COMPL-01, COMPL-05, COMPL-07, COMPL-11 | Complete |
 | 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
-| 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Not started |
+| 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Plan 01/05 done |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Not started |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
 | 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
@@ -81,6 +81,7 @@ Progress: [###                 ] 3/12 phases (12%)
 | Phase 47 P01 | 3253 | 2 tasks | 8 files |
 | Phase 47 P02 | 2842 | 2 tasks | 3 files |
 | Phase 47 P03 | 2415 | 2 tasks | 7 files |
+| Phase 48 P01 | 2406 | 2 tasks | 70 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 47]: PtrToPtr alignment VC is side-effect in vcgen, not in encode_cast return value
 - [Phase 47]: Thread-local RefCell collector for spec errors avoids threading &mut Vec through 15+ helper functions
 - [Phase 47]: Box<SpecValidationError> in Result to satisfy clippy result_large_err lint
+- [Phase 48]: Structural recognition for datatype symbols (mk-/is-/UpperCase-field) instead of manual blocklist
+- [Phase 48]: Synthetic __trigger_wrap only fires when datatype apps were filtered, not when no candidates exist
+- [Phase 48]: BorrowPhase defaults to Active for all existing BorrowInfo constructions
 
 ### Key v0.8 Architecture Notes
 
@@ -121,10 +125,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-06T00:13:04.413Z
-Stopped at: Phase 48 context gathered
-Resume file: .planning/phases/48-advanced-ownership-borrows/48-CONTEXT.md
-Next step: Execute Phase 48 Plan 01
+Last session: 2026-03-06T01:05:31Z
+Stopped at: Completed 48-01-PLAN.md
+Resume file: .planning/phases/48-advanced-ownership-borrows/48-01-SUMMARY.md
+Next step: Execute Phase 48 Plan 02
 
 ---
 

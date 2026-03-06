@@ -16,7 +16,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-05**: Functional update on projected places generates correct `mk-StructName` SMT terms for all rvalue types
 - [x] **COMPL-06**: Spec validation errors propagated as driver diagnostics instead of silently logged
 - [x] **COMPL-07**: Z3 native backend supports `Int` sort via `z3::Sort::int()`
-- [ ] **COMPL-08**: Quantifier trigger inference filters out datatype selector symbols from candidate lists
+- [x] **COMPL-08**: Quantifier trigger inference filters out datatype selector symbols from candidate lists
 - [ ] **COMPL-09**: `RefCell<T>` runtime borrow count tracked as ghost state with exclusivity VCs for `borrow()`/`borrow_mut()`
 - [ ] **COMPL-10**: Cross-crate generic instantiations fully captured in MonomorphizationRegistry
 - [x] **COMPL-11**: `Rvalue::Repeat` (`[expr; N]`) encoded as universally quantified equality or const-array store chain
@@ -138,7 +138,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-05 | Phase 46 | Complete |
 | COMPL-06 | Phase 47 | Complete |
 | COMPL-07 | Phase 46 | Complete |
-| COMPL-08 | Phase 48 | Pending |
+| COMPL-08 | Phase 48 | Complete |
 | COMPL-09 | Phase 48 | Pending |
 | COMPL-10 | Phase 49 | Pending |
 | COMPL-11 | Phase 46 | Complete |
