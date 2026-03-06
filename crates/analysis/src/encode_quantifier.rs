@@ -33,17 +33,27 @@ pub fn infer_triggers(body: &Term, bound_vars: &[String]) -> Vec<Vec<Term>> {
     let candidates = find_trigger_candidates(body);
 
     // Filter candidates: must contain all bound variables
-    for candidate in candidates {
-        let vars = free_variables(&candidate);
+    for candidate in &candidates {
+        let vars = free_variables(candidate);
         let bound_set: HashSet<_> = bound_vars.iter().collect();
         let candidate_vars: HashSet<_> = vars.iter().collect();
 
         // Check if this candidate covers all bound variables
         if bound_set.is_subset(&candidate_vars) {
             // Single trigger that covers everything
-            triggers.push(vec![candidate]);
+            triggers.push(vec![candidate.clone()]);
             break; // We found a covering trigger, use it
         }
+    }
+
+    // If no valid triggers found but body contains function applications,
+    // generate a synthetic wrapper trigger to ensure quantifiers are never
+    // left without triggers (COMPL-08 safety net).
+    if triggers.is_empty() && !candidates.is_empty() || triggers.is_empty() && has_app_nodes(body) {
+        triggers.push(vec![Term::App(
+            "__trigger_wrap".to_string(),
+            vec![body.clone()],
+        )]);
     }
 
     triggers
@@ -183,9 +193,76 @@ fn collect_free_variables(term: &Term, vars: &mut HashSet<String>) {
     }
 }
 
+/// Check whether an SMT function name is a datatype symbol (selector, constructor, or tester).
+///
+/// Datatype symbols must be filtered from trigger candidates to prevent unsound
+/// quantifier instantiation (COMPL-08). The SMT-LIB convention for Z3 datatypes:
+/// - **Selectors**: `TypeName-fieldName` pattern (e.g., `Point-x`, `Struct-field0`)
+/// - **Constructors**: `mk-TypeName` pattern (e.g., `mk-Point`, `mk-Some`)
+/// - **Testers**: `is-VariantName` pattern (e.g., `is-Some`, `is-None`)
+///
+/// Uses structural recognition (not a manual blocklist).
+pub fn is_datatype_symbol(name: &str) -> bool {
+    // Constructor: starts with "mk-"
+    if name.starts_with("mk-") && name.len() > 3 {
+        return true;
+    }
+
+    // Tester: starts with "is-"
+    if name.starts_with("is-") && name.len() > 3 {
+        return true;
+    }
+
+    // Selector: pattern "TypeName-fieldName" where TypeName starts with uppercase.
+    // Must contain a hyphen, and the part before the first hyphen must start with
+    // an uppercase letter (type name convention).
+    if let Some(hyphen_pos) = name.find('-')
+        && hyphen_pos > 0
+    {
+        let type_part = &name[..hyphen_pos];
+        if type_part
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase())
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Check if a term contains any Term::App nodes (including datatype symbols).
+fn has_app_nodes(term: &Term) -> bool {
+    match term {
+        Term::App(_, _) => true,
+        Term::Not(inner) => has_app_nodes(inner),
+        Term::And(terms) | Term::Or(terms) | Term::Distinct(terms) => {
+            terms.iter().any(has_app_nodes)
+        }
+        Term::Implies(a, b)
+        | Term::Iff(a, b)
+        | Term::Eq(a, b)
+        | Term::Select(a, b)
+        | Term::IntAdd(a, b)
+        | Term::IntSub(a, b)
+        | Term::IntMul(a, b)
+        | Term::IntDiv(a, b)
+        | Term::IntMod(a, b)
+        | Term::IntLt(a, b)
+        | Term::IntLe(a, b)
+        | Term::IntGt(a, b)
+        | Term::IntGe(a, b) => has_app_nodes(a) || has_app_nodes(b),
+        Term::Ite(c, t, e) | Term::Store(c, t, e) => {
+            has_app_nodes(c) || has_app_nodes(t) || has_app_nodes(e)
+        }
+        _ => false,
+    }
+}
+
 /// Find all function applications (Term::App) that could serve as triggers.
 ///
-/// We exclude basic operators and only consider user-defined functions.
+/// We exclude basic operators, datatype symbols, and only consider user-defined functions.
 fn find_trigger_candidates(term: &Term) -> Vec<Term> {
     let mut candidates = Vec::new();
     collect_trigger_candidates(term, &mut candidates);
@@ -194,14 +271,15 @@ fn find_trigger_candidates(term: &Term) -> Vec<Term> {
 
 fn collect_trigger_candidates(term: &Term, candidates: &mut Vec<Term>) {
     match term {
-        Term::App(_name, args) => {
-            // Only user-defined functions (not built-in selectors/constructors)
-            // For now, accept all Term::App as potential triggers
-            // TODO: Filter out selectors like "Point-x" if needed
-            if !args.is_empty() {
+        Term::App(name, args) => {
+            // Only user-defined functions (not built-in selectors/constructors/testers).
+            // Datatype symbols (selectors like "Point-x", constructors like "mk-Point",
+            // testers like "is-Some") are filtered to prevent unsound quantifier
+            // instantiation loops (COMPL-08).
+            if !args.is_empty() && !is_datatype_symbol(name) {
                 candidates.push(term.clone());
             }
-            // Also recurse into arguments
+            // Recurse into arguments regardless of filtering
             for arg in args {
                 collect_trigger_candidates(arg, candidates);
             }
