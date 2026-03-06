@@ -965,6 +965,19 @@ pub fn generate_vcs_with_db(
         }
     }
 
+    // COMPL-14: Generate partial struct move VCs (UseAfterPartialMove)
+    {
+        let mut partial_move_vcs = generate_partial_move_vcs(func);
+        if !partial_move_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                partial_move_vc_count = partial_move_vcs.len(),
+                "Generated partial struct move VCs"
+            );
+            conditions.append(&mut partial_move_vcs);
+        }
+    }
+
     // Drain any spec validation errors accumulated during VC generation
     let spec_errors = drain_spec_errors();
     if !spec_errors.is_empty() {
@@ -4845,6 +4858,275 @@ fn split_at_operator<'a>(s: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
 /// across blocks and generates BorrowConflict VCs when a call violates the
 /// runtime borrow rules.
 ///
+/// Tracks per-field move state for partial struct move analysis (COMPL-14).
+///
+/// Maps `(local_name, field_index_path)` to whether the field has been moved.
+/// An empty field path represents the whole struct.
+struct FieldMoveTracker {
+    /// Maps (local_name, projection_path) -> is_moved
+    /// Projection path is Vec<usize> representing field indices at each level
+    moved_fields: HashMap<(String, Vec<usize>), bool>,
+    /// Tracks which locals have been moved as a whole (no field projections)
+    whole_moved: HashSet<String>,
+}
+
+impl FieldMoveTracker {
+    fn new() -> Self {
+        Self {
+            moved_fields: HashMap::new(),
+            whole_moved: HashSet::new(),
+        }
+    }
+
+    /// Mark a field (or whole struct) as moved.
+    fn mark_moved(&mut self, local: &str, projections: &[Projection]) {
+        let field_path: Vec<usize> = projections
+            .iter()
+            .filter_map(|p| match p {
+                Projection::Field(idx) => Some(*idx),
+                _ => None,
+            })
+            .collect();
+
+        if field_path.is_empty() {
+            // Whole struct move
+            self.whole_moved.insert(local.to_string());
+        } else {
+            self.moved_fields
+                .insert((local.to_string(), field_path), true);
+        }
+    }
+
+    /// Clear moved state for a field (re-assignment).
+    fn mark_available(&mut self, local: &str, projections: &[Projection]) {
+        let field_path: Vec<usize> = projections
+            .iter()
+            .filter_map(|p| match p {
+                Projection::Field(idx) => Some(*idx),
+                _ => None,
+            })
+            .collect();
+
+        if field_path.is_empty() {
+            // Re-assigning the whole struct clears everything
+            self.whole_moved.remove(local);
+            self.moved_fields.retain(|(l, _), _| l != local);
+        } else {
+            self.moved_fields.remove(&(local.to_string(), field_path));
+        }
+    }
+
+    /// Check if a field path is moved. Returns true if:
+    /// - The exact field path was moved, OR
+    /// - The whole struct was moved, OR
+    /// - A parent path was moved (e.g., s.inner moved -> s.inner.x is moved)
+    fn is_moved(&self, local: &str, projections: &[Projection]) -> bool {
+        // Whole struct was moved -- any field access is moved
+        if self.whole_moved.contains(local) {
+            return true;
+        }
+
+        let field_path: Vec<usize> = projections
+            .iter()
+            .filter_map(|p| match p {
+                Projection::Field(idx) => Some(*idx),
+                _ => None,
+            })
+            .collect();
+
+        if field_path.is_empty() {
+            return false;
+        }
+
+        // Check exact path
+        if self
+            .moved_fields
+            .get(&(local.to_string(), field_path.clone()))
+            == Some(&true)
+        {
+            return true;
+        }
+
+        // Check parent paths (e.g., if s.inner is moved, s.inner.x is also moved)
+        for len in 1..field_path.len() {
+            let parent_path = field_path[..len].to_vec();
+            if self.moved_fields.get(&(local.to_string(), parent_path)) == Some(&true) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+/// Generate UseAfterPartialMove VCs for partial struct move patterns (COMPL-14).
+///
+/// Walks basic blocks linearly tracking which fields of each local have been
+/// moved. When a read (Copy or Move with field projections) accesses a
+/// previously-moved field, a UseAfterPartialMove VC is generated.
+///
+/// Re-assignment to a moved field clears the moved state.
+pub fn generate_partial_move_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+    let mut tracker = FieldMoveTracker::new();
+
+    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+            if let Statement::Assign(dest, rvalue) = stmt {
+                // Check if destination has field projections (re-assignment clears move)
+                if !dest.projections.is_empty() {
+                    tracker.mark_available(&dest.local, &dest.projections);
+                }
+
+                // Process rvalue for moves and reads
+                match rvalue {
+                    Rvalue::Use(operand) => {
+                        match operand {
+                            Operand::Move(place) => {
+                                // First check if reading a moved field (the move itself
+                                // reads the field before consuming it)
+                                if !place.field_indices().is_empty()
+                                    && tracker.is_moved(&place.local, &place.projections)
+                                {
+                                    let field_desc = format_field_path(&place.field_indices());
+                                    vcs.push(VerificationCondition {
+                                        description: format!(
+                                            "Field {} of {} used after partial move",
+                                            field_desc, place.local
+                                        ),
+                                        script: Script::new(),
+                                        location: VcLocation {
+                                            function: func.name.clone(),
+                                            block: block_idx,
+                                            statement: stmt_idx,
+                                            source_file: None,
+                                            source_line: None,
+                                            source_column: None,
+                                            contract_text: None,
+                                            vc_kind: VcKind::UseAfterPartialMove,
+                                        },
+                                    });
+                                }
+                                // Then mark as moved
+                                tracker.mark_moved(&place.local, &place.projections);
+                            }
+                            Operand::Copy(place) => {
+                                // Check if reading a moved field
+                                if !place.field_indices().is_empty()
+                                    && tracker.is_moved(&place.local, &place.projections)
+                                {
+                                    let field_desc = format_field_path(&place.field_indices());
+                                    vcs.push(VerificationCondition {
+                                        description: format!(
+                                            "Field {} of {} used after partial move",
+                                            field_desc, place.local
+                                        ),
+                                        script: Script::new(),
+                                        location: VcLocation {
+                                            function: func.name.clone(),
+                                            block: block_idx,
+                                            statement: stmt_idx,
+                                            source_file: None,
+                                            source_line: None,
+                                            source_column: None,
+                                            contract_text: None,
+                                            vc_kind: VcKind::UseAfterPartialMove,
+                                        },
+                                    });
+                                }
+                            }
+                            Operand::Constant(_) => {}
+                        }
+                    }
+                    // For other rvalue kinds, check operands for reads of moved fields
+                    Rvalue::BinaryOp(_, lhs, rhs) | Rvalue::CheckedBinaryOp(_, lhs, rhs) => {
+                        check_operand_read(&tracker, &mut vcs, func, block_idx, stmt_idx, lhs);
+                        check_operand_read(&tracker, &mut vcs, func, block_idx, stmt_idx, rhs);
+                    }
+                    Rvalue::UnaryOp(_, op) | Rvalue::Cast(_, op, _) | Rvalue::Repeat(op, _) => {
+                        check_operand_read(&tracker, &mut vcs, func, block_idx, stmt_idx, op);
+                    }
+                    Rvalue::Ref(_, place) | Rvalue::Len(place) | Rvalue::Discriminant(place) => {
+                        if !place.field_indices().is_empty()
+                            && tracker.is_moved(&place.local, &place.projections)
+                        {
+                            let field_desc = format_field_path(&place.field_indices());
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "Field {} of {} used after partial move",
+                                    field_desc, place.local
+                                ),
+                                script: Script::new(),
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: stmt_idx,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: None,
+                                    vc_kind: VcKind::UseAfterPartialMove,
+                                },
+                            });
+                        }
+                    }
+                    Rvalue::Aggregate(_, ops) => {
+                        for op in ops {
+                            check_operand_read(&tracker, &mut vcs, func, block_idx, stmt_idx, op);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Check if an operand reads a moved field and generate VC if so.
+fn check_operand_read(
+    tracker: &FieldMoveTracker,
+    vcs: &mut Vec<VerificationCondition>,
+    func: &Function,
+    block_idx: usize,
+    stmt_idx: usize,
+    operand: &Operand,
+) {
+    let place = match operand {
+        Operand::Copy(p) | Operand::Move(p) => p,
+        Operand::Constant(_) => return,
+    };
+    if !place.field_indices().is_empty() && tracker.is_moved(&place.local, &place.projections) {
+        let field_desc = format_field_path(&place.field_indices());
+        vcs.push(VerificationCondition {
+            description: format!(
+                "Field {} of {} used after partial move",
+                field_desc, place.local
+            ),
+            script: Script::new(),
+            location: VcLocation {
+                function: func.name.clone(),
+                block: block_idx,
+                statement: stmt_idx,
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                contract_text: None,
+                vc_kind: VcKind::UseAfterPartialMove,
+            },
+        });
+    }
+}
+
+/// Format a field index path for diagnostic messages.
+fn format_field_path(indices: &[usize]) -> String {
+    indices
+        .iter()
+        .map(|i| i.to_string())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 /// Drop calls for Ref/RefMut reset the ghost state accordingly.
 ///
 /// Only runs if `func.has_refcell_locals()` is true (i.e., refcell_ghost_states

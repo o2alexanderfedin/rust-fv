@@ -809,6 +809,21 @@ impl Place {
         self.projections.push(Projection::Deref);
         self
     }
+
+    /// Extract field indices from projections.
+    ///
+    /// Returns a `Vec<usize>` of the `Field(idx)` values in order,
+    /// ignoring `Deref`, `Index`, and `Downcast` projections.
+    /// Used by partial move tracking to identify field paths.
+    pub fn field_indices(&self) -> Vec<usize> {
+        self.projections
+            .iter()
+            .filter_map(|p| match p {
+                Projection::Field(idx) => Some(*idx),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// Place projection.
