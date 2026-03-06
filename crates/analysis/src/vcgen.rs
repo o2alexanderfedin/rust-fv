@@ -952,6 +952,19 @@ pub fn generate_vcs_with_db(
         conditions.extend(async_vcs);
     }
 
+    // COMPL-09: Generate RefCell ghost state VCs for interior mutability
+    {
+        let mut refcell_vcs = generate_refcell_vcs(func);
+        if !refcell_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                refcell_vc_count = refcell_vcs.len(),
+                "Generated RefCell ghost state VCs"
+            );
+            conditions.append(&mut refcell_vcs);
+        }
+    }
+
     // Drain any spec validation errors accumulated during VC generation
     let spec_errors = drain_spec_errors();
     if !spec_errors.is_empty() {
@@ -4822,6 +4835,285 @@ fn split_at_operator<'a>(s: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
         }
     }
     None
+}
+
+/// Generate RefCell ghost state verification conditions (COMPL-09).
+///
+/// Walks the function's basic blocks looking for Terminator::Call matching
+/// RefCell API methods (borrow, borrow_mut, try_borrow, try_borrow_mut,
+/// into_inner, replace, swap). Tracks ghost state (borrow_count, is_mut_borrowed)
+/// across blocks and generates BorrowConflict VCs when a call violates the
+/// runtime borrow rules.
+///
+/// Drop calls for Ref/RefMut reset the ghost state accordingly.
+///
+/// Only runs if `func.has_refcell_locals()` is true (i.e., refcell_ghost_states
+/// is non-empty). Returns empty Vec for functions without RefCell locals.
+fn generate_refcell_vcs(func: &Function) -> Vec<VerificationCondition> {
+    if !func.has_refcell_locals() {
+        return vec![];
+    }
+
+    let mut vcs = Vec::new();
+
+    // For each RefCell ghost state, track borrow_count and is_mut_borrowed
+    // as we walk the CFG linearly (sufficient for straight-line code;
+    // branches would need join analysis, which is future work).
+    for ghost in &func.refcell_ghost_states {
+        let mut borrow_count: i64 = 0;
+        let mut is_mut_borrowed = false;
+
+        for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+            // Check the terminator for RefCell API calls
+            if let Terminator::Call {
+                func: callee,
+                args: _,
+                destination: _,
+                target: _,
+            } = &block.terminator
+            {
+                // Extract the method name from the callee
+                // Callee format: "RefCell::borrow", "RefCell::borrow_mut", etc.
+                // Also match "std::cell::RefCell::borrow", etc.
+                let method = extract_refcell_method(callee);
+
+                match method.as_deref() {
+                    Some("borrow") | Some("try_borrow") => {
+                        // Precondition: not is_mut_borrowed
+                        if is_mut_borrowed {
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            // Declare ghost variables
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.borrow_count_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Int,
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.is_mut_borrowed_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Bool,
+                            ));
+                            // Assert conflict state: is_mut_borrowed = true
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::App(
+                                    "=".to_string(),
+                                    vec![
+                                        rust_fv_smtlib::term::Term::Const(
+                                            ghost.is_mut_borrowed_var.clone(),
+                                        ),
+                                        rust_fv_smtlib::term::Term::BoolLit(true),
+                                    ],
+                                ),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            let method_name = method.as_deref().unwrap_or("borrow");
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "RefCell {}() conflict: {} is mutably borrowed ({}=true)",
+                                    method_name, ghost.local_name, ghost.is_mut_borrowed_var,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "RefCell::{}() requires !{}",
+                                        method_name, ghost.is_mut_borrowed_var,
+                                    )),
+                                    vc_kind: VcKind::BorrowConflict,
+                                },
+                            });
+                        }
+                        // Update ghost state
+                        borrow_count += 1;
+                    }
+                    Some("borrow_mut") | Some("try_borrow_mut") => {
+                        // Precondition: borrow_count == 0 AND NOT is_mut_borrowed
+                        if borrow_count > 0 || is_mut_borrowed {
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.borrow_count_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Int,
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.is_mut_borrowed_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Bool,
+                            ));
+                            // Assert conflict condition
+                            if borrow_count > 0 {
+                                script.push(rust_fv_smtlib::command::Command::Assert(
+                                    rust_fv_smtlib::term::Term::App(
+                                        ">".to_string(),
+                                        vec![
+                                            rust_fv_smtlib::term::Term::Const(
+                                                ghost.borrow_count_var.clone(),
+                                            ),
+                                            rust_fv_smtlib::term::Term::IntLit(0),
+                                        ],
+                                    ),
+                                ));
+                            }
+                            if is_mut_borrowed {
+                                script.push(rust_fv_smtlib::command::Command::Assert(
+                                    rust_fv_smtlib::term::Term::App(
+                                        "=".to_string(),
+                                        vec![
+                                            rust_fv_smtlib::term::Term::Const(
+                                                ghost.is_mut_borrowed_var.clone(),
+                                            ),
+                                            rust_fv_smtlib::term::Term::BoolLit(true),
+                                        ],
+                                    ),
+                                ));
+                            }
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            let method_name = method.as_deref().unwrap_or("borrow_mut");
+                            let reason = if borrow_count > 0 {
+                                format!(
+                                    "{}={} shared borrows outstanding",
+                                    ghost.borrow_count_var, borrow_count,
+                                )
+                            } else {
+                                format!("{}=true", ghost.is_mut_borrowed_var,)
+                            };
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "RefCell {}() conflict: {} has {} ({})",
+                                    method_name,
+                                    ghost.local_name,
+                                    reason,
+                                    ghost.is_mut_borrowed_var,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "RefCell::{}() requires {} == 0 && !{}",
+                                        method_name,
+                                        ghost.borrow_count_var,
+                                        ghost.is_mut_borrowed_var,
+                                    )),
+                                    vc_kind: VcKind::BorrowConflict,
+                                },
+                            });
+                        }
+                        // Update ghost state
+                        is_mut_borrowed = true;
+                    }
+                    Some("into_inner") | Some("replace") | Some("swap") => {
+                        // Precondition: borrow_count == 0 AND NOT is_mut_borrowed
+                        if borrow_count > 0 || is_mut_borrowed {
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.borrow_count_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Int,
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.is_mut_borrowed_var.clone(),
+                                rust_fv_smtlib::sort::Sort::Bool,
+                            ));
+                            // Assert the conflict
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::BoolLit(true),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            let method_name = method.as_deref().unwrap_or("into_inner");
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "RefCell {}() conflict: {} has outstanding borrows",
+                                    method_name, ghost.local_name,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "RefCell::{}() requires no outstanding borrows",
+                                        method_name,
+                                    )),
+                                    vc_kind: VcKind::BorrowConflict,
+                                },
+                            });
+                        }
+                    }
+                    _ => {}
+                }
+
+                // Handle drop calls that reset ghost state
+                if let Some(drop_target) = extract_refcell_drop(callee) {
+                    match drop_target {
+                        "Ref" => {
+                            // drop(Ref) decrements borrow_count
+                            if borrow_count > 0 {
+                                borrow_count -= 1;
+                            }
+                        }
+                        "RefMut" => {
+                            // drop(RefMut) clears is_mut_borrowed
+                            is_mut_borrowed = false;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Extract RefCell method name from a callee string.
+///
+/// Matches patterns like "RefCell::borrow", "std::cell::RefCell::borrow",
+/// "core::cell::RefCell::borrow_mut", etc.
+fn extract_refcell_method(callee: &str) -> Option<String> {
+    // Look for "RefCell::" in the callee name
+    if let Some(idx) = callee.find("RefCell::") {
+        let method_start = idx + "RefCell::".len();
+        let method = &callee[method_start..];
+        // Take the method name (up to next :: or end)
+        let method_name = method.split("::").next().unwrap_or(method);
+        Some(method_name.to_string())
+    } else {
+        None
+    }
+}
+
+/// Extract the type being dropped from a drop call.
+///
+/// Matches patterns like "drop::Ref", "drop::RefMut",
+/// "std::mem::drop::Ref", etc.
+fn extract_refcell_drop(callee: &str) -> Option<&str> {
+    if callee.contains("drop::Ref") && !callee.contains("RefMut") {
+        Some("Ref")
+    } else if callee.contains("drop::RefMut") {
+        Some("RefMut")
+    } else {
+        None
+    }
 }
 
 /// Generate concurrency verification conditions.

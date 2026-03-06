@@ -410,6 +410,11 @@ impl Function {
         !self.generic_params.is_empty()
     }
 
+    /// Returns true if this function has RefCell locals with ghost state.
+    pub fn has_refcell_locals(&self) -> bool {
+        !self.refcell_ghost_states.is_empty()
+    }
+
     /// Returns true if this function has mutable reference parameters.
     pub fn has_mut_ref_params(&self) -> bool {
         self.params
