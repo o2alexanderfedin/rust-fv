@@ -12,6 +12,9 @@ pub struct TraitDatabase {
     traits: HashMap<String, TraitDef>,
     /// Map from trait name to list of implementations
     impls: HashMap<String, Vec<TraitImpl>>,
+    /// Map from trait name to list of types with negative impls (e.g. !Send, !Sync).
+    /// Key is trait name ("Send", "Sync"), value is list of type names with negative impls.
+    negative_impls: HashMap<String, Vec<String>>,
 }
 
 impl TraitDatabase {
@@ -20,6 +23,7 @@ impl TraitDatabase {
         Self {
             traits: HashMap::new(),
             impls: HashMap::new(),
+            negative_impls: HashMap::new(),
         }
     }
 
@@ -60,6 +64,46 @@ impl TraitDatabase {
     /// Get an iterator over all trait names in the database.
     pub fn trait_names(&self) -> impl Iterator<Item = &str> {
         self.traits.keys().map(|s| s.as_str())
+    }
+
+    /// Register a negative trait implementation (e.g. `impl !Send for MyType`).
+    ///
+    /// Records that the given type explicitly opts out of the given auto-trait.
+    pub fn register_negative_impl(&mut self, trait_name: &str, type_name: &str) {
+        self.negative_impls
+            .entry(trait_name.to_string())
+            .or_default()
+            .push(type_name.to_string());
+    }
+
+    /// Check if a type has a negative impl for a given trait.
+    pub fn has_negative_impl(&self, trait_name: &str, type_name: &str) -> bool {
+        self.negative_impls
+            .get(trait_name)
+            .map(|types| types.iter().any(|t| t == type_name))
+            .unwrap_or(false)
+    }
+
+    /// Check if a type implements Send.
+    ///
+    /// Returns `Some(false)` if the type has `!Send`, `None` if unknown.
+    pub fn is_send(&self, type_name: &str) -> Option<bool> {
+        if self.has_negative_impl("Send", type_name) {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a type implements Sync.
+    ///
+    /// Returns `Some(false)` if the type has `!Sync`, `None` if unknown.
+    pub fn is_sync(&self, type_name: &str) -> Option<bool> {
+        if self.has_negative_impl("Sync", type_name) {
+            Some(false)
+        } else {
+            None
+        }
     }
 }
 
