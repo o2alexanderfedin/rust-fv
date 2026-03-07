@@ -2229,4 +2229,12 @@ mod tests {
             "Catch-all arm must emit a tracing::warn with the pessimistic message"
         );
     }
+
+    #[test]
+    fn test_vc_kind_to_string_async_sequential_model() {
+        assert_eq!(
+            vc_kind_to_string(&VcKind::AsyncSequentialModel),
+            "async_sequential_model"
+        );
+    }
 }

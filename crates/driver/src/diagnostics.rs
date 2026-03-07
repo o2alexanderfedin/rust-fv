@@ -2866,4 +2866,52 @@ mod tests {
             "OpaqueCalleeUnsafe should NOT be in Warning branch (it is Error)"
         );
     }
+
+    // --- AsyncSequentialModel (W080) diagnostics tests ---
+
+    #[test]
+    fn test_vc_kind_description_async_sequential_model() {
+        let desc = vc_kind_description(&VcKind::AsyncSequentialModel);
+        assert!(
+            desc.contains("async multi-threaded execution not modeled"),
+            "W080 description should contain 'async multi-threaded execution not modeled', got: {desc}"
+        );
+        assert!(
+            desc.contains("sequential polling assumed"),
+            "W080 description should contain 'sequential polling assumed', got: {desc}"
+        );
+    }
+
+    #[test]
+    fn test_suggest_fix_async_sequential_model() {
+        let fix = suggest_fix(&VcKind::AsyncSequentialModel);
+        assert!(
+            fix.is_some(),
+            "suggest_fix for AsyncSequentialModel should return Some"
+        );
+        let fix_text = fix.unwrap();
+        assert!(
+            fix_text.contains("sequential verification"),
+            "suggest_fix should mention sequential verification, got: {fix_text}"
+        );
+    }
+
+    #[test]
+    fn test_async_sequential_model_is_warning_severity() {
+        let is_warning = |kind: &VcKind| {
+            kind == &VcKind::MemorySafety
+                || kind == &VcKind::FloatingPointNaN
+                || kind == &VcKind::Deadlock
+                || kind == &VcKind::OpaqueCallee
+                || kind == &VcKind::InferredSummaryAlias
+                || kind == &VcKind::AlignmentSafety
+                || kind == &VcKind::FfiOpaqueCallee
+                || kind == &VcKind::TransmuteSafety
+                || kind == &VcKind::AsyncSequentialModel
+        };
+        assert!(
+            is_warning(&VcKind::AsyncSequentialModel),
+            "AsyncSequentialModel should be in Warning branch"
+        );
+    }
 }
