@@ -190,6 +190,7 @@ fn test_function_unsafe_fields() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     assert_eq!(func.unsafe_blocks.len(), 1);
@@ -226,6 +227,7 @@ fn test_function_is_unsafe_fn() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     assert!(func.is_unsafe_fn);

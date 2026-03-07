@@ -78,6 +78,7 @@ fn make_ghost_test_func(requires_spec: &str, ensures_spec: &str) -> Function {
         source_names: HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

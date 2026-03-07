@@ -80,6 +80,7 @@ fn build_float_add_function(param_ty: FloatTy) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -122,6 +123,7 @@ fn build_float_mul_function(param_ty: FloatTy) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -164,6 +166,7 @@ fn build_float_div_function(param_ty: FloatTy) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -206,6 +209,7 @@ fn build_float_comparison_function(op: BinOp, param_ty: FloatTy) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -264,6 +268,7 @@ fn build_multi_float_ops_function() -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -302,6 +307,7 @@ fn build_float_constant_function(value: f64, param_ty: FloatTy) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -344,6 +350,7 @@ fn build_float_div_zero_function() -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -832,6 +839,7 @@ fn test_safe_function_no_float_vcs() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     // Generate VCs

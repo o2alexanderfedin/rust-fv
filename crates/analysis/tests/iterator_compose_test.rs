@@ -305,6 +305,7 @@ fn build_adapter_chain_mir() -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -417,6 +418,7 @@ fn iterator_compose_vcgen_single_adapter_uses_direct_contract() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 

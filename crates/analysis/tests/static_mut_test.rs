@@ -41,6 +41,7 @@ fn make_test_function(unsafe_operations: Vec<UnsafeOperation>) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

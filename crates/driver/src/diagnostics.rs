@@ -84,6 +84,9 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         || failure.vc_kind == VcKind::OpaqueCallee
         || failure.vc_kind == VcKind::InferredSummaryAlias
         || failure.vc_kind == VcKind::AlignmentSafety
+        || failure.vc_kind == VcKind::FfiOpaqueCallee
+        || failure.vc_kind == VcKind::TransmuteSafety
+        || failure.vc_kind == VcKind::AsyncSequentialModel
     {
         ReportKind::Warning
     } else {
@@ -399,6 +402,18 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::AlignmentSafety => "pointer alignment violation (V070)",
         VcKind::BorrowConflict => "RefCell borrow conflict detected (V090)",
         VcKind::UseAfterPartialMove => "use of partially-moved struct field (V091)",
+        VcKind::FfiOpaqueCallee => {
+            "extern function not modeled -- add #[requires]/#[ensures] to provide contracts (V110)"
+        }
+        VcKind::TransmuteSafety => {
+            "transmute safety violation -- size, alignment, or bit-pattern validity check failed (V120)"
+        }
+        VcKind::MaybeUninitSafety => {
+            "MaybeUninit::assume_init called on potentially uninitialized value"
+        }
+        VcKind::AsyncSequentialModel => {
+            "async multi-threaded execution not modeled -- sequential polling assumed (W080)"
+        }
     }
 }
 
@@ -578,6 +593,29 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::UseAfterPartialMove => Some(
             "V091: Use of partially-moved struct field. Clone the field before moving, \
              or restructure to avoid partial move."
+                .to_string(),
+        ),
+        VcKind::FfiOpaqueCallee => Some(
+            "V110: Extern \"C\" function has no verification contract. Add \
+             #[requires] / #[ensures] annotations to model the function's behavior, \
+             or mark it #[trusted] if it has been manually verified."
+                .to_string(),
+        ),
+        VcKind::TransmuteSafety => Some(
+            "V120: std::mem::transmute safety violation. Ensure source and destination \
+             types have the same size, the destination type's alignment is satisfied, \
+             and the bit pattern is valid for the destination type."
+                .to_string(),
+        ),
+        VcKind::MaybeUninitSafety => Some(
+            "MaybeUninit::assume_init called on potentially uninitialized value. \
+             Ensure MaybeUninit::write() or MaybeUninit::new() is called before \
+             assume_init()."
+                .to_string(),
+        ),
+        VcKind::AsyncSequentialModel => Some(
+            "W080: Async function spawns threads but verification uses sequential polling model. \
+             Consider sequential verification only, or split async and threaded verification."
                 .to_string(),
         ),
         _ => None,

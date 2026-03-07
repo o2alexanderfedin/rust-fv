@@ -490,6 +490,7 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -604,6 +605,7 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -839,6 +841,7 @@ fn test_two_variable_loop() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1200,6 +1203,7 @@ fn test_loop_without_invariant_skipped() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1394,6 +1398,7 @@ fn test_loop_detection_from_cfg() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![], // Empty -- should be auto-detected
     };
 

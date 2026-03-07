@@ -463,6 +463,7 @@ fn snd_signed_add_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -523,6 +524,7 @@ fn snd_unsigned_add_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -583,6 +585,7 @@ fn snd_signed_sub_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -643,6 +646,7 @@ fn snd_unsigned_sub_underflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -703,6 +707,7 @@ fn snd_signed_mul_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -763,6 +768,7 @@ fn snd_unsigned_mul_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -823,6 +829,7 @@ fn snd_division_by_zero() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -883,6 +890,7 @@ fn snd_shift_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -965,6 +973,7 @@ fn snd_wrong_postcondition_add() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1060,6 +1069,7 @@ fn snd_wrong_postcondition_max() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1122,6 +1132,7 @@ fn snd_wrong_postcondition_identity() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1178,6 +1189,7 @@ fn snd_wrong_postcondition_constant() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1272,6 +1284,7 @@ fn snd_wrong_postcondition_branch() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1334,6 +1347,7 @@ fn snd_postcondition_off_by_one() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1451,6 +1465,7 @@ fn snd_branch_unsound_if_linear() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1523,6 +1538,7 @@ fn snd_signed_div_int_min_neg_one() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1621,6 +1637,7 @@ fn snd_signed_rem_int_min_neg_one() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1721,6 +1738,7 @@ fn snd_unrestricted_input_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1886,6 +1904,7 @@ fn snd_nested_branch_wrong_result() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1948,6 +1967,7 @@ fn snd_unsigned_rem_div_by_zero() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2012,6 +2032,7 @@ fn snd_shr_overflow() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2090,6 +2111,7 @@ fn snd_add_wrong_upper_bound() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

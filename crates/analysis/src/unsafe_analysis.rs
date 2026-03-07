@@ -36,9 +36,10 @@ pub fn classify_provenance(op: &UnsafeOperation) -> RawPtrProvenance {
     match op {
         UnsafeOperation::RawDeref { provenance, .. } => provenance.clone(),
         UnsafeOperation::PtrCast { provenance, .. } => provenance.clone(),
-        UnsafeOperation::PtrArithmetic { .. } | UnsafeOperation::StaticMutAccess { .. } => {
-            RawPtrProvenance::Unknown
-        }
+        UnsafeOperation::PtrArithmetic { .. }
+        | UnsafeOperation::StaticMutAccess { .. }
+        | UnsafeOperation::TransmuteUnsafe { .. }
+        | UnsafeOperation::FfiCall { .. } => RawPtrProvenance::Unknown,
     }
 }
 
@@ -60,7 +61,9 @@ pub fn needs_null_check(op: &UnsafeOperation) -> bool {
         }
         UnsafeOperation::PtrArithmetic { .. }
         | UnsafeOperation::PtrCast { .. }
-        | UnsafeOperation::StaticMutAccess { .. } => false,
+        | UnsafeOperation::StaticMutAccess { .. }
+        | UnsafeOperation::TransmuteUnsafe { .. }
+        | UnsafeOperation::FfiCall { .. } => false,
     }
 }
 
@@ -224,6 +227,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -499,6 +503,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 

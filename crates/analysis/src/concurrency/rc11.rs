@@ -710,6 +710,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 

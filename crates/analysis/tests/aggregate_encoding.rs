@@ -453,6 +453,7 @@ fn test_struct_construction() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -577,6 +578,7 @@ fn test_struct_field_postcondition_positive() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -665,6 +667,7 @@ fn test_struct_field_postcondition_negative() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -753,6 +756,7 @@ fn test_tuple_construction() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -869,6 +873,7 @@ fn test_tuple_field_access() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -978,6 +983,7 @@ fn test_array_select() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1144,6 +1150,7 @@ fn test_enum_variant_construction() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 

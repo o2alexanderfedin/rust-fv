@@ -90,6 +90,7 @@ fn make_cross_crate_generic_func(name: &str) -> Function {
         source_names: HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

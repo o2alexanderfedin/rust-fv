@@ -116,6 +116,7 @@ fn make_litmus_function(name: &str, atomic_ops: Vec<AtomicOp>) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

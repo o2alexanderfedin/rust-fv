@@ -420,6 +420,7 @@ fn make_caller_function(
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -722,6 +723,7 @@ fn test_call_site_postcondition_assumed() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -853,6 +855,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -979,6 +982,7 @@ fn test_call_chain_no_blowup() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 
@@ -1061,6 +1065,7 @@ fn test_call_without_contracts_treated_as_opaque() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
 

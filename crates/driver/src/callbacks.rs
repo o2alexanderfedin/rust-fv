@@ -1695,6 +1695,10 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::AlignmentSafety => "alignment_safety",
         VcKind::BorrowConflict => "borrow_conflict",
         VcKind::UseAfterPartialMove => "use_after_partial_move",
+        VcKind::FfiOpaqueCallee => "ffi_opaque_callee",
+        VcKind::TransmuteSafety => "transmute_safety",
+        VcKind::MaybeUninitSafety => "maybeuninit_safety",
+        VcKind::AsyncSequentialModel => "async_sequential_model",
     }
     .to_string()
 }

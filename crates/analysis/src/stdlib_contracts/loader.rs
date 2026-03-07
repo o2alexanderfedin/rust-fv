@@ -35,6 +35,8 @@ pub fn load_default_contracts() -> StdlibContractRegistry {
     super::iterator::register_iterator_contracts(&mut registry);
     super::string::register_string_contracts(&mut registry);
     super::from::register_from_contracts(&mut registry);
+    super::ptr::register_ptr_contracts(&mut registry);
+    super::mem::register_mem_contracts(&mut registry);
 
     registry
 }

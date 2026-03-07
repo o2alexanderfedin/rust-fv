@@ -209,6 +209,19 @@ pub enum UnsafeOperation {
         synchronized: bool,
         block_index: usize,
     },
+    /// std::mem::transmute call (LANG-16).
+    /// Tracks source and destination types for size/alignment/validity VC generation.
+    TransmuteUnsafe {
+        source_ty: Ty,
+        target_ty: Ty,
+        local: String,
+    },
+    /// FFI (extern "C") function call (LANG-15).
+    /// Tracks whether the callee has user-provided contracts.
+    FfiCall {
+        callee_name: String,
+        has_contract: bool,
+    },
 }
 
 /// Safety contracts for unsafe functions.
@@ -411,6 +424,9 @@ pub struct Function {
     /// Ghost state for RefCell interior mutability tracking.
     /// Empty for functions without RefCell locals.
     pub refcell_ghost_states: Vec<RefCellGhostState>,
+    /// Ghost state for MaybeUninit initialization tracking.
+    /// Empty for functions without MaybeUninit locals.
+    pub maybeuninit_ghost_states: Vec<MaybeUninitGhostState>,
 }
 
 impl Function {
@@ -422,6 +438,11 @@ impl Function {
     /// Returns true if this function has RefCell locals with ghost state.
     pub fn has_refcell_locals(&self) -> bool {
         !self.refcell_ghost_states.is_empty()
+    }
+
+    /// Returns true if this function has MaybeUninit locals with ghost state.
+    pub fn has_maybeuninit_locals(&self) -> bool {
+        !self.maybeuninit_ghost_states.is_empty()
     }
 
     /// Returns true if this function has mutable reference parameters.
@@ -633,6 +654,19 @@ pub struct RefCellGhostState {
     pub is_mut_borrowed_var: String,
     /// The inner type T in RefCell<T>
     pub inner_ty: Ty,
+}
+
+/// Ghost state for MaybeUninit initialization tracking (LANG-16).
+///
+/// Follows RefCellGhostState pattern: per-local ghost boolean in SMT preamble.
+/// Used to model MaybeUninit's initialization state for preventing reads of
+/// uninitialized memory.
+#[derive(Debug, Clone)]
+pub struct MaybeUninitGhostState {
+    /// The local variable name holding the MaybeUninit (e.g., "_1")
+    pub local_name: String,
+    /// SMT variable for initialization flag (true = initialized, false = uninitialized)
+    pub is_initialized: String,
 }
 
 /// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
@@ -1140,6 +1174,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.is_generic());
     }
@@ -1172,6 +1207,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(!func.is_generic());
     }
@@ -1209,6 +1245,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1244,6 +1281,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1276,6 +1314,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1308,6 +1347,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1343,6 +1383,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1928,6 +1969,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -2028,6 +2070,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -2069,6 +2112,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.source_names.is_empty());
     }
@@ -2106,6 +2150,7 @@ mod tests {
             source_names: names,
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
         assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
@@ -2222,6 +2267,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.coroutine_info.is_none());
     }
@@ -2263,6 +2309,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: Some(coroutine_info),
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         assert!(func.coroutine_info.is_some());
         let info = func.coroutine_info.unwrap();

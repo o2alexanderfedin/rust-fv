@@ -133,6 +133,7 @@ fn test_lifetime_params_outlives_verified() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     // Extract lifetime parameters
@@ -203,6 +204,7 @@ fn test_outlives_with_static_lifetime() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -300,6 +302,7 @@ fn test_nll_conflict_detection() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     // Build lifetime context
@@ -369,6 +372,7 @@ fn test_prophecy_single_mut_ref() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     // Detect prophecies
@@ -425,6 +429,7 @@ fn test_prophecy_nested_mut_mut() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -519,6 +524,7 @@ fn test_borrow_validity_vc_generation() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -614,6 +620,7 @@ fn test_reborrow_chain_detection() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     // Detect reborrow chains
@@ -715,6 +722,7 @@ fn test_reborrow_outlives_detection() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -778,6 +786,7 @@ fn test_phase9_requirement_coverage() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -840,6 +849,7 @@ fn test_phase9_requirement_coverage() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let chains = detect_reborrow_chains(&reborrow_func);

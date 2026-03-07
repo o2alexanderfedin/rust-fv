@@ -70,6 +70,7 @@ fn make_func_with_contracts(name: &str, requires: Vec<&str>, ensures: Vec<&str>)
         source_names: HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }

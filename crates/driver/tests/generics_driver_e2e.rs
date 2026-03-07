@@ -88,6 +88,7 @@ fn make_generic_test_func(generic_params: Vec<GenericParam>) -> Function {
         source_names: HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

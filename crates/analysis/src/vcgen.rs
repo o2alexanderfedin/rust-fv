@@ -241,6 +241,19 @@ pub enum VcKind {
     /// Generated when reading a field that was previously consumed by move.
     /// Error V091.
     UseAfterPartialMove,
+    /// FFI extern "C" opaque callee: no contract provided for extern function.
+    /// Warning V110 -- indicates extern function behavior is unmodeled.
+    FfiOpaqueCallee,
+    /// Transmute safety: size, alignment, or bit-pattern validity check for std::mem::transmute.
+    /// Warning V120 -- generated for each transmute call with size/alignment/validity constraints.
+    TransmuteSafety,
+    /// MaybeUninit safety: assume_init called on potentially uninitialized MaybeUninit.
+    /// Uses MemorySafety VcKind since it is fundamentally an uninitialized read.
+    MaybeUninitSafety,
+    /// Async function with thread-spawning calls (W080).
+    /// Sequential polling model assumed -- multi-threaded execution not modeled.
+    /// Warning severity, verification continues under sequential model.
+    AsyncSequentialModel,
 }
 
 impl VcKind {
@@ -1002,6 +1015,18 @@ pub fn generate_vcs_with_db(
         conditions.extend(async_vcs);
     }
 
+    // COMPL-25: W080 async sequential model warning for thread-spawning async functions
+    {
+        let mut async_model_vcs = generate_async_model_vcs(func);
+        if !async_model_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                "Generated W080 async sequential model warning (thread spawning detected)"
+            );
+            conditions.append(&mut async_model_vcs);
+        }
+    }
+
     // COMPL-09: Generate RefCell ghost state VCs for interior mutability
     {
         let mut refcell_vcs = generate_refcell_vcs(func);
@@ -1025,6 +1050,45 @@ pub fn generate_vcs_with_db(
                 "Generated partial struct move VCs"
             );
             conditions.append(&mut partial_move_vcs);
+        }
+    }
+
+    // LANG-15: Generate FFI opaque callee VCs for extern "C" calls
+    {
+        let mut ffi_vcs = generate_ffi_vcs(func);
+        if !ffi_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                ffi_vc_count = ffi_vcs.len(),
+                "Generated FFI opaque callee VCs (V110)"
+            );
+            conditions.append(&mut ffi_vcs);
+        }
+    }
+
+    // LANG-16: Generate transmute safety VCs
+    {
+        let mut transmute_vcs = generate_transmute_vcs(func);
+        if !transmute_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                transmute_vc_count = transmute_vcs.len(),
+                "Generated transmute safety VCs (V120)"
+            );
+            conditions.append(&mut transmute_vcs);
+        }
+    }
+
+    // LANG-16: Generate MaybeUninit ghost state VCs
+    {
+        let mut maybeuninit_vcs = generate_maybeuninit_vcs(func);
+        if !maybeuninit_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                maybeuninit_vc_count = maybeuninit_vcs.len(),
+                "Generated MaybeUninit ghost state VCs"
+            );
+            conditions.append(&mut maybeuninit_vcs);
         }
     }
 
@@ -3845,6 +3909,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -5607,6 +5672,426 @@ fn generate_refcell_vcs(func: &Function) -> Vec<VerificationCondition> {
     vcs
 }
 
+/// Return the byte size of a concrete Ty for transmute size checks.
+///
+/// Returns None for types whose size is not statically known (generics, opaque, etc.).
+fn ty_size_bytes(ty: &Ty) -> Option<u64> {
+    match ty {
+        Ty::Bool => Some(1),
+        Ty::Int(int_ty) => Some(match int_ty {
+            IntTy::I8 => 1,
+            IntTy::I16 => 2,
+            IntTy::I32 => 4,
+            IntTy::I64 | IntTy::Isize => 8,
+            IntTy::I128 => 16,
+        }),
+        Ty::Uint(uint_ty) => Some(match uint_ty {
+            UintTy::U8 => 1,
+            UintTy::U16 => 2,
+            UintTy::U32 => 4,
+            UintTy::U64 | UintTy::Usize => 8,
+            UintTy::U128 => 16,
+        }),
+        Ty::Float(float_ty) => Some(match float_ty {
+            FloatTy::F32 => 4,
+            FloatTy::F64 => 8,
+        }),
+        Ty::Unit => Some(0),
+        Ty::RawPtr(_, _) | Ty::Ref(_, _) | Ty::NonNull(_) => Some(8), // pointer-sized on 64-bit
+        _ => None, // Unknown size for ADTs, generics, etc.
+    }
+}
+
+/// Generate transmute safety VCs for TransmuteUnsafe operations (LANG-16).
+///
+/// For each TransmuteUnsafe operation in the function:
+/// - Size VC: asserts size_of(source) == size_of(target)
+/// - Alignment VC: asserts addr % align_of(target) == 0 (for align > 1)
+/// - Validity VC: for types with niche constraints (bool: 0/1)
+fn generate_transmute_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for op in &func.unsafe_operations {
+        if let UnsafeOperation::TransmuteUnsafe {
+            source_ty,
+            target_ty,
+            local,
+        } = op
+        {
+            // Size VC: assert NOT(size_src == size_dst) then check-sat
+            // UNSAT = sizes match (safe), SAT = sizes differ (violation)
+            let src_size = ty_size_bytes(source_ty);
+            let dst_size = ty_size_bytes(target_ty);
+
+            if let (Some(src_sz), Some(dst_sz)) = (src_size, dst_size) {
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+
+                if src_sz == dst_sz {
+                    // Sizes match: assert FALSE -> UNSAT (verified)
+                    script.push(rust_fv_smtlib::command::Command::Assert(
+                        rust_fv_smtlib::term::Term::BoolLit(false),
+                    ));
+                } else {
+                    // Sizes differ: assert TRUE -> SAT (violation detected)
+                    script.push(rust_fv_smtlib::command::Command::Assert(
+                        rust_fv_smtlib::term::Term::BoolLit(true),
+                    ));
+                }
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "transmute size check: {} ({} bytes) -> {} ({} bytes) at {}",
+                        format_ty(source_ty),
+                        src_sz,
+                        format_ty(target_ty),
+                        dst_sz,
+                        local,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: 0,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!(
+                            "size_of::<{}>() == size_of::<{}>()",
+                            format_ty(source_ty),
+                            format_ty(target_ty),
+                        )),
+                        vc_kind: VcKind::TransmuteSafety,
+                    },
+                });
+            }
+
+            // Alignment VC for destination type (align > 1)
+            let dst_align = ty_alignment(target_ty);
+            if dst_align > 1 {
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+                // Declare addr as unconstrained BV64
+                script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                    format!("{}_addr", local),
+                    rust_fv_smtlib::sort::Sort::BitVec(64),
+                ));
+                let addr = Term::Const(format!("{}_addr", local));
+                let align_bv = Term::BitVecLit(dst_align as i128, 64);
+                let zero_bv = Term::BitVecLit(0, 64);
+                let modulo = Term::App("bvsmod".to_string(), vec![addr, align_bv]);
+                let alignment_check = Term::Eq(Box::new(modulo), Box::new(zero_bv));
+                script.push(rust_fv_smtlib::command::Command::Assert(Term::Not(
+                    Box::new(alignment_check),
+                )));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "transmute alignment check: {} requires {}-byte alignment at {}",
+                        format_ty(target_ty),
+                        dst_align,
+                        local,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: 0,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(format!("addr % {} == 0", dst_align)),
+                        vc_kind: VcKind::TransmuteSafety,
+                    },
+                });
+            }
+
+            // Validity VC for destination types with niche constraints
+            if matches!(target_ty, Ty::Bool) {
+                // Bool must be 0 or 1 -- transmute from larger type could produce invalid value
+                let mut script = rust_fv_smtlib::script::Script::new();
+                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                    "QF_BV".to_string(),
+                ));
+                // Declare source bits as unconstrained BV
+                let src_bits = ty_size_bytes(source_ty).unwrap_or(1) * 8;
+                script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                    format!("{}_bits", local),
+                    rust_fv_smtlib::sort::Sort::BitVec(src_bits as u32),
+                ));
+                // For bool validity: assert NOT(bits == 0 OR bits == 1) then check-sat
+                // UNSAT = always valid, SAT = could be invalid
+                // Since source is unconstrained, this will always be SAT for src > 1 bit
+                script.push(rust_fv_smtlib::command::Command::Assert(
+                    rust_fv_smtlib::term::Term::BoolLit(true),
+                ));
+                script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "transmute validity check: {} -> bool requires value 0 or 1 at {}",
+                        format_ty(source_ty),
+                        local,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: 0,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(
+                            "transmuted value must be valid for destination type".to_string(),
+                        ),
+                        vc_kind: VcKind::TransmuteSafety,
+                    },
+                });
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Generate FFI opaque callee VCs for uncontracted extern "C" calls (LANG-15).
+///
+/// Scans UnsafeOperation::FfiCall entries. For each FFI call without user contracts,
+/// emits a FfiOpaqueCallee warning VC (V110). Contracted FFI calls are suppressed.
+fn generate_ffi_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for op in &func.unsafe_operations {
+        if let UnsafeOperation::FfiCall {
+            callee_name,
+            has_contract,
+        } = op
+        {
+            if *has_contract {
+                // FFI call has user contracts -- no warning needed
+                continue;
+            }
+
+            // Uncontracted FFI call: emit V110 warning
+            let mut script = rust_fv_smtlib::script::Script::new();
+            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                "QF_BV".to_string(),
+            ));
+            // Always SAT = warning always fires for uncontracted extern calls
+            script.push(rust_fv_smtlib::command::Command::Assert(
+                rust_fv_smtlib::term::Term::BoolLit(true),
+            ));
+            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+            vcs.push(VerificationCondition {
+                description: format!(
+                    "extern function '{}' not modeled -- add #[requires]/#[ensures] to provide contracts",
+                    callee_name,
+                ),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    source_column: None,
+                    contract_text: Some(format!(
+                        "Add #[requires] / #[ensures] to extern fn '{}'",
+                        callee_name,
+                    )),
+                    vc_kind: VcKind::FfiOpaqueCallee,
+                },
+            });
+        }
+    }
+
+    vcs
+}
+
+/// Generate MaybeUninit safety VCs for ghost state tracking (LANG-16).
+///
+/// Walks basic blocks linearly (like generate_refcell_vcs) tracking per-local
+/// initialization state via ghost booleans. Emits MaybeUninitSafety VCs for
+/// assume_init calls on potentially uninitialized MaybeUninit values.
+fn generate_maybeuninit_vcs(func: &Function) -> Vec<VerificationCondition> {
+    if !func.has_maybeuninit_locals() {
+        return vec![];
+    }
+
+    let mut vcs = Vec::new();
+
+    for ghost in &func.maybeuninit_ghost_states {
+        let mut is_initialized = false;
+
+        for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+            if let Terminator::Call {
+                func: callee,
+                args: _,
+                destination: _,
+                target: _,
+            } = &block.terminator
+            {
+                let method = extract_maybeuninit_method(callee);
+
+                match method.as_deref() {
+                    Some("uninit") => {
+                        is_initialized = false;
+                    }
+                    Some("new") | Some("write") => {
+                        is_initialized = true;
+                    }
+                    Some("assume_init")
+                    | Some("assume_init_read")
+                    | Some("assume_init_ref")
+                    | Some("assume_init_mut") => {
+                        if !is_initialized {
+                            // Uninitialized read: generate SAT VC (violation)
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.is_initialized.clone(),
+                                rust_fv_smtlib::sort::Sort::Bool,
+                            ));
+                            // Assert NOT(is_initialized) -- always SAT when uninitialized
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::App(
+                                    "=".to_string(),
+                                    vec![
+                                        rust_fv_smtlib::term::Term::Const(
+                                            ghost.is_initialized.clone(),
+                                        ),
+                                        rust_fv_smtlib::term::Term::BoolLit(false),
+                                    ],
+                                ),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            let method_name = method.as_deref().unwrap_or("assume_init");
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "MaybeUninit::{}() on uninitialized {} ({}=false)",
+                                    method_name, ghost.local_name, ghost.is_initialized,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "MaybeUninit::{}() requires {} == true",
+                                        method_name, ghost.is_initialized,
+                                    )),
+                                    vc_kind: VcKind::MaybeUninitSafety,
+                                },
+                            });
+                        } else {
+                            // Initialized read: generate UNSAT VC (safe)
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::DeclareConst(
+                                ghost.is_initialized.clone(),
+                                rust_fv_smtlib::sort::Sort::Bool,
+                            ));
+                            // Assert is_initialized = true AND NOT(is_initialized = true) -> FALSE -> UNSAT
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::BoolLit(false),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            let method_name = method.as_deref().unwrap_or("assume_init");
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "MaybeUninit::{}() on initialized {} ({}=true)",
+                                    method_name, ghost.local_name, ghost.is_initialized,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "MaybeUninit::{}() requires {} == true",
+                                        method_name, ghost.is_initialized,
+                                    )),
+                                    vc_kind: VcKind::MaybeUninitSafety,
+                                },
+                            });
+                        }
+                    }
+                    Some("assume_init_drop") => {
+                        if !is_initialized {
+                            let mut script = rust_fv_smtlib::script::Script::new();
+                            script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                "QF_LIA".to_string(),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::Assert(
+                                rust_fv_smtlib::term::Term::BoolLit(true),
+                            ));
+                            script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "MaybeUninit::assume_init_drop() on uninitialized {} ({}=false)",
+                                    ghost.local_name, ghost.is_initialized,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: 0,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(format!(
+                                        "MaybeUninit::assume_init_drop() requires {} == true",
+                                        ghost.is_initialized,
+                                    )),
+                                    vc_kind: VcKind::MaybeUninitSafety,
+                                },
+                            });
+                        }
+                        is_initialized = false;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Extract MaybeUninit method name from a callee string.
+///
+/// Matches patterns like "MaybeUninit::uninit", "std::mem::MaybeUninit::new", etc.
+fn extract_maybeuninit_method(callee: &str) -> Option<String> {
+    if let Some(idx) = callee.find("MaybeUninit::") {
+        let method_start = idx + "MaybeUninit::".len();
+        let method = &callee[method_start..];
+        let method_name = method.split("::").next().unwrap_or(method);
+        Some(method_name.to_string())
+    } else {
+        None
+    }
+}
+
 /// Extract RefCell method name from a callee string.
 ///
 /// Matches patterns like "RefCell::borrow", "std::cell::RefCell::borrow",
@@ -5645,6 +6130,83 @@ fn extract_refcell_drop(callee: &str) -> Option<&str> {
 /// - Lock invariants (must hold at release)
 /// - Deadlocks (lock-order cycle detection)
 /// - Channel safety (send-on-closed, capacity overflow, recv deadlock)
+///   COMPL-25: W080 async sequential model warning.
+///
+/// Scans all basic blocks for Terminator::Call with thread-spawning callee names.
+/// Only fires for async functions (coroutine_info.is_some()).
+/// Emits a single VcKind::AsyncSequentialModel VC with BoolLit(true) assertion
+/// (always passes -- this is a warning, not a proof obligation).
+///
+/// Thread-spawning patterns detected:
+/// - tokio::spawn, tokio::task::spawn
+/// - std::thread::spawn
+/// - rayon::spawn, rayon::join
+/// - crossbeam::scope, crossbeam::spawn
+/// - async_std::task::spawn
+fn generate_async_model_vcs(func: &Function) -> Vec<VerificationCondition> {
+    // Only fires for async functions
+    if func.coroutine_info.is_none() {
+        return vec![];
+    }
+
+    // Scan all basic block terminators for thread-spawning calls
+    let spawn_patterns = [
+        "tokio::spawn",
+        "tokio::task::spawn",
+        "std::thread::spawn",
+        "rayon::spawn",
+        "rayon::join",
+        "crossbeam::scope",
+        "crossbeam::spawn",
+        "async_std::task::spawn",
+    ];
+
+    let has_spawn = func.basic_blocks.iter().any(|bb| {
+        if let Terminator::Call { func: callee, .. } = &bb.terminator {
+            spawn_patterns
+                .iter()
+                .any(|pattern| callee.contains(pattern))
+        } else {
+            false
+        }
+    });
+
+    if !has_spawn {
+        return vec![];
+    }
+
+    // Emit single W080 VC -- BoolLit(true) means always passes (warning only)
+    let mut script = rust_fv_smtlib::script::Script::new();
+    script.push(rust_fv_smtlib::command::Command::SetLogic(
+        "QF_BV".to_string(),
+    ));
+    script.push(rust_fv_smtlib::command::Command::Assert(
+        rust_fv_smtlib::term::Term::BoolLit(true),
+    ));
+    script.push(rust_fv_smtlib::command::Command::CheckSat);
+
+    vec![VerificationCondition {
+        description: format!(
+            "async multi-threaded execution not modeled -- sequential polling assumed in '{}'",
+            func.name
+        ),
+        script,
+        location: VcLocation {
+            function: func.name.clone(),
+            block: 0,
+            statement: 0,
+            source_file: None,
+            source_line: None,
+            source_column: None,
+            contract_text: Some(
+                "Consider sequential verification only, or split async and threaded verification"
+                    .to_string(),
+            ),
+            vc_kind: VcKind::AsyncSequentialModel,
+        },
+    }]
+}
+
 /// - Bounded verification warning
 ///
 /// Only runs if:
@@ -5949,6 +6511,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -6043,6 +6606,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -6209,6 +6773,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6268,6 +6833,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6861,6 +7427,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6900,6 +7467,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -6950,6 +7518,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7000,6 +7569,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7037,6 +7607,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7069,6 +7640,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7101,6 +7673,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7252,6 +7825,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -7487,6 +8061,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7531,6 +8106,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7575,6 +8151,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7655,6 +8232,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -7834,6 +8412,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -7926,6 +8505,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -7966,6 +8546,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -8076,6 +8657,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8128,6 +8710,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8171,6 +8754,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8214,6 +8798,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8255,6 +8840,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8337,6 +8923,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -8401,6 +8988,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -8465,6 +9053,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -8664,6 +9253,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8716,6 +9306,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8768,6 +9359,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8820,6 +9412,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -8919,6 +9512,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         };
 
@@ -9116,6 +9710,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -9290,6 +9885,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9359,6 +9955,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9414,6 +10011,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result2 = generate_vcs(&func_with_contract, None);
@@ -9484,6 +10082,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -9578,6 +10177,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9668,6 +10268,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         // Validate FnOnce single-call property
@@ -9740,6 +10341,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9787,6 +10389,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         // Call with None TraitDatabase - should work as before
@@ -9827,6 +10430,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -9873,6 +10477,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9915,6 +10520,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9974,6 +10580,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10031,6 +10638,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10094,6 +10702,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10151,6 +10760,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10238,6 +10848,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10296,6 +10907,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10358,6 +10970,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10416,6 +11029,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10460,6 +11074,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10508,6 +11123,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10569,6 +11185,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -10732,6 +11349,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -10793,6 +11411,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -10977,6 +11596,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -11027,6 +11647,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -11081,6 +11702,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         }
     }
 
@@ -11224,6 +11846,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let mut contract_db = ContractDatabase::new();
@@ -11655,6 +12278,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -11704,6 +12328,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }
@@ -11753,6 +12378,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
             loops: vec![],
         }
     }

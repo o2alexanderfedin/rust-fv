@@ -101,6 +101,7 @@ fn make_async_state_invariant_func() -> Function {
             persistent_fields: vec![("counter".to_string(), Ty::Int(IntTy::I64))],
         }),
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

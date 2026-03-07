@@ -500,6 +500,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -558,6 +559,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -595,6 +597,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -646,6 +649,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -748,6 +752,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -827,6 +832,7 @@ mod tests {
             source_names: std::collections::HashMap::new(),
             coroutine_info: None,
             refcell_ghost_states: vec![],
+            maybeuninit_ghost_states: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);

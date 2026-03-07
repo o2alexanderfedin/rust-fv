@@ -109,6 +109,7 @@ fn make_caller_func(args: Vec<Operand>) -> Function {
         source_names: HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

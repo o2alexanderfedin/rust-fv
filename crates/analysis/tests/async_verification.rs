@@ -132,6 +132,7 @@ fn make_async_func(
             persistent_fields,
         }),
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 

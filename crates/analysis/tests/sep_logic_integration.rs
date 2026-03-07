@@ -94,6 +94,7 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -157,6 +158,7 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }
@@ -214,6 +216,7 @@ fn build_caller_func() -> Function {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     }
 }

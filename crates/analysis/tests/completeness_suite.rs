@@ -449,6 +449,7 @@ fn cmp_bounded_add() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -525,6 +526,7 @@ fn cmp_bounded_sub() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -601,6 +603,7 @@ fn cmp_bounded_mul() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -677,6 +680,7 @@ fn cmp_safe_div() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -748,6 +752,7 @@ fn cmp_safe_shift() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -808,6 +813,7 @@ fn cmp_identity_postcondition() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -864,6 +870,7 @@ fn cmp_constant_postcondition() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -942,6 +949,7 @@ fn cmp_bounded_add_postcondition() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1041,6 +1049,7 @@ fn cmp_max_function() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1171,6 +1180,7 @@ fn cmp_abs_function() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1329,6 +1339,7 @@ fn cmp_clamp_function() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1436,6 +1447,7 @@ fn cmp_if_else_same_result() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1570,6 +1582,7 @@ fn cmp_multi_branch_classify() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1677,6 +1690,7 @@ fn cmp_early_return() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1847,6 +1861,7 @@ fn cmp_nested_branches_correct() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1940,6 +1955,7 @@ fn cmp_u8_bounded_add() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2016,6 +2032,7 @@ fn cmp_i64_bounded_add() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2092,6 +2109,7 @@ fn cmp_u64_bounded_mul() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2168,6 +2186,7 @@ fn cmp_i8_safe_operations() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2228,6 +2247,7 @@ fn cmp_mixed_width_identity() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2303,6 +2323,7 @@ fn cmp_safe_unsigned_sub() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2380,6 +2401,7 @@ fn cmp_safe_signed_rem() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

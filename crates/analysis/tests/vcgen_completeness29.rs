@@ -46,6 +46,7 @@ fn make_func(
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     }
 }
 
@@ -721,6 +722,7 @@ fn phase04_bv2int_logic_selection() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -806,6 +808,7 @@ fn phase04_ghost_local_leaks_into_vc() {
         source_names: std::collections::HashMap::new(),
         coroutine_info: None,
         refcell_ghost_states: vec![],
+        maybeuninit_ghost_states: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
