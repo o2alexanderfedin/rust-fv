@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 49 (Cross-Crate & Interop Completeness) — complete
-Plan: 03 of 03 complete
-Status: Phase 49 complete (From::from contracts + iterator adapter composition)
-Last activity: 2026-03-06 — Phase 49 plan 03 complete (COMPL-18 From::from at ? + COMPL-04 iterator adapter chaining)
+Phase: 50 (Stdlib Ptr/Mem & Unsafe Boundary) — in progress
+Plan: 01 of 04 complete
+Status: Plan 50-01 complete (ptr/mem stdlib contracts with overlap/alignment preconditions)
+Last activity: 2026-03-07 — Phase 50 plan 01 complete (COMPL-23 ptr contracts + COMPL-24 mem contracts)
 
 ```
 Progress: [##########          ] 100%
@@ -46,7 +46,7 @@ Progress: [##########          ] 100%
 | 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Complete |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Complete |
-| 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Not started |
+| 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Plan 01/04 done |
 | 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
 | 52 | Advanced Type System Features | LANG-06, LANG-07, LANG-08, LANG-09, LANG-10 | Not started |
 | 53 | Operator & Smart Pointer Verification | LANG-11, LANG-12, LANG-13, LANG-14 | Not started |
@@ -89,6 +89,7 @@ Progress: [##########          ] 100%
 | Phase 49 P02 | 2297 | 2 tasks | 9 files |
 | Phase 49 P03 | 1978 | 2 tasks | 6 files |
 | Phase 49 P04 | 1089 | 2 tasks | 3 files |
+| Phase 50 P01 | 2172 | 1 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 49]: Iterator composition uses staged rewriting (stage_0, stage_1, result) for multi-adapter chains
 - [Phase 49]: Direct SMT encoding for From::from and iterator postconditions bypassing spec parser
 - [Phase 49]: raw_callee_name field on CallSiteInfo preserves pre-normalization names for trait pattern detection
+- [Phase 50]: Ptr contracts use SpecExpr alignment checks (addr % align_of::<T>() == 0) at contract level
+- [Phase 50]: copy_nonoverlapping overlap uses no_overlap() spec function; mem::swap combines exchange in single postcondition
 
 ### Key v0.8 Architecture Notes
 
@@ -145,10 +148,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T00:50:03.606Z
-Stopped at: Phase 50 context gathered
-Resume file: .planning/phases/50-stdlib-ptr-mem-unsafe-boundary/50-CONTEXT.md
-Next step: Phase 49 complete; begin Phase 50
+Last session: 2026-03-07T01:39:22Z
+Stopped at: Completed 50-01-PLAN.md
+Resume file: .planning/phases/50-stdlib-ptr-mem-unsafe-boundary/50-01-SUMMARY.md
+Next step: Continue Phase 50 plan 02
 
 ---
 

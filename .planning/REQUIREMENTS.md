@@ -31,8 +31,8 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-20**: SetDiscriminant VCGen verified as fully functional (not no-op) with end-to-end test
 - [x] **COMPL-21**: Ghost local assignment guard (`is_ghost_place`) verified working with regression test
 - [x] **COMPL-22**: `uses_spec_int_types()` detection verified complete with regression test
-- [ ] **COMPL-23**: `std::ptr::read`/`write`/`copy`/`copy_nonoverlapping` stdlib contracts with overlap and alignment VCs
-- [ ] **COMPL-24**: `std::mem::swap`/`replace` stdlib contracts ensuring correct value exchange
+- [x] **COMPL-23**: `std::ptr::read`/`write`/`copy`/`copy_nonoverlapping` stdlib contracts with overlap and alignment VCs
+- [x] **COMPL-24**: `std::mem::swap`/`replace` stdlib contracts ensuring correct value exchange
 - [ ] **COMPL-25**: Async multi-threaded execution model documented as known limitation with clear boundary
 
 ### Core Language Features (LANG)
@@ -153,8 +153,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-20 | Phase 45 | Complete |
 | COMPL-21 | Phase 45 | Complete |
 | COMPL-22 | Phase 45 | Complete |
-| COMPL-23 | Phase 50 | Pending |
-| COMPL-24 | Phase 50 | Pending |
+| COMPL-23 | Phase 50 | Complete |
+| COMPL-24 | Phase 50 | Complete |
 | COMPL-25 | Phase 50 | Pending |
 | LANG-01 | Phase 51 | Pending |
 | LANG-02 | Phase 51 | Pending |
