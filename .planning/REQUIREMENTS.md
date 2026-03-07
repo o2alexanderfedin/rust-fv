@@ -43,7 +43,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **LANG-04**: `Drop::drop()` invocations modeled at end of scope, drop order verified, double-drop prevention VCs generated
 - [x] **LANG-05**: `Pin<P>` modeled as transparent wrapper with move-prevention invariant; `Pin::new_unchecked` callers verified
 - [ ] **LANG-06**: `catch_unwind` modeled as exception-catching boundary with cleanup verification during unwinding
-- [ ] **LANG-07**: `impl Trait` in return position resolved to concrete types for verification; RPITIT contracts inferred from trait specs
+- [x] **LANG-07**: `impl Trait` in return position resolved to concrete types for verification; RPITIT contracts inferred from trait specs
 - [ ] **LANG-08**: Generic Associated Types (GATs) with parameterized associated types and well-formedness constraints
 - [ ] **LANG-09**: Trait upcasting (`dyn SubTrait` → `dyn SuperTrait`) modeled with vtable compatibility and contract preservation
 - [ ] **LANG-10**: Negative trait implementations (`impl !Trait`) recorded in trait database and used to strengthen verification assumptions
@@ -162,7 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LANG-04 | Phase 51 | Complete |
 | LANG-05 | Phase 51 | Complete |
 | LANG-06 | Phase 52 | Pending |
-| LANG-07 | Phase 52 | Pending |
+| LANG-07 | Phase 52 | Complete |
 | LANG-08 | Phase 52 | Pending |
 | LANG-09 | Phase 52 | Pending |
 | LANG-10 | Phase 52 | Pending |
