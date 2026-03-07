@@ -1153,6 +1153,19 @@ pub fn generate_vcs_with_db(
         }
     }
 
+    // LANG-03: Generate union ghost state VCs for active field tracking
+    {
+        let mut union_vcs = generate_union_vcs(func);
+        if !union_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                union_vc_count = union_vcs.len(),
+                "Generated union active field VCs (V130)"
+            );
+            conditions.append(&mut union_vcs);
+        }
+    }
+
     // LANG-05: Generate Pin move-prevention VCs
     {
         let mut pin_vcs = generate_pin_vcs(func);
@@ -6179,6 +6192,139 @@ fn generate_maybeuninit_vcs(func: &Function) -> Vec<VerificationCondition> {
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Generate union active field VCs for ghost state tracking (LANG-03).
+///
+/// Walks basic blocks linearly tracking which field was last written per union local.
+/// Reading the active field is safe (UNSAT); reading an inactive field generates
+/// a UnionAccess VC (SAT = violation).
+fn generate_union_vcs(func: &Function) -> Vec<VerificationCondition> {
+    if func.union_ghost_states.is_empty() {
+        return vec![];
+    }
+
+    let mut vcs = Vec::new();
+
+    for ghost in &func.union_ghost_states {
+        let mut active_field: i64 = -1;
+
+        for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+            for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+                if let Statement::Assign(dest, rvalue) = stmt {
+                    // Detect union field write
+                    if dest.local == ghost.local_name
+                        && !dest.projections.is_empty()
+                        && let Some(Projection::Field(field_idx)) = dest.projections.last()
+                    {
+                        active_field = *field_idx as i64;
+                    }
+
+                    // Detect union field read
+                    if let Rvalue::Use(operand) = rvalue {
+                        let read_place = match operand {
+                            Operand::Copy(p) | Operand::Move(p) => Some(p),
+                            _ => None,
+                        };
+                        if let Some(place) = read_place
+                            && place.local == ghost.local_name
+                            && !place.projections.is_empty()
+                            && let Some(Projection::Field(read_idx)) = place.projections.last()
+                        {
+                            let read_idx = *read_idx as i64;
+                            let field_name = ghost
+                                .fields
+                                .get(read_idx as usize)
+                                .map(|(n, _)| n.as_str())
+                                .unwrap_or("?");
+
+                            if active_field == read_idx {
+                                // Safe: reading active field (UNSAT)
+                                let mut script = rust_fv_smtlib::script::Script::new();
+                                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                    "QF_LIA".to_string(),
+                                ));
+                                script.push(rust_fv_smtlib::command::Command::Assert(
+                                    rust_fv_smtlib::term::Term::BoolLit(false),
+                                ));
+                                script.push(rust_fv_smtlib::command::Command::CheckSat);
+                                vcs.push(VerificationCondition {
+                                    description: format!(
+                                        "Union {}.{} read is active field (safe)",
+                                        ghost.local_name, field_name,
+                                    ),
+                                    script,
+                                    location: VcLocation {
+                                        function: func.name.clone(),
+                                        block: block_idx,
+                                        statement: stmt_idx,
+                                        source_file: None,
+                                        source_line: None,
+                                        source_column: None,
+                                        contract_text: Some(format!(
+                                            "union {} active_field == {}",
+                                            ghost.union_name, field_name,
+                                        )),
+                                        vc_kind: VcKind::UnionAccess,
+                                    },
+                                });
+                            } else {
+                                // Violation: reading inactive field (SAT)
+                                let active_name = if active_field >= 0 {
+                                    ghost
+                                        .fields
+                                        .get(active_field as usize)
+                                        .map(|(n, _)| n.as_str())
+                                        .unwrap_or("?")
+                                } else {
+                                    "uninitialized"
+                                };
+                                let mut script = rust_fv_smtlib::script::Script::new();
+                                script.push(rust_fv_smtlib::command::Command::SetLogic(
+                                    "QF_LIA".to_string(),
+                                ));
+                                script.push(rust_fv_smtlib::command::Command::Assert(
+                                    rust_fv_smtlib::term::Term::BoolLit(true),
+                                ));
+                                script.push(rust_fv_smtlib::command::Command::CheckSat);
+                                vcs.push(VerificationCondition {
+                                            description: format!(
+                                                "Union {}.{} read is inactive field (active={}) -- violation",
+                                                ghost.local_name, field_name, active_name,
+                                            ),
+                                            script,
+                                            location: VcLocation {
+                                                function: func.name.clone(),
+                                                block: block_idx,
+                                                statement: stmt_idx,
+                                                source_file: None,
+                                                source_line: None,
+                                                source_column: None,
+                                                contract_text: Some(format!(
+                                                    "union {} active_field != {} (active={})",
+                                                    ghost.union_name, field_name, active_name,
+                                                )),
+                                                vc_kind: VcKind::UnionAccess,
+                                            },
+                                        });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check terminator Call destinations for union field writes
+            if let Terminator::Call { destination, .. } = &block.terminator
+                && destination.local == ghost.local_name
+                && !destination.projections.is_empty()
+                && let Some(Projection::Field(field_idx)) = destination.projections.last()
+            {
+                active_field = *field_idx as i64;
             }
         }
     }
