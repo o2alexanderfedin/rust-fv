@@ -4,7 +4,12 @@
 /// satisfies the Liskov Substitution Principle (LSP):
 /// - Precondition weakening: impl_requires => trait_requires (impl accepts more inputs)
 /// - Postcondition strengthening: trait_ensures => impl_ensures (impl guarantees more)
-use crate::ir::{TraitDef, TraitImpl, TraitMethod};
+///
+/// LANG-07 extension: RPITIT (Return Position Impl Trait in Trait) support.
+/// When a trait method returns an opaque type (`impl Trait` in the trait definition)
+/// and the implementation returns a concrete type, an additional Liskov subtyping VC
+/// is generated asserting the concrete return type satisfies the trait's postcondition.
+use crate::ir::{TraitDef, TraitImpl, TraitMethod, Ty};
 use crate::trait_analysis::TraitDatabase;
 
 /// Classification of behavioral subtyping verification conditions.
@@ -78,6 +83,59 @@ pub fn generate_subtyping_vcs(
                 kind: SubtypingKind::PostconditionStrengthening,
                 description: format!(
                     "{}::{} must guarantee at least what {}::{} promises",
+                    impl_info.impl_type, method.name, trait_def.name, method.name
+                ),
+            });
+        }
+    }
+
+    vcs
+}
+
+/// Check if a trait method uses RPITIT (Return Position Impl Trait in Trait).
+///
+/// Returns true if the method's return type is `Ty::Opaque`, indicating
+/// the trait definition uses `-> impl Trait` syntax.
+pub fn is_rpitit_method(method: &TraitMethod) -> bool {
+    matches!(&method.return_ty, Ty::Opaque(_, _))
+}
+
+/// Generate RPITIT-specific subtyping VCs for a trait implementation.
+///
+/// When a trait method has an opaque return type (`impl Trait`) and a postcondition,
+/// generate a PostconditionStrengthening VC that checks the implementation's
+/// concrete return type satisfies the trait-level postcondition.
+///
+/// This is already handled by `generate_subtyping_vcs` for methods with `ensures`,
+/// but this function provides explicit RPITIT annotation in the VC description.
+pub fn generate_rpitit_vcs(
+    trait_def: &TraitDef,
+    impl_info: &TraitImpl,
+    _trait_db: &TraitDatabase,
+) -> Vec<SubtypingVc> {
+    let mut vcs = Vec::new();
+
+    for method in &trait_def.methods {
+        // Only process RPITIT methods (those returning impl Trait)
+        if !is_rpitit_method(method) {
+            continue;
+        }
+
+        // Skip methods not in the impl
+        if !impl_info.method_names.contains(&method.name) {
+            continue;
+        }
+
+        // For RPITIT methods with postconditions, the impl's concrete return type
+        // must satisfy the trait's ensures clauses (Liskov postcondition strengthening)
+        if !method.ensures.is_empty() {
+            vcs.push(SubtypingVc {
+                trait_name: trait_def.name.clone(),
+                impl_type: impl_info.impl_type.clone(),
+                method_name: method.name.clone(),
+                kind: SubtypingKind::PostconditionStrengthening,
+                description: format!(
+                    "RPITIT: {}::{} concrete return must satisfy {}::{} opaque type postcondition",
                     impl_info.impl_type, method.name, trait_def.name, method.name
                 ),
             });
