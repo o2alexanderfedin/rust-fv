@@ -219,9 +219,9 @@ Plans:
   5. A type with `impl !Send for MyType` recorded in the trait database causes any function that transfers `MyType` across a thread boundary to generate a `ThreadSafety` VC that Z3 resolves as SAT (violation)
 **Plans:** 3 plans
 Plans:
-- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
-- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
-- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
+- [ ] 52-01-PLAN.md — impl Trait/RPITIT resolution + Ty::Opaque fallback (LANG-07)
+- [ ] 52-02-PLAN.md — catch_unwind dual-path VCs + negative trait impls (LANG-06, LANG-10)
+- [ ] 52-03-PLAN.md — GAT well-formedness + trait upcasting (LANG-08, LANG-09)
 
 ### Phase 53: Operator & Smart Pointer Verification
 **Goal**: Operator overloads are verified for algebraic properties, custom Deref is checked for purity, Index/IndexMut contracts enforce panic-freedom, and unsafe Send/Sync impls are validated
@@ -305,7 +305,7 @@ Plans:
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
 | 51 | 3/3 | Complete   | 2026-03-07 | - |
-| 52 | v0.8 | 0/? | Not started | - |
+| 52 | v0.8 | 0/3 | Planned | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |
 | 55 | v0.8 | 0/? | Not started | - |
