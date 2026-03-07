@@ -687,6 +687,7 @@ pub fn ty_name_string(ty: &Ty) -> String {
         Ty::NonNull(inner) => format!("NonNull<{}>", ty_name_string(inner)),
         Ty::ConstGeneric(name, ty) => format!("const {}: {}", name, ty_name_string(ty)),
         Ty::Union(name, _) => format!("union {}", name),
+        Ty::Opaque(name, _) => format!("impl {}", name),
     }
 }
 

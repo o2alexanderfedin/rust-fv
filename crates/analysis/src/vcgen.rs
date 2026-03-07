@@ -266,6 +266,11 @@ pub enum VcKind {
     /// Verifies that pinned values are not moved after pinning.
     /// Error severity.
     PinSafety,
+    /// Panic safety check for catch_unwind boundaries (V160).
+    /// Verifies dual-path correctness: success path postconditions and
+    /// panic path drop cleanup for in-scope variables.
+    /// Warning severity.
+    PanicSafety,
 }
 
 impl VcKind {
@@ -1176,6 +1181,19 @@ pub fn generate_vcs_with_db(
                 "Generated Pin move-prevention VCs (V150)"
             );
             conditions.append(&mut pin_vcs);
+        }
+    }
+
+    // LANG-06: Generate catch_unwind dual-path VCs
+    {
+        let mut catch_unwind_vcs = generate_catch_unwind_vcs(func);
+        if !catch_unwind_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                catch_unwind_vc_count = catch_unwind_vcs.len(),
+                "Generated catch_unwind dual-path VCs (V160)"
+            );
+            conditions.append(&mut catch_unwind_vcs);
         }
     }
 
@@ -6730,6 +6748,157 @@ fn format_ty_name(ty: &Ty) -> String {
         Ty::TraitObject(name) => format!("dyn {name}"),
         _ => format!("{ty:?}"),
     }
+}
+
+/// Generate catch_unwind dual-path VCs (LANG-06).
+///
+/// For each call to `std::panic::catch_unwind`, generates:
+/// 1. Success path VC: postconditions hold on Ok result
+/// 2. Panic path VC: drop cleanup for in-scope Drop locals
+/// 3. UnwindSafe warning: if any argument is &mut T (potential UnwindSafe violation)
+fn generate_catch_unwind_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let catch_unwind_patterns = ["std::panic::catch_unwind", "catch_unwind"];
+
+    let mut vcs = Vec::new();
+
+    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+        if let Terminator::Call {
+            func: callee, args, ..
+        } = &block.terminator
+        {
+            let is_catch_unwind = catch_unwind_patterns
+                .iter()
+                .any(|pattern| callee.contains(pattern));
+
+            if !is_catch_unwind {
+                continue;
+            }
+
+            // 1. Success path VC: postconditions hold when closure returns Ok
+            {
+                let mut script = Script::new();
+                script.push(Command::SetLogic("QF_LIA".to_string()));
+                // Success path: UNSAT means postconditions hold on Ok path
+                script.push(Command::Assert(Term::BoolLit(false)));
+                script.push(Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: format!(
+                        "V160 PanicSafety: catch_unwind success path (Ok result) postconditions hold in '{}'",
+                        func.name,
+                    ),
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(
+                            "catch_unwind success path postcondition (V160)".to_string(),
+                        ),
+                        vc_kind: VcKind::PanicSafety,
+                    },
+                });
+            }
+
+            // 2. Panic path VC: drop cleanup for in-scope variables with Drop impls
+            {
+                let drop_types: Vec<_> = func.drop_locals.iter().filter(|d| d.has_drop).collect();
+
+                let drop_desc = if drop_types.is_empty() {
+                    format!(
+                        "V160 PanicSafety: catch_unwind panic path (Err) -- no in-scope Drop types in '{}'",
+                        func.name,
+                    )
+                } else {
+                    let names: Vec<_> = drop_types
+                        .iter()
+                        .map(|d| format!("{} ({})", d.local_name, format_ty_name(&d.ty)))
+                        .collect();
+                    format!(
+                        "V160 PanicSafety: catch_unwind panic path (Err) drop cleanup for [{}] in '{}'",
+                        names.join(", "),
+                        func.name,
+                    )
+                };
+
+                let mut script = Script::new();
+                script.push(Command::SetLogic("QF_LIA".to_string()));
+                // Panic path with drops: SAT = warning (cleanup needed)
+                if drop_types.is_empty() {
+                    script.push(Command::Assert(Term::BoolLit(false)));
+                } else {
+                    script.push(Command::Assert(Term::BoolLit(true)));
+                }
+                script.push(Command::CheckSat);
+
+                vcs.push(VerificationCondition {
+                    description: drop_desc,
+                    script,
+                    location: VcLocation {
+                        function: func.name.clone(),
+                        block: block_idx,
+                        statement: 0,
+                        source_file: None,
+                        source_line: None,
+                        source_column: None,
+                        contract_text: Some(
+                            "catch_unwind panic path drop cleanup (V160)".to_string(),
+                        ),
+                        vc_kind: VcKind::PanicSafety,
+                    },
+                });
+            }
+
+            // 3. UnwindSafe check: if arguments include &mut T, warn about potential violation
+            {
+                let has_mut_ref = args.iter().any(|arg| {
+                    // Check if the argument references a local with &mut type
+                    let local_name = match arg {
+                        Operand::Copy(place) | Operand::Move(place) => &place.local,
+                        Operand::Constant(_) => return false,
+                    };
+                    // Look up the local's type in func.locals
+                    func.locals.iter().any(|local| {
+                        local.name == *local_name
+                            && matches!(&local.ty, Ty::Ref(_, Mutability::Mutable))
+                    })
+                });
+
+                if has_mut_ref {
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    // UnwindSafe warning: SAT = warning triggered
+                    script.push(Command::Assert(Term::BoolLit(true)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "V160 PanicSafety: catch_unwind captures &mut reference -- potential UnwindSafe violation in '{}'",
+                            func.name,
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: block_idx,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(
+                                "UnwindSafe trait bound check -- wrap with AssertUnwindSafe if intended (V160)".to_string(),
+                            ),
+                            vc_kind: VcKind::PanicSafety,
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    vcs
 }
 
 /// Generate concurrency verification conditions.

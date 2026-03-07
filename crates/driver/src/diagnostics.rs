@@ -89,6 +89,7 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         || failure.vc_kind == VcKind::AsyncSequentialModel
         || failure.vc_kind == VcKind::UnionAccess
         || failure.vc_kind == VcKind::DropOrder
+        || failure.vc_kind == VcKind::PanicSafety
     {
         ReportKind::Warning
     } else {
@@ -423,6 +424,9 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
             "drop scope-exit ordering violation -- drops may execute in unexpected order (V140)"
         }
         VcKind::PinSafety => "Pin safety violation -- pinned value must not be moved (V150)",
+        VcKind::PanicSafety => {
+            "catch_unwind panic safety -- unwind path drop cleanup or UnwindSafe check (V160)"
+        }
     }
 }
 
@@ -640,6 +644,12 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::PinSafety => Some(
             "V150: Pinned value may be moved. \
              Ensure Pin::new_unchecked is only called on values that will not be moved."
+                .to_string(),
+        ),
+        VcKind::PanicSafety => Some(
+            "V160: catch_unwind boundary detected. Ensure panic path correctly runs \
+             destructors for in-scope variables, and consider wrapping &mut captures \
+             with AssertUnwindSafe if UnwindSafe bound is intentionally bypassed."
                 .to_string(),
         ),
         _ => None,

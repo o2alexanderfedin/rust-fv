@@ -1076,6 +1076,12 @@ pub enum Ty {
     /// First element is the union name, second is the list of (field_name, field_type) pairs.
     /// Fields share the same memory location -- only one is valid at a time.
     Union(String, Vec<(String, Ty)>),
+    /// Opaque type from `impl Trait` return position that could not be resolved to concrete type.
+    /// First element is the opaque type name (e.g., "impl Iterator<Item = i32>").
+    /// Second element is the list of trait bound names (e.g., ["Iterator", "Item=i32"]).
+    /// Encoded as an uninterpreted sort in SMT -- sound (any proven property holds for all
+    /// possible implementations) but incomplete (cannot reason about specific behavior).
+    Opaque(String, Vec<String>),
 }
 
 /// Signed integer types.

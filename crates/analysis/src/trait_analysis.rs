@@ -140,6 +140,8 @@ pub fn has_drop_impl(ty: &Ty) -> bool {
         Ty::Closure(_) => true,
         // Union types may implement Drop (conservative: true for named unions)
         Ty::Union(_, _) => true,
+        // Opaque types (impl Trait) -- conservative: may implement Drop
+        Ty::Opaque(_, _) => true,
     }
 }
 
@@ -174,8 +176,12 @@ pub fn is_unpin(ty: &Ty) -> bool {
         // Tuples/arrays: Unpin if all elements are Unpin
         Ty::Tuple(elems) => elems.iter().all(is_unpin),
         Ty::Array(elem, _) | Ty::Slice(elem) => is_unpin(elem),
-        // Enums, closures, trait objects, unions -- conservatively Unpin
-        Ty::Enum(_, _) | Ty::Closure(_) | Ty::TraitObject(_) | Ty::Union(_, _) => true,
+        // Enums, closures, trait objects, unions, opaque -- conservatively Unpin
+        Ty::Enum(_, _)
+        | Ty::Closure(_)
+        | Ty::TraitObject(_)
+        | Ty::Union(_, _)
+        | Ty::Opaque(_, _) => true,
     }
 }
 
@@ -212,10 +218,13 @@ pub fn has_copy_impl(ty: &Ty) -> bool {
         Ty::Array(elem, _) => has_copy_impl(elem),
         // Generic/ConstGeneric -- conservatively not Copy
         Ty::Generic(_) | Ty::ConstGeneric(_, _) => false,
-        // Slices, enums, closures, trait objects, unions -- generally not Copy
-        Ty::Slice(_) | Ty::Enum(_, _) | Ty::Closure(_) | Ty::TraitObject(_) | Ty::Union(_, _) => {
-            false
-        }
+        // Slices, enums, closures, trait objects, unions, opaque -- generally not Copy
+        Ty::Slice(_)
+        | Ty::Enum(_, _)
+        | Ty::Closure(_)
+        | Ty::TraitObject(_)
+        | Ty::Union(_, _)
+        | Ty::Opaque(_, _) => false,
     }
 }
 

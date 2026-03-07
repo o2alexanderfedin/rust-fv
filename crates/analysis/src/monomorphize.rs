@@ -258,6 +258,9 @@ fn substitute_ty(ty: &Ty, subs: &HashMap<String, Ty>) -> Ty {
                 .map(|(fname, fty)| (fname.clone(), substitute_ty(fty, subs)))
                 .collect(),
         ),
+        // Opaque types (impl Trait) are not substituted during monomorphization --
+        // they are already concrete or intentionally opaque.
+        Ty::Opaque(_, _) => ty.clone(),
         // All other types are unchanged
         _ => ty.clone(),
     }

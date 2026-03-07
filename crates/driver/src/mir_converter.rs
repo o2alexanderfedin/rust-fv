@@ -785,6 +785,14 @@ pub fn convert_ty(ty: ty::Ty<'_>) -> ir::Ty {
         }
         ty::TyKind::Never => ir::Ty::Never,
         ty::TyKind::Param(t) => ir::Ty::Generic(t.name.as_str().to_string()),
+        // Opaque types from `impl Trait` in return position.
+        // Alias(Opaque, ...) is the MIR representation for opaque return types.
+        ty::TyKind::Alias(ty::AliasTyKind::Opaque, alias_ty) => {
+            // Extract trait bounds from the opaque type's predicates as human-readable strings
+            let name = format!("{:?}", alias_ty);
+            let bounds: Vec<String> = vec![]; // Bounds extraction requires tcx, simplified here
+            ir::Ty::Opaque(name, bounds)
+        }
         _ => ir::Ty::Named(format!("{ty:?}")),
     }
 }

@@ -119,6 +119,15 @@ pub fn encode_type(ty: &Ty) -> Sort {
                 .unwrap_or(64);
             Sort::BitVec(max_bits)
         }
+        Ty::Opaque(name, _bounds) => {
+            tracing::trace!(
+                opaque_name = %name,
+                "Encoding opaque type (impl Trait) as uninterpreted sort — sound but incomplete"
+            );
+            // Uninterpreted sort: any property proven holds for ALL possible implementations.
+            // Cannot reason about specific behavior (e.g., Iterator::next semantics).
+            Sort::Uninterpreted(name.clone())
+        }
     }
 }
 
