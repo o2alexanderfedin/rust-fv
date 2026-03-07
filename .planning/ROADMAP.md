@@ -204,10 +204,9 @@ Plans:
   5. A function calling `Pin::new_unchecked(&mut val)` on a non-`Unpin` type generates a move-prevention VC; code that subsequently moves the pinned value produces a Z3 SAT counterexample
 **Plans:** 3 plans
 Plans:
-- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
-- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
-- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
-
+- [ ] 51-01-PLAN.md — IR type foundations + const generic verification (LANG-01)
+- [ ] 51-02-PLAN.md — HRTB encoding + union type VCs (LANG-02, LANG-03)
+- [ ] 51-03-PLAN.md — Drop scope-exit modeling + Pin move-prevention (LANG-04, LANG-05)
 ### Phase 52: Advanced Type System Features
 **Goal**: catch_unwind is modeled, impl Trait return types are resolved for verification, GATs produce well-formedness constraints, trait upcasting preserves contracts, and negative impls strengthen assumptions
 **Depends on**: Phase 51
@@ -305,7 +304,7 @@ Plans:
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
-| 51 | v0.8 | 0/? | Not started | - |
+| 51 | v0.8 | 0/3 | In progress | - |
 | 52 | v0.8 | 0/? | Not started | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |
