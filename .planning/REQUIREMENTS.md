@@ -33,7 +33,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **COMPL-22**: `uses_spec_int_types()` detection verified complete with regression test
 - [x] **COMPL-23**: `std::ptr::read`/`write`/`copy`/`copy_nonoverlapping` stdlib contracts with overlap and alignment VCs
 - [x] **COMPL-24**: `std::mem::swap`/`replace` stdlib contracts ensuring correct value exchange
-- [ ] **COMPL-25**: Async multi-threaded execution model documented as known limitation with clear boundary
+- [x] **COMPL-25**: Async multi-threaded execution model documented as known limitation with clear boundary
 
 ### Core Language Features (LANG)
 
@@ -155,7 +155,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-22 | Phase 45 | Complete |
 | COMPL-23 | Phase 50 | Complete |
 | COMPL-24 | Phase 50 | Complete |
-| COMPL-25 | Phase 50 | Pending |
+| COMPL-25 | Phase 50 | Complete |
 | LANG-01 | Phase 51 | Pending |
 | LANG-02 | Phase 51 | Pending |
 | LANG-03 | Phase 51 | Pending |

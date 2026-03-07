@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 50 (Stdlib Ptr/Mem & Unsafe Boundary) — in progress
-Plan: 01 of 04 complete
-Status: Plan 50-01 complete (ptr/mem stdlib contracts with overlap/alignment preconditions)
-Last activity: 2026-03-07 — Phase 50 plan 01 complete (COMPL-23 ptr contracts + COMPL-24 mem contracts)
+Plan: 03 of 03 complete
+Status: Phase 50 complete (W080 async sequential model warning)
+Last activity: 2026-03-07 — Phase 50 plan 03 complete (COMPL-25 async multi-thread W080 diagnostic)
 
 ```
 Progress: [##########          ] 100%
@@ -91,6 +91,7 @@ Progress: [##########          ] 100%
 | Phase 49 P04 | 1089 | 2 tasks | 3 files |
 | Phase 50 P01 | 2172 | 1 tasks | 6 files |
 | Phase 50 P02 | 2271 | 2 tasks | 85 files |
+| Phase 50 P03 | 3183 | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 50]: Transmute size VCs use static ty_size_bytes helper with direct UNSAT/SAT encoding
 - [Phase 50]: FFI opaque callee driven by UnsafeOperation::FfiCall has_contract flag
 - [Phase 50]: MaybeUninit ghost state follows RefCellGhostState linear block walk pattern
+- [Phase 50]: W080 thread spawn detection via Terminator::Call callee name pattern matching (covers tokio/rayon/crossbeam/async-std)
+- [Phase 50]: Single W080 VC per async function with BoolLit(true) assertion -- warning-only, verification continues
 
 ### Key v0.8 Architecture Notes
 
@@ -152,9 +155,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T01:42:11.469Z
-Stopped at: Completed 50-02-PLAN.md
-Resume file: None
+Last session: 2026-03-07T01:55:57Z
+Stopped at: Completed 50-03-PLAN.md
+Resume file: .planning/phases/50-stdlib-ptr-mem-unsafe-boundary/50-03-SUMMARY.md
+Next step: Execute plan 50-04
 Next step: Continue Phase 50 plan 02
 
 ---
