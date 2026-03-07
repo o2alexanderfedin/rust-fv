@@ -497,6 +497,9 @@ fn test_copy_semantics_preserved() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -633,6 +636,9 @@ fn test_shared_borrow_preserved() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -774,6 +780,9 @@ fn test_mutable_borrow_havoced() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -921,6 +930,9 @@ fn test_move_semantics_value_consumed() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1137,6 +1149,9 @@ fn test_mixed_ownership_call() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1276,6 +1291,9 @@ fn test_ownership_with_postcondition_assumption() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1420,6 +1438,9 @@ fn test_no_ownership_without_contract_db() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1527,6 +1548,9 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     };
@@ -1755,6 +1779,9 @@ fn test_ownership_multiple_shared_borrow_calls() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1926,6 +1953,9 @@ fn test_preservation_constraint_smt_encoding() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 

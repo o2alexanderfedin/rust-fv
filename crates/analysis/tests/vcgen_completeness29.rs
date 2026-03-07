@@ -47,6 +47,9 @@ fn make_func(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -723,6 +726,9 @@ fn phase04_bv2int_logic_selection() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -809,6 +815,9 @@ fn phase04_ghost_local_leaks_into_vc() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

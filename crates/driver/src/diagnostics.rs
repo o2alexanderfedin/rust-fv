@@ -87,6 +87,8 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         || failure.vc_kind == VcKind::FfiOpaqueCallee
         || failure.vc_kind == VcKind::TransmuteSafety
         || failure.vc_kind == VcKind::AsyncSequentialModel
+        || failure.vc_kind == VcKind::UnionAccess
+        || failure.vc_kind == VcKind::DropOrder
     {
         ReportKind::Warning
     } else {
@@ -414,6 +416,13 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::AsyncSequentialModel => {
             "async multi-threaded execution not modeled -- sequential polling assumed (W080)"
         }
+        VcKind::UnionAccess => {
+            "union field reinterpretation cast -- active field may not match read (V130)"
+        }
+        VcKind::DropOrder => {
+            "drop scope-exit ordering violation -- drops may execute in unexpected order (V140)"
+        }
+        VcKind::PinSafety => "Pin safety violation -- pinned value must not be moved (V150)",
     }
 }
 
@@ -616,6 +625,21 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
         VcKind::AsyncSequentialModel => Some(
             "W080: Async function spawns threads but verification uses sequential polling model. \
              Consider sequential verification only, or split async and threaded verification."
+                .to_string(),
+        ),
+        VcKind::UnionAccess => Some(
+            "V130: Union field access may read inactive variant. \
+             Use a match on a discriminant or unsafe_requires to assert active field."
+                .to_string(),
+        ),
+        VcKind::DropOrder => Some(
+            "V140: Drop order may not match expectations. \
+             Consider explicit drop() calls to control ordering."
+                .to_string(),
+        ),
+        VcKind::PinSafety => Some(
+            "V150: Pinned value may be moved. \
+             Ensure Pin::new_unchecked is only called on values that will not be moved."
                 .to_string(),
         ),
         _ => None,

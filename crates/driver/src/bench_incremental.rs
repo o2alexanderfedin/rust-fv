@@ -64,6 +64,9 @@ pub fn generate_synthetic_functions(count: usize) -> Vec<(String, Function, Cont
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         functions.push((func_name, func, contracts));

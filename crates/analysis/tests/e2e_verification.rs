@@ -68,6 +68,9 @@ fn make_add_function(contracts: Contracts) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -820,6 +823,9 @@ fn make_max_function(contracts: Contracts) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -1037,6 +1043,9 @@ fn make_classify_function(contracts: Contracts) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -1165,6 +1174,9 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -1367,6 +1379,9 @@ fn make_quad_function(contracts: Contracts) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -1508,6 +1523,9 @@ fn test_single_branch_overflow_check() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
 
@@ -1619,6 +1637,9 @@ fn test_unbounded_int_addition_no_overflow() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1727,6 +1748,9 @@ fn test_unbounded_int_sum_formula() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1995,6 +2019,9 @@ fn test_quantifier_full_pipeline() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -2102,6 +2129,8 @@ fn test_generic_max_i32_verified() {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -2121,6 +2150,9 @@ fn test_generic_max_i32_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Register i32 instantiation
@@ -2222,6 +2254,8 @@ fn test_generic_max_u64_verified() {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -2241,6 +2275,9 @@ fn test_generic_max_u64_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2342,6 +2379,8 @@ fn test_generic_max_wrong_postcondition() {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -2361,6 +2400,9 @@ fn test_generic_max_wrong_postcondition() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Register i32 instantiation
@@ -2446,6 +2488,8 @@ fn test_generic_multiple_instantiations() {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -2465,6 +2509,9 @@ fn test_generic_multiple_instantiations() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2546,6 +2593,8 @@ fn test_generic_no_instantiations_warning() {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -2565,6 +2614,9 @@ fn test_generic_no_instantiations_warning() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2646,6 +2698,9 @@ fn test_prophecy_increment_mut_ref() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2723,6 +2778,9 @@ fn test_prophecy_no_mutation_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2826,6 +2884,9 @@ fn test_prophecy_conditional_mutation() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2905,6 +2966,9 @@ fn test_prophecy_basic() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -3005,6 +3069,9 @@ fn e2e_struct_datatype_field_reasoning() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Generate VCs
@@ -3148,6 +3215,9 @@ fn e2e_enum_datatype_match() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Generate VCs
@@ -3298,6 +3368,9 @@ fn e2e_nested_struct_update() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Generate VCs
@@ -3417,6 +3490,9 @@ fn e2e_functional_update_binop() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Generate VCs

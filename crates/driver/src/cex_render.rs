@@ -685,6 +685,8 @@ pub fn ty_name_string(ty: &Ty) -> String {
         Ty::Closure(_) => "Closure".to_string(),
         Ty::TraitObject(n) => format!("dyn {}", n),
         Ty::NonNull(inner) => format!("NonNull<{}>", ty_name_string(inner)),
+        Ty::ConstGeneric(name, ty) => format!("const {}: {}", name, ty_name_string(ty)),
+        Ty::Union(name, _) => format!("union {}", name),
     }
 }
 

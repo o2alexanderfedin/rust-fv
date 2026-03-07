@@ -70,6 +70,9 @@ fn make_generic_func(generic_params: Vec<GenericParam>) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -85,6 +88,8 @@ fn parametric_axioms_fire_for_generic_function() {
     let func = make_generic_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
 
     let ghost_pred_db = GhostPredicateDatabase::new();
@@ -127,6 +132,8 @@ fn ord_generic_smt_script_contains_declare_sort() {
     let func = make_generic_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
 
     let ghost_pred_db = GhostPredicateDatabase::new();
@@ -173,6 +180,8 @@ fn generic_function_vc_count_matches_non_generic() {
     let generic_func = make_generic_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
     let plain_func = make_generic_func(vec![]);
 

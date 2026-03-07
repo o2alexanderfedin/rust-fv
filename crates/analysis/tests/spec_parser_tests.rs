@@ -51,6 +51,9 @@ fn make_i32_function() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -90,6 +93,9 @@ fn make_u32_function() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -135,6 +141,9 @@ fn make_struct_return_function() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -170,6 +179,9 @@ fn make_tuple_return_function() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -209,6 +221,9 @@ fn make_bool_return_function() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }

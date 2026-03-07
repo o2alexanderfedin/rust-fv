@@ -92,6 +92,33 @@ pub fn encode_type(ty: &Ty) -> Sort {
             tracing::trace!(trait_name = %trait_name, "Encoding trait object as uninterpreted sort");
             Sort::Uninterpreted(trait_name.clone())
         }
+        Ty::ConstGeneric(name, inner_ty) => {
+            tracing::trace!(
+                const_name = %name,
+                "Encoding const generic parameter as SMT sort based on underlying type"
+            );
+            // Const generics with integer underlying types use Int sort for symbolic reasoning.
+            // Bool const generics use Bool sort directly.
+            match inner_ty.as_ref() {
+                Ty::Bool => Sort::Bool,
+                _ => Sort::Int, // Integer types (usize, u8, etc.) use unbounded Int for SMT reasoning
+            }
+        }
+        Ty::Union(name, fields) => {
+            tracing::trace!(
+                union_name = %name,
+                field_count = fields.len(),
+                "Encoding union as BitVec of max field size"
+            );
+            // Union is encoded as BitVec of max(field_sizes) * 8.
+            // Fields share storage, so the union size is the largest field.
+            let max_bits = fields
+                .iter()
+                .map(|(_, ty)| type_bit_width(ty).unwrap_or(64))
+                .max()
+                .unwrap_or(64);
+            Sort::BitVec(max_bits)
+        }
     }
 }
 
@@ -501,6 +528,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -560,6 +590,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -598,6 +631,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -650,6 +686,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -753,6 +792,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -833,6 +875,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);

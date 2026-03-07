@@ -72,6 +72,8 @@ fn make_cross_crate_generic_func(name: &str) -> Function {
         generic_params: vec![GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         }],
         prophecies: vec![],
         lifetime_params: vec![],
@@ -91,6 +93,9 @@ fn make_cross_crate_generic_func(name: &str) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 

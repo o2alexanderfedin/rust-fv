@@ -38,6 +38,9 @@ fn make_maybeuninit_fn(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states,
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 

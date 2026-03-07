@@ -38,6 +38,9 @@ fn make_refcell_fn(
         coroutine_info: None,
         refcell_ghost_states,
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 

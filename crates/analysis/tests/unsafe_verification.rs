@@ -89,6 +89,9 @@ fn make_unsafe_function(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -1149,6 +1152,9 @@ fn test_cross_function_pointer_aliasing() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Build ContractDatabase with swap_unsafe having an alias precondition
@@ -1241,6 +1247,9 @@ fn test_safe_function_no_unsafe_vcs() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Generate VCs
@@ -1319,6 +1328,9 @@ fn make_alias_caller(caller_name: &str, callee_name: &str, arg_a: &str, arg_b: &
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 

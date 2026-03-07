@@ -380,6 +380,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -399,6 +401,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -442,6 +447,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -461,6 +468,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -507,6 +517,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -526,6 +538,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -589,6 +604,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -608,6 +625,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -637,6 +657,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec!["Ord".to_string()],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -656,6 +678,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -672,6 +697,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string(), "Clone".to_string()],
+            is_const: false,
+            const_ty: None,
         };
 
         let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
@@ -1112,6 +1139,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -1131,6 +1160,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1195,6 +1227,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -1214,6 +1248,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1276,6 +1313,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -1295,6 +1334,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1423,6 +1465,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["PartialOrd".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         let constraints = trait_bound_constraints(&generic, &Ty::Uint(UintTy::U32));
         assert_eq!(constraints.len(), 1);
@@ -1435,6 +1479,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Copy".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
         assert_eq!(constraints.len(), 1);
@@ -1447,6 +1493,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Display".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
         assert_eq!(constraints.len(), 1);
@@ -1459,6 +1507,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         // Non-integer type: Ord won't produce a constraint
         let constraints = trait_bound_constraints(&generic, &Ty::Bool);
@@ -1470,6 +1520,8 @@ mod tests {
         let generic = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec![],
+            is_const: false,
+            const_ty: None,
         };
         let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
         assert!(constraints.is_empty());
@@ -1484,6 +1536,8 @@ mod tests {
                 "Deserialize".to_string(),
                 "Clone".to_string(),
             ],
+            is_const: false,
+            const_ty: None,
         };
         let constraints = trait_bound_constraints(&generic, &Ty::Int(IntTy::I32));
         assert_eq!(constraints.len(), 3);
@@ -1518,6 +1572,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec![],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -1537,6 +1593,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut subs = HashMap::new();
@@ -1558,6 +1617,8 @@ mod tests {
         let gp = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Ord".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         let concrete_ty = Ty::Generic("T".to_string());
         let cmds = trait_bounds_as_smt_assumptions(&gp, &concrete_ty);
@@ -1590,6 +1651,8 @@ mod tests {
         let gp = GenericParam {
             name: "T".to_string(),
             trait_bounds: vec!["Eq".to_string()],
+            is_const: false,
+            const_ty: None,
         };
         let concrete_ty = Ty::Generic("T".to_string());
         let cmds = trait_bounds_as_smt_assumptions(&gp, &concrete_ty);

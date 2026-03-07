@@ -191,6 +191,9 @@ fn test_function_unsafe_fields() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     assert_eq!(func.unsafe_blocks.len(), 1);
@@ -228,6 +231,9 @@ fn test_function_is_unsafe_fn() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     assert!(func.is_unsafe_fn);

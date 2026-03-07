@@ -254,6 +254,18 @@ pub enum VcKind {
     /// Sequential polling model assumed -- multi-threaded execution not modeled.
     /// Warning severity, verification continues under sequential model.
     AsyncSequentialModel,
+    /// Union field reinterpretation cast safety (V130).
+    /// Generated when reading a union field to verify the active field matches.
+    /// Warning severity.
+    UnionAccess,
+    /// Drop scope-exit ordering verification (V140).
+    /// Verifies that drop order is correct at scope exit.
+    /// Warning severity.
+    DropOrder,
+    /// Pin move-prevention invariant (V150).
+    /// Verifies that pinned values are not moved after pinning.
+    /// Error severity.
+    PinSafety,
 }
 
 impl VcKind {
@@ -3910,6 +3922,9 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -6512,6 +6527,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -6607,6 +6625,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -6774,6 +6795,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -6834,6 +6858,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -7428,6 +7455,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -7468,6 +7498,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -7519,6 +7552,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -7570,6 +7606,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -7608,6 +7647,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7641,6 +7683,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7674,6 +7719,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7826,6 +7874,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -8062,6 +8113,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8107,6 +8161,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8152,6 +8209,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8233,6 +8293,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -8413,6 +8476,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8506,6 +8572,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -8547,6 +8616,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -8658,6 +8730,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8711,6 +8786,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8755,6 +8833,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8799,6 +8880,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8841,6 +8925,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -8924,6 +9011,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -8989,6 +9079,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -9054,6 +9147,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -9254,6 +9350,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -9307,6 +9406,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -9360,6 +9462,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -9413,6 +9518,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -9513,6 +9621,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         };
 
@@ -9711,6 +9822,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -9886,6 +10000,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -9956,6 +10073,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10012,6 +10132,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result2 = generate_vcs(&func_with_contract, None);
@@ -10083,6 +10206,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -10178,6 +10304,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10269,6 +10398,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         // Validate FnOnce single-call property
@@ -10342,6 +10474,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10390,6 +10525,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         // Call with None TraitDatabase - should work as before
@@ -10431,6 +10569,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -10478,6 +10619,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10521,6 +10665,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10581,6 +10728,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10639,6 +10789,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10703,6 +10856,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10761,6 +10917,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10849,6 +11008,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10908,6 +11070,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -10971,6 +11136,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11030,6 +11198,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11075,6 +11246,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11124,6 +11298,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11186,6 +11363,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11350,6 +11530,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11412,6 +11595,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11597,6 +11783,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11648,6 +11837,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11703,6 +11895,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         }
     }
 
@@ -11847,6 +12042,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         let mut contract_db = ContractDatabase::new();
@@ -12279,6 +12477,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -12329,6 +12530,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }
@@ -12379,6 +12583,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
             loops: vec![],
         }
     }

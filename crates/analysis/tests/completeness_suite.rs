@@ -450,6 +450,9 @@ fn cmp_bounded_add() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -527,6 +530,9 @@ fn cmp_bounded_sub() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -604,6 +610,9 @@ fn cmp_bounded_mul() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -681,6 +690,9 @@ fn cmp_safe_div() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -753,6 +765,9 @@ fn cmp_safe_shift() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -814,6 +829,9 @@ fn cmp_identity_postcondition() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -871,6 +889,9 @@ fn cmp_constant_postcondition() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -950,6 +971,9 @@ fn cmp_bounded_add_postcondition() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1050,6 +1074,9 @@ fn cmp_max_function() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1181,6 +1208,9 @@ fn cmp_abs_function() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1340,6 +1370,9 @@ fn cmp_clamp_function() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1448,6 +1481,9 @@ fn cmp_if_else_same_result() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1583,6 +1619,9 @@ fn cmp_multi_branch_classify() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1691,6 +1730,9 @@ fn cmp_early_return() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1862,6 +1904,9 @@ fn cmp_nested_branches_correct() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1956,6 +2001,9 @@ fn cmp_u8_bounded_add() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2033,6 +2081,9 @@ fn cmp_i64_bounded_add() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2110,6 +2161,9 @@ fn cmp_u64_bounded_mul() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2187,6 +2241,9 @@ fn cmp_i8_safe_operations() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2248,6 +2305,9 @@ fn cmp_mixed_width_identity() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2324,6 +2384,9 @@ fn cmp_safe_unsigned_sub() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2402,6 +2465,9 @@ fn cmp_safe_signed_rem() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

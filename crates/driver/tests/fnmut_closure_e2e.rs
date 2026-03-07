@@ -85,6 +85,9 @@ fn make_fnmut_closure_func() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -221,6 +224,9 @@ fn test_fnmut_closure_no_mut_capture_no_prophecy_vars() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // -- SMT-level check: no prophecy declarations for ByMove-only captures --
@@ -293,6 +299,9 @@ fn test_fnmut_closure_no_mut_capture_no_prophecy_vars() {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let cache_dir = temp_cache_dir("fn_no_prophecy");
         let (task, mut cache) = make_task(func2, cache_dir);

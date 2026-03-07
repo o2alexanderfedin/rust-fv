@@ -491,6 +491,9 @@ fn make_counter_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Functio
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -606,6 +609,9 @@ fn make_countdown_loop(invariants: Vec<SpecExpr>, contracts: Contracts) -> Funct
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -842,6 +848,9 @@ fn test_two_variable_loop() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1204,6 +1213,9 @@ fn test_loop_without_invariant_skipped() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -1399,6 +1411,9 @@ fn test_loop_detection_from_cfg() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![], // Empty -- should be auto-detected
     };
 

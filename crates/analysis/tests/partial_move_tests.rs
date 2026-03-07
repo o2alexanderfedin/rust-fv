@@ -35,6 +35,9 @@ fn make_fn(name: &str, basic_blocks: Vec<BasicBlock>) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 

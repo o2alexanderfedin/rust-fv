@@ -89,6 +89,9 @@ fn make_generic_test_func(generic_params: Vec<GenericParam>) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -120,6 +123,8 @@ fn generic_ir_function_produces_nonempty_results_when_generic_params_populated()
     let func = make_generic_test_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
     let task = make_generic_task(func);
 
@@ -202,6 +207,8 @@ fn monomorphized_path_produces_labeled_vcs() {
     let func = make_generic_test_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
     let task = VerificationTask {
         name: func.name.clone(),
@@ -289,6 +296,8 @@ fn multiple_instantiations_produce_vcs_for_each() {
     let func = make_generic_test_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
     let task = VerificationTask {
         name: func.name.clone(),
@@ -361,6 +370,8 @@ fn monomorphized_path_fires_when_registry_has_instantiation() {
     let func = make_generic_test_func(vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }]);
     let task = VerificationTask {
         name: func.name.clone(),

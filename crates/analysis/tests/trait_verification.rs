@@ -287,6 +287,9 @@ fn make_function_with_trait_object_param(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -864,6 +867,9 @@ fn dyn_dispatch_call_site_uses_trait_contracts() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     // Build contract_db with Stack::push having a requires contract.

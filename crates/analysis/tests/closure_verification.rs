@@ -480,6 +480,9 @@ fn make_closure_caller(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -661,6 +664,9 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -758,6 +764,9 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -852,6 +861,9 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -951,6 +963,9 @@ fn e2e_fnonce_double_call_diagnostic() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1083,6 +1098,9 @@ fn e2e_closure_contract_specification_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1182,6 +1200,9 @@ fn e2e_closure_contract_violation_detected() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1311,6 +1332,9 @@ fn e2e_fn_closure_multiple_params_verified() {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

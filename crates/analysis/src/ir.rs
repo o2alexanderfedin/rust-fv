@@ -4,12 +4,17 @@
 /// making the VCGen logic fully testable on stable Rust.
 /// The driver crate converts `rustc` MIR → this IR.
 /// A generic type parameter on a function.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParam {
     /// Parameter name, e.g., "T"
     pub name: String,
     /// Trait bounds, e.g., ["Ord", "Clone"]
     pub trait_bounds: Vec<String>,
+    /// True if this is a const generic parameter (e.g., `const N: usize`).
+    pub is_const: bool,
+    /// The type of the const generic parameter (e.g., `Ty::Uint(UintTy::Usize)` for `const N: usize`).
+    /// None for regular type parameters.
+    pub const_ty: Option<Ty>,
 }
 
 /// Closure trait classification (Fn, FnMut, FnOnce).
@@ -427,6 +432,15 @@ pub struct Function {
     /// Ghost state for MaybeUninit initialization tracking.
     /// Empty for functions without MaybeUninit locals.
     pub maybeuninit_ghost_states: Vec<MaybeUninitGhostState>,
+    /// Ghost state for union field tracking (LANG-03).
+    /// Empty for functions without union locals.
+    pub union_ghost_states: Vec<UnionGhostState>,
+    /// Ghost state for Pin safety invariant tracking (LANG-05).
+    /// Empty for functions without Pin locals.
+    pub pin_ghost_states: Vec<PinGhostState>,
+    /// Information about locals with Drop implementations (LANG-04).
+    /// Empty for functions without Drop types.
+    pub drop_locals: Vec<DropLocalInfo>,
 }
 
 impl Function {
@@ -667,6 +681,42 @@ pub struct MaybeUninitGhostState {
     pub local_name: String,
     /// SMT variable for initialization flag (true = initialized, false = uninitialized)
     pub is_initialized: String,
+}
+
+/// Ghost state for tracking which field of a union is currently active.
+/// Used by LANG-03 (union verification) to ensure only the active field is read.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnionGhostState {
+    /// The local variable name holding the union (e.g., "_1")
+    pub local_name: String,
+    /// The union type name (e.g., "MyUnion")
+    pub union_name: String,
+    /// Fields of the union with their types
+    pub fields: Vec<(String, Ty)>,
+}
+
+/// Ghost state for Pin safety invariant tracking.
+/// Used by LANG-05 (Pin verification) to ensure pinned values are not moved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PinGhostState {
+    /// The local variable name holding the Pin (e.g., "_2")
+    pub local_name: String,
+    /// The inner type that is pinned
+    pub inner_ty: Ty,
+}
+
+/// Information about a local variable with a Drop implementation.
+/// Used by LANG-04 (drop order verification) to track drop scope ordering.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DropLocalInfo {
+    /// The local variable name (e.g., "_3")
+    pub local_name: String,
+    /// The type of the local
+    pub ty: Ty,
+    /// Whether the type implements Drop
+    pub has_drop: bool,
+    /// The position in reverse declaration order (0 = dropped first)
+    pub drop_order: usize,
 }
 
 /// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
@@ -996,6 +1046,14 @@ pub enum Ty {
     /// Represents dynamic dispatch via trait objects (Box<dyn Trait>, &dyn Trait, etc.).
     /// The outer container (Box, &, &mut) is represented separately via Ref/RawPtr wrappers.
     TraitObject(String),
+    /// Const generic parameter type (e.g., `const N: usize`).
+    /// First element is the parameter name, second is the underlying type (usize, u8, bool, etc.).
+    /// Used for array sizes, buffer lengths, and other compile-time constant parameters.
+    ConstGeneric(String, Box<Ty>),
+    /// Union type with overlapping field storage.
+    /// First element is the union name, second is the list of (field_name, field_type) pairs.
+    /// Fields share the same memory location -- only one is valid at a time.
+    Union(String, Vec<(String, Ty)>),
 }
 
 /// Signed integer types.
@@ -1156,6 +1214,8 @@ mod tests {
             generic_params: vec![GenericParam {
                 name: "T".to_string(),
                 trait_bounds: vec!["Ord".to_string()],
+                is_const: false,
+                const_ty: None,
             }],
             prophecies: vec![],
             lifetime_params: vec![],
@@ -1175,6 +1235,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.is_generic());
     }
@@ -1208,6 +1271,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(!func.is_generic());
     }
@@ -1246,6 +1312,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1282,6 +1351,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1315,6 +1387,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1348,6 +1423,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1384,6 +1462,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1970,6 +2051,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -2071,6 +2155,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -2113,6 +2200,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.source_names.is_empty());
     }
@@ -2151,6 +2241,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
         assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
@@ -2268,6 +2361,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.coroutine_info.is_none());
     }
@@ -2310,6 +2406,9 @@ mod tests {
             coroutine_info: Some(coroutine_info),
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         assert!(func.coroutine_info.is_some());
         let info = func.coroutine_info.unwrap();

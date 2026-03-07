@@ -49,6 +49,9 @@ fn make_func(
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -262,6 +265,8 @@ fn build_generic_function() -> Function {
     func.generic_params = vec![GenericParam {
         name: "T".to_string(),
         trait_bounds: vec!["Ord".to_string()],
+        is_const: false,
+        const_ty: None,
     }];
     func.contracts = Contracts {
         ensures: vec![SpecExpr {

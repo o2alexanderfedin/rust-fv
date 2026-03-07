@@ -1699,6 +1699,9 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::TransmuteSafety => "transmute_safety",
         VcKind::MaybeUninitSafety => "maybeuninit_safety",
         VcKind::AsyncSequentialModel => "async_sequential_model",
+        VcKind::UnionAccess => "union_access",
+        VcKind::DropOrder => "drop_order",
+        VcKind::PinSafety => "pin_safety",
     }
     .to_string()
 }

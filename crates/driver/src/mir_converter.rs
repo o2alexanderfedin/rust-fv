@@ -42,14 +42,14 @@ fn is_ghost_local(source_name: &str) -> bool {
     source_name.starts_with("__ghost_")
 }
 
-/// Extract generic type parameters from a function's generics.
+/// Extract generic type and const parameters from a function's generics.
 ///
-/// Calls `tcx.generics_of(def_id)` to enumerate type parameters, then
-/// `tcx.predicates_of(def_id)` to extract trait bounds for each.
+/// Calls `tcx.generics_of(def_id)` to enumerate type and const parameters, then
+/// `tcx.predicates_of(def_id)` to extract trait bounds for type parameters.
 ///
-/// Lifetime and const generic parameters are skipped — lifetimes are
-/// handled separately in `lifetime_params`, and const generics are not
-/// supported in the verification IR.
+/// Lifetime parameters are skipped — handled separately in `lifetime_params`.
+/// Const generic parameters (e.g., `const N: usize`) are extracted with
+/// `is_const: true` and their underlying type stored in `const_ty`.
 ///
 /// `"Sized"` bounds are filtered out as they are always implied and
 /// add no verification value.
@@ -66,43 +66,61 @@ fn convert_generic_params(
         .own_params
         .iter()
         .filter_map(|param| {
-            if !matches!(param.kind, GenericParamDefKind::Type { .. }) {
-                return None;
+            match param.kind {
+                GenericParamDefKind::Type { .. } => {
+                    let param_name = param.name.as_str().to_string();
+
+                    // Collect trait bounds that apply to this specific type parameter.
+                    let trait_bounds: Vec<String> = predicates
+                        .predicates
+                        .iter()
+                        .filter_map(|(clause, _span)| {
+                            let trait_pred = clause.as_trait_clause()?.skip_binder();
+                            // Only include bounds on THIS parameter (self_ty == Param(param_name))
+                            if let ty::TyKind::Param(p) = trait_pred.trait_ref.self_ty().kind() {
+                                if p.name.as_str() != param_name {
+                                    return None;
+                                }
+                            } else {
+                                return None;
+                            }
+                            let trait_name = tcx
+                                .def_path_str(trait_pred.trait_ref.def_id)
+                                .split("::")
+                                .last()
+                                .unwrap_or("")
+                                .to_string();
+                            // Skip Sized — always implied, adds no verification value
+                            if trait_name == "Sized" {
+                                return None;
+                            }
+                            Some(trait_name)
+                        })
+                        .collect();
+
+                    Some(ir::GenericParam {
+                        name: param_name,
+                        trait_bounds,
+                        is_const: false,
+                        const_ty: None,
+                    })
+                }
+                GenericParamDefKind::Const { .. } => {
+                    // Extract const generic parameter (e.g., `const N: usize`).
+                    let param_name = param.name.as_str().to_string();
+                    // Get the const generic's type from the parameter definition.
+                    let const_ty = tcx.type_of(param.def_id).skip_binder();
+                    let ir_ty = convert_ty(const_ty);
+                    Some(ir::GenericParam {
+                        name: param_name,
+                        trait_bounds: vec![],
+                        is_const: true,
+                        const_ty: Some(ir_ty),
+                    })
+                }
+                // Skip Lifetime params — handled separately in lifetime_params
+                _ => None,
             }
-            let param_name = param.name.as_str().to_string();
-
-            // Collect trait bounds that apply to this specific type parameter.
-            let trait_bounds: Vec<String> = predicates
-                .predicates
-                .iter()
-                .filter_map(|(clause, _span)| {
-                    let trait_pred = clause.as_trait_clause()?.skip_binder();
-                    // Only include bounds on THIS parameter (self_ty == Param(param_name))
-                    if let ty::TyKind::Param(p) = trait_pred.trait_ref.self_ty().kind() {
-                        if p.name.as_str() != param_name {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                    let trait_name = tcx
-                        .def_path_str(trait_pred.trait_ref.def_id)
-                        .split("::")
-                        .last()
-                        .unwrap_or("")
-                        .to_string();
-                    // Skip Sized — always implied, adds no verification value
-                    if trait_name == "Sized" {
-                        return None;
-                    }
-                    Some(trait_name)
-                })
-                .collect();
-
-            Some(ir::GenericParam {
-                name: param_name,
-                trait_bounds,
-            })
         })
         .collect()
 }
@@ -362,6 +380,9 @@ pub fn convert_mir<'tcx>(
         coroutine_info,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
     }
 }
 
@@ -924,6 +945,9 @@ mod tests {
             coroutine_info: None, // <- This is the invariant: no coroutine info for sync fns
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
 
         assert!(

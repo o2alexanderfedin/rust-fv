@@ -430,6 +430,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let params = extract_lifetime_params(&func);
         assert_eq!(params.len(), 1);
@@ -465,6 +468,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let params = extract_lifetime_params(&func);
         assert_eq!(params.len(), 0);
@@ -504,6 +510,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let resolved = resolve_outlives(&func);
         assert_eq!(resolved.len(), 1);
@@ -549,6 +558,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let resolved = resolve_outlives(&func);
         // Should have original 2 plus transitive 'a: 'c
@@ -597,6 +609,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let resolved = resolve_outlives(&func);
         // Duplicates should be preserved as-is (no deduplication in this implementation)
@@ -642,6 +657,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 0);
@@ -693,6 +711,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 1);
@@ -754,6 +775,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let chains = detect_reborrow_chains(&func);
         assert_eq!(chains.len(), 1);
@@ -805,6 +829,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let context = build_lifetime_context(&func);
         assert_eq!(context.lifetimes.len(), 1);
@@ -907,6 +934,9 @@ mod tests {
             coroutine_info: None,
             refcell_ghost_states: vec![],
             maybeuninit_ghost_states: vec![],
+            union_ghost_states: vec![],
+            pin_ghost_states: vec![],
+            drop_locals: vec![],
         };
         let ranges = compute_live_ranges(&func);
         assert_eq!(ranges.get("_1").unwrap(), &vec![0, 1]);

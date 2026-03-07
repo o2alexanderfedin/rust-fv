@@ -95,6 +95,9 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -159,6 +162,9 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
@@ -217,6 +223,9 @@ fn build_caller_func() -> Function {
         coroutine_info: None,
         refcell_ghost_states: vec![],
         maybeuninit_ghost_states: vec![],
+        union_ghost_states: vec![],
+        pin_ghost_states: vec![],
+        drop_locals: vec![],
         loops: vec![],
     }
 }
