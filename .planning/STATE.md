@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
 status: completed
-stopped_at: Phase 50 context gathered
-last_updated: "2026-03-07T00:50:03.654Z"
-last_activity: "2026-03-06 — Phase 49 plan 03 complete (COMPL-18 From::from at ? + COMPL-04 iterator adapter chaining)"
+stopped_at: Completed 50-02-PLAN.md
+last_updated: "2026-03-07T01:42:11.487Z"
+last_activity: 2026-03-07 — Phase 50 plan 01 complete (COMPL-23 ptr contracts + COMPL-24 mem contracts)
 progress:
   total_phases: 12
   completed_phases: 5
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 19
+  completed_plans: 18
   percent: 100
 ---
 
@@ -90,6 +90,7 @@ Progress: [##########          ] 100%
 | Phase 49 P03 | 1978 | 2 tasks | 6 files |
 | Phase 49 P04 | 1089 | 2 tasks | 3 files |
 | Phase 50 P01 | 2172 | 1 tasks | 6 files |
+| Phase 50 P02 | 2271 | 2 tasks | 85 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 49]: raw_callee_name field on CallSiteInfo preserves pre-normalization names for trait pattern detection
 - [Phase 50]: Ptr contracts use SpecExpr alignment checks (addr % align_of::<T>() == 0) at contract level
 - [Phase 50]: copy_nonoverlapping overlap uses no_overlap() spec function; mem::swap combines exchange in single postcondition
+- [Phase 50]: Transmute size VCs use static ty_size_bytes helper with direct UNSAT/SAT encoding
+- [Phase 50]: FFI opaque callee driven by UnsafeOperation::FfiCall has_contract flag
+- [Phase 50]: MaybeUninit ghost state follows RefCellGhostState linear block walk pattern
 
 ### Key v0.8 Architecture Notes
 
@@ -148,9 +152,9 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T01:39:22Z
-Stopped at: Completed 50-01-PLAN.md
-Resume file: .planning/phases/50-stdlib-ptr-mem-unsafe-boundary/50-01-SUMMARY.md
+Last session: 2026-03-07T01:42:11.469Z
+Stopped at: Completed 50-02-PLAN.md
+Resume file: None
 Next step: Continue Phase 50 plan 02
 
 ---

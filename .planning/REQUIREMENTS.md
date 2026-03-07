@@ -51,8 +51,8 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [ ] **LANG-12**: Custom `Deref`/`DerefMut` implementations verified for purity and invariant preservation
 - [ ] **LANG-13**: Custom `Index`/`IndexMut` implementations verified for panic-freedom and contract satisfaction
 - [ ] **LANG-14**: Unsafe `Send`/`Sync` impls verified for soundness — types implementing `Send` can safely cross threads, `Sync` allows shared access
-- [ ] **LANG-15**: FFI (`extern "C"`) functions modeled as opaque callees with user-specified contracts; `#[repr(C)]` layout verified
-- [ ] **LANG-16**: `transmute` modeled as bitwise reinterpretation with size/alignment compatibility VCs; `MaybeUninit<T>` initialization state tracked
+- [x] **LANG-15**: FFI (`extern "C"`) functions modeled as opaque callees with user-specified contracts; `#[repr(C)]` layout verified
+- [x] **LANG-16**: `transmute` modeled as bitwise reinterpretation with size/alignment compatibility VCs; `MaybeUninit<T>` initialization state tracked
 
 ### Pattern Matching (PAT)
 
@@ -170,8 +170,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LANG-12 | Phase 53 | Pending |
 | LANG-13 | Phase 53 | Pending |
 | LANG-14 | Phase 53 | Pending |
-| LANG-15 | Phase 50 | Pending |
-| LANG-16 | Phase 50 | Pending |
+| LANG-15 | Phase 50 | Complete |
+| LANG-16 | Phase 50 | Complete |
 | PAT-01 | Phase 45 | Complete |
 | PAT-02 | Phase 45 | Complete |
 | PAT-03 | Phase 45 | Complete |

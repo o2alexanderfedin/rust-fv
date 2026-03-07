@@ -186,7 +186,7 @@ Plans:
   3. An `extern "C"` function without a user contract generates a V060 opaque-callee warning; adding `#[requires]`/`#[ensures]` to the extern item silences the warning and the contracts are used at call sites
   4. `std::mem::transmute::<u32, f32>(x)` generates a size-compatibility VC (both types are 4 bytes) and an alignment VC; `transmute::<u8, u32>` generates a SAT VC (size mismatch)
   5. Running `cargo verify` on an async function that spawns threads produces a documented warning `W080: async multi-threaded execution not modeled — sequential polling assumed`; the function still verifies under sequential model
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [ ] 50-01-PLAN.md — Ptr/mem stdlib contracts with overlap, alignment, and exchange VCs (COMPL-23, COMPL-24)
 - [ ] 50-02-PLAN.md — FFI V110 opaque callee + transmute VCs + MaybeUninit ghost state (LANG-15, LANG-16)
@@ -304,7 +304,7 @@ Plans:
 | 47 | 3/3 | Complete    | 2026-03-05 | - |
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
-| 50 | 1/3 | In Progress|  | - |
+| 50 | 2/3 | In Progress|  | - |
 | 51 | v0.8 | 0/? | Not started | - |
 | 52 | v0.8 | 0/? | Not started | - |
 | 53 | v0.8 | 0/? | Not started | - |
