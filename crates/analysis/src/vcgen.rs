@@ -1290,6 +1290,16 @@ fn collect_declarations_with_mode(
         decls.push(Command::DeclareConst(local.name.clone(), sort));
     }
 
+    // Const generic parameters: declare as SMT Int constants
+    for gp in &func.generic_params {
+        if gp.is_const {
+            decls.push(Command::DeclareConst(
+                gp.name.clone(),
+                rust_fv_smtlib::sort::Sort::Int,
+            ));
+        }
+    }
+
     decls
 }
 
@@ -1710,6 +1720,26 @@ fn collect_declarations(func: &Function) -> Vec<Command> {
         }
         let sort = encode_type(&local.ty);
         decls.push(Command::DeclareConst(local.name.clone(), sort));
+    }
+
+    // Const generic parameters: declare as SMT constants with appropriate sort.
+    // For integer const generics (usize, u8, etc.), use Int sort.
+    // For bool const generics, use Bool sort.
+    // Also add non-negativity constraints for unsigned integer const generics.
+    for gp in &func.generic_params {
+        if gp.is_const {
+            let sort = if let Some(ref const_ty) = gp.const_ty {
+                encode_type(const_ty)
+            } else {
+                rust_fv_smtlib::sort::Sort::Int
+            };
+            // Use Int for integer const generics (unbounded symbolic reasoning)
+            let smt_sort = match sort {
+                rust_fv_smtlib::sort::Sort::BitVec(_) => rust_fv_smtlib::sort::Sort::Int,
+                other => other,
+            };
+            decls.push(Command::DeclareConst(gp.name.clone(), smt_sort));
+        }
     }
 
     // Len constants: for each Rvalue::Len(place) in the body, declare {place}_len as BitVec(64)

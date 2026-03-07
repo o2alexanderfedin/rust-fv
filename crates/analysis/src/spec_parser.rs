@@ -126,7 +126,21 @@ fn parse_spec_expr_with_depth(
     // Parse the spec string as a Rust expression via syn
     let expr: Expr = syn::parse_str(spec).ok()?;
 
-    convert_expr_with_db(&expr, func, false, false, false, &[], ghost_pred_db, depth)
+    // Auto-enable int mode when the function has const generic parameters.
+    // Const generics are declared as Int in SMT, so specs referencing them
+    // need Int-compatible operators (IntAdd, IntGt, etc.) instead of BV operators.
+    let has_const_generics = func.generic_params.iter().any(|gp| gp.is_const);
+
+    convert_expr_with_db(
+        &expr,
+        func,
+        false,
+        false,
+        has_const_generics,
+        &[],
+        ghost_pred_db,
+        depth,
+    )
 }
 
 /// Parse a specification expression with quantifier-bound variables support.
@@ -441,6 +455,13 @@ fn resolve_variable_name(ident: &str, func: &Function) -> Option<String> {
     // Check locals
     for l in &func.locals {
         if l.name == ident {
+            return Some(ident.to_string());
+        }
+    }
+    // Check const generic parameters (e.g., `const N: usize`).
+    // Const generic names are available as SMT integer constants in spec expressions.
+    for gp in &func.generic_params {
+        if gp.is_const && gp.name == ident {
             return Some(ident.to_string());
         }
     }

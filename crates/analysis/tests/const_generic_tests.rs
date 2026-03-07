@@ -177,6 +177,172 @@ fn drop_local_info_constructs() {
     assert_eq!(dli.drop_order, 0);
 }
 
+// === Task 2: Monomorphization, spec parser, VCGen wiring ===
+
+#[test]
+fn monomorphize_substitutes_const_generic() {
+    use rust_fv_analysis::monomorphize::{TypeInstantiation, substitute_generics};
+    use std::collections::HashMap;
+
+    let mut func = make_test_function();
+    func.name = "buffer_init".to_string();
+    func.generic_params = vec![GenericParam {
+        name: "N".to_string(),
+        trait_bounds: vec![],
+        is_const: true,
+        const_ty: Some(Ty::Uint(UintTy::Usize)),
+    }];
+    // Parameter with const generic type
+    func.params = vec![Local {
+        name: "_1".to_string(),
+        ty: Ty::ConstGeneric("N".to_string(), Box::new(Ty::Uint(UintTy::Usize))),
+        is_ghost: false,
+    }];
+
+    let mut subs = HashMap::new();
+    subs.insert("N".to_string(), Ty::Uint(UintTy::Usize));
+    let inst = TypeInstantiation::new(subs, "::<5>".to_string());
+
+    let result = substitute_generics(&func, &inst);
+    // After monomorphization, the ConstGeneric type is substituted
+    assert_eq!(result.params[0].ty, Ty::Uint(UintTy::Usize));
+}
+
+#[test]
+fn spec_parser_resolves_const_generic_name() {
+    use rust_fv_analysis::spec_parser::parse_spec_expr;
+
+    let mut func = make_test_function();
+    func.generic_params = vec![GenericParam {
+        name: "N".to_string(),
+        trait_bounds: vec![],
+        is_const: true,
+        const_ty: Some(Ty::Uint(UintTy::Usize)),
+    }];
+
+    // The spec expression "N > 0" should resolve N as an SMT constant
+    let term = parse_spec_expr("N > 0", &func);
+    assert!(
+        term.is_some(),
+        "Spec parser should resolve const generic parameter N in expression"
+    );
+}
+
+#[test]
+fn vcgen_emits_const_generic_declarations() {
+    use rust_fv_analysis::ir::{Constant, Operand, Place, Rvalue, SpecExpr, Statement};
+    use rust_fv_analysis::vcgen;
+
+    let mut func = make_test_function();
+    func.name = "first".to_string();
+    func.generic_params = vec![GenericParam {
+        name: "N".to_string(),
+        trait_bounds: vec![],
+        is_const: true,
+        const_ty: Some(Ty::Uint(UintTy::Usize)),
+    }];
+    func.params = vec![Local {
+        name: "_1".to_string(),
+        ty: Ty::Array(Box::new(Ty::Int(IntTy::I32)), 0),
+        is_ghost: false,
+    }];
+    func.return_local = Local {
+        name: "_0".to_string(),
+        ty: Ty::Int(IntTy::I32),
+        is_ghost: false,
+    };
+    // Add both requires and ensures to generate VCs
+    func.contracts.requires = vec![SpecExpr {
+        raw: "N > 0".to_string(),
+    }];
+    func.contracts.ensures = vec![SpecExpr {
+        raw: "true".to_string(),
+    }];
+
+    // Simple body: _0 = 42; return
+    func.basic_blocks = vec![BasicBlock {
+        statements: vec![Statement::Assign(
+            Place {
+                local: "_0".to_string(),
+                projections: vec![],
+            },
+            Rvalue::Use(Operand::Constant(Constant::Int(42, IntTy::I32))),
+        )],
+        terminator: Terminator::Return,
+    }];
+
+    let vcs = vcgen::generate_vcs(&func, None);
+    // Should generate at least one VC (postcondition)
+    assert!(
+        !vcs.conditions.is_empty(),
+        "VCGen should generate VCs for function with const generic + ensures clause"
+    );
+
+    // Check that at least one VC script contains the const generic parameter N
+    let has_n_ref = vcs.conditions.iter().any(|vc| {
+        let script = vc.script.to_string();
+        script.contains(" N ")
+    });
+    assert!(
+        has_n_ref,
+        "VCGen should emit SMT constant declaration for const generic parameter N"
+    );
+}
+
+#[test]
+fn const_generic_with_requires_and_ensures_generates_vc() {
+    use rust_fv_analysis::ir::{Constant, Operand, Place, Rvalue, SpecExpr, Statement};
+    use rust_fv_analysis::vcgen;
+
+    let mut func = make_test_function();
+    func.name = "sized_buffer".to_string();
+    func.generic_params = vec![GenericParam {
+        name: "N".to_string(),
+        trait_bounds: vec![],
+        is_const: true,
+        const_ty: Some(Ty::Uint(UintTy::Usize)),
+    }];
+    func.contracts.requires = vec![SpecExpr {
+        raw: "N > 0".to_string(),
+    }];
+    func.contracts.ensures = vec![SpecExpr {
+        raw: "result == true".to_string(),
+    }];
+    func.return_local = Local {
+        name: "_0".to_string(),
+        ty: Ty::Bool,
+        is_ghost: false,
+    };
+    func.basic_blocks = vec![BasicBlock {
+        statements: vec![Statement::Assign(
+            Place {
+                local: "_0".to_string(),
+                projections: vec![],
+            },
+            Rvalue::Use(Operand::Constant(Constant::Bool(true))),
+        )],
+        terminator: Terminator::Return,
+    }];
+
+    let vcs = vcgen::generate_vcs(&func, None);
+    // Should generate postcondition VCs
+    assert!(
+        !vcs.conditions.is_empty(),
+        "Should generate VCs for function with const generic requires + ensures"
+    );
+
+    // The requires clause N > 0 should appear as an assumption in postcondition VCs
+    let has_requires_in_script = vcs.conditions.iter().any(|vc| {
+        let script = vc.script.to_string();
+        // The requires clause should be encoded as an assertion/assumption containing N
+        script.contains(" N ")
+    });
+    assert!(
+        has_requires_in_script,
+        "Postcondition VC script should contain const generic parameter N from requires clause"
+    );
+}
+
 // Helper to construct a test function with all new fields
 fn make_test_function() -> Function {
     Function {

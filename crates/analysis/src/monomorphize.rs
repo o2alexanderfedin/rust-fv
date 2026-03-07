@@ -246,6 +246,18 @@ fn substitute_ty(ty: &Ty, subs: &HashMap<String, Ty>) -> Ty {
                 })
                 .collect(),
         ),
+        // Const generic parameters: substitute like generic types.
+        // When a const generic like `const N: usize` is monomorphized at a call site,
+        // the substitution map maps "N" to the concrete type (the value is encoded separately).
+        Ty::ConstGeneric(name, _inner_ty) => subs.get(name).cloned().unwrap_or_else(|| ty.clone()),
+        // Union types: recurse into field types
+        Ty::Union(name, fields) => Ty::Union(
+            name.clone(),
+            fields
+                .iter()
+                .map(|(fname, fty)| (fname.clone(), substitute_ty(fty, subs)))
+                .collect(),
+        ),
         // All other types are unchanged
         _ => ty.clone(),
     }
