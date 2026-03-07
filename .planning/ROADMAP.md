@@ -202,7 +202,7 @@ Plans:
   3. A `union U { f: u32, g: f32 }` field read generates a reinterpretation-cast VC asserting bitwise equivalence; reading an uninitialized union variant generates a safety VC caught by Z3
   4. A function whose local variable implements `Drop` generates a drop-order model at scope exit; a type with `Drop` that also has `Copy` generates a compile-time diagnostic (sound rejection)
   5. A function calling `Pin::new_unchecked(&mut val)` on a non-`Unpin` type generates a move-prevention VC; code that subsequently moves the pinned value produces a Z3 SAT counterexample
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
 - [ ] 51-01-PLAN.md — IR type foundations + const generic verification (LANG-01)
 - [ ] 51-02-PLAN.md — HRTB encoding + union type VCs (LANG-02, LANG-03)
@@ -304,7 +304,7 @@ Plans:
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
-| 51 | v0.8 | 0/3 | In progress | - |
+| 51 | 1/3 | In Progress|  | - |
 | 52 | v0.8 | 0/? | Not started | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |

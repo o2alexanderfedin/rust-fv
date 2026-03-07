@@ -37,7 +37,7 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 
 ### Core Language Features (LANG)
 
-- [ ] **LANG-01**: Const generic parameters (`<const N: usize>`) extracted from MIR, encoded as SMT integer constants, substituted during monomorphization
+- [x] **LANG-01**: Const generic parameters (`<const N: usize>`) extracted from MIR, encoded as SMT integer constants, substituted during monomorphization
 - [ ] **LANG-02**: Higher-ranked trait bounds (`for<'a> F: Fn(&'a T)`) parsed and encoded as universally quantified lifetime constraints
 - [ ] **LANG-03**: Union types recognized as ADTs with field access encoded as reinterpretation casts and safety VCs for reads
 - [ ] **LANG-04**: `Drop::drop()` invocations modeled at end of scope, drop order verified, double-drop prevention VCs generated
@@ -156,7 +156,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMPL-23 | Phase 50 | Complete |
 | COMPL-24 | Phase 50 | Complete |
 | COMPL-25 | Phase 50 | Complete |
-| LANG-01 | Phase 51 | Pending |
+| LANG-01 | Phase 51 | Complete |
 | LANG-02 | Phase 51 | Pending |
 | LANG-03 | Phase 51 | Pending |
 | LANG-04 | Phase 51 | Pending |

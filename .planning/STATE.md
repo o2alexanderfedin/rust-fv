@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
-status: completed
-stopped_at: Phase 51 context gathered
-last_updated: "2026-03-07T02:54:05.449Z"
-last_activity: 2026-03-07 — Phase 50 plan 03 complete (COMPL-25 async multi-thread W080 diagnostic)
+status: in-progress
+stopped_at: Completed 51-01-PLAN.md
+last_updated: "2026-03-07T04:07:07.130Z"
+last_activity: 2026-03-07 — Phase 51 plan 01 complete (LANG-01 const generic parameter verification)
 progress:
   total_phases: 12
   completed_phases: 6
-  total_plans: 19
-  completed_plans: 19
-  percent: 100
+  total_plans: 22
+  completed_plans: 21
+  percent: 95
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 50 (Stdlib Ptr/Mem & Unsafe Boundary) — in progress
-Plan: 03 of 03 complete
-Status: Phase 50 complete (W080 async sequential model warning)
-Last activity: 2026-03-07 — Phase 50 plan 03 complete (COMPL-25 async multi-thread W080 diagnostic)
+Phase: 51 (Core Language Features I) — in progress
+Plan: 01 of 03 complete
+Status: Plan 01 complete (LANG-01 const generic parameter verification)
+Last activity: 2026-03-07 — Phase 51 plan 01 complete (LANG-01 const generic parameter verification)
 
 ```
-Progress: [##########          ] 100%
+Progress: [#########           ] 95%
 ```
 
 ## Milestone Summary
@@ -46,8 +46,8 @@ Progress: [##########          ] 100%
 | 47 | MIR Coverage Hardening | COMPL-02, COMPL-03, COMPL-06, COMPL-12 | Complete |
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Complete |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Complete |
-| 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Plan 01/04 done |
-| 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Not started |
+| 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Complete |
+| 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Plan 01/03 done |
 | 52 | Advanced Type System Features | LANG-06, LANG-07, LANG-08, LANG-09, LANG-10 | Not started |
 | 53 | Operator & Smart Pointer Verification | LANG-11, LANG-12, LANG-13, LANG-14 | Not started |
 | 54 | Stdlib Contracts Batch I | STDLIB-01..08 | Not started |
@@ -92,6 +92,7 @@ Progress: [##########          ] 100%
 | Phase 50 P01 | 2172 | 1 tasks | 6 files |
 | Phase 50 P02 | 2271 | 2 tasks | 85 files |
 | Phase 50 P03 | 3183 | 1 tasks | 4 files |
+| Phase 51 P01 | 2597 | 2 tasks | 81 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 50]: MaybeUninit ghost state follows RefCellGhostState linear block walk pattern
 - [Phase 50]: W080 thread spawn detection via Terminator::Call callee name pattern matching (covers tokio/rayon/crossbeam/async-std)
 - [Phase 50]: Single W080 VC per async function with BoolLit(true) assertion -- warning-only, verification continues
+- [Phase 51]: Const generics declared as Sort::Int in SMT for unbounded symbolic reasoning regardless of underlying integer type
+- [Phase 51]: Removed Hash derive from GenericParam since Ty lacks Hash and no code hashes GenericParam
+- [Phase 51]: Auto-enable int_mode in spec parser when function has const generic params to avoid BV/Int sort mismatch
+- [Phase 51]: Union types encoded as BitVec of max field size in bits for overlapping storage semantics
 
 ### Key v0.8 Architecture Notes
 
@@ -155,11 +160,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T02:54:05.444Z
-Stopped at: Phase 51 context gathered
-Resume file: .planning/phases/51-core-language-features-i/51-CONTEXT.md
-Next step: Execute plan 50-04
-Next step: Continue Phase 50 plan 02
+Last session: 2026-03-07T04:04:13Z
+Stopped at: Completed 51-01-PLAN.md
+Resume file: .planning/phases/51-core-language-features-i/51-01-SUMMARY.md
+Next step: Execute plan 51-02
 
 ---
 
