@@ -188,9 +188,9 @@ Plans:
   5. Running `cargo verify` on an async function that spawns threads produces a documented warning `W080: async multi-threaded execution not modeled — sequential polling assumed`; the function still verifies under sequential model
 **Plans:** 3 plans
 Plans:
-- [ ] 48-01-PLAN.md — Trigger inference datatype filter (COMPL-08) + IR type foundations
-- [ ] 48-02-PLAN.md — RefCell ghost state VCs + two-phase borrow modeling (COMPL-09, COMPL-13)
-- [ ] 48-03-PLAN.md — Partial struct moves + borrow splitting (COMPL-14, COMPL-16)
+- [ ] 50-01-PLAN.md — Ptr/mem stdlib contracts with overlap, alignment, and exchange VCs (COMPL-23, COMPL-24)
+- [ ] 50-02-PLAN.md — FFI V110 opaque callee + transmute VCs + MaybeUninit ghost state (LANG-15, LANG-16)
+- [ ] 50-03-PLAN.md — W080 async multi-threaded sequential model warning (COMPL-25)
 
 ### Phase 51: Core Language Features I
 **Goal**: Const generic parameters participate in verification, HRTB are encoded, union field access generates reinterpretation VCs, Drop invocations are modeled at scope exit, and Pin move-prevention is enforced
