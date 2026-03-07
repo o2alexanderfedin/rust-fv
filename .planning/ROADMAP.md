@@ -88,7 +88,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 - [x] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining (gap closure in progress) (completed 2026-03-06)
 - [x] **Phase 50: Stdlib Ptr/Mem & Unsafe Boundary** - ptr::read/write contracts, mem::swap contracts, FFI extern "C" modeling, transmute/MaybeUninit, async limitation doc (completed 2026-03-07)
 - [x] **Phase 51: Core Language Features I** - Const generics, HRTB, union types, Drop::drop modeling, Pin wrapper (completed 2026-03-07)
-- [ ] **Phase 52: Advanced Type System Features** - catch_unwind, impl Trait RPITIT, GATs, trait upcasting, negative impls
+- [x] **Phase 52: Advanced Type System Features** - catch_unwind, impl Trait RPITIT, GATs, trait upcasting, negative impls (completed 2026-03-07)
 - [ ] **Phase 53: Operator & Smart Pointer Verification** - Operator overloading, custom Deref, Index/IndexMut, unsafe Send/Sync
 - [ ] **Phase 54: Stdlib Contracts Batch I** - HashSet, VecDeque, BTreeMap/BTreeSet, BinaryHeap, LinkedList, Weak, Cell, OnceCell
 - [ ] **Phase 55: Stdlib Contracts Batch II & Iterators** - Path, DoubleEndedIterator, collect/FromIterator, custom Iterator contracts, format!, OsStr, inline asm
@@ -217,7 +217,7 @@ Plans:
   3. A GAT `type Item<'a>` with a `where Self: 'a` bound generates a well-formedness SMT assertion at use sites; a violating instantiation produces a Z3 SAT counterexample
   4. Casting `dyn SubTrait` to `dyn SuperTrait` generates a vtable compatibility VC; contracts on `SuperTrait` methods are preserved and checked at call sites on the upcast reference
   5. A type with `impl !Send for MyType` recorded in the trait database causes any function that transfers `MyType` across a thread boundary to generate a `ThreadSafety` VC that Z3 resolves as SAT (violation)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 52-01-PLAN.md — impl Trait/RPITIT resolution + Ty::Opaque fallback (LANG-07)
 - [ ] 52-02-PLAN.md — catch_unwind dual-path VCs + negative trait impls (LANG-06, LANG-10)
@@ -305,7 +305,7 @@ Plans:
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
 | 51 | 3/3 | Complete   | 2026-03-07 | - |
-| 52 | 2/3 | In Progress|  | - |
+| 52 | 3/3 | Complete   | 2026-03-07 | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |
 | 55 | v0.8 | 0/? | Not started | - |
