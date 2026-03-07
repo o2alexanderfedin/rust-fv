@@ -50,6 +50,7 @@ fn make_func(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -729,6 +730,7 @@ fn phase04_bv2int_logic_selection() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -818,6 +820,7 @@ fn phase04_ghost_local_leaks_into_vc() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

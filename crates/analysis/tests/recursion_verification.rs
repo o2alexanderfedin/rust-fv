@@ -489,6 +489,7 @@ fn make_factorial(contracts: Contracts, local_overrides: Option<Vec<Local>>) -> 
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -571,6 +572,7 @@ fn make_even(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -653,6 +655,7 @@ fn make_odd(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -775,6 +778,7 @@ fn make_fibonacci(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -1101,6 +1105,7 @@ fn e2e_non_decreasing_measure_produces_counterexample() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1200,6 +1205,7 @@ fn e2e_non_recursive_function_no_termination_vcs() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1368,6 +1374,7 @@ fn snd_recursive_without_decreases_rejected() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1535,6 +1542,7 @@ fn make_cross_crate_local_foo(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -1595,6 +1603,7 @@ fn make_cross_crate_local_foo_decremented(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

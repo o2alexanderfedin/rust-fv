@@ -142,6 +142,7 @@ fn make_loop_stress_function() -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![LoopInfo {
             header_block: 1,
             back_edge_blocks: vec![2],
@@ -267,6 +268,7 @@ fn make_interprocedural_stress_function() -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -584,6 +586,7 @@ fn make_large_function_stress() -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }

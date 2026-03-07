@@ -309,6 +309,7 @@ fn build_adapter_chain_mir() -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -425,6 +426,7 @@ fn iterator_compose_vcgen_single_adapter_uses_direct_contract() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 

@@ -136,6 +136,7 @@ fn make_async_func(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

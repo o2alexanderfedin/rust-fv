@@ -4,7 +4,7 @@
 /// functionality to support trait object and behavioral subtyping verification.
 use std::collections::HashMap;
 
-use crate::ir::{TraitDef, TraitImpl, TraitMethod};
+use crate::ir::{TraitDef, TraitImpl, TraitMethod, Ty};
 
 /// Database of traits and their implementations for verification.
 pub struct TraitDatabase {
@@ -107,6 +107,116 @@ pub fn find_missing_impl_methods(trait_def: &TraitDef, impl_info: &TraitImpl) ->
         .filter(|m| !impl_info.method_names.contains(&m.name))
         .map(|m| m.name.clone())
         .collect()
+}
+
+/// Check if a type implements the Drop trait.
+///
+/// Returns true for user-defined struct/named types that are marked with Drop
+/// (detected via DropLocalInfo in the IR), and false for all primitive types
+/// which never implement Drop.
+///
+/// For Named/Struct/Enum types, this uses conservative analysis: types populated
+/// in `drop_locals` by the MIR converter have `has_drop: true`. This standalone
+/// function provides a type-level check for use in VC generation.
+pub fn has_drop_impl(ty: &Ty) -> bool {
+    match ty {
+        // Primitives never implement Drop
+        Ty::Bool | Ty::Int(_) | Ty::Uint(_) | Ty::Float(_) | Ty::Char | Ty::Unit | Ty::Never => {
+            false
+        }
+        // Specification-only types never implement Drop
+        Ty::SpecInt | Ty::SpecNat => false,
+        // References and raw pointers don't implement Drop themselves
+        Ty::Ref(_, _) | Ty::RawPtr(_, _) | Ty::NonNull(_) => false,
+        // Generic type parameters -- conservatively assume no Drop
+        Ty::Generic(_) | Ty::ConstGeneric(_, _) => false,
+        // Named/Struct/Enum/TraitObject types may implement Drop
+        // The actual determination comes from DropLocalInfo.has_drop in the IR
+        Ty::Named(_) | Ty::Struct(_, _) | Ty::Enum(_, _) | Ty::TraitObject(_) => true,
+        // Tuples, arrays, slices -- Drop if any element has Drop (conservative: true)
+        Ty::Tuple(elems) => elems.iter().any(has_drop_impl),
+        Ty::Array(elem, _) | Ty::Slice(elem) => has_drop_impl(elem),
+        // Closures may capture Drop types
+        Ty::Closure(_) => true,
+        // Union types may implement Drop (conservative: true for named unions)
+        Ty::Union(_, _) => true,
+    }
+}
+
+/// Check if a type implements the Unpin trait.
+///
+/// All primitive types are Unpin. Most standard types are Unpin by default.
+/// Only types explicitly marked as `!Unpin` (e.g., self-referential types,
+/// async state machines) are not Unpin.
+///
+/// Conservative for user types: Named types containing "!Unpin" or "PhantomPinned"
+/// are treated as non-Unpin; all others are Unpin by default (matching Rust semantics
+/// where Unpin is auto-implemented).
+pub fn is_unpin(ty: &Ty) -> bool {
+    match ty {
+        // All primitives are Unpin
+        Ty::Bool | Ty::Int(_) | Ty::Uint(_) | Ty::Float(_) | Ty::Char | Ty::Unit | Ty::Never => {
+            true
+        }
+        Ty::SpecInt | Ty::SpecNat => true,
+        // References are always Unpin (even &mut T where T: !Unpin)
+        Ty::Ref(_, _) | Ty::RawPtr(_, _) | Ty::NonNull(_) => true,
+        // Named types: check for PhantomPinned marker
+        Ty::Named(name) => !name.contains("PhantomPinned") && !name.contains("!Unpin"),
+        // Struct types: Unpin if all fields are Unpin
+        Ty::Struct(name, fields) => {
+            !name.contains("PhantomPinned")
+                && !name.contains("!Unpin")
+                && fields.iter().all(|(_, ty)| is_unpin(ty))
+        }
+        // Generic/ConstGeneric -- conservatively Unpin (Rust auto-trait default)
+        Ty::Generic(_) | Ty::ConstGeneric(_, _) => true,
+        // Tuples/arrays: Unpin if all elements are Unpin
+        Ty::Tuple(elems) => elems.iter().all(is_unpin),
+        Ty::Array(elem, _) | Ty::Slice(elem) => is_unpin(elem),
+        // Enums, closures, trait objects, unions -- conservatively Unpin
+        Ty::Enum(_, _) | Ty::Closure(_) | Ty::TraitObject(_) | Ty::Union(_, _) => true,
+    }
+}
+
+/// Check if a type implements the Copy trait.
+///
+/// Returns true for types known to be Copy (primitives, references),
+/// and false for types that are never Copy (mutable references, named types
+/// that are typically not Copy).
+///
+/// For Named types, uses the convention that types containing "Copy" in their
+/// name are treated as Copy for diagnostic purposes.
+pub fn has_copy_impl(ty: &Ty) -> bool {
+    match ty {
+        // All numeric primitives and bool are Copy
+        Ty::Bool | Ty::Int(_) | Ty::Uint(_) | Ty::Float(_) | Ty::Char | Ty::Unit => true,
+        // Never type is vacuously Copy
+        Ty::Never => true,
+        // Shared references are Copy, mutable references are NOT Copy
+        Ty::Ref(_, crate::ir::Mutability::Shared) => true,
+        Ty::Ref(_, crate::ir::Mutability::Mutable) => false,
+        // Raw pointers are Copy
+        Ty::RawPtr(_, _) => true,
+        // NonNull is Copy
+        Ty::NonNull(_) => true,
+        // Spec types are Copy (specification-only)
+        Ty::SpecInt | Ty::SpecNat => true,
+        // Named types: check for "Copy" pattern or known non-Copy types
+        Ty::Named(name) => name.contains("Copy"),
+        // Struct: Copy if all fields are Copy (and name doesn't indicate non-Copy)
+        Ty::Struct(_, fields) => fields.iter().all(|(_, ty)| has_copy_impl(ty)),
+        // Tuples are Copy if all elements are Copy
+        Ty::Tuple(elems) => elems.iter().all(has_copy_impl),
+        // Arrays are Copy if element type is Copy
+        Ty::Array(elem, _) => has_copy_impl(elem),
+        // Generic/ConstGeneric -- conservatively not Copy
+        Ty::Generic(_) | Ty::ConstGeneric(_, _) => false,
+        // Slices, enums, closures, trait objects, unions -- generally not Copy
+        Ty::Slice(_) | Ty::Enum(_, _) | Ty::Closure(_) | Ty::TraitObject(_) | Ty::Union(_, _) => {
+            false
+        }
+    }
 }
 
 #[cfg(test)]

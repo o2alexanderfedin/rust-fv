@@ -290,6 +290,7 @@ fn make_function_with_trait_object_param(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -870,6 +871,7 @@ fn dyn_dispatch_call_site_uses_trait_contracts() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Build contract_db with Stack::push having a requires contract.

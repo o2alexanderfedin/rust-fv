@@ -101,6 +101,7 @@ fn make_fn_func(param_name: &str, trait_kind: ClosureTrait) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -155,6 +156,7 @@ fn make_fnmut_func(param_name: &str) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

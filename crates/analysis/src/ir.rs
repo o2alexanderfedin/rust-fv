@@ -441,6 +441,11 @@ pub struct Function {
     /// Information about locals with Drop implementations (LANG-04).
     /// Empty for functions without Drop types.
     pub drop_locals: Vec<DropLocalInfo>,
+    /// Higher-rank trait bounds (HRTB) on function parameters (LANG-02).
+    /// E.g., `for<'a> F: Fn(&'a i32) -> i32` produces universally quantified
+    /// lifetime constraints in the SMT encoding.
+    /// Empty for functions without HRTB bounds.
+    pub hrtb_bounds: Vec<HrtbBound>,
 }
 
 impl Function {
@@ -717,6 +722,23 @@ pub struct DropLocalInfo {
     pub has_drop: bool,
     /// The position in reverse declaration order (0 = dropped first)
     pub drop_order: usize,
+}
+
+/// A higher-rank trait bound (HRTB) on a function parameter.
+///
+/// Represents `for<'a> F: Fn(&'a T) -> U` where the lifetime parameter
+/// is universally quantified. Used for encoding closure contracts that
+/// must hold for all lifetime instantiations.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HrtbBound {
+    /// The universally quantified lifetime names (e.g., `vec!["'a", "'b"]`)
+    pub quantified_lifetimes: Vec<String>,
+    /// The bound trait name (e.g., "Fn", "FnMut", "FnOnce")
+    pub trait_name: String,
+    /// The parameter types (may reference quantified lifetimes)
+    pub param_tys: Vec<Ty>,
+    /// The return type of the bound
+    pub return_ty: Ty,
 }
 
 /// A manual trigger hint from `#[trigger(expr1, expr2)]` annotation.
@@ -1238,6 +1260,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.is_generic());
     }
@@ -1274,6 +1297,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(!func.is_generic());
     }
@@ -1315,6 +1339,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -1354,6 +1379,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1390,6 +1416,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1426,6 +1453,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(!func.has_mut_ref_params());
     }
@@ -1465,6 +1493,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.has_mut_ref_params());
     }
@@ -2054,6 +2083,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert_eq!(func.lifetime_params.len(), 1);
         assert_eq!(func.lifetime_params[0].name, "'a");
@@ -2158,6 +2188,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert_eq!(func.thread_spawns.len(), 1);
         assert_eq!(func.atomic_ops.len(), 1);
@@ -2203,6 +2234,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.source_names.is_empty());
     }
@@ -2244,6 +2276,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert_eq!(func.source_names.get("_1").map(String::as_str), Some("x"));
         assert_eq!(func.source_names.get("_2").map(String::as_str), Some("y"));
@@ -2364,6 +2397,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.coroutine_info.is_none());
     }
@@ -2409,6 +2443,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         assert!(func.coroutine_info.is_some());
         let info = func.coroutine_info.unwrap();

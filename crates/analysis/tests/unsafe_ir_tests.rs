@@ -194,6 +194,7 @@ fn test_function_unsafe_fields() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     assert_eq!(func.unsafe_blocks.len(), 1);
@@ -234,6 +235,7 @@ fn test_function_is_unsafe_fn() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     assert!(func.is_unsafe_fn);

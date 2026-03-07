@@ -483,6 +483,7 @@ fn make_closure_caller(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -667,6 +668,7 @@ fn e2e_fnmut_closure_mutable_capture_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -767,6 +769,7 @@ fn e2e_fnmut_closure_wrong_count_rejected() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -864,6 +867,7 @@ fn e2e_fnonce_closure_move_semantics_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -966,6 +970,7 @@ fn e2e_fnonce_double_call_diagnostic() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1101,6 +1106,7 @@ fn e2e_closure_contract_specification_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1203,6 +1209,7 @@ fn e2e_closure_contract_violation_detected() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1335,6 +1342,7 @@ fn e2e_fn_closure_multiple_params_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);

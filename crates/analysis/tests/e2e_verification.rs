@@ -71,6 +71,7 @@ fn make_add_function(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -826,6 +827,7 @@ fn make_max_function(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -1046,6 +1048,7 @@ fn make_classify_function(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -1177,6 +1180,7 @@ fn make_abs_or_zero_function(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -1382,6 +1386,7 @@ fn make_quad_function(contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -1526,6 +1531,7 @@ fn test_single_branch_overflow_check() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1640,6 +1646,7 @@ fn test_unbounded_int_addition_no_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1751,6 +1758,7 @@ fn test_unbounded_int_sum_formula() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2022,6 +2030,7 @@ fn test_quantifier_full_pipeline() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Parse a quantified spec: "forall(|x: int| implies(x > 0, x + 1 > x))"
@@ -2153,6 +2162,7 @@ fn test_generic_max_i32_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Register i32 instantiation
@@ -2278,6 +2288,7 @@ fn test_generic_max_u64_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Register u64 instantiation (unsigned comparison)
@@ -2403,6 +2414,7 @@ fn test_generic_max_wrong_postcondition() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Register i32 instantiation
@@ -2512,6 +2524,7 @@ fn test_generic_multiple_instantiations() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Register BOTH i32 and u64 instantiations
@@ -2617,6 +2630,7 @@ fn test_generic_no_instantiations_warning() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let registry = MonomorphizationRegistry::new(); // Empty registry
@@ -2701,6 +2715,7 @@ fn test_prophecy_increment_mut_ref() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2781,6 +2796,7 @@ fn test_prophecy_no_mutation_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2887,6 +2903,7 @@ fn test_prophecy_conditional_mutation() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2969,6 +2986,7 @@ fn test_prophecy_basic() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -3072,6 +3090,7 @@ fn e2e_struct_datatype_field_reasoning() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Generate VCs
@@ -3218,6 +3237,7 @@ fn e2e_enum_datatype_match() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Generate VCs
@@ -3371,6 +3391,7 @@ fn e2e_nested_struct_update() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Generate VCs
@@ -3493,6 +3514,7 @@ fn e2e_functional_update_binop() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Generate VCs

@@ -424,6 +424,7 @@ fn make_caller_function(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -730,6 +731,7 @@ fn test_call_site_postcondition_assumed() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -865,6 +867,7 @@ fn test_call_site_postcondition_not_assumed_without_db() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -995,6 +998,7 @@ fn test_call_chain_no_blowup() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1081,6 +1085,7 @@ fn test_call_without_contracts_treated_as_opaque() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 

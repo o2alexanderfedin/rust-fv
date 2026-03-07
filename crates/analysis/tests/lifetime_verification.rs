@@ -137,6 +137,7 @@ fn test_lifetime_params_outlives_verified() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Extract lifetime parameters
@@ -211,6 +212,7 @@ fn test_outlives_with_static_lifetime() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -312,6 +314,7 @@ fn test_nll_conflict_detection() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Build lifetime context
@@ -385,6 +388,7 @@ fn test_prophecy_single_mut_ref() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Detect prophecies
@@ -445,6 +449,7 @@ fn test_prophecy_nested_mut_mut() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -543,6 +548,7 @@ fn test_borrow_validity_vc_generation() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -642,6 +648,7 @@ fn test_reborrow_chain_detection() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Detect reborrow chains
@@ -747,6 +754,7 @@ fn test_reborrow_outlives_detection() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let vcs = vcgen::generate_vcs(&func, None);
@@ -814,6 +822,7 @@ fn test_phase9_requirement_coverage() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let prophecies = detect_nested_prophecies(&func);
@@ -880,6 +889,7 @@ fn test_phase9_requirement_coverage() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     let chains = detect_reborrow_chains(&reborrow_func);

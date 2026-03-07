@@ -505,6 +505,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -1245,6 +1246,7 @@ mod cross_crate_tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 

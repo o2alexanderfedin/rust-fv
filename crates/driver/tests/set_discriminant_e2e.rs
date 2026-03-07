@@ -80,6 +80,7 @@ fn make_set_discriminant_func(variant_idx: usize) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

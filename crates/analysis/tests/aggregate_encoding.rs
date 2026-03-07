@@ -457,6 +457,7 @@ fn test_struct_construction() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -585,6 +586,7 @@ fn test_struct_field_postcondition_positive() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -677,6 +679,7 @@ fn test_struct_field_postcondition_negative() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -769,6 +772,7 @@ fn test_tuple_construction() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -889,6 +893,7 @@ fn test_tuple_field_access() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1002,6 +1007,7 @@ fn test_array_select() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1172,6 +1178,7 @@ fn test_enum_variant_construction() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 

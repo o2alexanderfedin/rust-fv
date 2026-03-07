@@ -125,6 +125,85 @@ fn convert_generic_params(
         .collect()
 }
 
+/// Extract HRTB (Higher-Rank Trait Bounds) from a function's generic predicates.
+///
+/// Detects `for<'a> F: Fn(&'a T) -> U` patterns in trait predicates.
+/// In rustc, these are represented as `Binder<TraitPredicate>` with bound regions.
+/// Each bound region corresponds to a universally quantified lifetime parameter.
+fn extract_hrtb_bounds(tcx: TyCtxt<'_>, def_id: rustc_hir::def_id::DefId) -> Vec<ir::HrtbBound> {
+    let predicates = tcx.predicates_of(def_id);
+    let mut hrtb_bounds = Vec::new();
+
+    for (clause, _span) in predicates.predicates {
+        // Check if this clause is a trait clause with bound regions (HRTB)
+        if let Some(trait_clause) = clause.as_trait_clause() {
+            // Count bound variables -- if > 0, this is an HRTB bound
+            let bound_vars = trait_clause.bound_vars();
+            if bound_vars.is_empty() {
+                continue;
+            }
+
+            // Extract quantified lifetime names from bound regions
+            let quantified_lifetimes: Vec<String> = bound_vars
+                .iter()
+                .filter_map(|bv| {
+                    if let ty::BoundVariableKind::Region(br_kind) = bv {
+                        Some(match br_kind {
+                            ty::BoundRegionKind::Named(def_id) => {
+                                format!("'{}", tcx.item_name(def_id))
+                            }
+                            ty::BoundRegionKind::Anon => "'_anon".to_string(),
+                            ty::BoundRegionKind::ClosureEnv => "'_env".to_string(),
+                            _ => "'_unknown".to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if quantified_lifetimes.is_empty() {
+                continue;
+            }
+
+            let trait_pred = trait_clause.skip_binder();
+            let trait_name = tcx
+                .def_path_str(trait_pred.trait_ref.def_id)
+                .split("::")
+                .last()
+                .unwrap_or("")
+                .to_string();
+
+            // Only capture Fn/FnMut/FnOnce HRTB bounds
+            if !["Fn", "FnMut", "FnOnce"].contains(&trait_name.as_str()) {
+                continue;
+            }
+
+            // Extract parameter types from the trait ref's generic args
+            let param_tys: Vec<ir::Ty> = trait_pred
+                .trait_ref
+                .args
+                .types()
+                .skip(1) // Skip Self type
+                .map(|ty| convert_ty(ty))
+                .collect();
+
+            // Return type is typically encoded in a separate projection predicate;
+            // for now, use Unit as default (lifetime quantification is the key aspect)
+            let return_ty = ir::Ty::Unit;
+
+            hrtb_bounds.push(ir::HrtbBound {
+                quantified_lifetimes,
+                trait_name,
+                param_tys,
+                return_ty,
+            });
+        }
+    }
+
+    hrtb_bounds
+}
+
 /// Convert a rustc closure type to our IR `Ty::Closure`.
 ///
 /// Called from inside `convert_mir` where `tcx` is available, for locals whose
@@ -383,6 +462,7 @@ pub fn convert_mir<'tcx>(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: extract_hrtb_bounds(tcx, def_id),
     }
 }
 
@@ -948,6 +1028,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         assert!(

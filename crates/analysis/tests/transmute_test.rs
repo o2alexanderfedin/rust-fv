@@ -40,6 +40,7 @@ fn make_transmute_fn(name: &str, unsafe_operations: Vec<UnsafeOperation>) -> Fun
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

@@ -500,6 +500,7 @@ fn test_copy_semantics_preserved() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -639,6 +640,7 @@ fn test_shared_borrow_preserved() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -783,6 +785,7 @@ fn test_mutable_borrow_havoced() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -933,6 +936,7 @@ fn test_move_semantics_value_consumed() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1152,6 +1156,7 @@ fn test_mixed_ownership_call() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1294,6 +1299,7 @@ fn test_ownership_with_postcondition_assumption() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1441,6 +1447,7 @@ fn test_no_ownership_without_contract_db() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1551,6 +1558,7 @@ fn test_shared_vs_mutable_borrow_constraint_count() {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     };
@@ -1782,6 +1790,7 @@ fn test_ownership_multiple_shared_borrow_calls() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 
@@ -1956,6 +1965,7 @@ fn test_preservation_constraint_smt_encoding() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
 

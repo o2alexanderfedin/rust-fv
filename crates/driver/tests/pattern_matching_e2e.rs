@@ -100,6 +100,7 @@ fn make_base_function(name: &str, contracts: Contracts) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

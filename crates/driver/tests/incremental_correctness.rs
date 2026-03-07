@@ -65,6 +65,7 @@ fn make_function(name: &str, basic_blocks: Vec<BasicBlock>, contracts: Contracts
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

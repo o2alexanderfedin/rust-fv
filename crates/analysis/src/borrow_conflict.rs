@@ -606,6 +606,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -676,6 +677,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_expiry_vcs(&context, &live_ranges, &func);
@@ -797,6 +799,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let _result = generate_vcs(&func, None);
@@ -841,6 +844,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);

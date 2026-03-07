@@ -98,6 +98,7 @@ fn build_ptr_func(name: &str, requires_raw: &str, ensures_raw: &str) -> Function
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -165,6 +166,7 @@ fn build_two_ptr_func(name: &str, requires_raw: &str) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }
@@ -226,6 +228,7 @@ fn build_caller_func() -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     }
 }

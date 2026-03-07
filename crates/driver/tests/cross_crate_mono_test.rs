@@ -96,6 +96,7 @@ fn make_cross_crate_generic_func(name: &str) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

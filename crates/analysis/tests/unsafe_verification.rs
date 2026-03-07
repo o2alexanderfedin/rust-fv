@@ -92,6 +92,7 @@ fn make_unsafe_function(
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -1155,6 +1156,7 @@ fn test_cross_function_pointer_aliasing() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Build ContractDatabase with swap_unsafe having an alias precondition
@@ -1250,6 +1252,7 @@ fn test_safe_function_no_unsafe_vcs() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     };
 
     // Generate VCs
@@ -1331,6 +1334,7 @@ fn make_alias_caller(caller_name: &str, callee_name: &str, arg_a: &str, arg_b: &
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

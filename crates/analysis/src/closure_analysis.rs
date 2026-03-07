@@ -238,6 +238,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = extract_closure_info(&func);
@@ -277,6 +278,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = extract_closure_info(&func);
@@ -325,6 +327,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = detect_closure_calls(&func);
@@ -375,6 +378,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let errors = validate_fnonce_single_call(&func);
@@ -436,6 +440,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let errors = validate_fnonce_single_call(&func);

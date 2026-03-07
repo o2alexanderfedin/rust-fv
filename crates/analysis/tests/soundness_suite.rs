@@ -467,6 +467,7 @@ fn snd_signed_add_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -531,6 +532,7 @@ fn snd_unsigned_add_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -595,6 +597,7 @@ fn snd_signed_sub_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -659,6 +662,7 @@ fn snd_unsigned_sub_underflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -723,6 +727,7 @@ fn snd_signed_mul_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -787,6 +792,7 @@ fn snd_unsigned_mul_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -851,6 +857,7 @@ fn snd_division_by_zero() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -915,6 +922,7 @@ fn snd_shift_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1001,6 +1009,7 @@ fn snd_wrong_postcondition_add() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1100,6 +1109,7 @@ fn snd_wrong_postcondition_max() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1166,6 +1176,7 @@ fn snd_wrong_postcondition_identity() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1226,6 +1237,7 @@ fn snd_wrong_postcondition_constant() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1324,6 +1336,7 @@ fn snd_wrong_postcondition_branch() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1390,6 +1403,7 @@ fn snd_postcondition_off_by_one() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1511,6 +1525,7 @@ fn snd_branch_unsound_if_linear() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1587,6 +1602,7 @@ fn snd_signed_div_int_min_neg_one() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1689,6 +1705,7 @@ fn snd_signed_rem_int_min_neg_one() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1793,6 +1810,7 @@ fn snd_unrestricted_input_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -1962,6 +1980,7 @@ fn snd_nested_branch_wrong_result() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2028,6 +2047,7 @@ fn snd_unsigned_rem_div_by_zero() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2096,6 +2116,7 @@ fn snd_shr_overflow() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);
@@ -2178,6 +2199,7 @@ fn snd_add_wrong_upper_bound() {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
         loops: vec![],
     };
     let vcs = vcgen::generate_vcs(&func, None);

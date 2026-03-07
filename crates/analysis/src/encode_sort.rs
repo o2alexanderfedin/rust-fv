@@ -531,6 +531,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -593,6 +594,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1, "Should not duplicate Point declaration");
@@ -634,6 +636,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -689,6 +692,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
         let decls = collect_datatype_declarations(&func);
         assert_eq!(decls.len(), 1);
@@ -795,6 +799,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);
@@ -878,6 +883,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let decls = collect_datatype_declarations(&func);

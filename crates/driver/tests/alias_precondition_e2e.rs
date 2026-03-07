@@ -113,6 +113,7 @@ fn make_caller_func(args: Vec<Operand>) -> Function {
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 

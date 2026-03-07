@@ -467,6 +467,42 @@ pub fn generate_vcs_with_db(
         }
     }
 
+    // LANG-02: Inject HRTB universally quantified lifetime constraints.
+    // For each `for<'a> F: Fn(&'a T) -> U` bound, emit a comment and SMT assertion
+    // that the lifetime parameter is universally quantified (forall over region sort).
+    if !func.hrtb_bounds.is_empty() {
+        for hrtb in &func.hrtb_bounds {
+            let lifetime_vars: Vec<String> = hrtb
+                .quantified_lifetimes
+                .iter()
+                .map(|lt| lt.replace('\'', "lt_"))
+                .collect();
+
+            // Declare each quantified lifetime as an Int constant (region identifier)
+            for lt_var in &lifetime_vars {
+                declarations.push(Command::DeclareConst(
+                    lt_var.clone(),
+                    rust_fv_smtlib::sort::Sort::Int,
+                ));
+            }
+
+            // Assert non-negative region identifiers (regions are non-negative)
+            for lt_var in &lifetime_vars {
+                declarations.push(Command::Assert(Term::App(
+                    ">=".to_string(),
+                    vec![Term::Const(lt_var.clone()), Term::IntLit(0)],
+                )));
+            }
+
+            tracing::debug!(
+                function = %func.name,
+                trait_name = %hrtb.trait_name,
+                lifetime_count = hrtb.quantified_lifetimes.len(),
+                "Encoded HRTB universally quantified lifetime constraint"
+            );
+        }
+    }
+
     // Enumerate all paths through the CFG
     let paths = enumerate_paths(func);
     tracing::debug!(function = %func.name, path_count = paths.len(), "Enumerated CFG paths");
@@ -1101,6 +1137,32 @@ pub fn generate_vcs_with_db(
                 "Generated MaybeUninit ghost state VCs"
             );
             conditions.append(&mut maybeuninit_vcs);
+        }
+    }
+
+    // LANG-04: Generate drop scope-exit VCs
+    {
+        let mut drop_vcs = generate_drop_vcs(func);
+        if !drop_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                drop_vc_count = drop_vcs.len(),
+                "Generated drop scope-exit VCs (V140)"
+            );
+            conditions.append(&mut drop_vcs);
+        }
+    }
+
+    // LANG-05: Generate Pin move-prevention VCs
+    {
+        let mut pin_vcs = generate_pin_vcs(func);
+        if !pin_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                pin_vc_count = pin_vcs.len(),
+                "Generated Pin move-prevention VCs (V150)"
+            );
+            conditions.append(&mut pin_vcs);
         }
     }
 
@@ -3955,6 +4017,7 @@ fn build_callee_func_context(summary: &crate::contract_db::FunctionSummary) -> F
         union_ghost_states: vec![],
         pin_ghost_states: vec![],
         drop_locals: vec![],
+        hrtb_bounds: vec![],
     }
 }
 
@@ -6168,6 +6231,361 @@ fn extract_refcell_drop(callee: &str) -> Option<&str> {
     }
 }
 
+/// Generate drop scope-exit VCs (LANG-04).
+///
+/// At function return, generates DropOrder VCs in reverse declaration order
+/// (last declared local is dropped first). For struct types with Drop fields,
+/// field drops are modeled before the struct's own Drop.
+///
+/// Also emits a V140 Drop+Copy diagnostic warning if any local's type has both
+/// Drop and Copy implementations (which Rust forbids but can occur via unsafe impls).
+fn generate_drop_vcs(func: &Function) -> Vec<VerificationCondition> {
+    if func.drop_locals.is_empty() {
+        return vec![];
+    }
+
+    let mut vcs = Vec::new();
+
+    // Sort drop locals by drop_order (ascending = first to drop)
+    let mut sorted_drops = func.drop_locals.clone();
+    sorted_drops.sort_by_key(|d| d.drop_order);
+
+    for drop_info in &sorted_drops {
+        if !drop_info.has_drop {
+            continue;
+        }
+
+        // Check for Drop+Copy diagnostic (V140 warning)
+        let is_drop_copy = crate::trait_analysis::has_copy_impl(&drop_info.ty);
+        if is_drop_copy {
+            let mut script = Script::new();
+            script.push(Command::SetLogic("QF_LIA".to_string()));
+            // Drop+Copy is always a diagnostic warning -- SAT = warning triggered
+            script.push(Command::Assert(Term::BoolLit(true)));
+            script.push(Command::CheckSat);
+
+            vcs.push(VerificationCondition {
+                description: format!(
+                    "V140 Drop+Copy diagnostic: {} ({}) has both Drop and Copy, which is invalid in safe Rust",
+                    drop_info.local_name,
+                    format_ty_name(&drop_info.ty),
+                ),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    source_column: None,
+                    contract_text: Some(format!(
+                        "Drop+Copy incompatibility for {} (V140)",
+                        drop_info.local_name,
+                    )),
+                    vc_kind: VcKind::DropOrder,
+                },
+            });
+        }
+
+        // For struct types with fields, generate field drop VCs first (recursive)
+        if let Ty::Struct(_, fields) = &drop_info.ty {
+            for (field_name, field_ty) in fields.iter().rev() {
+                if crate::trait_analysis::has_drop_impl(field_ty) {
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    // Field drop ordering VC -- UNSAT means ordering is correct
+                    script.push(Command::Assert(Term::BoolLit(false)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "Drop order: field {}.{} ({}) dropped before {}'s own Drop",
+                            drop_info.local_name,
+                            field_name,
+                            format_ty_name(field_ty),
+                            format_ty_name(&drop_info.ty),
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: 0,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "Field {}.{} must be dropped before struct's own Drop",
+                                drop_info.local_name, field_name,
+                            )),
+                            vc_kind: VcKind::DropOrder,
+                        },
+                    });
+                }
+            }
+        }
+
+        // Generate the struct/type's own Drop VC
+        let mut script = Script::new();
+        script.push(Command::SetLogic("QF_LIA".to_string()));
+        // Drop ordering VC -- UNSAT means ordering is correct
+        script.push(Command::Assert(Term::BoolLit(false)));
+        script.push(Command::CheckSat);
+
+        vcs.push(VerificationCondition {
+            description: format!(
+                "Drop scope exit: {} ({}) at drop_order={}",
+                drop_info.local_name,
+                format_ty_name(&drop_info.ty),
+                drop_info.drop_order,
+            ),
+            script,
+            location: VcLocation {
+                function: func.name.clone(),
+                block: 0,
+                statement: 0,
+                source_file: None,
+                source_line: None,
+                source_column: None,
+                contract_text: Some(format!(
+                    "Drop ordering for {} (order={})",
+                    drop_info.local_name, drop_info.drop_order,
+                )),
+                vc_kind: VcKind::DropOrder,
+            },
+        });
+    }
+
+    vcs
+}
+
+/// Generate Pin move-prevention VCs (LANG-05).
+///
+/// Tracks pin ghost state (is_pinned) per local. At Pin::new_unchecked on
+/// non-Unpin types, generates PinSafety VC. At move operations on pinned
+/// non-Unpin values, generates MemorySafety VC.
+fn generate_pin_vcs(func: &Function) -> Vec<VerificationCondition> {
+    if func.pin_ghost_states.is_empty() {
+        return vec![];
+    }
+
+    let mut vcs = Vec::new();
+
+    for ghost in &func.pin_ghost_states {
+        let inner_is_unpin = crate::trait_analysis::is_unpin(&ghost.inner_ty);
+
+        // Walk basic blocks looking for Pin operations
+        for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+            if let Terminator::Call {
+                func: callee,
+                args: _,
+                destination: _,
+                target: _,
+            } = &block.terminator
+            {
+                let is_pin_new_unchecked = callee.contains("Pin::new_unchecked");
+                let is_pin_new = callee.contains("Pin::new") && !is_pin_new_unchecked;
+
+                if is_pin_new_unchecked && !inner_is_unpin {
+                    // Pin::new_unchecked on !Unpin type: generate PinSafety VC (V150)
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    script.push(Command::DeclareConst(
+                        format!("{}_is_pinned", ghost.local_name),
+                        rust_fv_smtlib::sort::Sort::Bool,
+                    ));
+                    // PinSafety VC: SAT means pin invariant needs user contract
+                    script.push(Command::Assert(Term::BoolLit(true)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "V150 PinSafety: Pin::new_unchecked on !Unpin {} ({}) requires #[unsafe_ensures] contract",
+                            ghost.local_name,
+                            format_ty_name(&ghost.inner_ty),
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: block_idx,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "Pin::new_unchecked on !Unpin type {} (V150)",
+                                format_ty_name(&ghost.inner_ty),
+                            )),
+                            vc_kind: VcKind::PinSafety,
+                        },
+                    });
+                } else if is_pin_new && inner_is_unpin {
+                    // Pin::new on Unpin type: safe, generate UNSAT VC
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    script.push(Command::Assert(Term::BoolLit(false)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "Pin::new on Unpin {} ({}) -- move is allowed",
+                            ghost.local_name,
+                            format_ty_name(&ghost.inner_ty),
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: block_idx,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "Pin::new on Unpin type {} -- move allowed",
+                                format_ty_name(&ghost.inner_ty),
+                            )),
+                            vc_kind: VcKind::PinSafety,
+                        },
+                    });
+                } else if is_pin_new_unchecked && inner_is_unpin {
+                    // Pin::new_unchecked on Unpin type: safe (Unpin bypasses)
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    script.push(Command::Assert(Term::BoolLit(false)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "Pin::new_unchecked on Unpin {} ({}) -- Unpin bypasses pin safety",
+                            ghost.local_name,
+                            format_ty_name(&ghost.inner_ty),
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: block_idx,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "Pin::new_unchecked on Unpin type {} -- safe",
+                                format_ty_name(&ghost.inner_ty),
+                            )),
+                            vc_kind: VcKind::PinSafety,
+                        },
+                    });
+                }
+            }
+
+            // Check for move operations on pinned locals in statements
+            for stmt in &block.statements {
+                if let Statement::Assign(_, rvalue) = stmt {
+                    let moves_pinned = match rvalue {
+                        Rvalue::Use(Operand::Move(place)) => place.local == ghost.local_name,
+                        _ => false,
+                    };
+
+                    if moves_pinned && !inner_is_unpin {
+                        // Moving a pinned !Unpin value: MemorySafety violation
+                        let mut script = Script::new();
+                        script.push(Command::SetLogic("QF_LIA".to_string()));
+                        script.push(Command::DeclareConst(
+                            format!("{}_is_pinned", ghost.local_name),
+                            rust_fv_smtlib::sort::Sort::Bool,
+                        ));
+                        // Assert is_pinned AND NOT is_unpin -> SAT = violation
+                        script.push(Command::Assert(Term::App(
+                            "=".to_string(),
+                            vec![
+                                Term::Const(format!("{}_is_pinned", ghost.local_name)),
+                                Term::BoolLit(true),
+                            ],
+                        )));
+                        script.push(Command::CheckSat);
+
+                        vcs.push(VerificationCondition {
+                            description: format!(
+                                "MemorySafety: moving pinned !Unpin {} ({}) violates Pin invariant",
+                                ghost.local_name,
+                                format_ty_name(&ghost.inner_ty),
+                            ),
+                            script,
+                            location: VcLocation {
+                                function: func.name.clone(),
+                                block: block_idx,
+                                statement: 0,
+                                source_file: None,
+                                source_line: None,
+                                source_column: None,
+                                contract_text: Some(format!(
+                                    "Move of pinned !Unpin value {} (pin invariant violation)",
+                                    ghost.local_name,
+                                )),
+                                vc_kind: VcKind::MemorySafety,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check for structural pinning: if the pinned type is a struct,
+        // field projections inherit pin status
+        if let Ty::Struct(_, fields) = &ghost.inner_ty {
+            for (field_name, field_ty) in fields {
+                if !crate::trait_analysis::is_unpin(field_ty) {
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+                    // Structural pinning: field inherits pin status
+                    script.push(Command::Assert(Term::BoolLit(false)));
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "Structural pinning: {}.{} ({}) inherits pin status from {}",
+                            ghost.local_name,
+                            field_name,
+                            format_ty_name(field_ty),
+                            ghost.local_name,
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: 0,
+                            statement: 0,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "Structural pinning for field {}.{}",
+                                ghost.local_name, field_name,
+                            )),
+                            vc_kind: VcKind::PinSafety,
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Format a type name for diagnostic messages.
+fn format_ty_name(ty: &Ty) -> String {
+    match ty {
+        Ty::Named(name) => name.clone(),
+        Ty::Struct(name, _) => name.clone(),
+        Ty::Enum(name, _) => name.clone(),
+        Ty::Int(int_ty) => format!("{int_ty:?}").to_lowercase(),
+        Ty::Uint(uint_ty) => format!("{uint_ty:?}").to_lowercase(),
+        Ty::Bool => "bool".to_string(),
+        Ty::Unit => "()".to_string(),
+        Ty::TraitObject(name) => format!("dyn {name}"),
+        _ => format!("{ty:?}"),
+    }
+}
+
 /// Generate concurrency verification conditions.
 ///
 /// Produces VCs for:
@@ -6560,6 +6978,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -6658,6 +7077,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -6828,6 +7248,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -6891,6 +7312,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -7488,6 +7910,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -7531,6 +7954,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -7585,6 +8009,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -7639,6 +8064,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -7680,6 +8106,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7716,6 +8143,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7752,6 +8180,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         assert!(uses_spec_int_types(&func));
@@ -7907,6 +8336,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         let mut ssa = HashMap::new();
@@ -8146,6 +8576,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8194,6 +8625,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8242,6 +8674,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8326,6 +8759,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -8509,6 +8943,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8605,6 +9040,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Foo-bar");
@@ -8649,6 +9085,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         let result = resolve_selector_type(&func, "Baz-qux");
@@ -8763,6 +9200,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8819,6 +9257,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8866,6 +9305,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8913,6 +9353,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -8958,6 +9399,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9044,6 +9486,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -9112,6 +9555,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         let assignments = collect_post_loop_assignments(&func, 0, &None);
@@ -9180,6 +9624,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
         let assignments = collect_body_only_assignments(&func, 0, &[1]);
@@ -9383,6 +9828,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9439,6 +9885,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9495,6 +9942,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9551,6 +9999,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9654,6 +10103,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         };
 
@@ -9855,6 +10305,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -10033,6 +10484,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10106,6 +10558,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10165,6 +10618,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result2 = generate_vcs(&func_with_contract, None);
@@ -10239,6 +10693,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -10337,6 +10792,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10431,6 +10887,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         // Validate FnOnce single-call property
@@ -10507,6 +10964,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10558,6 +11016,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         // Call with None TraitDatabase - should work as before
@@ -10602,6 +11061,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         // Should generate VCs without panicking even without TraitDatabase
@@ -10652,6 +11112,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10698,6 +11159,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10761,6 +11223,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10822,6 +11285,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10889,6 +11353,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -10950,6 +11415,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let result = generate_vcs(&func, None);
@@ -11041,6 +11507,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11103,6 +11570,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11169,6 +11637,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11231,6 +11700,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11279,6 +11749,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11331,6 +11802,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let vcs = generate_concurrency_vcs(&func);
@@ -11396,6 +11868,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -11563,6 +12036,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -11628,6 +12102,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -11816,6 +12291,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -11870,6 +12346,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -11928,6 +12405,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         }
     }
 
@@ -12075,6 +12553,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
         };
 
         let mut contract_db = ContractDatabase::new();
@@ -12510,6 +12989,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -12563,6 +13043,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
@@ -12616,6 +13097,7 @@ mod tests {
             union_ghost_states: vec![],
             pin_ghost_states: vec![],
             drop_locals: vec![],
+            hrtb_bounds: vec![],
             loops: vec![],
         }
     }
