@@ -40,8 +40,8 @@ Requirements for v0.8 Completeness & Coverage milestone. Each maps to roadmap ph
 - [x] **LANG-01**: Const generic parameters (`<const N: usize>`) extracted from MIR, encoded as SMT integer constants, substituted during monomorphization
 - [x] **LANG-02**: Higher-ranked trait bounds (`for<'a> F: Fn(&'a T)`) parsed and encoded as universally quantified lifetime constraints
 - [x] **LANG-03**: Union types recognized as ADTs with field access encoded as reinterpretation casts and safety VCs for reads
-- [ ] **LANG-04**: `Drop::drop()` invocations modeled at end of scope, drop order verified, double-drop prevention VCs generated
-- [ ] **LANG-05**: `Pin<P>` modeled as transparent wrapper with move-prevention invariant; `Pin::new_unchecked` callers verified
+- [x] **LANG-04**: `Drop::drop()` invocations modeled at end of scope, drop order verified, double-drop prevention VCs generated
+- [x] **LANG-05**: `Pin<P>` modeled as transparent wrapper with move-prevention invariant; `Pin::new_unchecked` callers verified
 - [ ] **LANG-06**: `catch_unwind` modeled as exception-catching boundary with cleanup verification during unwinding
 - [ ] **LANG-07**: `impl Trait` in return position resolved to concrete types for verification; RPITIT contracts inferred from trait specs
 - [ ] **LANG-08**: Generic Associated Types (GATs) with parameterized associated types and well-formedness constraints
@@ -159,8 +159,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LANG-01 | Phase 51 | Complete |
 | LANG-02 | Phase 51 | Complete |
 | LANG-03 | Phase 51 | Complete |
-| LANG-04 | Phase 51 | Pending |
-| LANG-05 | Phase 51 | Pending |
+| LANG-04 | Phase 51 | Complete |
+| LANG-05 | Phase 51 | Complete |
 | LANG-06 | Phase 52 | Pending |
 | LANG-07 | Phase 52 | Pending |
 | LANG-08 | Phase 52 | Pending |

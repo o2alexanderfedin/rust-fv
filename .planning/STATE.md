@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 51 (Core Language Features I) — in progress
-Plan: 02 of 03 complete
-Status: Plan 02 complete (LANG-02 HRTB + LANG-03 union verification)
-Last activity: 2026-03-07 — Phase 51 plan 02 complete (HRTB lifetime encoding + union ghost state VCs)
+Plan: 03 of 03 complete
+Status: Phase 51 complete (all plans done)
+Last activity: 2026-03-07 — Phase 51 plan 03 complete (LANG-04 drop order + LANG-05 pin safety)
 
 ```
 Progress: [#########           ] 95%
@@ -47,7 +47,7 @@ Progress: [#########           ] 95%
 | 48 | Advanced Ownership & Borrows | COMPL-08, COMPL-09, COMPL-13, COMPL-14, COMPL-16 | Complete |
 | 49 | Cross-Crate & Interop Completeness | COMPL-04, COMPL-10, COMPL-15, COMPL-17, COMPL-18 | Complete |
 | 50 | Stdlib Ptr/Mem & Unsafe Boundary | COMPL-23, COMPL-24, COMPL-25, LANG-15, LANG-16 | Complete |
-| 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Plan 01/03 done |
+| 51 | Core Language Features I | LANG-01, LANG-02, LANG-03, LANG-04, LANG-05 | Complete |
 | 52 | Advanced Type System Features | LANG-06, LANG-07, LANG-08, LANG-09, LANG-10 | Not started |
 | 53 | Operator & Smart Pointer Verification | LANG-11, LANG-12, LANG-13, LANG-14 | Not started |
 | 54 | Stdlib Contracts Batch I | STDLIB-01..08 | Not started |
@@ -93,6 +93,7 @@ Progress: [#########           ] 95%
 | Phase 50 P02 | 2271 | 2 tasks | 85 files |
 | Phase 50 P03 | 3183 | 1 tasks | 4 files |
 | Phase 51 P01 | 2597 | 2 tasks | 81 files |
+| Phase 51 P03 | 3493 | 2 tasks | 4 files |
 | Phase 51 P02 | 1906 | 2 tasks | 82 files |
 
 ## Accumulated Context
@@ -139,6 +140,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 51]: Removed Hash derive from GenericParam since Ty lacks Hash and no code hashes GenericParam
 - [Phase 51]: Auto-enable int_mode in spec parser when function has const generic params to avoid BV/Int sort mismatch
 - [Phase 51]: Union types encoded as BitVec of max field size in bits for overlapping storage semantics
+- [Phase 51]: Trait analysis functions (has_drop_impl, is_unpin, has_copy_impl) use type-level pattern matching for VC generation
+- [Phase 51]: Drop+Copy diagnostic uses SAT assertion (warning); drop ordering VCs use UNSAT (verification pass)
+- [Phase 51]: Pin ghost state uses linear block walk pattern consistent with RefCell/MaybeUninit
 - [Phase 51]: HRTB lifetimes encoded as Int SMT constants with non-negative constraints (region identifiers)
 - [Phase 51]: Union ghost state follows MaybeUninit/RefCell linear block walk pattern for active field tracking
 
@@ -163,10 +167,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T04:57:01.017Z
-Stopped at: Completed 51-02-PLAN.md
-Resume file: None
-Next step: Execute plan 51-02
+Last session: 2026-03-07T05:22:43Z
+Stopped at: Completed 51-03-PLAN.md (Phase 51 complete)
+Resume file: .planning/phases/51-core-language-features-i/51-03-SUMMARY.md
+Next step: Execute phase 52
 
 ---
 

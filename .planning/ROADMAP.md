@@ -87,7 +87,7 @@ Phases 38–44 + generics-fix: behavioral subtyping VCs with Liskov checks, FnMu
 - [x] **Phase 48: Advanced Ownership & Borrows** - RefCell ghost state, two-phase borrowing, partial struct moves, borrow splitting, trigger inference fix (completed 2026-03-06)
 - [x] **Phase 49: Cross-Crate & Interop Completeness** - Cross-crate generic registry, mutable static race VCs, NonNull encoding, From::from at ?, iterator adapter chaining (gap closure in progress) (completed 2026-03-06)
 - [x] **Phase 50: Stdlib Ptr/Mem & Unsafe Boundary** - ptr::read/write contracts, mem::swap contracts, FFI extern "C" modeling, transmute/MaybeUninit, async limitation doc (completed 2026-03-07)
-- [ ] **Phase 51: Core Language Features I** - Const generics, HRTB, union types, Drop::drop modeling, Pin wrapper
+- [x] **Phase 51: Core Language Features I** - Const generics, HRTB, union types, Drop::drop modeling, Pin wrapper (completed 2026-03-07)
 - [ ] **Phase 52: Advanced Type System Features** - catch_unwind, impl Trait RPITIT, GATs, trait upcasting, negative impls
 - [ ] **Phase 53: Operator & Smart Pointer Verification** - Operator overloading, custom Deref, Index/IndexMut, unsafe Send/Sync
 - [ ] **Phase 54: Stdlib Contracts Batch I** - HashSet, VecDeque, BTreeMap/BTreeSet, BinaryHeap, LinkedList, Weak, Cell, OnceCell
@@ -202,7 +202,7 @@ Plans:
   3. A `union U { f: u32, g: f32 }` field read generates a reinterpretation-cast VC asserting bitwise equivalence; reading an uninitialized union variant generates a safety VC caught by Z3
   4. A function whose local variable implements `Drop` generates a drop-order model at scope exit; a type with `Drop` that also has `Copy` generates a compile-time diagnostic (sound rejection)
   5. A function calling `Pin::new_unchecked(&mut val)` on a non-`Unpin` type generates a move-prevention VC; code that subsequently moves the pinned value produces a Z3 SAT counterexample
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 51-01-PLAN.md — IR type foundations + const generic verification (LANG-01)
 - [ ] 51-02-PLAN.md — HRTB encoding + union type VCs (LANG-02, LANG-03)
@@ -304,7 +304,7 @@ Plans:
 | 48 | 4/4 | Complete    | 2026-03-06 | - |
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
-| 51 | 2/3 | In Progress|  | - |
+| 51 | 3/3 | Complete   | 2026-03-07 | - |
 | 52 | v0.8 | 0/? | Not started | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |
