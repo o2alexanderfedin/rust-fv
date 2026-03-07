@@ -15,6 +15,9 @@ pub struct TraitDatabase {
     /// Map from trait name to list of types with negative impls (e.g. !Send, !Sync).
     /// Key is trait name ("Send", "Sync"), value is list of type names with negative impls.
     negative_impls: HashMap<String, Vec<String>>,
+    /// GAT bounds: (trait_name, assoc_type_name) -> Vec<(lifetime_param, outlives_target)>.
+    /// For example, `type Item<'a> where Self: 'a` stores ("'a", "Self").
+    gat_bounds: HashMap<(String, String), Vec<(String, String)>>,
 }
 
 impl TraitDatabase {
@@ -24,6 +27,7 @@ impl TraitDatabase {
             traits: HashMap::new(),
             impls: HashMap::new(),
             negative_impls: HashMap::new(),
+            gat_bounds: HashMap::new(),
         }
     }
 
@@ -84,6 +88,30 @@ impl TraitDatabase {
             .unwrap_or(false)
     }
 
+    /// Register GAT bounds for an associated type on a trait.
+    ///
+    /// Each bound is a (lifetime_param, outlives_target) pair.
+    /// For `type Item<'a> where Self: 'a`, the bound is ("'a", "Self").
+    pub fn register_gat_bounds(
+        &mut self,
+        trait_name: &str,
+        assoc_type: &str,
+        bounds: Vec<(String, String)>,
+    ) {
+        self.gat_bounds
+            .insert((trait_name.to_string(), assoc_type.to_string()), bounds);
+    }
+
+    /// Get GAT bounds for a specific associated type on a trait.
+    ///
+    /// Returns list of (lifetime_param, outlives_target) pairs.
+    pub fn get_gat_bounds(&self, trait_name: &str, assoc_type: &str) -> Vec<(String, String)> {
+        self.gat_bounds
+            .get(&(trait_name.to_string(), assoc_type.to_string()))
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Check if a type implements Send.
     ///
     /// Returns `Some(false)` if the type has `!Send`, `None` if unknown.
@@ -111,6 +139,68 @@ impl Default for TraitDatabase {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Check if `super_trait` is a supertrait of `sub_trait` by walking
+/// the `super_traits` field transitively.
+pub fn is_supertrait(db: &TraitDatabase, sub: &str, super_: &str) -> bool {
+    get_supertrait_chain(db, sub, super_).is_some()
+}
+
+/// Get the chain of traits from `sub` to `super_` if a valid supertrait path exists.
+///
+/// Returns `Some(vec![sub, ..., super_])` if super_ is a (transitive) supertrait of sub.
+/// Returns `None` if no supertrait relationship exists.
+pub fn get_supertrait_chain(db: &TraitDatabase, sub: &str, super_: &str) -> Option<Vec<String>> {
+    if sub == super_ {
+        return Some(vec![sub.to_string()]);
+    }
+
+    let trait_def = db.get_trait(sub)?;
+
+    // Direct supertrait check
+    for st in &trait_def.super_traits {
+        if st == super_ {
+            return Some(vec![sub.to_string(), super_.to_string()]);
+        }
+    }
+
+    // Transitive supertrait check (BFS)
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(sub.to_string());
+    let mut queue: std::collections::VecDeque<(String, Vec<String>)> =
+        std::collections::VecDeque::new();
+
+    for st in &trait_def.super_traits {
+        if !visited.contains(st) {
+            visited.insert(st.clone());
+            queue.push_back((st.clone(), vec![sub.to_string(), st.clone()]));
+        }
+    }
+
+    while let Some((current, path)) = queue.pop_front() {
+        if current == super_ {
+            return Some(path);
+        }
+
+        if let Some(current_def) = db.get_trait(&current) {
+            for st in &current_def.super_traits {
+                if st == super_ {
+                    let mut full_path = path.clone();
+                    full_path.push(st.clone());
+                    return Some(full_path);
+                }
+                if !visited.contains(st) {
+                    visited.insert(st.clone());
+                    let mut new_path = path.clone();
+                    new_path.push(st.clone());
+                    queue.push_back((st.clone(), new_path));
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Detect if a trait is sealed based on visibility and super-trait patterns.

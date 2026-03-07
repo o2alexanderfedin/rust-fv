@@ -271,6 +271,16 @@ pub enum VcKind {
     /// panic path drop cleanup for in-scope variables.
     /// Warning severity.
     PanicSafety,
+    /// GAT well-formedness check (V170).
+    /// Verifies that Generic Associated Type instantiations satisfy their
+    /// where-clause lifetime bounds (e.g., `where Self: 'a`).
+    /// Warning severity.
+    WellFormedness,
+    /// Trait upcasting vtable compatibility check (V180).
+    /// Verifies that casting `dyn SubTrait` to `dyn SuperTrait` is valid
+    /// and that supertrait contracts are preserved at upcast call sites.
+    /// Warning severity.
+    TraitUpcasting,
 }
 
 impl VcKind {
@@ -1215,6 +1225,33 @@ pub fn generate_vcs_with_db(
                 "Generated catch_unwind dual-path VCs (V160)"
             );
             conditions.append(&mut catch_unwind_vcs);
+        }
+    }
+
+    // LANG-08: Generate GAT well-formedness VCs
+    {
+        let mut gat_vcs = generate_gat_well_formedness_vcs(func);
+        if !gat_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                gat_vc_count = gat_vcs.len(),
+                "Generated GAT well-formedness VCs (V170)"
+            );
+            conditions.append(&mut gat_vcs);
+        }
+    }
+
+    // LANG-09: Generate trait upcasting VCs
+    {
+        let trait_db = crate::trait_analysis::TraitDatabase::new();
+        let mut upcast_vcs = generate_trait_upcast_vcs(func, &trait_db);
+        if !upcast_vcs.is_empty() {
+            tracing::debug!(
+                function = %func.name,
+                upcast_vc_count = upcast_vcs.len(),
+                "Generated trait upcasting VCs (V180)"
+            );
+            conditions.append(&mut upcast_vcs);
         }
     }
 
@@ -6914,6 +6951,285 @@ fn generate_catch_unwind_vcs(func: &Function) -> Vec<VerificationCondition> {
                             vc_kind: VcKind::PanicSafety,
                         },
                     });
+                }
+            }
+        }
+    }
+
+    vcs
+}
+
+/// Parse a GAT type name pattern like `Trait::Assoc<'a>` or `Trait::Assoc<'a, 'b>`.
+///
+/// Returns `(trait_name, assoc_name, lifetime_args)` if the pattern matches.
+fn parse_gat_type_name(type_name: &str) -> Option<(String, String, Vec<String>)> {
+    // Look for `::` followed by `<` with lifetime args
+    let double_colon = type_name.find("::")?;
+    let trait_name = &type_name[..double_colon];
+    let rest = &type_name[double_colon + 2..];
+
+    let angle_open = rest.find('<')?;
+    let angle_close = rest.rfind('>')?;
+    if angle_close <= angle_open {
+        return None;
+    }
+
+    let assoc_name = &rest[..angle_open];
+    let args_str = &rest[angle_open + 1..angle_close];
+
+    // Parse lifetime arguments (start with ')
+    let lifetime_args: Vec<String> = args_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| s.starts_with('\''))
+        .collect();
+
+    if lifetime_args.is_empty() {
+        return None;
+    }
+
+    Some((
+        trait_name.to_string(),
+        assoc_name.to_string(),
+        lifetime_args,
+    ))
+}
+
+/// Generate GAT well-formedness VCs at use sites (LANG-08, V170).
+///
+/// Scans function locals and return type for GAT use patterns (e.g., `Trait::Item<'a>`).
+/// For each GAT use site, generates a WellFormedness VC checking that the lifetime
+/// outlives constraint (`where Self: 'a`) is satisfied.
+///
+/// Lifetime encoding reuses Phase 51 HRTB pattern: lifetimes as Int SMT constants
+/// with non-negative constraints. The outlives constraint `Self: 'a` becomes
+/// `(>= lifetime_self lifetime_a)` -- negated for SAT check.
+fn generate_gat_well_formedness_vcs(func: &Function) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    let all_types: Vec<(&str, &Ty)> = func
+        .locals
+        .iter()
+        .chain(std::iter::once(&func.return_local))
+        .map(|l| (l.name.as_str(), &l.ty))
+        .collect();
+
+    for (local_name, ty) in &all_types {
+        let type_name = match ty {
+            Ty::Named(name) => name.as_str(),
+            _ => continue,
+        };
+
+        // Parse GAT pattern: Trait::Assoc<'a> or Trait::Assoc<'a, 'b>
+        let (trait_name, _assoc_name, lifetime_args) = match parse_gat_type_name(type_name) {
+            Some(parsed) => parsed,
+            None => continue,
+        };
+
+        // For each lifetime argument, check if outlives constraint exists
+        for lifetime_arg in &lifetime_args {
+            // Check if there's an outlives constraint covering this lifetime
+            let has_outlives = func.outlives_constraints.iter().any(|oc| {
+                &oc.shorter == lifetime_arg
+                    && (oc.longer.contains("self") || oc.longer.contains("Self"))
+            });
+
+            let mut script = Script::new();
+            script.push(Command::SetLogic("QF_LIA".to_string()));
+
+            // Declare lifetime constants as Int (reusing HRTB pattern)
+            script.push(Command::DeclareConst(
+                format!("lifetime_{}", lifetime_arg.trim_start_matches('\'')),
+                rust_fv_smtlib::sort::Sort::Int,
+            ));
+            script.push(Command::DeclareConst(
+                "lifetime_self".to_string(),
+                rust_fv_smtlib::sort::Sort::Int,
+            ));
+
+            // Non-negative constraints
+            script.push(Command::Assert(Term::IntGe(
+                Box::new(Term::Const(format!(
+                    "lifetime_{}",
+                    lifetime_arg.trim_start_matches('\'')
+                ))),
+                Box::new(Term::IntLit(0)),
+            )));
+            script.push(Command::Assert(Term::IntGe(
+                Box::new(Term::Const("lifetime_self".to_string())),
+                Box::new(Term::IntLit(0)),
+            )));
+
+            if has_outlives {
+                // Constraint is satisfied: assert negation => UNSAT (verified)
+                script.push(Command::Assert(Term::Not(Box::new(Term::BoolLit(true)))));
+            } else {
+                // No outlives constraint found: assert negation of (self >= lifetime)
+                // SAT = violation (Self may not outlive the lifetime)
+                script.push(Command::Assert(Term::Not(Box::new(Term::IntGe(
+                    Box::new(Term::Const("lifetime_self".to_string())),
+                    Box::new(Term::Const(format!(
+                        "lifetime_{}",
+                        lifetime_arg.trim_start_matches('\'')
+                    ))),
+                )))));
+            }
+
+            script.push(Command::CheckSat);
+
+            vcs.push(VerificationCondition {
+                description: format!(
+                    "V170 WellFormedness: GAT {trait_name}::{_assoc_name}<{lifetime_arg}> \
+                     where Self: {lifetime_arg} at local '{local_name}' in '{}'",
+                    func.name,
+                ),
+                script,
+                location: VcLocation {
+                    function: func.name.clone(),
+                    block: 0,
+                    statement: 0,
+                    source_file: None,
+                    source_line: None,
+                    source_column: None,
+                    contract_text: Some(format!(
+                        "GAT well-formedness: Self: {lifetime_arg} (V170)"
+                    )),
+                    vc_kind: VcKind::WellFormedness,
+                },
+            });
+        }
+    }
+
+    vcs
+}
+
+/// Generate trait upcasting VCs (LANG-09, V180).
+///
+/// Walks basic blocks looking for cast operations that convert between
+/// TraitObject types (dyn SubTrait to dyn SuperTrait). For each upcast:
+/// 1. Vtable compatibility VC: verifies supertrait relationship
+/// 2. Contract preservation: warns if supertrait methods have contracts
+///    that need behavioral subtyping verification.
+fn generate_trait_upcast_vcs(
+    func: &Function,
+    db: &crate::trait_analysis::TraitDatabase,
+) -> Vec<VerificationCondition> {
+    let mut vcs = Vec::new();
+
+    for (block_idx, block) in func.basic_blocks.iter().enumerate() {
+        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+            if let Statement::Assign(_dest, Rvalue::Cast(_, operand, dest_ty)) = stmt {
+                // Check if this is a trait object to trait object cast
+                let source_trait = match operand {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        // Look up the source type
+                        let source_ty = func
+                            .locals
+                            .iter()
+                            .chain(func.params.iter())
+                            .find(|l| l.name == place.local)
+                            .map(|l| &l.ty);
+                        match source_ty {
+                            Some(Ty::TraitObject(name)) => Some(name.clone()),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+
+                let dest_trait = match dest_ty {
+                    Ty::TraitObject(name) => Some(name.clone()),
+                    _ => None,
+                };
+
+                if let (Some(sub_trait), Some(super_trait)) = (source_trait, dest_trait) {
+                    if sub_trait == super_trait {
+                        continue;
+                    }
+
+                    // 1. Vtable compatibility VC: check supertrait relationship
+                    let is_valid_upcast =
+                        crate::trait_analysis::is_supertrait(db, &sub_trait, &super_trait);
+
+                    let mut script = Script::new();
+                    script.push(Command::SetLogic("QF_LIA".to_string()));
+
+                    if is_valid_upcast {
+                        // Valid upcast: UNSAT (verified)
+                        script.push(Command::Assert(Term::BoolLit(false)));
+                    } else {
+                        // Invalid upcast: SAT (violation)
+                        script.push(Command::Assert(Term::BoolLit(true)));
+                    }
+                    script.push(Command::CheckSat);
+
+                    vcs.push(VerificationCondition {
+                        description: format!(
+                            "V180 TraitUpcasting: cast dyn {sub_trait} to dyn {super_trait} \
+                             vtable compatibility in '{}'",
+                            func.name,
+                        ),
+                        script,
+                        location: VcLocation {
+                            function: func.name.clone(),
+                            block: block_idx,
+                            statement: stmt_idx,
+                            source_file: None,
+                            source_line: None,
+                            source_column: None,
+                            contract_text: Some(format!(
+                                "trait upcast vtable compatibility: {sub_trait} -> {super_trait} (V180)"
+                            )),
+                            vc_kind: VcKind::TraitUpcasting,
+                        },
+                    });
+
+                    // 2. Contract preservation: check if supertrait has contracted methods
+                    if let Some(super_def) = db.get_trait(&super_trait) {
+                        let contracted_methods =
+                            crate::trait_analysis::collect_trait_methods(super_def);
+                        if !contracted_methods.is_empty() {
+                            let method_names: Vec<_> =
+                                contracted_methods.iter().map(|m| m.name.as_str()).collect();
+
+                            let mut script = Script::new();
+                            script.push(Command::SetLogic("QF_LIA".to_string()));
+
+                            // Check if impl exists for the sub_trait type
+                            let has_impl = !db.get_impls(&super_trait).is_empty();
+                            if has_impl {
+                                // Impl exists, behavioral subtyping already checked
+                                script.push(Command::Assert(Term::BoolLit(false)));
+                            } else {
+                                // No impl found -- warn about missing subtyping check
+                                script.push(Command::Assert(Term::BoolLit(true)));
+                            }
+                            script.push(Command::CheckSat);
+
+                            vcs.push(VerificationCondition {
+                                description: format!(
+                                    "V180 TraitUpcasting: contract preservation for methods [{}] \
+                                     at upcast {sub_trait} -> {super_trait} in '{}'",
+                                    method_names.join(", "),
+                                    func.name,
+                                ),
+                                script,
+                                location: VcLocation {
+                                    function: func.name.clone(),
+                                    block: block_idx,
+                                    statement: stmt_idx,
+                                    source_file: None,
+                                    source_line: None,
+                                    source_column: None,
+                                    contract_text: Some(
+                                        "supertrait contract preservation at upcast (V180)"
+                                            .to_string(),
+                                    ),
+                                    vc_kind: VcKind::TraitUpcasting,
+                                },
+                            });
+                        }
+                    }
                 }
             }
         }

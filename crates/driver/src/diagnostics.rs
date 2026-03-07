@@ -90,6 +90,8 @@ fn report_with_ariadne(failure: &VerificationFailure, source_file: &str, source_
         || failure.vc_kind == VcKind::UnionAccess
         || failure.vc_kind == VcKind::DropOrder
         || failure.vc_kind == VcKind::PanicSafety
+        || failure.vc_kind == VcKind::WellFormedness
+        || failure.vc_kind == VcKind::TraitUpcasting
     {
         ReportKind::Warning
     } else {
@@ -427,6 +429,12 @@ fn vc_kind_description(vc_kind: &VcKind) -> &'static str {
         VcKind::PanicSafety => {
             "catch_unwind panic safety -- unwind path drop cleanup or UnwindSafe check (V160)"
         }
+        VcKind::WellFormedness => {
+            "GAT well-formedness violation -- lifetime outlives constraint not satisfied (V170)"
+        }
+        VcKind::TraitUpcasting => {
+            "trait upcasting vtable compatibility -- supertrait relationship or contract preservation (V180)"
+        }
     }
 }
 
@@ -650,6 +658,18 @@ pub fn suggest_fix(vc_kind: &VcKind) -> Option<String> {
             "V160: catch_unwind boundary detected. Ensure panic path correctly runs \
              destructors for in-scope variables, and consider wrapping &mut captures \
              with AssertUnwindSafe if UnwindSafe bound is intentionally bypassed."
+                .to_string(),
+        ),
+        VcKind::WellFormedness => Some(
+            "V170: GAT well-formedness constraint violated. Ensure that the GAT's \
+             where-clause lifetime bounds are satisfied at the instantiation site. \
+             For `type Item<'a> where Self: 'a`, the Self type must outlive 'a."
+                .to_string(),
+        ),
+        VcKind::TraitUpcasting => Some(
+            "V180: Trait upcast vtable compatibility check. Ensure the source trait \
+             is a subtrait of the destination trait, and that supertrait method \
+             contracts are preserved through behavioral subtyping."
                 .to_string(),
         ),
         _ => None,

@@ -1703,6 +1703,8 @@ fn vc_kind_to_string(vc_kind: &rust_fv_analysis::vcgen::VcKind) -> String {
         VcKind::DropOrder => "drop_order",
         VcKind::PinSafety => "pin_safety",
         VcKind::PanicSafety => "panic_safety",
+        VcKind::WellFormedness => "well_formedness",
+        VcKind::TraitUpcasting => "trait_upcasting",
     }
     .to_string()
 }
