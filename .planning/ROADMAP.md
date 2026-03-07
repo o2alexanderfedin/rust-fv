@@ -217,7 +217,7 @@ Plans:
   3. A GAT `type Item<'a>` with a `where Self: 'a` bound generates a well-formedness SMT assertion at use sites; a violating instantiation produces a Z3 SAT counterexample
   4. Casting `dyn SubTrait` to `dyn SuperTrait` generates a vtable compatibility VC; contracts on `SuperTrait` methods are preserved and checked at call sites on the upcast reference
   5. A type with `impl !Send for MyType` recorded in the trait database causes any function that transfers `MyType` across a thread boundary to generate a `ThreadSafety` VC that Z3 resolves as SAT (violation)
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [ ] 52-01-PLAN.md — impl Trait/RPITIT resolution + Ty::Opaque fallback (LANG-07)
 - [ ] 52-02-PLAN.md — catch_unwind dual-path VCs + negative trait impls (LANG-06, LANG-10)
@@ -305,7 +305,7 @@ Plans:
 | 49 | 4/4 | Complete    | 2026-03-06 | - |
 | 50 | 3/3 | Complete    | 2026-03-07 | - |
 | 51 | 3/3 | Complete   | 2026-03-07 | - |
-| 52 | 1/3 | In Progress|  | - |
+| 52 | 2/3 | In Progress|  | - |
 | 53 | v0.8 | 0/? | Not started | - |
 | 54 | v0.8 | 0/? | Not started | - |
 | 55 | v0.8 | 0/? | Not started | - |

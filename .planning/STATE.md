@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: Completeness & Coverage
-status: completed
-stopped_at: Completed 52-01-PLAN.md
-last_updated: "2026-03-07T09:19:33.631Z"
-last_activity: 2026-03-07 — Phase 51 plan 03 complete (LANG-04 drop order + LANG-05 pin safety)
+status: executing
+stopped_at: Completed 52-02-PLAN.md
+last_updated: "2026-03-07T09:53:11.715Z"
+last_activity: 2026-03-07 — Phase 52 plan 02 complete (LANG-06 catch_unwind + LANG-10 negative impls)
 progress:
   total_phases: 12
   completed_phases: 7
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
   percent: 95
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 52 (Advanced Type System Features) — in progress
-Plan: 01 of 03 complete
+Plan: 02 of 03 complete
 Status: Executing phase 52
-Last activity: 2026-03-07 — Phase 52 plan 01 complete (LANG-07 impl Trait + RPITIT)
+Last activity: 2026-03-07 — Phase 52 plan 02 complete (LANG-06 catch_unwind + LANG-10 negative impls)
 
 ```
 Progress: [#########           ] 95%
@@ -96,6 +96,7 @@ Progress: [#########           ] 95%
 | Phase 51 P03 | 3493 | 2 tasks | 4 files |
 | Phase 51 P02 | 1906 | 2 tasks | 82 files |
 | Phase 52 P01 | 3065 | 2 tasks | 11 files |
+| Phase 52 P02 | 5061 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 52]: Opaque types encoded as Sort::Uninterpreted -- sound over-approximation
 - [Phase 52]: RPITIT uses existing behavioral subtyping infrastructure; no new VC machinery needed
 - [Phase 52]: Trait bound axioms use conservative Assert(BoolLit(true)) with comments for future refinement
+- [Phase 52]: PanicSafety uses V160 (not V120 as planned) because TransmuteSafety already occupies V120
+- [Phase 52]: catch_unwind detection reuses Terminator::Call callee string matching pattern from W080
+- [Phase 52]: Negative impls stored as HashMap<String, Vec<String>> in TraitDatabase
+- [Phase 52]: PanicSafety Warning severity -- catch_unwind is diagnostic aid, not hard verification obligation
 
 ### Key v0.8 Architecture Notes
 
@@ -171,10 +176,10 @@ None current. Known tech debt from v0.7:
 
 ## Session Continuity
 
-Last session: 2026-03-07T09:19:33.622Z
-Stopped at: Completed 52-01-PLAN.md
-Resume file: None
-Next step: Plan and execute phase 52
+Last session: 2026-03-07T09:51:16Z
+Stopped at: Completed 52-02-PLAN.md
+Resume file: .planning/phases/52-advanced-type-system-features/52-02-SUMMARY.md
+Next step: Execute phase 52 plan 03
 
 ---
 
